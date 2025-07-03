@@ -77,8 +77,11 @@ public:
     // va relier les deux extrémités les plus proches
     void connectNearestEndpoints(int idx1, int idx2);
     // Démarre le mode sélection de deux formes
-    void startShapeSelection();           // passe en mode sélection de 2 formes
+    void startShapeSelection();           // sélection pour relier deux formes
     void cancelSelection();               // annule la sélection en cours
+    void toggleMultiSelectMode();         // active/désactive la sélection multiple
+    bool hasSelection() const { return !m_selectedShapes.isEmpty(); }
+    void deleteSelectedShapes();          // supprime toutes les formes sélectionnées
 
     // Nouvelle méthode à appeler au lancement pour définir la limite
     void initializeLimitRect();
@@ -177,8 +180,9 @@ private:
     // Fusion de plusieurs QPainterPath en un seul
     QPainterPath combineSegments(const QList<QPainterPath> &segments);
 
-    bool   m_selectMode      = false;        // vrai si on est en train de sélectionner
-    QVector<int> m_selectedShapes;            // stocke l’indice des 2 formes sélectionnées
+    bool   m_selectMode      = false;        // vrai si une sélection est active
+    bool   m_connectSelectionMode = false;   // sélection utilisée pour la fonction "Relier"
+    QVector<int> m_selectedShapes;            // indices des formes sélectionnées
     bool m_closeMode = false;               // vrai si on est en train de fermer
 
 
@@ -214,6 +218,7 @@ signals:
     void closeModeChanged(bool enabled);
     void shapeSelection(bool enabled);
     void smoothingChanged(bool enabled);
+    void multiSelectionModeChanged(bool enabled);
 
 private slots:
     void onPinchZoom(const QPointF &center, qreal scaleFactor);
