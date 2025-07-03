@@ -1,0 +1,32 @@
+# Qt Creator local settings
+*.pro.user
+*.pro.user.*
+*.autosave
+
+# Build folders
+build-*/
+*.o
+*.obj
+*.so
+*.dll
+*.exe
+
+# MOC/UIC files
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# Makefiles
+Makefile*
+*.app
+
+# CMake (si tu l’utilises aussi)
+CMakeLists.txt.user
+CMakeFiles/
+cmake-build-*/
+
+# Logs and system files
+*.log
+*.DS_Store
+*.swp
+
