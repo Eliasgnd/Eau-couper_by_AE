@@ -22,18 +22,23 @@
 #include <algorithm>
 #include <QFontComboBox>
 #include <QHBoxLayout>
+#include <cmath>
 #include "ScreenUtils.h"
 
 // Detect if an image has colors (i.e., not strictly grayscale)
-static bool isImageColored(const QImage &img) {
+static bool isImageColored(const QImage &img)
+{
+    constexpr int tolerance = 10; // allow minor variations
     for (int y = 0; y < img.height(); ++y) {
-        const QRgb *line = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
         for (int x = 0; x < img.width(); ++x) {
             QRgb pixel = line[x];
             int r = qRed(pixel);
             int g = qGreen(pixel);
             int b = qBlue(pixel);
-            if (r != g || r != b)
+            if (std::abs(r - g) > tolerance ||
+                std::abs(r - b) > tolerance ||
+                std::abs(g - b) > tolerance)
                 return true;
         }
     }
