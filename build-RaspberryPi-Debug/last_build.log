@@ -1,7 +1,0 @@
-g++ -c -pipe -O2 -std=gnu++1z -Wall -Wextra -D_REENTRANT -fPIC -DQT_NO_DEBUG -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_BLUETOOTH_LIB -DQT_CORE_LIB -I../../Mix\ code\ 6.2 -I. -I/usr/include/aarch64-linux-gnu/qt5 -I/usr/include/aarch64-linux-gnu/qt5/QtSvg -I/usr/include/aarch64-linux-gnu/qt5/QtWidgets -I/usr/include/aarch64-linux-gnu/qt5/QtGui -I/usr/include/aarch64-linux-gnu/qt5/QtNetwork -I/usr/include/aarch64-linux-gnu/qt5/QtBluetooth -I/usr/include/aarch64-linux-gnu/qt5/QtCore -I. -I. -I/usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -o MainWindow.o ../MainWindow.cpp
-In file included from ../MainWindow.cpp:3:
-../ui_mainwindow.h:27:10: fatal error: formevisualization.h: No such file or directory
-   27 | #include <formevisualization.h>
-      |          ^~~~~~~~~~~~~~~~~~~~~~
-compilation terminated.
-make: *** [Makefile:596: MainWindow.o] Error 1
