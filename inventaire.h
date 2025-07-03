@@ -57,6 +57,7 @@ private:
 
     // Liste des formes custom sauvegardées
     QList<CustomShapeData> m_customShapes;
+    //test avec victor
 };
 
 #endif // INVENTAIRE_H
