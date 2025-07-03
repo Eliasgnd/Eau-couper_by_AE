@@ -1221,6 +1221,15 @@ QPushButton:pressed {
     padding: 6px 12px;
 }
 
+QPushButton :pressed {
+	
+	background-color: rgb(255, 100, 10);
+}
+
+QPushButton:hover {
+	background-color: rgb(190, 10, 10);
+}
+
 </string>
        </property>
        <property name="text">
@@ -1247,6 +1256,15 @@ QPushButton:pressed {
     font-size: 14px;
     border-radius: 19px;
     padding: 6px 12px;
+}
+
+QPushButton :pressed {
+	
+	background-color: rgb(150, 100, 0);
+}
+
+QPushButton:hover {
+	background-color: rgb(250, 200, 0);
 }
 </string>
        </property>
