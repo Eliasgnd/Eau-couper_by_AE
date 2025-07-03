@@ -23,6 +23,8 @@ class Inventaire : public QWidget
     Q_OBJECT
 
 public:
+
+    bool gros_cavu;
     explicit Inventaire(QWidget *parent = nullptr);
     ~Inventaire();
 
