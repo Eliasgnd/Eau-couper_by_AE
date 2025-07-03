@@ -5,7 +5,7 @@
 #include <QPushButton>
 #include <QGridLayout>
 #include <QLineEdit>
-
+//du commentaire la
 class Clavier : public QDialog
 {
     Q_OBJECT
