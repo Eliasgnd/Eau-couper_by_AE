@@ -9,7 +9,7 @@
 #include <QDebug>
 
 // -------------------------------------------------------------------
-// Fonctions statiques internes test
+// Fonctions statiques internes test branche
 // -------------------------------------------------------------------
 
 // Cette fonction effectue une érosion sur une image binaire (Format_Mono).
