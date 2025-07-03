@@ -17,6 +17,8 @@ struct CustomShapeData {
     QString name;
 };
 
+//gros caca boudin prout
+
 class Inventaire : public QWidget
 {
     Q_OBJECT

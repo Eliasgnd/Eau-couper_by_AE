@@ -2,7 +2,7 @@
 #include "MainWindow.h"
 #include "keyboardeventfilter.h"
 
-int main(int argc, char *argv[]) //gros caca boudin prout
+int main(int argc, char *argv[])
 {
     /*  On ne veut PAS désactiver la conversion touch → mouse,
         sinon le dessin au doigt ne marche plus.        */
