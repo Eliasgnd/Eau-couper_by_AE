@@ -38,7 +38,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_currentText("Votre texte ici"),
     m_textFont("Arial", 16),
     m_snapToGrid(false),
-    m_gridSpacing(20)
+    m_gridSpacing(20),
+    m_minPointDistance(2.0)
 
 {
     setMouseTracking(true);
@@ -552,14 +553,22 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     case DrawMode::Freehand:
         m_drawing = true;
         m_freehandPoints.clear();
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        {
+            m_freehandPoints.append(pos);
+        }
         break;
     case DrawMode::PointParPoint:
         if (!m_drawing) {
             m_drawing = true;
             m_freehandPoints.clear();
         }
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        {
+            m_freehandPoints.append(pos);
+        }
         break;
     case DrawMode::Line:
     case DrawMode::Circle:
@@ -692,7 +701,11 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     {
     case DrawMode::Freehand:
         if (!m_drawing) return;
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        {
+            m_freehandPoints.append(pos);
+        }
         update();
         break;
     case DrawMode::PointParPoint:
@@ -923,10 +936,12 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     {
         if (!m_drawing)
             return;
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() || distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+            m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int iterations = (m_smoothingLevel == 0) ? 5 : (m_smoothingLevel == 1 ? 8 : 12);
+            int iterations = (m_smoothingLevel == 0) ? 1 :
+                             (m_smoothingLevel == 1 ? 2 : 3);
             finalPoints = applyChaikinAlgorithm(m_freehandPoints, iterations);
         } else {
             finalPoints = m_freehandPoints;
@@ -1213,8 +1228,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         QPainterPath preview;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int it = (m_smoothingLevel == 0) ? 5 :
-                     (m_smoothingLevel == 1 ? 8 : 12);
+            int it = (m_smoothingLevel == 0) ? 1 :
+                     (m_smoothingLevel == 1 ? 2 : 3);
             QList<QPointF> pts = applyChaikinAlgorithm(m_freehandPoints, it);
             preview = generateBezierPath(pts);        // lissé
         } else {

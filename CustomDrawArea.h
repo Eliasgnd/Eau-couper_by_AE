@@ -206,6 +206,9 @@ private:
     int    m_gridSpacing  = 20;      // Doit rester synchronisé avec celui du paintEvent
     QPointF snapIfNeeded(const QPointF &p) const;
 
+    // Distance minimale entre deux points consécutifs lors du dessin libre
+    qreal  m_minPointDistance = 2.0;
+
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
