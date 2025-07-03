@@ -1,19 +1,24 @@
 #pragma once
+
 #include <QGraphicsScene>
 #include <QPoint>
 #include <QVector>
 #include <QList>
 
-struct Segment {
-    QPoint a, b;    // extrémités en px
-    double len;     // longueur en px
+/** Représentation d'un segment de coupe. */
+struct Segment
+{
+    QPoint a, b;   //!< Extrémités en pixels
+    double len;    //!< Longueur en pixels
 };
 
-class PathPlanner {
+/** Outils d’extraction / calcul de parcours eulérien. */
+class PathPlanner
+{
 public:
-    //! Extrait tous les segments des items + fusion des coupes communes
-    static QList<Segment> extractSegments(QGraphicsScene* scene);
+    //! Extrait tous les segments présents dans la scène (fusion des côtés communs).
+    static QList<Segment> extractSegments(QGraphicsScene *scene);
 
-    //! Construit un chemin eulérien (Heuristique) et renvoie la liste de points
-    static QVector<QPoint> buildEulerPath(const QList<Segment>& segs);
+    //! Construit (heuristiquement) un chemin eulérien et renvoie la liste des points.
+    static QVector<QPoint> buildEulerPath(const QList<Segment> &segs);
 };

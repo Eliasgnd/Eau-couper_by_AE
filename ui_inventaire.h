@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'inventaire.ui'
 **
-** Created by: Qt User Interface Compiler version 5.15.8
+** Created by: Qt User Interface Compiler version 6.7.3
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
@@ -32,7 +32,7 @@ public:
     void setupUi(QWidget *Inventaire)
     {
         if (Inventaire->objectName().isEmpty())
-            Inventaire->setObjectName(QString::fromUtf8("Inventaire"));
+            Inventaire->setObjectName("Inventaire");
         Inventaire->resize(1301, 677);
         Inventaire->setBaseSize(QSize(1280, 720));
         Inventaire->setStyleSheet(QString::fromUtf8("QWidget {\n"
@@ -41,7 +41,7 @@ public:
 "\n"
 ""));
         buttonMenu = new QPushButton(Inventaire);
-        buttonMenu->setObjectName(QString::fromUtf8("buttonMenu"));
+        buttonMenu->setObjectName("buttonMenu");
         buttonMenu->setGeometry(QRect(1220, 0, 61, 51));
         buttonMenu->setAutoFillBackground(false);
         buttonMenu->setStyleSheet(QString::fromUtf8("QPushButton {\n"
@@ -65,24 +65,24 @@ public:
 "}\n"
 ""));
         QIcon icon;
-        icon.addFile(QString::fromUtf8(":/icons/cross.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon.addFile(QString::fromUtf8(":/icons/cross.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonMenu->setIcon(icon);
         buttonMenu->setIconSize(QSize(40, 40));
         scrollAreaInventaire = new QScrollArea(Inventaire);
-        scrollAreaInventaire->setObjectName(QString::fromUtf8("scrollAreaInventaire"));
+        scrollAreaInventaire->setObjectName("scrollAreaInventaire");
         scrollAreaInventaire->setGeometry(QRect(10, 70, 1221, 591));
         scrollAreaInventaire->setWidgetResizable(true);
         scrollAreaWidgetContents = new QWidget();
-        scrollAreaWidgetContents->setObjectName(QString::fromUtf8("scrollAreaWidgetContents"));
+        scrollAreaWidgetContents->setObjectName("scrollAreaWidgetContents");
         scrollAreaWidgetContents->setGeometry(QRect(0, 0, 1219, 589));
         containerWidget = new QWidget(scrollAreaWidgetContents);
-        containerWidget->setObjectName(QString::fromUtf8("containerWidget"));
+        containerWidget->setObjectName("containerWidget");
         containerWidget->setGeometry(QRect(0, 10, 1221, 581));
         gridLayoutWidget = new QWidget(containerWidget);
-        gridLayoutWidget->setObjectName(QString::fromUtf8("gridLayoutWidget"));
+        gridLayoutWidget->setObjectName("gridLayoutWidget");
         gridLayoutWidget->setGeometry(QRect(-10, -10, 1241, 591));
         gridLayout = new QGridLayout(gridLayoutWidget);
-        gridLayout->setObjectName(QString::fromUtf8("gridLayout"));
+        gridLayout->setObjectName("gridLayout");
         gridLayout->setContentsMargins(0, 0, 0, 0);
         scrollAreaInventaire->setWidget(scrollAreaWidgetContents);
 

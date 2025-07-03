@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'custom.ui'
 **
-** Created by: Qt User Interface Compiler version 5.15.8
+** Created by: Qt User Interface Compiler version 6.7.3
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
@@ -51,14 +51,14 @@ public:
     void setupUi(QWidget *custom)
     {
         if (custom->objectName().isEmpty())
-            custom->setObjectName(QString::fromUtf8("custom"));
+            custom->setObjectName("custom");
         custom->resize(1497, 842);
         custom->setStyleSheet(QString::fromUtf8("QWidget {\n"
 "	background-color: rgb(189, 189, 189);\n"
 "}\n"
 ""));
         drawingWidget = new QWidget(custom);
-        drawingWidget->setObjectName(QString::fromUtf8("drawingWidget"));
+        drawingWidget->setObjectName("drawingWidget");
         drawingWidget->setGeometry(QRect(140, 0, 1000, 671));
         drawingWidget->setMinimumSize(QSize(1000, 500));
         drawingWidget->setMaximumSize(QSize(1500, 800));
@@ -67,16 +67,16 @@ public:
 "}\n"
 ""));
         verticalLayoutWidget = new QWidget(custom);
-        verticalLayoutWidget->setObjectName(QString::fromUtf8("verticalLayoutWidget"));
+        verticalLayoutWidget->setObjectName("verticalLayoutWidget");
         verticalLayoutWidget->setGeometry(QRect(0, 0, 142, 511));
         verticalLayout = new QVBoxLayout(verticalLayoutWidget);
-        verticalLayout->setObjectName(QString::fromUtf8("verticalLayout"));
+        verticalLayout->setObjectName("verticalLayout");
         verticalLayout->setContentsMargins(0, 0, 0, 0);
         buttonMenu = new QPushButton(verticalLayoutWidget);
-        buttonMenu->setObjectName(QString::fromUtf8("buttonMenu"));
+        buttonMenu->setObjectName("buttonMenu");
         buttonMenu->setMinimumSize(QSize(140, 0));
         buttonMenu->setMaximumSize(QSize(140, 16777215));
-        buttonMenu->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonMenu->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonMenu->setLayoutDirection(Qt::RightToLeft);
         buttonMenu->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -97,16 +97,16 @@ public:
 ""));
         buttonMenu->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon;
-        icon.addFile(QString::fromUtf8(":/icons/house.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon.addFile(QString::fromUtf8(":/icons/house.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonMenu->setIcon(icon);
 
         verticalLayout->addWidget(buttonMenu);
 
         Reset = new QPushButton(verticalLayoutWidget);
-        Reset->setObjectName(QString::fromUtf8("Reset"));
+        Reset->setObjectName("Reset");
         Reset->setMinimumSize(QSize(140, 0));
         Reset->setMaximumSize(QSize(140, 16777215));
-        Reset->setCursor(QCursor(Qt::PointingHandCursor));
+        Reset->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         Reset->setLayoutDirection(Qt::RightToLeft);
         Reset->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -127,16 +127,16 @@ public:
 ""));
         Reset->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon1;
-        icon1.addFile(QString::fromUtf8(":/icons/reload.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon1.addFile(QString::fromUtf8(":/icons/reload.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         Reset->setIcon(icon1);
 
         verticalLayout->addWidget(Reset);
 
         Appliquer = new QPushButton(verticalLayoutWidget);
-        Appliquer->setObjectName(QString::fromUtf8("Appliquer"));
+        Appliquer->setObjectName("Appliquer");
         Appliquer->setMinimumSize(QSize(140, 0));
         Appliquer->setMaximumSize(QSize(140, 16777215));
-        Appliquer->setCursor(QCursor(Qt::PointingHandCursor));
+        Appliquer->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         Appliquer->setLayoutDirection(Qt::RightToLeft);
         Appliquer->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -157,17 +157,17 @@ public:
 ""));
         Appliquer->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon2;
-        icon2.addFile(QString::fromUtf8(":/icons/check.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon2.addFile(QString::fromUtf8(":/icons/check.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         Appliquer->setIcon(icon2);
 
         verticalLayout->addWidget(Appliquer);
 
         buttonLissage = new QPushButton(verticalLayoutWidget);
-        buttonLissage->setObjectName(QString::fromUtf8("buttonLissage"));
+        buttonLissage->setObjectName("buttonLissage");
         buttonLissage->setMinimumSize(QSize(140, 65));
         buttonLissage->setMaximumSize(QSize(140, 16777215));
         buttonLissage->setBaseSize(QSize(0, 0));
-        buttonLissage->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonLissage->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonLissage->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
 "    color: white; \n"
@@ -190,15 +190,15 @@ public:
         verticalLayout->addWidget(buttonLissage);
 
         buttonForme = new QToolButton(verticalLayoutWidget);
-        buttonForme->setObjectName(QString::fromUtf8("buttonForme"));
-        QSizePolicy sizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+        buttonForme->setObjectName("buttonForme");
+        QSizePolicy sizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::Fixed);
         sizePolicy.setHorizontalStretch(0);
         sizePolicy.setVerticalStretch(0);
         sizePolicy.setHeightForWidth(buttonForme->sizePolicy().hasHeightForWidth());
         buttonForme->setSizePolicy(sizePolicy);
         buttonForme->setMinimumSize(QSize(140, 0));
         buttonForme->setMaximumSize(QSize(140, 16777215));
-        buttonForme->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonForme->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonForme->setFocusPolicy(Qt::NoFocus);
         buttonForme->setLayoutDirection(Qt::RightToLeft);
         buttonForme->setStyleSheet(QString::fromUtf8("QToolButton {\n"
@@ -220,7 +220,7 @@ public:
 ""));
         buttonForme->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon3;
-        icon3.addFile(QString::fromUtf8(":/icons/pencil.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon3.addFile(QString::fromUtf8(":/icons/pencil.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonForme->setIcon(icon3);
         buttonForme->setPopupMode(QToolButton::DelayedPopup);
         buttonForme->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -229,10 +229,10 @@ public:
         verticalLayout->addWidget(buttonForme);
 
         buttonRetour = new QPushButton(verticalLayoutWidget);
-        buttonRetour->setObjectName(QString::fromUtf8("buttonRetour"));
+        buttonRetour->setObjectName("buttonRetour");
         buttonRetour->setMinimumSize(QSize(140, 0));
         buttonRetour->setMaximumSize(QSize(140, 16777215));
-        buttonRetour->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonRetour->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonRetour->setLayoutDirection(Qt::RightToLeft);
         buttonRetour->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -253,13 +253,13 @@ public:
 ""));
         buttonRetour->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon4;
-        icon4.addFile(QString::fromUtf8(":/icons/back-arrow.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon4.addFile(QString::fromUtf8(":/icons/back-arrow.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonRetour->setIcon(icon4);
 
         verticalLayout->addWidget(buttonRetour);
 
         buttonImporter = new QToolButton(verticalLayoutWidget);
-        buttonImporter->setObjectName(QString::fromUtf8("buttonImporter"));
+        buttonImporter->setObjectName("buttonImporter");
         sizePolicy.setHeightForWidth(buttonImporter->sizePolicy().hasHeightForWidth());
         buttonImporter->setSizePolicy(sizePolicy);
         buttonImporter->setMinimumSize(QSize(140, 0));
@@ -284,7 +284,7 @@ public:
 ""));
         buttonImporter->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon5;
-        icon5.addFile(QString::fromUtf8(":/icons/download.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon5.addFile(QString::fromUtf8(":/icons/download.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonImporter->setIcon(icon5);
         buttonImporter->setPopupMode(QToolButton::DelayedPopup);
         buttonImporter->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -292,10 +292,10 @@ public:
         verticalLayout->addWidget(buttonImporter);
 
         buttonSave = new QToolButton(verticalLayoutWidget);
-        buttonSave->setObjectName(QString::fromUtf8("buttonSave"));
+        buttonSave->setObjectName("buttonSave");
         buttonSave->setMinimumSize(QSize(140, 0));
         buttonSave->setMaximumSize(QSize(140, 16777215));
-        buttonSave->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonSave->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonSave->setLayoutDirection(Qt::RightToLeft);
         buttonSave->setStyleSheet(QString::fromUtf8("QToolButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -316,7 +316,7 @@ public:
 ""));
         buttonSave->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon6;
-        icon6.addFile(QString::fromUtf8(":/icons/save.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon6.addFile(QString::fromUtf8(":/icons/save.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonSave->setIcon(icon6);
         buttonSave->setPopupMode(QToolButton::DelayedPopup);
         buttonSave->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -324,16 +324,16 @@ public:
         verticalLayout->addWidget(buttonSave);
 
         verticalLayoutWidget_2 = new QWidget(custom);
-        verticalLayoutWidget_2->setObjectName(QString::fromUtf8("verticalLayoutWidget_2"));
+        verticalLayoutWidget_2->setObjectName("verticalLayoutWidget_2");
         verticalLayoutWidget_2->setGeometry(QRect(1140, 0, 142, 421));
         verticalLayout_2 = new QVBoxLayout(verticalLayoutWidget_2);
-        verticalLayout_2->setObjectName(QString::fromUtf8("verticalLayout_2"));
+        verticalLayout_2->setObjectName("verticalLayout_2");
         verticalLayout_2->setContentsMargins(0, 0, 0, 0);
         buttonGomme = new QPushButton(verticalLayoutWidget_2);
-        buttonGomme->setObjectName(QString::fromUtf8("buttonGomme"));
+        buttonGomme->setObjectName("buttonGomme");
         buttonGomme->setMinimumSize(QSize(140, 0));
         buttonGomme->setMaximumSize(QSize(140, 16777215));
-        buttonGomme->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonGomme->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonGomme->setLayoutDirection(Qt::LeftToRight);
         buttonGomme->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -354,13 +354,13 @@ public:
 ""));
         buttonGomme->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon7;
-        icon7.addFile(QString::fromUtf8(":/icons/eraser.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon7.addFile(QString::fromUtf8(":/icons/eraser.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonGomme->setIcon(icon7);
 
         verticalLayout_2->addWidget(buttonGomme);
 
         tailleGomme = new QSlider(verticalLayoutWidget_2);
-        tailleGomme->setObjectName(QString::fromUtf8("tailleGomme"));
+        tailleGomme->setObjectName("tailleGomme");
         tailleGomme->setStyleSheet(QString::fromUtf8("QSlider::groove:horizontal {\n"
 "    height: 6px;\n"
 "    background: #d6d6d6;\n"
@@ -389,10 +389,10 @@ public:
         verticalLayout_2->addWidget(tailleGomme);
 
         buttonSupprimer = new QPushButton(verticalLayoutWidget_2);
-        buttonSupprimer->setObjectName(QString::fromUtf8("buttonSupprimer"));
+        buttonSupprimer->setObjectName("buttonSupprimer");
         buttonSupprimer->setMinimumSize(QSize(140, 0));
         buttonSupprimer->setMaximumSize(QSize(140, 16777215));
-        buttonSupprimer->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonSupprimer->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonSupprimer->setLayoutDirection(Qt::LeftToRight);
         buttonSupprimer->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -413,17 +413,17 @@ public:
 ""));
         buttonSupprimer->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon8;
-        icon8.addFile(QString::fromUtf8(":/icons/cross.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon8.addFile(QString::fromUtf8(":/icons/cross.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonSupprimer->setIcon(icon8);
         buttonSupprimer->setIconSize(QSize(20, 20));
 
         verticalLayout_2->addWidget(buttonSupprimer);
 
         buttonDeplacer = new QPushButton(verticalLayoutWidget_2);
-        buttonDeplacer->setObjectName(QString::fromUtf8("buttonDeplacer"));
+        buttonDeplacer->setObjectName("buttonDeplacer");
         buttonDeplacer->setMinimumSize(QSize(140, 0));
         buttonDeplacer->setMaximumSize(QSize(140, 16777215));
-        buttonDeplacer->setCursor(QCursor(Qt::PointingHandCursor));
+        buttonDeplacer->setCursor(QCursor(Qt::CursorShape::PointingHandCursor));
         buttonDeplacer->setLayoutDirection(Qt::LeftToRight);
         buttonDeplacer->setStyleSheet(QString::fromUtf8("QPushButton {\n"
 "    background-color: #00BCD4;  /* Cyan primaire */\n"
@@ -444,13 +444,13 @@ public:
 ""));
         buttonDeplacer->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon9;
-        icon9.addFile(QString::fromUtf8(":/icons/cursor.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon9.addFile(QString::fromUtf8(":/icons/cursor.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonDeplacer->setIcon(icon9);
 
         verticalLayout_2->addWidget(buttonDeplacer);
 
         buttonConnect = new QPushButton(verticalLayoutWidget_2);
-        buttonConnect->setObjectName(QString::fromUtf8("buttonConnect"));
+        buttonConnect->setObjectName("buttonConnect");
         buttonConnect->setMinimumSize(QSize(140, 0));
         buttonConnect->setMaximumSize(QSize(140, 16777215));
         buttonConnect->setStyleSheet(QString::fromUtf8("/* ton style de base */\n"
@@ -483,13 +483,13 @@ public:
 ""));
         buttonConnect->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon10;
-        icon10.addFile(QString::fromUtf8(":/icons/link.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon10.addFile(QString::fromUtf8(":/icons/link.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonConnect->setIcon(icon10);
 
         verticalLayout_2->addWidget(buttonConnect);
 
         buttonSnapGrid = new QPushButton(verticalLayoutWidget_2);
-        buttonSnapGrid->setObjectName(QString::fromUtf8("buttonSnapGrid"));
+        buttonSnapGrid->setObjectName("buttonSnapGrid");
         buttonSnapGrid->setMinimumSize(QSize(140, 0));
         buttonSnapGrid->setMaximumSize(QSize(140, 16777215));
         buttonSnapGrid->setStyleSheet(QString::fromUtf8("/* ton style de base */\n"
@@ -526,7 +526,7 @@ public:
         verticalLayout_2->addWidget(buttonSnapGrid);
 
         sliderGridSpacing = new QSlider(verticalLayoutWidget_2);
-        sliderGridSpacing->setObjectName(QString::fromUtf8("sliderGridSpacing"));
+        sliderGridSpacing->setObjectName("sliderGridSpacing");
         sliderGridSpacing->setStyleSheet(QString::fromUtf8("QSlider::groove:horizontal {\n"
 "    height: 6px;\n"
 "    background: #d6d6d6;\n"
@@ -555,13 +555,13 @@ public:
         verticalLayout_2->addWidget(sliderGridSpacing);
 
         labelGridSpacing = new QLabel(verticalLayoutWidget_2);
-        labelGridSpacing->setObjectName(QString::fromUtf8("labelGridSpacing"));
+        labelGridSpacing->setObjectName("labelGridSpacing");
         labelGridSpacing->setMaximumSize(QSize(140, 20));
 
         verticalLayout_2->addWidget(labelGridSpacing);
 
         buttonCloseShape = new QPushButton(verticalLayoutWidget_2);
-        buttonCloseShape->setObjectName(QString::fromUtf8("buttonCloseShape"));
+        buttonCloseShape->setObjectName("buttonCloseShape");
         buttonCloseShape->setMinimumSize(QSize(140, 0));
         buttonCloseShape->setMaximumSize(QSize(140, 16777215));
         buttonCloseShape->setStyleSheet(QString::fromUtf8("/* ton style de base */\n"
@@ -594,7 +594,7 @@ public:
 ""));
         buttonCloseShape->setLocale(QLocale(QLocale::French, QLocale::France));
         QIcon icon11;
-        icon11.addFile(QString::fromUtf8(":/icons/fence.svg"), QSize(), QIcon::Normal, QIcon::Off);
+        icon11.addFile(QString::fromUtf8(":/icons/fence.svg"), QSize(), QIcon::Mode::Normal, QIcon::State::Off);
         buttonCloseShape->setIcon(icon11);
 
         verticalLayout_2->addWidget(buttonCloseShape);

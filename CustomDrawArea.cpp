@@ -12,17 +12,14 @@
 #include <algorithm> // pour std::sort
 #include <QInputDialog>
 #include <QLineEdit>
-
 #include <limits>
 #include <QtGlobal>
 #include <algorithm>
-
-
 #include <QList>
 #include <QPainterPath>
 #include <QTouchEvent>
-
 #include <QPinchGesture>
+#include <utility>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),

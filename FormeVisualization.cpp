@@ -564,9 +564,7 @@ void FormeVisualization::resetCutMarkers()
         delete item;
     }
     m_cutMarkers.clear();
-    graphicsView->viewport()->update();
 }
-
 
 QGraphicsScene* FormeVisualization::getScene() const {
     return scene;

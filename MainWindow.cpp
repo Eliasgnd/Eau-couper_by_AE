@@ -25,7 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
+    qDebug() << "Titre du bouton Play =" << ui->Play->text();
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
 
