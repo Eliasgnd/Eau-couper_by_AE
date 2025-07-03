@@ -16,10 +16,29 @@
 #include <QToolButton>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QImage>
+#include <QProgressDialog>
+#include <QApplication>
 #include <algorithm>
 #include <QFontComboBox>
 #include <QHBoxLayout>
 #include "ScreenUtils.h"
+
+// Detect if an image has colors (i.e., not strictly grayscale)
+static bool isImageColored(const QImage &img) {
+    for (int y = 0; y < img.height(); ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            QRgb pixel = line[x];
+            int r = qRed(pixel);
+            int g = qGreen(pixel);
+            int b = qBlue(pixel);
+            if (r != g || r != b)
+                return true;
+        }
+    }
+    return false;
+}
 
 
 // Constructeur : création de l'interface et des connexions
@@ -453,6 +472,24 @@ void custom::importerLogo()
     if (filePath.isEmpty())
         return;
 
+    QImage checkImg(filePath);
+    if (checkImg.isNull()) {
+        QMessageBox::warning(this, tr("Erreur"), tr("Impossible de charger l'image."));
+        return;
+    }
+    if (isImageColored(checkImg)) {
+        QMessageBox::warning(this,
+                             tr("Image couleur"),
+                             tr("Cette application n'accepte que les images en noir et blanc."));
+        return;
+    }
+
+    QProgressDialog progress(tr("Importation en cours..."), QString(), 0, 0, this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.show();
+    qApp->processEvents();
+
     QMessageBox::StandardButton reply = QMessageBox::question(
         this,
         tr("Contours internes"),
@@ -463,6 +500,7 @@ void custom::importerLogo()
 
     LogoImporter importer;
     QPainterPath outline = importer.importLogo(filePath, includeInternal, 128);
+    progress.close();
     if (outline.isEmpty()) {
         qDebug() << "Le chemin importé est vide, vérifiez l'image ou la méthode d'import.";
         return;
