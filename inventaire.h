@@ -23,22 +23,6 @@ class Inventaire : public QWidget
     Q_OBJECT
 
 public:
-/*
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- */
-
     explicit Inventaire(QWidget *parent = nullptr);
     ~Inventaire();
 
