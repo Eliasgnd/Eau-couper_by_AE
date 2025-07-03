@@ -64,6 +64,15 @@ custom::custom(QWidget *parent)
         ui->buttonConnect->update();
     });
 
+    // Changer la couleur du bouton "selection" quand le mode est actif
+    connect(drawArea, &CustomDrawArea::multiSelectionModeChanged,
+            this, [this](bool enabled){
+        ui->buttonSelection->setProperty("closeMode", enabled);
+        ui->buttonSelection->style()->unpolish(ui->buttonSelection);
+        ui->buttonSelection->style()->polish(ui->buttonSelection);
+        ui->buttonSelection->update();
+    });
+
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
     connect(ui->Appliquer, &QPushButton::clicked, this, [this]() {
         qDebug() << "Signal applyCustomShapeSignal émis avec les formes !";
@@ -87,6 +96,9 @@ custom::custom(QWidget *parent)
 
     //Relier deux extrémités
     connect(ui->buttonConnect, &QPushButton::clicked, drawArea, &::CustomDrawArea::startShapeSelection);
+
+    // Bouton de sélection multiple
+    connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
 
 
     connect(ui->buttonCloseShape, &QPushButton::clicked,
@@ -223,8 +235,12 @@ custom::custom(QWidget *parent)
 
     // --- Connexions pour les autres boutons ---
     connect(ui->buttonSupprimer, &QPushButton::clicked, this, [this]() {
-        drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
-        qDebug() << "Mode Supprimer sélectionné";
+        if (drawArea->hasSelection()) {
+            drawArea->deleteSelectedShapes();
+        } else {
+            drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
+            qDebug() << "Mode Supprimer sélectionné";
+        }
     });
     connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Deplacer);
