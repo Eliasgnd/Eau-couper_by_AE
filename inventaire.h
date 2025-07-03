@@ -17,7 +17,6 @@ struct CustomShapeData {
     QString name;
 };
 
-//gros caca boudin prout
 
 class Inventaire : public QWidget
 {
@@ -59,7 +58,6 @@ private:
 
     // Liste des formes custom sauvegardées
     QList<CustomShapeData> m_customShapes;
-    //test avec victor
 };
 
 #endif // INVENTAIRE_H
