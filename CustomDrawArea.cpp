@@ -1734,4 +1734,5 @@ void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
     m_pasteMode = false;
     m_selectedShapes.clear();
     emit multiSelectionModeChanged(false);
+    cancelSelection();
 }
