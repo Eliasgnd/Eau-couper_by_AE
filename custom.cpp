@@ -54,6 +54,8 @@ custom::custom(QWidget *parent)
 {
     ui->setupUi(this);
 
+    ui->buttonCopyPaste->setVisible(false);
+
     ScreenUtils::placeOnSecondaryScreen(this);
 
     // Création de l'instance de CustomDrawArea
@@ -95,6 +97,9 @@ custom::custom(QWidget *parent)
         ui->buttonSelection->style()->unpolish(ui->buttonSelection);
         ui->buttonSelection->style()->polish(ui->buttonSelection);
         ui->buttonSelection->update();
+        ui->buttonCopyPaste->setVisible(enabled);
+        if (enabled)
+            ui->buttonCopyPaste->setText(tr("Copier"));
     });
 
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
@@ -123,6 +128,9 @@ custom::custom(QWidget *parent)
 
     // Bouton de sélection multiple
     connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
+
+    // Bouton copier/coller
+    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &custom::onCopyPasteClicked);
 
 
     connect(ui->buttonCloseShape, &QPushButton::clicked,
@@ -530,5 +538,21 @@ void custom::importerLogo()
     qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
     for (const QPainterPath &sp : subpaths) {
         drawArea->addImportedLogoSubpath(sp);
+    }
+}
+
+void custom::onCopyPasteClicked()
+{
+    if (ui->buttonCopyPaste->text() == tr("Copier")) {
+        drawArea->copySelectedShapes();
+        ui->buttonCopyPaste->setText(tr("Coller"));
+    } else {
+        drawArea->enablePasteMode();
+        // The next click in draw area will paste
+        ui->buttonCopyPaste->setVisible(false);
+        ui->buttonSelection->setProperty("closeMode", false);
+        ui->buttonSelection->style()->unpolish(ui->buttonSelection);
+        ui->buttonSelection->style()->polish(ui->buttonSelection);
+        ui->buttonSelection->update();
     }
 }

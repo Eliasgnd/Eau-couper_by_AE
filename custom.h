@@ -28,6 +28,7 @@ private slots:
     void closeCustom(); // Fermer la fenêtre custom
     void importerLogo(); // Importer un logo dans la zone de dessin
     void saveCustomShape(); // Sauvegarder une forme personnalisée
+    void onCopyPasteClicked(); // Gérer le bouton copier/coller
 
 signals:
     void applyCustomShapeSignal(QList<QPolygonF> shapes); // Signal pour appliquer une forme
