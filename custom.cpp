@@ -81,25 +81,6 @@ custom::custom(QWidget *parent)
     });
 
     // Changer la couleur du bouton "relier" quand il est actif
-<<<<<<< HEAD
-    connect(drawArea, &CustomDrawArea::shapeSelection,
-            this, [this](bool enabled){
-        ui->buttonConnect->setProperty("closeMode", enabled);
-        // et repolish pour forcer la réapplication du style
-        ui->buttonConnect->style()->unpolish(ui->buttonConnect);
-        ui->buttonConnect->style()->polish(ui->buttonConnect);
-        ui->buttonConnect->update();
-    });
-
-    // Changer la couleur du bouton "selection" quand le mode est actif
-    connect(drawArea, &CustomDrawArea::multiSelectionModeChanged,
-            this, [this](bool enabled){
-        ui->buttonSelection->setProperty("closeMode", enabled);
-        ui->buttonSelection->style()->unpolish(ui->buttonSelection);
-        ui->buttonSelection->style()->polish(ui->buttonSelection);
-        ui->buttonSelection->update();
-    });
-=======
     connect(drawArea, &CustomDrawArea::shapeSelection,
             this, [this](bool enabled){
         ui->buttonConnect->setProperty("closeMode", enabled);
@@ -120,7 +101,6 @@ custom::custom(QWidget *parent)
         if (enabled)
             ui->buttonCopyPaste->setText(tr("Copier"));
     });
->>>>>>> 8ccd4275b90f0f97145adab7ab88fb2b3ad4c187
 
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
     connect(ui->Appliquer, &QPushButton::clicked, this, [this]() {
@@ -143,13 +123,6 @@ custom::custom(QWidget *parent)
     // Bouton "Save" : enregistre la forme personnalisée
     connect(ui->buttonSave, &QPushButton::clicked, this, &custom::saveCustomShape);
 
-<<<<<<< HEAD
-    //Relier deux extrémités
-    connect(ui->buttonConnect, &QPushButton::clicked, drawArea, &::CustomDrawArea::startShapeSelection);
-
-    // Bouton de sélection multiple
-    connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
-=======
     //Relier deux extrémités
     connect(ui->buttonConnect, &QPushButton::clicked, drawArea, &::CustomDrawArea::startShapeSelection);
 
@@ -158,7 +131,6 @@ custom::custom(QWidget *parent)
 
     // Bouton copier/coller
     connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &custom::onCopyPasteClicked);
->>>>>>> 8ccd4275b90f0f97145adab7ab88fb2b3ad4c187
 
 
     connect(ui->buttonCloseShape, &QPushButton::clicked,
