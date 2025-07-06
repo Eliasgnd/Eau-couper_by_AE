@@ -82,6 +82,9 @@ public:
     void toggleMultiSelectMode();         // active/désactive la sélection multiple
     bool hasSelection() const { return !m_selectedShapes.isEmpty(); }
     void deleteSelectedShapes();          // supprime toutes les formes sélectionnées
+    void copySelectedShapes();            // copie les formes sélectionnées
+    void enablePasteMode();               // active le mode collage
+    void pasteCopiedShapes(const QPointF &dest); // colle à la position donnée
 
     // Nouvelle méthode à appeler au lancement pour définir la limite
     void initializeLimitRect();
@@ -184,6 +187,10 @@ private:
     bool   m_connectSelectionMode = false;   // sélection utilisée pour la fonction "Relier"
     QVector<int> m_selectedShapes;            // indices des formes sélectionnées
     bool m_closeMode = false;               // vrai si on est en train de fermer
+    QList<Shape> m_copiedShapes;            // formes copiées
+    QPointF m_copyAnchor;                   // point d'ancrage de la copie
+    bool m_pasteMode = false;               // vrai si un collage est en attente
+    QPointF m_lastSelectClick;              // dernière position de sélection
 
 
     // Déclaration de la fonction addNode
