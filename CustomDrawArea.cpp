@@ -20,6 +20,7 @@
 #include <QTouchEvent>
 #include <QPinchGesture>
 #include <utility>
+#include <QTransform>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
@@ -39,7 +40,10 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_textFont("Arial", 16),
     m_snapToGrid(false),
     m_gridSpacing(20),
-    m_minPointDistance(2.0)
+    m_minPointDistance(2.0),
+    m_copyAnchor(0,0),
+    m_pasteMode(false),
+    m_lastSelectClick(0,0)
 
 {
     setMouseTracking(true);
@@ -439,6 +443,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
     QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
 
+    if (m_pasteMode) {
+        pasteCopiedShapes(pos);
+        return;
+    }
+
     // ————————— Mode fermeture —————————
     if (m_closeMode) {
         const double tol = 25.0;
@@ -505,6 +514,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             }
 
             if (hitShape >= 0) {
+                m_lastSelectClick = pos;
                 if (m_selectedShapes.contains(hitShape))
                     m_selectedShapes.removeAll(hitShape);
                 else
@@ -1687,4 +1697,41 @@ void CustomDrawArea::setGridSpacing(int px)
 {
     m_gridSpacing = qMax(1, px);   // sécurité : pas 0
     update();                      // redessine la grille
+}
+
+void CustomDrawArea::copySelectedShapes()
+{
+    m_copiedShapes.clear();
+    for (int idx : std::as_const(m_selectedShapes)) {
+        if (idx >= 0 && idx < m_shapes.size())
+            m_copiedShapes.append(m_shapes[idx]);
+    }
+    m_copyAnchor = m_lastSelectClick;
+}
+
+void CustomDrawArea::enablePasteMode()
+{
+    if (!m_copiedShapes.isEmpty())
+        m_pasteMode = true;
+}
+
+void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
+{
+    if (!m_pasteMode || m_copiedShapes.isEmpty())
+        return;
+
+    QPointF delta = dest - m_copyAnchor;
+    pushState();
+    for (const Shape &s : std::as_const(m_copiedShapes)) {
+        Shape newShape = s;
+        QTransform t;
+        t.translate(delta.x(), delta.y());
+        newShape.path = t.map(s.path);
+        m_shapes.append(newShape);
+    }
+    updateCanvas();
+    update();
+    m_pasteMode = false;
+    m_selectedShapes.clear();
+    emit multiSelectionModeChanged(false);
 }

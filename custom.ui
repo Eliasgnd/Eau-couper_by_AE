@@ -710,7 +710,7 @@ QPushButton:pressed {
      </widget>
     </item>
     <item>
-     <widget class="QPushButton" name="buttonSelection">
+    <widget class="QPushButton" name="buttonSelection">
       <property name="minimumSize">
        <size>
         <width>140</width>
@@ -769,9 +769,58 @@ QPushButton[closeMode="true"]:pressed {
        <iconset resource="resources.qrc">
         <normaloff>:/icons/square.svg</normaloff>:/icons/square.svg</iconset>
       </property>
-     </widget>
-    </item>
-    <item>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="buttonCopyPaste">
+     <property name="minimumSize">
+      <size>
+       <width>140</width>
+       <height>0</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>140</width>
+       <height>16777215</height>
+      </size>
+     </property>
+     <property name="cursor">
+      <cursorShape>PointingHandCursor</cursorShape>
+     </property>
+     <property name="layoutDirection">
+      <enum>Qt::LayoutDirection::LeftToRight</enum>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">/* ton style de base */
+QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+     </property>
+     <property name="locale">
+      <locale language="French" country="France"/>
+     </property>
+     <property name="text">
+      <string>Copier</string>
+     </property>
+     <property name="icon">
+      <iconset resource="resources.qrc">
+       <normaloff>:/icons/download.svg</normaloff>:/icons/download.svg</iconset>
+     </property>
+    </widget>
+   </item>
+   <item>
       <widget class="QPushButton" name="buttonConnect">
       <property name="minimumSize">
        <size>
