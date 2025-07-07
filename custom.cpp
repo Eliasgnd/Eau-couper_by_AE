@@ -26,27 +26,6 @@
 #include <cmath>
 #include "ScreenUtils.h"
 
-// Detect if an image has colors (i.e., not strictly grayscale)
-static bool isImageColored(const QImage &img)
-{
-    constexpr int tolerance = 10; // allow minor variations
-    for (int y = 0; y < img.height(); ++y) {
-        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
-        for (int x = 0; x < img.width(); ++x) {
-            QRgb pixel = line[x];
-            int r = qRed(pixel);
-            int g = qGreen(pixel);
-            int b = qBlue(pixel);
-            if (std::abs(r - g) > tolerance ||
-                std::abs(r - b) > tolerance ||
-                std::abs(g - b) > tolerance)
-                return true;
-        }
-    }
-    return false;
-}
-
-
 // Constructeur : création de l'interface et des connexions
 // Constructeur : création de l'interface et des connexions
 custom::custom(Language lang, QWidget *parent)
