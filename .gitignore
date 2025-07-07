@@ -25,3 +25,12 @@ build*/
 debug/
 release/
 .qmake.stash
+
+# Fichiers générés par les conflits de fusion
+*_BACKUP_*
+*_BASE_*
+*_LOCAL_*
+*_REMOTE_*
+
+# Sauvegardes de fichiers UI
+*.ui.save
