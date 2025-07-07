@@ -501,8 +501,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
 
 
-        if (m_selectMode) {
-            const double tol = 25.0;
+    if (m_selectMode && m_drawMode != DrawMode::Deplacer) {
+        const double tol = 25.0;
             int hitShape = -1;
             for (int i = m_shapes.size() - 1; i >= 0; --i) {
                 QPainterPathStroker stroker;
@@ -1418,6 +1418,7 @@ void CustomDrawArea::toggleMultiSelectMode()
     }
     update();
 }
+
 
 void CustomDrawArea::deleteSelectedShapes()
 {
