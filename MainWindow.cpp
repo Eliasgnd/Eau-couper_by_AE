@@ -22,6 +22,8 @@
 #include <QTimer>
 #include <QWindow>
 #include <QPoint>
+#include <QWidgetAction>
+#include <QToolButton>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -29,14 +31,46 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     qDebug() << "Titre du bouton Play =" << ui->Play->text();
-    // Menu Paramètres avec la sélection de langue
-    settingsMenu = menuBar()->addMenu(tr("Paramètres"));
-    languageMenu = settingsMenu->addMenu(tr("Langue"));
-    actionFrench = languageMenu->addAction(tr("Français"));
+
+    // 1) Crée le menu langue et ses actions (attributs)
+    languageMenu  = new QMenu(tr("Langue"), this);
+    actionFrench  = languageMenu->addAction(tr("Français"));
     actionEnglish = languageMenu->addAction(tr("Anglais"));
-    connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
-    connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
-    connect(ui->buttonSettings, &QPushButton::clicked, this, &MainWindow::showLanguageMenu);
+    connect(actionFrench ,  &QAction::triggered, this, &MainWindow::setLanguageFrench);
+    connect(actionEnglish,  &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+
+    // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
+    QToolButton *settingsBtn = new QToolButton(this);
+    settingsBtn->setText(tr("Paramètres"));
+    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
+    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
+    settingsBtn->setMenu(languageMenu);                           // rattache le menu
+
+    // 3) StyleSheet cohérent avec le reste de ton UI
+    settingsBtn->setStyleSheet(R"(
+    QToolButton {
+    background-color: #00BCD4;        /* Cyan primaire */
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 6px 14px;
+    border: 2px solid #008C9E;
+    border-radius: 8px;
+    }
+    QToolButton::menu-indicator {
+    image: url(:/icons/chevron-down-white.svg);  /* petit chevron blanc (ajoute-le au .qrc) */
+    subcontrol-position: right center;
+    subcontrol-origin: padding;
+    padding-left: 6px;                           /* espace entre texte et chevron */
+    }
+    QToolButton:hover  { background-color: #26C6DA; }  /* plus clair au survol */
+    QToolButton:pressed{ background-color: #008C9E; }  /* plus foncé au clic  */
+    )");
+
+    // 4) Place le bouton dans le coin supérieur droit de la QMenuBar
+    menuBar()->setCornerWidget(settingsBtn, Qt::TopRightCorner);
+
 
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -368,19 +402,6 @@ void MainWindow::setLanguageEnglish()
 {
     loadLanguage(Language::English);
 }
-
-void MainWindow::showLanguageMenu()
-{
-    qDebug() << "🟢 Bouton paramètres cliqué";
-    if (languageMenu && ui->buttonSettings) {
-        QPoint globalPos = ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height()));
-        qDebug() << "→ Affichage du menu à" << globalPos;
-        languageMenu->exec(globalPos);
-    } else {
-        qDebug() << "❌ languageMenu ou buttonSettings est null";
-    }
-}
-
 
 bool MainWindow::loadLanguage(Language lang)
 {
