@@ -84,6 +84,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Création du contrôleur de découpe avant toute connexion
     trajetMotor = new TrajetMotor(formeVisualization, this);
 
+
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
             this, &MainWindow::updateShapeCountLabel);
@@ -160,7 +161,6 @@ MainWindow::MainWindow(QWidget *parent)
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
 
-
     // Pause ↔ Reprendre
     connect(ui->Pause, &QPushButton::clicked, this, [this]() {
         static bool paused = false;
@@ -187,6 +187,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
+
 
 }
 
@@ -354,9 +355,13 @@ void MainWindow::StartPixel()
 
 void MainWindow::updateProgressBar(int remaining, int total) {
     if (total == 0) return;
-    int percent = remaining * 100 / total;
+    int percent = 100 - (remaining * 100 / total);
     ui->progressBar->setValue(percent);
+    if (remaining == 0) {
+        ui->progressBar->setValue(0);
+    }
 }
+
 
 MainWindow* MainWindow::getInstance()
 {
