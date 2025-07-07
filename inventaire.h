@@ -5,6 +5,7 @@
 #include <QPolygonF>
 #include <QList>
 #include "ShapeModel.h"
+#include "LanguageManager.h"
 #include <QFrame>
 
 QT_BEGIN_NAMESPACE
@@ -47,6 +48,7 @@ protected:
 private slots:
     // Retour vers le MainWindow
     void goToMainWindow();
+    void updateTranslations();
 
 private:
     Ui::Inventaire *ui;

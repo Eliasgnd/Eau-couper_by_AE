@@ -7,6 +7,7 @@
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "trajetmotor.h"
+#include "LanguageManager.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -18,6 +19,7 @@
 #include <QScreen>
 #include <QGuiApplication>
 #include <QShowEvent>
+#include <QResizeEvent>
 #include <QTimer>
 #include <QWindow>
 
@@ -26,6 +28,22 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     qDebug() << "Titre du bouton Play =" << ui->Play->text();
+
+    // Menu Paramètres et bouton dédié
+    languageMenu = new QMenu(this);
+    actionFrench = languageMenu->addAction(QStringLiteral("Français"));
+    actionEnglish = languageMenu->addAction(QStringLiteral("Anglais"));
+    connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
+    connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+
+    settingsButton = new QToolButton(this);
+    settingsButton->setMenu(languageMenu);
+    settingsButton->setPopupMode(QToolButton::InstantPopup);
+    settingsButton->setGeometry(width() - 150, 10, 130, 32);
+
+    connect(LanguageManager::instance(), &LanguageManager::languageChanged,
+            this, &MainWindow::languageChanged);
+    updateTranslations();
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -336,12 +354,86 @@ void MainWindow::showEvent(QShowEvent *event)
     }
     if (screens.size() > 1) {
         QScreen* second = screens.at(0);
-        // Attribuer le QWindow natif à l'écran secondaire
         if (auto win = this->windowHandle()) {
             win->setScreen(second);
         }
-        // Passer en plein écran
         this->showFullScreen();
     }
 
+    if (settingsButton)
+        settingsButton->move(width() - settingsButton->width() - 20, 10);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    if (settingsButton)
+        settingsButton->move(width() - settingsButton->width() - 20, 10);
+}
+
+void MainWindow::setLanguageFrench()
+{
+    LanguageManager::instance()->setLanguage(LanguageManager::Language::French);
+}
+
+void MainWindow::setLanguageEnglish()
+{
+    LanguageManager::instance()->setLanguage(LanguageManager::Language::English);
+}
+
+void MainWindow::languageChanged(LanguageManager::Language)
+{
+    updateTranslations();
+}
+
+void MainWindow::updateTranslations()
+{
+    LanguageManager::Language lang = LanguageManager::instance()->currentLanguage();
+    if (lang == LanguageManager::Language::French) {
+        if (settingsButton) settingsButton->setText(QStringLiteral("Paramètres"));
+        if (languageMenu) languageMenu->setTitle(QStringLiteral("Langue"));
+        if (actionFrench) actionFrench->setText(QStringLiteral("Français"));
+        if (actionEnglish) actionEnglish->setText(QStringLiteral("Anglais"));
+        ui->Cercle->setText("Cercle");
+        ui->Rectangle->setText("Rectangle");
+        ui->Triangle->setText("Triangle");
+        ui->Coeur->setText("Coeur");
+        ui->Etoile->setText(QStringLiteral("Étoile"));
+        ui->optimizePlacementButton->setText("Optimiser placement");
+        ui->optimizePlacementButton2->setText("Optimiser placement 2");
+        ui->buttonInventaire->setText("Inventaire");
+        ui->buttonCustom->setText("Custom");
+        ui->buttonFileReceiver->setText(QStringLiteral("Réception fichier"));
+        ui->Vitesse_txt->setText("Vitesse : ");
+        ui->Pression_txt->setText("Pression : ");
+        ui->Reglages_txt->setText(QStringLiteral("Réglages : "));
+        ui->Taille_txt->setText("Dimensions : ");
+        ui->Hauteur_txt->setText("Hauteur : ");
+        ui->Taille_txt_2->setText(QStringLiteral("Quantité : "));
+        ui->Taille_txt_3->setText("Espacement : ");
+        ui->Titre->setText("Eau-Couper by AE");
+    } else {
+        if (settingsButton) settingsButton->setText("Settings");
+        if (languageMenu) languageMenu->setTitle("Language");
+        if (actionFrench) actionFrench->setText("French");
+        if (actionEnglish) actionEnglish->setText("English");
+        ui->Cercle->setText("Circle");
+        ui->Rectangle->setText("Rectangle");
+        ui->Triangle->setText("Triangle");
+        ui->Coeur->setText("Heart");
+        ui->Etoile->setText("Star");
+        ui->optimizePlacementButton->setText("Optimize placement");
+        ui->optimizePlacementButton2->setText("Optimize placement 2");
+        ui->buttonInventaire->setText("Inventory");
+        ui->buttonCustom->setText("Custom");
+        ui->buttonFileReceiver->setText("Receive file");
+        ui->Vitesse_txt->setText("Speed: ");
+        ui->Pression_txt->setText("Pressure: ");
+        ui->Reglages_txt->setText("Settings: ");
+        ui->Taille_txt->setText("Dimensions: ");
+        ui->Hauteur_txt->setText("Height: ");
+        ui->Taille_txt_2->setText("Quantity: ");
+        ui->Taille_txt_3->setText("Spacing: ");
+        ui->Titre->setText("Water-Cut by AE");
+    }
 }

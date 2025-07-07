@@ -18,6 +18,7 @@
 #include <QMessageBox>
 #include <QImage>
 #include <QProgressDialog>
+#include "LanguageManager.h"
 #include <QApplication>
 #include <algorithm>
 #include <QFontComboBox>
@@ -53,6 +54,9 @@ custom::custom(QWidget *parent)
     ui(new Ui::custom)
 {
     ui->setupUi(this);
+    connect(LanguageManager::instance(), &LanguageManager::languageChanged,
+            this, &custom::updateTranslations);
+    updateTranslations();
 
     ui->buttonCopyPaste->setVisible(false);
 
@@ -536,5 +540,45 @@ void custom::onCopyPasteClicked()
         ui->buttonSelection->style()->unpolish(ui->buttonSelection);
         ui->buttonSelection->style()->polish(ui->buttonSelection);
         ui->buttonSelection->update();
+    }
+}
+
+void custom::updateTranslations()
+{
+    auto lang = LanguageManager::instance()->currentLanguage();
+    if (lang == LanguageManager::Language::French) {
+        ui->buttonMenu->setText(QStringLiteral("Menu principal"));
+        ui->Reset->setText(QStringLiteral("Reset"));
+        ui->Appliquer->setText(QStringLiteral("Appliquer"));
+        ui->buttonLissage->setText(QStringLiteral("Activer/Désactiver\nLissage"));
+        ui->buttonForme->setText(QStringLiteral("Forme"));
+        ui->buttonRetour->setText(QStringLiteral("Retour"));
+        ui->buttonImporter->setText(QStringLiteral("Importer"));
+        ui->buttonSave->setText(QStringLiteral("Sauvegarder"));
+        ui->buttonGomme->setText(QStringLiteral("Gomme"));
+        ui->buttonSupprimer->setText(QStringLiteral("Supprimer"));
+        ui->buttonDeplacer->setText(QStringLiteral("Déplacer"));
+        ui->buttonSelection->setText(QStringLiteral("Sélection"));
+        ui->buttonCopyPaste->setText(QStringLiteral("Copier"));
+        ui->buttonConnect->setText(QStringLiteral("Relier"));
+        ui->buttonSnapGrid->setText(QStringLiteral("Aimant"));
+        ui->buttonCloseShape->setText(QStringLiteral("Fermer"));
+    } else {
+        ui->buttonMenu->setText(QStringLiteral("Main menu"));
+        ui->Reset->setText(QStringLiteral("Reset"));
+        ui->Appliquer->setText(QStringLiteral("Apply"));
+        ui->buttonLissage->setText(QStringLiteral("Toggle smoothing"));
+        ui->buttonForme->setText(QStringLiteral("Shape"));
+        ui->buttonRetour->setText(QStringLiteral("Undo"));
+        ui->buttonImporter->setText(QStringLiteral("Import"));
+        ui->buttonSave->setText(QStringLiteral("Save"));
+        ui->buttonGomme->setText(QStringLiteral("Eraser"));
+        ui->buttonSupprimer->setText(QStringLiteral("Delete"));
+        ui->buttonDeplacer->setText(QStringLiteral("Move"));
+        ui->buttonSelection->setText(QStringLiteral("Select"));
+        ui->buttonCopyPaste->setText(QStringLiteral("Copy"));
+        ui->buttonConnect->setText(QStringLiteral("Connect"));
+        ui->buttonSnapGrid->setText(QStringLiteral("Magnet"));
+        ui->buttonCloseShape->setText(QStringLiteral("Close"));
     }
 }

@@ -12,6 +12,7 @@ HEADERS += \
     clavier.h claviernumerique.h custom.h inventaire.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     touchgesturereader.h \
+    LanguageManager.h \
     trajetmotor.h
 
 SOURCES += \
@@ -20,7 +21,7 @@ SOURCES += \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
-    touchgesturereader.cpp
+    touchgesturereader.cpp LanguageManager.cpp
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui

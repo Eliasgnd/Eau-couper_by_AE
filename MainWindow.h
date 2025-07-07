@@ -6,6 +6,10 @@
 #include "ShapeModel.h"
 #include "CustomDrawArea.h"
 #include "trajetmotor.h"
+#include <QMenu>
+#include <QAction>
+#include <QToolButton>
+#include "LanguageManager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -47,6 +51,18 @@ private slots:
     //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons);
 
+    void setLanguageFrench();
+    void setLanguageEnglish();
+    void languageChanged(LanguageManager::Language lang);
+
+private:
+    void updateTranslations();
+
+    QMenu *languageMenu = nullptr;
+    QAction *actionFrench = nullptr;
+    QAction *actionEnglish = nullptr;
+    QToolButton *settingsButton = nullptr;
+
 
 private:
     Ui::MainWindow *ui;
@@ -58,6 +74,7 @@ private:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 };
 

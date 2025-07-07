@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include "CustomDrawArea.h"
+#include "LanguageManager.h"
 
 namespace Ui {
 class custom;
@@ -29,6 +30,7 @@ private slots:
     void importerLogo(); // Importer un logo dans la zone de dessin
     void saveCustomShape(); // Sauvegarder une forme personnalisée
     void onCopyPasteClicked(); // Gérer le bouton copier/coller
+    void updateTranslations();
 
 signals:
     void applyCustomShapeSignal(QList<QPolygonF> shapes); // Signal pour appliquer une forme

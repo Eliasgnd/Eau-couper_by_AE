@@ -27,6 +27,10 @@ Inventaire::Inventaire(QWidget *parent)
 
     ScreenUtils::placeOnSecondaryScreen(this);
 
+    connect(LanguageManager::instance(), &LanguageManager::languageChanged,
+            this, &Inventaire::updateTranslations);
+    updateTranslations();
+
     connect(ui->buttonMenu, &QPushButton::clicked, this, &Inventaire::goToMainWindow);
     displayShapes();
 }
@@ -50,6 +54,11 @@ void Inventaire::goToMainWindow()
 {
     this->hide();
     MainWindow::getInstance()->show();
+}
+
+void Inventaire::updateTranslations()
+{
+    displayShapes();
 }
 
 
@@ -80,12 +89,13 @@ void Inventaire::displayShapes()
     int row = 0, col = 0;
 
     // Affichage des formes prédéfinies
+    bool fr = LanguageManager::instance()->currentLanguage() == LanguageManager::Language::French;
     const QList<QPair<QString, ShapeModel::Type>> shapeList = {
-        {"Cercle",    ShapeModel::Type::Circle},
-        {"Rectangle", ShapeModel::Type::Rectangle},
-        {"Triangle",  ShapeModel::Type::Triangle},
-        {"Étoile",    ShapeModel::Type::Star},
-        {"Cœur",      ShapeModel::Type::Heart}
+        {fr ? QStringLiteral("Cercle")    : QStringLiteral("Circle"),    ShapeModel::Type::Circle},
+        {fr ? QStringLiteral("Rectangle") : QStringLiteral("Rectangle"), ShapeModel::Type::Rectangle},
+        {fr ? QStringLiteral("Triangle")  : QStringLiteral("Triangle"),  ShapeModel::Type::Triangle},
+        {fr ? QStringLiteral("Étoile")    : QStringLiteral("Star"),     ShapeModel::Type::Star},
+        {fr ? QStringLiteral("Cœur")      : QStringLiteral("Heart"),    ShapeModel::Type::Heart}
     };
 
     for (const auto &shapeInfo : shapeList) {
@@ -120,6 +130,7 @@ void Inventaire::displayShapes()
         frameLayout->addWidget(view, 0, Qt::AlignCenter);
         frameLayout->addWidget(label);
 
+        frame->setProperty("PredefinedShapeType", static_cast<int>(shapeInfo.second));
         frame->setCursor(Qt::PointingHandCursor);
         frame->installEventFilter(this);
 
@@ -263,46 +274,11 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
     if (event->type() == QEvent::MouseButtonPress) {
         QFrame *frame = qobject_cast<QFrame*>(obj);
         if (frame) {
-            // Tenter de récupérer le label contenu dans le cadre
-            QLabel *label = frame->findChild<QLabel*>();
-            if (label) {
-                QString shapeName = label->text().trimmed();
-                // Debug pour vérifier la valeur lue
-                qDebug() << "[DEBUG] shapeName =" << shapeName;
-
-                bool isPredef = false;
-                ShapeModel::Type type = ShapeModel::Type::Circle; // initialisation par défaut
-
-                // Comparaison insensible à la casse, en acceptant les versions avec ou sans accent.
-                if (shapeName.compare("Cercle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Circle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Rectangle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Rectangle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Triangle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Triangle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Étoile", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Etoile", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Star;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Cœur", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Coeur", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Heart;
-                    isPredef = true;
-                }
-
-                if (isPredef) {
-                    qDebug() << "[EVENT] Sélection d'une forme prédéfinie:" << shapeName;
-                    emit shapeSelected(type, frame->width(), frame->height());
-                    goToMainWindow();
-                    return true;
-                }
+            if (frame->property("PredefinedShapeType").isValid()) {
+                ShapeModel::Type type = static_cast<ShapeModel::Type>(frame->property("PredefinedShapeType").toInt());
+                emit shapeSelected(type, frame->width(), frame->height());
+                goToMainWindow();
+                return true;
             }
 //        checkCustom:
             // Si ce n'est pas une forme prédéfinie, vérifier la propriété custom.
