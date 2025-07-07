@@ -31,7 +31,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Connection de l'inventaire à la forme
     QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
-                     ui->formeVisualizationWidget, &FormeVisualization::setModel);
+                     this, &MainWindow::onShapeSelectedFromInventaire);
+
 
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
@@ -127,14 +128,16 @@ MainWindow::MainWindow(QWidget *parent)
         paused = !paused;
     });
 
-    // Stop
-    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
-        trajetMotor->stopCut();
-    });
-
     // **NOUVELLE CONNEXION** pour la barre de progression de la découpe
     connect(trajetMotor, &TrajetMotor::decoupeProgress,
             this, &MainWindow::updateProgressBar);
+
+    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
+        trajetMotor->stopCut();
+        formeVisualization->setDecoupeEnCours(false);
+    });
+
+
 
     // Configuration de la barre de progression
     ui->progressBar->setRange(0, 100);
@@ -145,6 +148,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     trajetMotor = new TrajetMotor(formeVisualization, this);
+    trajetMotor->setMainWindow(this);
+
 
 }
 
@@ -215,6 +220,9 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
     } else {
         qDebug() << "Erreur : formeVisualization est nullptr.";
     }
+    // Blocage des modifications pendant la découpe personnalisée
+
+    formeVisualization->setDecoupeEnCours(true);
     this->show();
 }
 
@@ -303,9 +311,12 @@ void MainWindow::StartPixel()
         return;
     }
 
+    formeVisualization->setDecoupeEnCours(true);
     // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
     //qDebug() << "Demarrage Découpe";
     trajetMotor->executeTrajet();
+    // Blocage des paramètres UI pendant la découpe
+
 }
 
 
@@ -345,3 +356,12 @@ void MainWindow::showEvent(QShowEvent *event)
     }
 
 }
+
+
+void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
+{
+    selectedShapeType = type;
+    formeVisualization->setPredefinedMode();
+    formeVisualization->setModel(type);
+}
+

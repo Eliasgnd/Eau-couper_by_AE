@@ -38,6 +38,12 @@ public:
     QGraphicsScene* getScene() const;                           // accès scène
     void setCustomMode();                                       // forcer mode custom
 
+    void setEditingEnabled(bool enabled);
+    bool isEditingEnabled() const;
+    void setDecoupeEnCours(bool etat);
+    bool isDecoupeEnCours() const;
+
+
 public slots:
     void displayCustomShapes(const QList<QPolygonF>& shapes);   // affichage custom
     void moveSelectedShapes(qreal dx, qreal dy);                // déplacement
@@ -81,6 +87,10 @@ private:
 
     // liste des points / traces ajoutés pendant la découpe
     QList<QGraphicsItem*> m_cutMarkers;
+    bool editingEnabled = true;
+    bool m_decoupeEnCours = false;
+
+
 };
 
 #endif // FORMEVISUALIZATION_H

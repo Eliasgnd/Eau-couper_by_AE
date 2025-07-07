@@ -18,11 +18,11 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    void StartPixel();
     static MainWindow* getInstance();
 
 public slots:
     void updateProgressBar(int remaining, int total);
+
 private slots:
     void updateForme();
     void changeToCircle();
@@ -48,6 +48,7 @@ private slots:
     void onCustomShapeSelected(const QList<QPolygonF> &polygons);
 
 
+    void onShapeSelectedFromInventaire(ShapeModel::Type type);
 private:
     Ui::MainWindow *ui;
     FormeVisualization *formeVisualization = nullptr;
@@ -55,6 +56,8 @@ private:
     ShapeModel::Type selectedShapeType;
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
     TrajetMotor* trajetMotor;
+    void setFormEditingEnabled(bool enabled);
+    void StartPixel();
 
 protected:
     void showEvent(QShowEvent *event) override;

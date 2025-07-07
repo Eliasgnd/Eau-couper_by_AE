@@ -110,6 +110,7 @@ custom::custom(QWidget *parent)
         delete this;
     });
 
+
     // Bouton "Reset" : efface le dessin et émet le signal correspondant
     connect(ui->Reset, &QPushButton::clicked, this, [this]() {
         qDebug() << "Signal resetDrawingSignal émis !";

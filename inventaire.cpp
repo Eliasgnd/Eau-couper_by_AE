@@ -16,6 +16,7 @@
 #include <QInputDialog>
 #include <QPushButton>
 #include <QDebug>
+#include <qmessagebox.h>
 #include "ScreenUtils.h"
 
 Inventaire* Inventaire::instance = nullptr; // Initialisation du singleton
