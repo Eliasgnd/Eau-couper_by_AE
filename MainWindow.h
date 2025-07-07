@@ -61,6 +61,7 @@ protected:
 private:
     bool loadLanguage(Language lang);
 
+
     Language currentLanguage = Language::French;
     QTranslator translator;
     QMenu *settingsMenu = nullptr;

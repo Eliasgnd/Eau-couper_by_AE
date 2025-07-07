@@ -55,6 +55,7 @@ custom::custom(Language lang, QWidget *parent)
 {
     ui->setupUi(this);
 
+
     ui->buttonCopyPaste->setVisible(false);
 
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -71,6 +72,10 @@ custom::custom(Language lang, QWidget *parent)
         qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
 
+
+    updateTranslations(currentLanguage);
+
+    updateTranslations(currentLanguage);
 
     // Changer la couleur du bouton "fermer" quand il est actif
     connect(drawArea, &CustomDrawArea::closeModeChanged,

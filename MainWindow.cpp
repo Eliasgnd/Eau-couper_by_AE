@@ -9,19 +9,20 @@
 #include "trajetmotor.h"
 #include "Language.h"
 
+
 #include <QSpinBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPixmap>
 #include <QDebug>
-
 #include <QScreen>
 #include <QGuiApplication>
 #include <QShowEvent>
 #include <QTimer>
 #include <QWindow>
 #include <QPoint>
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
@@ -36,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
     connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
     connect(ui->buttonSettings, &QPushButton::clicked, this, &MainWindow::showLanguageMenu);
+
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -211,6 +213,7 @@ void MainWindow::showInventaire() {
 void MainWindow::showCustom() {
     this->hide();
     custom *customWindow = new custom(currentLanguage);
+
     connect(customWindow, &custom::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
     connect(customWindow, &custom::resetDrawingSignal,
@@ -397,4 +400,5 @@ void MainWindow::changeEvent(QEvent *event)
     }
     QMainWindow::changeEvent(event);
 }
+
 

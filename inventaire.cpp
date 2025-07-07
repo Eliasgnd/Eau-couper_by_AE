@@ -287,6 +287,7 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
                 goToMainWindow();
                 return true;
             }
+
 //        checkCustom:
             // Si ce n'est pas une forme prédéfinie, vérifier la propriété custom.
             if (frame->property("CustomShapeIndex").isValid()) {

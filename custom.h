@@ -21,10 +21,12 @@ public:
 protected:
     void changeEvent(QEvent *event) override;
 
+
 private:
     Ui::custom *ui;
     CustomDrawArea *drawArea; // Instance de la zone de dessin
     QStringList m_favoriteFonts;
+
 
 private slots:
     void goToMainWindow(); // Retourner à la fenêtre principale
