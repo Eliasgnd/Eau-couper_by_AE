@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include "CustomDrawArea.h"
+#include "Language.h"
 
 namespace Ui {
 class custom;
@@ -14,13 +15,16 @@ class custom : public QWidget
     Q_OBJECT
 
 public:
-    explicit custom(QWidget *parent = nullptr); // Constructeur
+    explicit custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
     ~custom(); // Destructeur
+
+    void updateTranslations(Language lang);
 
 private:
     Ui::custom *ui;
     CustomDrawArea *drawArea; // Instance de la zone de dessin
     QStringList m_favoriteFonts;
+    Language currentLanguage = Language::French;
 
 private slots:
     void goToMainWindow(); // Retourner à la fenêtre principale
