@@ -172,6 +172,7 @@ private:
     QPainterPath generateRawPath(const QList<QPointF>& pts);
     double distance(const QPointF &p1, const QPointF &p2);
     QList<QPointF> applyChaikinAlgorithm(const QList<QPointF>& inputPoints, int iterations);
+    int computeSmoothingIterations(const QList<QPointF> &pts) const;
 
     // Gestion du canevas
     void initCanvas();
@@ -219,6 +220,8 @@ private:
 
     // Distance minimale entre deux points consécutifs lors du dessin libre
     qreal  m_minPointDistance = 2.0;
+    // Seuil de distance moyen en dessous duquel on applique un lissage renforcé
+    qreal  m_lowSpeedThreshold = 5.0;
 
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
