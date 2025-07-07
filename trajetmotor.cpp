@@ -14,7 +14,7 @@
 
 static constexpr int    VIS_DELAY_MS  = 15;   // délai visualisation (ms)
 static constexpr double mmPerPx       = 1.0;  // calibration plateau
-static constexpr int    VIS_SAMPLE_PX = 3;    // pas entre deux points affichés
+static constexpr int    VIS_SAMPLE_PX = 1;    // pas entre deux points affichés
 
 TrajetMotor::TrajetMotor(FormeVisualization* visu, QWidget* parent)
     : QWidget(parent), m_visu(visu)
@@ -112,11 +112,10 @@ void TrajetMotor::executeTrajet()
 
         // ---------- Déplacement rapide (bleu) ---------------------------------
         if (cur != s.a) {
-            drawSegment(m_visu, cur, s.a, false);
+
             m_motor.stopJet();
 
-            // Déplacement progressif visuel de la tête
-            moveHeadProgressive(cur, s.a, head);
+           moveHeadProgressive(cur, s.a, head, false);
 
             // Ensuite, on commande le moteur pour aller à la position finale
             m_motor.moveRapid(s.a.x() * mmPerPx, s.a.y() * mmPerPx);
@@ -126,11 +125,7 @@ void TrajetMotor::executeTrajet()
 
         // ---------- Coupe (rouge) ---------------------------------------------
         m_motor.startJet();
-        drawSegment(m_visu, s.a, s.b, true);
-
-        // Déplacement progressif visuel de la tête
-        moveHeadProgressive(s.a, s.b, head);
-
+       moveHeadProgressive(s.a, s.b, head, true);
         // Puis déplacement réel du moteur à la position cible
         m_motor.moveCut(s.b.x() * mmPerPx, s.b.y() * mmPerPx);
 
@@ -176,7 +171,7 @@ void TrajetMotor::stopCut()
     m_motor.stopJet();
 }
 
-void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end, QGraphicsEllipseItem* head)
+void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,QGraphicsEllipseItem* head, bool cut)
 {
     int dx = end.x() - start.x();
     int dy = end.y() - start.y();
@@ -188,7 +183,13 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end, QG
         int x = qRound(start.x() + t * dx);
         int y = qRound(start.y() + t * dy);
 
+        QPoint pos(x, y);
         head->setPos(x - 3, y - 3);
+
+        // Coloration dynamique
+        cut ? m_visu->colorPositionRed(pos)
+            : m_visu->colorPositionBlue(pos);
+
         QApplication::processEvents();
         QThread::msleep(VIS_DELAY_MS);
     }
