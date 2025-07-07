@@ -30,8 +30,8 @@ FORMS += \
 RESOURCES += resources.qrc
 
 TRANSLATIONS += \
-       translations/machineDecoupeIHM_fr.ts \
-       translations/machineDecoupeIHM_en.ts
+    translations/machineDecoupeIHM_fr.ts \
+    translations/machineDecoupeIHM_en.ts
 
 # Installation (déploiement)
 !isEmpty(target.path): INSTALLS += target

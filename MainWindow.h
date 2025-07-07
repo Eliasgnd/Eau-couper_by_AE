@@ -78,6 +78,8 @@ private:
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
     TrajetMotor* trajetMotor;
 
+    void retranslateDynamicUi();
+
 protected:
     void showEvent(QShowEvent *event) override;
 

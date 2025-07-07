@@ -371,34 +371,63 @@ void MainWindow::setLanguageEnglish()
 
 void MainWindow::showLanguageMenu()
 {
+    qDebug() << "🟢 Bouton paramètres cliqué";
     if (languageMenu && ui->buttonSettings) {
-        languageMenu->exec(ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height())));
+        QPoint globalPos = ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height()));
+        qDebug() << "→ Affichage du menu à" << globalPos;
+        languageMenu->exec(globalPos);
+    } else {
+        qDebug() << "❌ languageMenu ou buttonSettings est null";
     }
 }
+
 
 bool MainWindow::loadLanguage(Language lang)
 {
     qApp->removeTranslator(&translator);
     currentLanguage = lang;
-    QString locale = (lang == Language::French) ? QStringLiteral("fr") : QStringLiteral("en");
-    if (lang != Language::French) {
-        QString path = qApp->applicationDirPath() + "/translations/eaucouper_" + locale + ".qm";
-        if (!translator.load(path))
-            qWarning() << "Unable to load translation" << path;
+
+    const QString locale = (lang == Language::French) ? "fr" : "en";
+    const QString path = qApp->applicationDirPath()
+                         + "/translations/machineDecoupeIHM_" + locale + ".qm";
+
+    if (!translator.load(path)) {
+        qWarning() << "❌ Impossible de charger la langue :" << path;
+    } else {
         qApp->installTranslator(&translator);
+        qDebug() << "✅ Langue chargée :" << path;
     }
 
-    ui->retranslateUi(this);
-    Inventaire::getInstance()->updateTranslations(currentLanguage);
+    // Mettre à jour tous les textes
+    QEvent event(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(this, &event);  // Déclenche changeEvent
+    retranslateDynamicUi();                     // Retraduit menus + labels créés dynamiquement
+
     return true;
+}
+
+void MainWindow::retranslateDynamicUi()
+{
+    if (settingsMenu) settingsMenu->setTitle(tr("Paramètres"));
+    if (languageMenu) languageMenu->setTitle(tr("Langue"));
+    if (actionFrench)  actionFrench ->setText(tr("Français"));
+    if (actionEnglish) actionEnglish->setText(tr("Anglais"));
+
+    if (ui->shapeCountLabel) {
+        // Tu peux sauvegarder l'ancien nombre s'il est dynamique :
+        int count = ui->shapeCountSpinBox->value();
+        ui->shapeCountLabel->setText(tr("Formes placées: %1").arg(count));
+    }
 }
 
 void MainWindow::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
-        ui->retranslateUi(this);
+        ui->retranslateUi(this);       // Traduction automatique des widgets de l'UI
+        retranslateDynamicUi();        // Traduction manuelle de ce que tu as créé en C++
     }
     QMainWindow::changeEvent(event);
 }
+
 
 
