@@ -53,7 +53,6 @@ private slots:
 
     void setLanguageFrench();
     void setLanguageEnglish();
-    void showLanguageMenu();
 
 protected:
     void changeEvent(QEvent *event) override;
