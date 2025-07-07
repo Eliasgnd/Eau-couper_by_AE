@@ -73,7 +73,6 @@ custom::custom(Language lang, QWidget *parent)
     }
 
 
-    updateTranslations(currentLanguage);
 
     updateTranslations(currentLanguage);
 
