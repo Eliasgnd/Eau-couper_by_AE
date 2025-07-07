@@ -1409,6 +1409,8 @@ void CustomDrawArea::toggleMultiSelectMode()
 {
     if (!m_selectMode) {
         cancelCloseMode();
+        if (m_drawMode == DrawMode::Deplacer)
+            m_drawMode = DrawMode::Freehand;
         m_selectMode = true;
         m_connectSelectionMode = false;
         m_selectedShapes.clear();
