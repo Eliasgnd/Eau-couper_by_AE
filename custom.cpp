@@ -27,7 +27,6 @@
 #include "ScreenUtils.h"
 
 // Constructeur : création de l'interface et des connexions
-// Constructeur : création de l'interface et des connexions
 custom::custom(Language lang, QWidget *parent)
     : QWidget(parent),
     ui(new Ui::custom)
