@@ -501,7 +501,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
 
 
-        if (m_selectMode) {
+        if (m_selectMode && m_drawMode != DrawMode::Deplacer) {
             const double tol = 25.0;
             int hitShape = -1;
             for (int i = m_shapes.size() - 1; i >= 0; --i) {
