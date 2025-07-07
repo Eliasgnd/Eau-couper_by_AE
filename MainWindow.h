@@ -75,7 +75,7 @@ private:
     CustomDrawArea *drawArea = nullptr;
     ShapeModel::Type selectedShapeType;
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
-    TrajetMotor* trajetMotor;
+    TrajetMotor* trajetMotor = nullptr;
 
     void retranslateDynamicUi();
 
