@@ -6,6 +6,7 @@
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QMouseEvent>
+#include <QMessageBox>
 
 KeyboardEventFilter::KeyboardEventFilter(QObject *parent)
     : QObject(parent),
@@ -25,8 +26,18 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
             // 1) si parent immédiat est un QSpinBox de MainWindow → pavé numérique
             if (auto *spin = qobject_cast<QSpinBox*>(le->parentWidget())) {
                 if (qobject_cast<MainWindow*>(spin->window())) {
+                    if (m_visu && m_visu->isDecoupeEnCours()) {
+                        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                                           "Découpe en cours",
+                                                           "Impossible d’ouvrir le clavier pendant la découpe.",
+                                                           QMessageBox::Ok,
+                                                           spin->window());
+                        msg->setModal(false);
+                        msg->show();
+                        return true; // bloque uniquement l'ouverture du clavier numérique
+                    }
+
                     m_keyboardActive = true;
-                    //int v = spin->value();
                     ClavierNumerique numDlg(spin->window());
                     if (numDlg.exec() == QDialog::Accepted) {
                         bool ok;
@@ -34,7 +45,7 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
                         if (ok) spin->setValue(nv);
                     }
                     m_keyboardActive = false;
-                    return true; // consommation : pas de clavier système ni récursion
+                    return true;
                 }
             }
             // 2) sinon → clavier alphabétique
@@ -54,3 +65,7 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
     return QObject::eventFilter(obj, event);
 }
 
+void KeyboardEventFilter::setFormeVisualization(FormeVisualization* visu)
+{
+    m_visu = visu;
+}

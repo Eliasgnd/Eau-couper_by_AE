@@ -377,3 +377,8 @@ void MainWindow::setSpinboxSliderEnabled(bool enabled)
     ui->spaceSpinBox->setEnabled(enabled);
     qDebug() << "[DEBUG] Appel de setSpinboxSliderEnabled(" << enabled << ")";
 }
+
+FormeVisualization* MainWindow::getFormeVisualization() const
+{
+    return formeVisualization;
+}

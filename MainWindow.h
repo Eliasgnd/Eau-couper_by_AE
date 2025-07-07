@@ -19,6 +19,7 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     static MainWindow* getInstance();
+    FormeVisualization* getFormeVisualization() const;
 
 public slots:
     void updateProgressBar(int remaining, int total);
