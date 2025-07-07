@@ -26,6 +26,14 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     qDebug() << "Titre du bouton Play =" << ui->Play->text();
+    // Menu Paramètres avec la sélection de langue
+    settingsMenu = menuBar()->addMenu(tr("Param\xE8tres"));
+    languageMenu = settingsMenu->addMenu(tr("Langue"));
+    actionFrench = languageMenu->addAction(tr("Fran\xE7ais"));
+    actionEnglish = languageMenu->addAction(tr("Anglais"));
+    connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
+    connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+    updateTranslations();
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -344,4 +352,67 @@ void MainWindow::showEvent(QShowEvent *event)
         this->showFullScreen();
     }
 
+}
+
+void MainWindow::setLanguageFrench()
+{
+    currentLanguage = Language::French;
+    updateTranslations();
+}
+
+void MainWindow::setLanguageEnglish()
+{
+    currentLanguage = Language::English;
+    updateTranslations();
+}
+
+void MainWindow::updateTranslations()
+{
+    if (currentLanguage == Language::French) {
+        if (settingsMenu) settingsMenu->setTitle("Param\xE8tres");
+        if (languageMenu) languageMenu->setTitle("Langue");
+        if (actionFrench) actionFrench->setText("Fran\xE7ais");
+        if (actionEnglish) actionEnglish->setText("Anglais");
+        ui->Cercle->setText("Cercle");
+        ui->Rectangle->setText("Rectangle");
+        ui->Triangle->setText("Triangle");
+        ui->Coeur->setText("Coeur");
+        ui->Etoile->setText("Etoile");
+        ui->optimizePlacementButton->setText("Optimiser placement");
+        ui->optimizePlacementButton2->setText("Optimiser placement 2");
+        ui->buttonInventaire->setText("Inventaire");
+        ui->buttonCustom->setText("Custom");
+        ui->buttonFileReceiver->setText("R\xE9ception fichier");
+        ui->Vitesse_txt->setText("Vitesse : ");
+        ui->Pression_txt->setText("Pression : ");
+        ui->Reglages_txt->setText("R\xE9glages : ");
+        ui->Taille_txt->setText("Dimensions : ");
+        ui->Hauteur_txt->setText("Hauteur : ");
+        ui->Taille_txt_2->setText("Quantit\xE9e : ");
+        ui->Taille_txt_3->setText("Espacement : ");
+        ui->Titre->setText("Eau-Couper by AE");
+    } else {
+        if (settingsMenu) settingsMenu->setTitle("Settings");
+        if (languageMenu) languageMenu->setTitle("Language");
+        if (actionFrench) actionFrench->setText("French");
+        if (actionEnglish) actionEnglish->setText("English");
+        ui->Cercle->setText("Circle");
+        ui->Rectangle->setText("Rectangle");
+        ui->Triangle->setText("Triangle");
+        ui->Coeur->setText("Heart");
+        ui->Etoile->setText("Star");
+        ui->optimizePlacementButton->setText("Optimize placement");
+        ui->optimizePlacementButton2->setText("Optimize placement 2");
+        ui->buttonInventaire->setText("Inventory");
+        ui->buttonCustom->setText("Custom");
+        ui->buttonFileReceiver->setText("Receive file");
+        ui->Vitesse_txt->setText("Speed: ");
+        ui->Pression_txt->setText("Pressure: ");
+        ui->Reglages_txt->setText("Settings: ");
+        ui->Taille_txt->setText("Dimensions: ");
+        ui->Hauteur_txt->setText("Height: ");
+        ui->Taille_txt_2->setText("Quantity: ");
+        ui->Taille_txt_3->setText("Spacing: ");
+        ui->Titre->setText("Water-Cut by AE");
+    }
 }
