@@ -332,10 +332,6 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
 {
     if (m_selectMode && m_connectSelectionMode) {
         cancelSelection();
-    } else if (mode == DrawMode::Deplacer && m_selectMode) {
-        // Quitte le mode de sélection multiple tout en conservant la sélection
-        m_selectMode = false;
-        emit multiSelectionModeChanged(false);
     }
     if (m_closeMode) {
            m_closeMode = false;
@@ -505,7 +501,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
 
 
-        if (m_selectMode) {
+        if (m_selectMode && m_drawMode != DrawMode::Deplacer) {
             const double tol = 25.0;
             int hitShape = -1;
             for (int i = m_shapes.size() - 1; i >= 0; --i) {
