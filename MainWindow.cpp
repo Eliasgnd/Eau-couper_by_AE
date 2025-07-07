@@ -7,6 +7,7 @@
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "trajetmotor.h"
+#include "Language.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -20,6 +21,7 @@
 #include <QShowEvent>
 #include <QTimer>
 #include <QWindow>
+#include <QPoint>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
@@ -27,13 +29,13 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     qDebug() << "Titre du bouton Play =" << ui->Play->text();
     // Menu Paramètres avec la sélection de langue
-    settingsMenu = menuBar()->addMenu(tr("Param\xE8tres"));
+    settingsMenu = menuBar()->addMenu(tr("Paramètres"));
     languageMenu = settingsMenu->addMenu(tr("Langue"));
-    actionFrench = languageMenu->addAction(tr("Fran\xE7ais"));
+    actionFrench = languageMenu->addAction(tr("Français"));
     actionEnglish = languageMenu->addAction(tr("Anglais"));
     connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
     connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
-    updateTranslations();
+    connect(ui->buttonSettings, &QPushButton::clicked, this, &MainWindow::showLanguageMenu);
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -208,7 +210,7 @@ void MainWindow::showInventaire() {
 
 void MainWindow::showCustom() {
     this->hide();
-    custom *customWindow = new custom();
+    custom *customWindow = new custom(currentLanguage);
     connect(customWindow, &custom::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
     connect(customWindow, &custom::resetDrawingSignal,
@@ -356,63 +358,43 @@ void MainWindow::showEvent(QShowEvent *event)
 
 void MainWindow::setLanguageFrench()
 {
-    currentLanguage = Language::French;
-    updateTranslations();
+    loadLanguage(Language::French);
 }
 
 void MainWindow::setLanguageEnglish()
 {
-    currentLanguage = Language::English;
-    updateTranslations();
+    loadLanguage(Language::English);
 }
 
-void MainWindow::updateTranslations()
+void MainWindow::showLanguageMenu()
 {
-    if (currentLanguage == Language::French) {
-        if (settingsMenu) settingsMenu->setTitle("Param\xE8tres");
-        if (languageMenu) languageMenu->setTitle("Langue");
-        if (actionFrench) actionFrench->setText("Fran\xE7ais");
-        if (actionEnglish) actionEnglish->setText("Anglais");
-        ui->Cercle->setText("Cercle");
-        ui->Rectangle->setText("Rectangle");
-        ui->Triangle->setText("Triangle");
-        ui->Coeur->setText("Coeur");
-        ui->Etoile->setText("Etoile");
-        ui->optimizePlacementButton->setText("Optimiser placement");
-        ui->optimizePlacementButton2->setText("Optimiser placement 2");
-        ui->buttonInventaire->setText("Inventaire");
-        ui->buttonCustom->setText("Custom");
-        ui->buttonFileReceiver->setText("R\xE9ception fichier");
-        ui->Vitesse_txt->setText("Vitesse : ");
-        ui->Pression_txt->setText("Pression : ");
-        ui->Reglages_txt->setText("R\xE9glages : ");
-        ui->Taille_txt->setText("Dimensions : ");
-        ui->Hauteur_txt->setText("Hauteur : ");
-        ui->Taille_txt_2->setText("Quantit\xE9e : ");
-        ui->Taille_txt_3->setText("Espacement : ");
-        ui->Titre->setText("Eau-Couper by AE");
-    } else {
-        if (settingsMenu) settingsMenu->setTitle("Settings");
-        if (languageMenu) languageMenu->setTitle("Language");
-        if (actionFrench) actionFrench->setText("French");
-        if (actionEnglish) actionEnglish->setText("English");
-        ui->Cercle->setText("Circle");
-        ui->Rectangle->setText("Rectangle");
-        ui->Triangle->setText("Triangle");
-        ui->Coeur->setText("Heart");
-        ui->Etoile->setText("Star");
-        ui->optimizePlacementButton->setText("Optimize placement");
-        ui->optimizePlacementButton2->setText("Optimize placement 2");
-        ui->buttonInventaire->setText("Inventory");
-        ui->buttonCustom->setText("Custom");
-        ui->buttonFileReceiver->setText("Receive file");
-        ui->Vitesse_txt->setText("Speed: ");
-        ui->Pression_txt->setText("Pressure: ");
-        ui->Reglages_txt->setText("Settings: ");
-        ui->Taille_txt->setText("Dimensions: ");
-        ui->Hauteur_txt->setText("Height: ");
-        ui->Taille_txt_2->setText("Quantity: ");
-        ui->Taille_txt_3->setText("Spacing: ");
-        ui->Titre->setText("Water-Cut by AE");
+    if (languageMenu && ui->buttonSettings) {
+        languageMenu->exec(ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height())));
     }
 }
+
+bool MainWindow::loadLanguage(Language lang)
+{
+    qApp->removeTranslator(&translator);
+    currentLanguage = lang;
+    QString locale = (lang == Language::French) ? QStringLiteral("fr") : QStringLiteral("en");
+    if (lang != Language::French) {
+        QString path = qApp->applicationDirPath() + "/translations/eaucouper_" + locale + ".qm";
+        if (!translator.load(path))
+            qWarning() << "Unable to load translation" << path;
+        qApp->installTranslator(&translator);
+    }
+
+    ui->retranslateUi(this);
+    Inventaire::getInstance()->updateTranslations(currentLanguage);
+    return true;
+}
+
+void MainWindow::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+    }
+    QMainWindow::changeEvent(event);
+}
+

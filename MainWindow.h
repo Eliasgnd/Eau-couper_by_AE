@@ -6,8 +6,10 @@
 #include "ShapeModel.h"
 #include "CustomDrawArea.h"
 #include "trajetmotor.h"
+#include "Language.h"
 #include <QMenu>
 #include <QAction>
+#include <QTranslator>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -51,12 +53,16 @@ private slots:
 
     void setLanguageFrench();
     void setLanguageEnglish();
+    void showLanguageMenu();
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
-    enum class Language { French, English };
-    void updateTranslations();
+    bool loadLanguage(Language lang);
 
     Language currentLanguage = Language::French;
+    QTranslator translator;
     QMenu *settingsMenu = nullptr;
     QMenu *languageMenu = nullptr;
     QAction *actionFrench = nullptr;

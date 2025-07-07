@@ -2,6 +2,7 @@
 #include "ui_inventaire.h"
 #include "ShapeModel.h"
 #include "MainWindow.h"
+#include "Language.h"
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGraphicsPolygonItem>
@@ -24,6 +25,8 @@ Inventaire::Inventaire(QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventaire)
 {
     ui->setupUi(this);
+
+    updateTranslations(currentLanguage);
 
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -80,13 +83,24 @@ void Inventaire::displayShapes()
     int row = 0, col = 0;
 
     // Affichage des formes prédéfinies
-    const QList<QPair<QString, ShapeModel::Type>> shapeList = {
-        {"Cercle",    ShapeModel::Type::Circle},
-        {"Rectangle", ShapeModel::Type::Rectangle},
-        {"Triangle",  ShapeModel::Type::Triangle},
-        {"Étoile",    ShapeModel::Type::Star},
-        {"Cœur",      ShapeModel::Type::Heart}
-    };
+    QList<QPair<QString, ShapeModel::Type>> shapeList;
+    if (currentLanguage == Language::French) {
+        shapeList = {
+            {"Cercle",    ShapeModel::Type::Circle},
+            {"Rectangle", ShapeModel::Type::Rectangle},
+            {"Triangle",  ShapeModel::Type::Triangle},
+            {"Étoile",    ShapeModel::Type::Star},
+            {"Cœur",      ShapeModel::Type::Heart}
+        };
+    } else {
+        shapeList = {
+            {"Circle",    ShapeModel::Type::Circle},
+            {"Rectangle", ShapeModel::Type::Rectangle},
+            {"Triangle",  ShapeModel::Type::Triangle},
+            {"Star",      ShapeModel::Type::Star},
+            {"Heart",     ShapeModel::Type::Heart}
+        };
+    }
 
     for (const auto &shapeInfo : shapeList) {
         QGraphicsScene *scene = new QGraphicsScene();
@@ -120,6 +134,7 @@ void Inventaire::displayShapes()
         frameLayout->addWidget(view, 0, Qt::AlignCenter);
         frameLayout->addWidget(label);
 
+        frame->setProperty("shapeType", static_cast<int>(shapeInfo.second));
         frame->setCursor(Qt::PointingHandCursor);
         frame->installEventFilter(this);
 
@@ -186,8 +201,8 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     menuButton->setStyleSheet("border: none; font-size: 14px;");
 
     QMenu *menu = new QMenu(menuButton);
-    QAction *renameAction = new QAction("Renommer", menu);
-    QAction *deleteAction = new QAction("Supprimer", menu);
+    QAction *renameAction = new QAction(currentLanguage == Language::French ? "Renommer" : "Rename", menu);
+    QAction *deleteAction = new QAction(currentLanguage == Language::French ? "Supprimer" : "Delete", menu);
     menu->addAction(renameAction);
     menu->addAction(deleteAction);
 
@@ -196,8 +211,10 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     });
     connect(renameAction, &QAction::triggered, [this, label, index]() {
         bool ok;
-        QString newName = QInputDialog::getText(nullptr, "Renommer la forme",
-                                                "Nouveau nom :", QLineEdit::Normal,
+        QString newName = QInputDialog::getText(nullptr,
+                                                currentLanguage == Language::French ? "Renommer la forme" : "Rename shape",
+                                                currentLanguage == Language::French ? "Nouveau nom :" : "New name:",
+                                                QLineEdit::Normal,
                                                 label->text(), &ok);
         if (ok && !newName.isEmpty()) {
             label->setText(newName);
@@ -263,46 +280,12 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
     if (event->type() == QEvent::MouseButtonPress) {
         QFrame *frame = qobject_cast<QFrame*>(obj);
         if (frame) {
-            // Tenter de récupérer le label contenu dans le cadre
-            QLabel *label = frame->findChild<QLabel*>();
-            if (label) {
-                QString shapeName = label->text().trimmed();
-                // Debug pour vérifier la valeur lue
-                qDebug() << "[DEBUG] shapeName =" << shapeName;
-
-                bool isPredef = false;
-                ShapeModel::Type type = ShapeModel::Type::Circle; // initialisation par défaut
-
-                // Comparaison insensible à la casse, en acceptant les versions avec ou sans accent.
-                if (shapeName.compare("Cercle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Circle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Rectangle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Rectangle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Triangle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Triangle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Étoile", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Etoile", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Star;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Cœur", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Coeur", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Heart;
-                    isPredef = true;
-                }
-
-                if (isPredef) {
-                    qDebug() << "[EVENT] Sélection d'une forme prédéfinie:" << shapeName;
-                    emit shapeSelected(type, frame->width(), frame->height());
-                    goToMainWindow();
-                    return true;
-                }
+            if (frame->property("shapeType").isValid()) {
+                int val = frame->property("shapeType").toInt();
+                ShapeModel::Type type = static_cast<ShapeModel::Type>(val);
+                emit shapeSelected(type, frame->width(), frame->height());
+                goToMainWindow();
+                return true;
             }
 //        checkCustom:
             // Si ce n'est pas une forme prédéfinie, vérifier la propriété custom.
@@ -319,4 +302,22 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+
+void Inventaire::updateTranslations(Language lang)
+{
+    currentLanguage = lang;
+    if (ui->buttonMenu) {
+        ui->buttonMenu->setText("");
+    }
+    displayShapes();
+}
+
+void Inventaire::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+        displayShapes();
+    }
+    QWidget::changeEvent(event);
 }

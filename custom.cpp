@@ -5,6 +5,7 @@
 #include "clavier.h"
 #include "inventaire.h"
 #include "LogoImporter.h"
+#include "Language.h"
 #include <QSpinBox>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -48,7 +49,7 @@ static bool isImageColored(const QImage &img)
 
 // Constructeur : création de l'interface et des connexions
 // Constructeur : création de l'interface et des connexions
-custom::custom(QWidget *parent)
+custom::custom(Language lang, QWidget *parent)
     : QWidget(parent),
     ui(new Ui::custom)
 {
@@ -69,6 +70,7 @@ custom::custom(QWidget *parent)
     } else {
         qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
+
 
     // Changer la couleur du bouton "fermer" quand il est actif
     connect(drawArea, &CustomDrawArea::closeModeChanged,
@@ -538,3 +540,12 @@ void custom::onCopyPasteClicked()
         ui->buttonSelection->update();
     }
 }
+
+void custom::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+    }
+    QWidget::changeEvent(event);
+}
+

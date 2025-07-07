@@ -12,7 +12,8 @@ HEADERS += \
     clavier.h claviernumerique.h custom.h inventaire.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     touchgesturereader.h \
-    trajetmotor.h
+    trajetmotor.h \
+    Language.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -27,6 +28,8 @@ FORMS += \
 
 # Qt Resource Collection
 RESOURCES += resources.qrc
+
+TRANSLATIONS += translations/eaucouper_en.ts
 
 # Installation (déploiement)
 !isEmpty(target.path): INSTALLS += target

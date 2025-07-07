@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include "CustomDrawArea.h"
+#include "Language.h"
 
 namespace Ui {
 class custom;
@@ -14,8 +15,11 @@ class custom : public QWidget
     Q_OBJECT
 
 public:
-    explicit custom(QWidget *parent = nullptr); // Constructeur
+    explicit custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
     ~custom(); // Destructeur
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
     Ui::custom *ui;
