@@ -31,5 +31,6 @@
         <file alias="fence.svg">icons/fence.svg</file>
         <file alias="magnet.svg">icons/magnet.svg</file>
         <file alias="chevron-down-white.svg">icons/chevron-down-white.svg</file>
+        <file alias="settings.svg">icons/settings.svg</file>
     </qresource>
 </RCC>
