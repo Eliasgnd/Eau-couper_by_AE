@@ -74,8 +74,38 @@ MainWindow::MainWindow(QWidget *parent)
     // Connection entre spinbox nombre de formes et FormeVisualization
     connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShapeCount);
     // Connection bouton optimisation
-    connect(ui->optimizePlacementButton, &QPushButton::clicked, formeVisualization, &FormeVisualization::optimizePlacement);
-    connect(ui->optimizePlacementButton2, &QPushButton::clicked, formeVisualization, &FormeVisualization::optimizePlacement2);
+
+
+   // activation et desactivation de l'optimisation
+
+    ui->optimizePlacementButton->setCheckable(true);
+    ui->optimizePlacementButton2->setCheckable(true);
+
+    connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [=]() {
+        if (ui->optimizePlacementButton->isChecked()) {
+            ui->optimizePlacementButton2->setChecked(false);
+            formeVisualization->optimizePlacement();
+        } else {
+            formeVisualization->setPredefinedMode();
+            // Optionnel : logique si on veut désactiver aussi
+        }
+    });
+
+    connect(ui->optimizePlacementButton2, &QPushButton::clicked, this, [=]() {
+        if (ui->optimizePlacementButton2->isChecked()) {
+            ui->optimizePlacementButton->setChecked(false);
+            formeVisualization->optimizePlacement2();
+        } else {
+             formeVisualization->setPredefinedMode();
+            // Optionnel
+        }
+    });
+
+
+
+
+
+
 
     //spinBox pour l'espacement
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
