@@ -55,7 +55,9 @@ custom::custom(Language lang, QWidget *parent)
 {
     ui->setupUi(this);
     currentLanguage = lang;
+
     updateTranslations(currentLanguage);
+
 
     ui->buttonCopyPaste->setVisible(false);
 
@@ -72,6 +74,8 @@ custom::custom(Language lang, QWidget *parent)
     } else {
         qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
+
+    updateTranslations(currentLanguage);
 
     // Changer la couleur du bouton "fermer" quand il est actif
     connect(drawArea, &CustomDrawArea::closeModeChanged,
@@ -545,6 +549,8 @@ void custom::onCopyPasteClicked()
 void custom::updateTranslations(Language lang)
 {
     currentLanguage = lang;
+    if (!drawArea) return;
+
     if (lang == Language::French) {
         ui->buttonMenu->setText("Menu principal");
         ui->Reset->setText("Reset");
@@ -555,8 +561,9 @@ void custom::updateTranslations(Language lang)
         ui->buttonSave->setText("Sauvegarder");
         ui->buttonGomme->setText("Gomme");
         ui->buttonSupprimer->setText("Supprimer");
-        ui->buttonDeplacer->setText("D\xE9placer");
-        ui->buttonSelection->setText("S\xE9lection");
+        ui->buttonDeplacer->setText("Déplacer");
+        ui->buttonSelection->setText("Sélection");
+
         if (ui->buttonCopyPaste->isVisible())
             ui->buttonCopyPaste->setText(ui->buttonCopyPaste->text() == "Paste" ? "Coller" : "Copier");
         ui->buttonConnect->setText("Relier");

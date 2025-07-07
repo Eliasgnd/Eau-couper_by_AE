@@ -28,9 +28,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     qDebug() << "Titre du bouton Play =" << ui->Play->text();
     // Menu Paramètres avec la sélection de langue
-    settingsMenu = menuBar()->addMenu(tr("Param\xE8tres"));
+    settingsMenu = menuBar()->addMenu(tr("Paramètres"));
     languageMenu = settingsMenu->addMenu(tr("Langue"));
-    actionFrench = languageMenu->addAction(tr("Fran\xE7ais"));
+    actionFrench = languageMenu->addAction(tr("Français"));
     actionEnglish = languageMenu->addAction(tr("Anglais"));
     connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
     connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
@@ -373,9 +373,9 @@ void MainWindow::setLanguageEnglish()
 void MainWindow::updateTranslations()
 {
     if (currentLanguage == Language::French) {
-        if (settingsMenu) settingsMenu->setTitle("Param\xE8tres");
+        if (settingsMenu) settingsMenu->setTitle("Paramètres");
         if (languageMenu) languageMenu->setTitle("Langue");
-        if (actionFrench) actionFrench->setText("Fran\xE7ais");
+        if (actionFrench) actionFrench->setText("Français");
         if (actionEnglish) actionEnglish->setText("Anglais");
         ui->Cercle->setText("Cercle");
         ui->Rectangle->setText("Rectangle");
@@ -386,13 +386,13 @@ void MainWindow::updateTranslations()
         ui->optimizePlacementButton2->setText("Optimiser placement 2");
         ui->buttonInventaire->setText("Inventaire");
         ui->buttonCustom->setText("Custom");
-        ui->buttonFileReceiver->setText("R\xE9ception fichier");
+        ui->buttonFileReceiver->setText("Réception fichier");
         ui->Vitesse_txt->setText("Vitesse : ");
         ui->Pression_txt->setText("Pression : ");
-        ui->Reglages_txt->setText("R\xE9glages : ");
+        ui->Reglages_txt->setText("Réglages : ");
         ui->Taille_txt->setText("Dimensions : ");
         ui->Hauteur_txt->setText("Hauteur : ");
-        ui->Taille_txt_2->setText("Quantit\xE9e : ");
+        ui->Taille_txt_2->setText("Quantité : ");
         ui->Taille_txt_3->setText("Espacement : ");
         ui->Titre->setText("Eau-Couper by AE");
     } else {
