@@ -21,6 +21,7 @@
 #include <QShowEvent>
 #include <QTimer>
 #include <QWindow>
+#include <QPoint>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
@@ -34,6 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
     actionEnglish = languageMenu->addAction(tr("Anglais"));
     connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
     connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+    connect(ui->buttonSettings, &QPushButton::clicked, this, &MainWindow::showLanguageMenu);
     updateTranslations();
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -370,6 +372,14 @@ void MainWindow::setLanguageEnglish()
     Inventaire::getInstance()->updateTranslations(currentLanguage);
 }
 
+void MainWindow::showLanguageMenu()
+{
+    if (languageMenu && ui->buttonSettings) {
+        languageMenu->exec(ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height())));
+    }
+
+}
+
 void MainWindow::updateTranslations()
 {
     if (currentLanguage == Language::French) {
@@ -387,6 +397,8 @@ void MainWindow::updateTranslations()
         ui->buttonInventaire->setText("Inventaire");
         ui->buttonCustom->setText("Custom");
         ui->buttonFileReceiver->setText("Réception fichier");
+        if (ui->buttonSettings) ui->buttonSettings->setText("Paramètres");
+
         ui->Vitesse_txt->setText("Vitesse : ");
         ui->Pression_txt->setText("Pression : ");
         ui->Reglages_txt->setText("Réglages : ");
@@ -410,6 +422,7 @@ void MainWindow::updateTranslations()
         ui->buttonInventaire->setText("Inventory");
         ui->buttonCustom->setText("Custom");
         ui->buttonFileReceiver->setText("Receive file");
+        if (ui->buttonSettings) ui->buttonSettings->setText("Settings");
         ui->Vitesse_txt->setText("Speed: ");
         ui->Pression_txt->setText("Pressure: ");
         ui->Reglages_txt->setText("Settings: ");

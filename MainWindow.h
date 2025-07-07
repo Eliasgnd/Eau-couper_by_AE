@@ -52,6 +52,7 @@ private slots:
 
     void setLanguageFrench();
     void setLanguageEnglish();
+    void showLanguageMenu();
 
 private:
     void updateTranslations();
