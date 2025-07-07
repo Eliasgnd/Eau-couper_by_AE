@@ -375,4 +375,5 @@ void MainWindow::setSpinboxSliderEnabled(bool enabled)
     ui->Slider_longueur->setEnabled(enabled);
     ui->shapeCountSpinBox->setEnabled(enabled);
     ui->spaceSpinBox->setEnabled(enabled);
+    qDebug() << "[DEBUG] Appel de setSpinboxSliderEnabled(" << enabled << ")";
 }

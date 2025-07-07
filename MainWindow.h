@@ -22,6 +22,7 @@ public:
 
 public slots:
     void updateProgressBar(int remaining, int total);
+    void setSpinboxSliderEnabled(bool enabled);
 
 private slots:
     void updateForme();
@@ -46,9 +47,8 @@ private slots:
     void updateSpacing(int value);
     //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons);
-
-
     void onShapeSelectedFromInventaire(ShapeModel::Type type);
+
 private:
     Ui::MainWindow *ui;
     FormeVisualization *formeVisualization = nullptr;
@@ -58,7 +58,6 @@ private:
     TrajetMotor* trajetMotor;
     void setFormEditingEnabled(bool enabled);
     void StartPixel();
-    void setSpinboxSliderEnabled(bool enabled);
 
 protected:
     void showEvent(QShowEvent *event) override;
