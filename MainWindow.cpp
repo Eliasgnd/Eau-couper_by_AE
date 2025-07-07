@@ -7,6 +7,7 @@
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "trajetmotor.h"
+#include "Language.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -203,12 +204,13 @@ void MainWindow::changeToHeart() {
 
 void MainWindow::showInventaire() {
     this->hide();
+    Inventaire::getInstance()->updateTranslations(currentLanguage);
     Inventaire::getInstance()->show();
 }
 
 void MainWindow::showCustom() {
     this->hide();
-    custom *customWindow = new custom();
+    custom *customWindow = new custom(currentLanguage);
     connect(customWindow, &custom::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
     connect(customWindow, &custom::resetDrawingSignal,
@@ -358,12 +360,14 @@ void MainWindow::setLanguageFrench()
 {
     currentLanguage = Language::French;
     updateTranslations();
+    Inventaire::getInstance()->updateTranslations(currentLanguage);
 }
 
 void MainWindow::setLanguageEnglish()
 {
     currentLanguage = Language::English;
     updateTranslations();
+    Inventaire::getInstance()->updateTranslations(currentLanguage);
 }
 
 void MainWindow::updateTranslations()
@@ -415,4 +419,5 @@ void MainWindow::updateTranslations()
         ui->Taille_txt_3->setText("Spacing: ");
         ui->Titre->setText("Water-Cut by AE");
     }
+    Inventaire::getInstance()->updateTranslations(currentLanguage);
 }

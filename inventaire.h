@@ -6,6 +6,7 @@
 #include <QList>
 #include "ShapeModel.h"
 #include <QFrame>
+#include "Language.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Inventaire; }
@@ -34,6 +35,8 @@ public:
     // Méthode pour ajouter une forme custom sauvegardée (liste de QPolygonF) dans l'inventaire
     void addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name);
 
+    void updateTranslations(Language lang);
+
 signals:
     // Signal émis lorsqu'une forme prédéfinie est sélectionnée (Cercle, Rectangle, etc.)
     void shapeSelected(ShapeModel::Type type, int width, int height);
@@ -60,6 +63,7 @@ private:
 
     // Liste des formes custom sauvegardées
     QList<CustomShapeData> m_customShapes;
+    Language currentLanguage = Language::French;
 };
 
 #endif // INVENTAIRE_H
