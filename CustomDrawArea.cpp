@@ -8,6 +8,7 @@
 #include <QWheelEvent>
 #include <QGestureEvent>
 #include <QPinchGesture>
+#include <QLineF>
 #include <QMap>
 #include <algorithm> // pour std::sort
 #include <QInputDialog>
@@ -434,6 +435,21 @@ QPainterPath CustomDrawArea::generateRawPath(const QList<QPointF>& pts)
     for (int i = 1; i < pts.size(); ++i)
         path.lineTo(pts[i]);
     return path;
+}
+
+int CustomDrawArea::computeSmoothingIterations(const QList<QPointF> &pts) const
+{
+    int baseIter = (m_smoothingLevel == 0) ? 1 :
+                   (m_smoothingLevel == 1 ? 2 : 3);
+    if (pts.size() < 2)
+        return baseIter;
+    double total = 0.0;
+    for (int i = 1; i < pts.size(); ++i)
+        total += QLineF(pts[i-1], pts[i]).length();
+    double avg = total / (pts.size() - 1);
+    if (avg < m_lowSpeedThreshold)
+        baseIter += 1;
+    return baseIter;
 }
 
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
@@ -960,8 +976,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int iterations = (m_smoothingLevel == 0) ? 1 :
-                             (m_smoothingLevel == 1 ? 2 : 3);
+            int iterations = computeSmoothingIterations(m_freehandPoints);
             finalPoints = applyChaikinAlgorithm(m_freehandPoints, iterations);
         } else {
             finalPoints = m_freehandPoints;
@@ -1249,8 +1264,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         QPainterPath preview;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int it = (m_smoothingLevel == 0) ? 1 :
-                     (m_smoothingLevel == 1 ? 2 : 3);
+            int it = computeSmoothingIterations(m_freehandPoints);
             QList<QPointF> pts = applyChaikinAlgorithm(m_freehandPoints, it);
             preview = generateBezierPath(pts);        // lissé
         } else {
@@ -1390,6 +1404,7 @@ void CustomDrawArea::startShapeSelection()
     emit shapeSelection(true);
     update();
 }
+
 
 void CustomDrawArea::cancelSelection()
 {
