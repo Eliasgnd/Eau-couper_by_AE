@@ -153,6 +153,10 @@ void TrajetMotor::executeTrajet()
         QMetaObject::invokeMethod(m_mainWindow, "setParamWidgetsEnabled",
                                   Qt::QueuedConnection, Q_ARG(bool, true));
     }
+    if (m_mainWindow) {
+        QMetaObject::invokeMethod(m_mainWindow, "setSpinboxSliderEnabled",
+                                  Qt::QueuedConnection, Q_ARG(bool, true));
+    }
     if (m_visu)
         m_visu->setDecoupeEnCours(false);
     m_running = false;

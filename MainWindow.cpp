@@ -135,6 +135,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->Stop, &QPushButton::clicked, this, [this]() {
         trajetMotor->stopCut();
         formeVisualization->setDecoupeEnCours(false);
+        setSpinboxSliderEnabled(true);
     });
 
 
@@ -314,6 +315,7 @@ void MainWindow::StartPixel()
     formeVisualization->setDecoupeEnCours(true);
     // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
     //qDebug() << "Demarrage Découpe";
+    setSpinboxSliderEnabled(false);
     trajetMotor->executeTrajet();
     // Blocage des paramètres UI pendant la découpe
 
@@ -365,3 +367,12 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
     formeVisualization->setModel(type);
 }
 
+void MainWindow::setSpinboxSliderEnabled(bool enabled)
+{
+    ui->Largeur->setEnabled(enabled);
+    ui->Longueur->setEnabled(enabled);
+    ui->Slider_largeur->setEnabled(enabled);
+    ui->Slider_longueur->setEnabled(enabled);
+    ui->shapeCountSpinBox->setEnabled(enabled);
+    ui->spaceSpinBox->setEnabled(enabled);
+}

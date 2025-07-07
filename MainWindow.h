@@ -58,6 +58,7 @@ private:
     TrajetMotor* trajetMotor;
     void setFormEditingEnabled(bool enabled);
     void StartPixel();
+    void setSpinboxSliderEnabled(bool enabled);
 
 protected:
     void showEvent(QShowEvent *event) override;
