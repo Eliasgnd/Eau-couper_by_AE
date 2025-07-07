@@ -5,7 +5,7 @@
 #include <QPushButton>
 #include <QGridLayout>
 #include <QLineEdit>
-
+//cration brnache global
 class Clavier : public QDialog
 {
     Q_OBJECT
