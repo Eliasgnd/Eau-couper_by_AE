@@ -16,10 +16,34 @@
 #include <QToolButton>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QImage>
+#include <QProgressDialog>
+#include <QApplication>
 #include <algorithm>
 #include <QFontComboBox>
 #include <QHBoxLayout>
+#include <cmath>
 #include "ScreenUtils.h"
+
+// Detect if an image has colors (i.e., not strictly grayscale)
+static bool isImageColored(const QImage &img)
+{
+    constexpr int tolerance = 10; // allow minor variations
+    for (int y = 0; y < img.height(); ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            QRgb pixel = line[x];
+            int r = qRed(pixel);
+            int g = qGreen(pixel);
+            int b = qBlue(pixel);
+            if (std::abs(r - g) > tolerance ||
+                std::abs(r - b) > tolerance ||
+                std::abs(g - b) > tolerance)
+                return true;
+        }
+    }
+    return false;
+}
 
 
 // Constructeur : création de l'interface et des connexions
@@ -29,6 +53,8 @@ custom::custom(QWidget *parent)
     ui(new Ui::custom)
 {
     ui->setupUi(this);
+
+    ui->buttonCopyPaste->setVisible(false);
 
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -64,6 +90,18 @@ custom::custom(QWidget *parent)
         ui->buttonConnect->update();
     });
 
+    // Changer la couleur du bouton "selection" quand le mode est actif
+    connect(drawArea, &CustomDrawArea::multiSelectionModeChanged,
+            this, [this](bool enabled){
+        ui->buttonSelection->setProperty("closeMode", enabled);
+        ui->buttonSelection->style()->unpolish(ui->buttonSelection);
+        ui->buttonSelection->style()->polish(ui->buttonSelection);
+        ui->buttonSelection->update();
+        ui->buttonCopyPaste->setVisible(enabled);
+        if (enabled)
+            ui->buttonCopyPaste->setText(tr("Copier"));
+    });
+
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
     connect(ui->Appliquer, &QPushButton::clicked, this, [this]() {
         qDebug() << "Signal applyCustomShapeSignal émis avec les formes !";
@@ -87,6 +125,12 @@ custom::custom(QWidget *parent)
 
     //Relier deux extrémités
     connect(ui->buttonConnect, &QPushButton::clicked, drawArea, &::CustomDrawArea::startShapeSelection);
+
+    // Bouton de sélection multiple
+    connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
+
+    // Bouton copier/coller
+    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &custom::onCopyPasteClicked);
 
 
     connect(ui->buttonCloseShape, &QPushButton::clicked,
@@ -223,8 +267,12 @@ custom::custom(QWidget *parent)
 
     // --- Connexions pour les autres boutons ---
     connect(ui->buttonSupprimer, &QPushButton::clicked, this, [this]() {
-        drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
-        qDebug() << "Mode Supprimer sélectionné";
+        if (drawArea->hasSelection()) {
+            drawArea->deleteSelectedShapes();
+        } else {
+            drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
+            qDebug() << "Mode Supprimer sélectionné";
+        }
     });
     connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Deplacer);
@@ -426,6 +474,7 @@ static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path)
     return subpaths;
 }
 
+
 void custom::importerLogo()
 {
     QString filePath = QFileDialog::getOpenFileName(
@@ -471,5 +520,21 @@ void custom::importerLogo()
     qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
     for (const QPainterPath &sp : subpaths) {
         drawArea->addImportedLogoSubpath(sp);
+    }
+}
+
+void custom::onCopyPasteClicked()
+{
+    if (ui->buttonCopyPaste->text() == tr("Copier")) {
+        drawArea->copySelectedShapes();
+        ui->buttonCopyPaste->setText(tr("Coller"));
+    } else {
+        drawArea->enablePasteMode();
+        // The next click in draw area will paste
+        ui->buttonCopyPaste->setVisible(false);
+        ui->buttonSelection->setProperty("closeMode", false);
+        ui->buttonSelection->style()->unpolish(ui->buttonSelection);
+        ui->buttonSelection->style()->polish(ui->buttonSelection);
+        ui->buttonSelection->update();
     }
 }

@@ -77,8 +77,14 @@ public:
     // va relier les deux extrémités les plus proches
     void connectNearestEndpoints(int idx1, int idx2);
     // Démarre le mode sélection de deux formes
-    void startShapeSelection();           // passe en mode sélection de 2 formes
+    void startShapeSelection();           // sélection pour relier deux formes
     void cancelSelection();               // annule la sélection en cours
+    void toggleMultiSelectMode();         // active/désactive la sélection multiple
+    bool hasSelection() const { return !m_selectedShapes.isEmpty(); }
+    void deleteSelectedShapes();          // supprime toutes les formes sélectionnées
+    void copySelectedShapes();            // copie les formes sélectionnées
+    void enablePasteMode();               // active le mode collage
+    void pasteCopiedShapes(const QPointF &dest); // colle à la position donnée
 
     // Nouvelle méthode à appeler au lancement pour définir la limite
     void initializeLimitRect();
@@ -177,9 +183,14 @@ private:
     // Fusion de plusieurs QPainterPath en un seul
     QPainterPath combineSegments(const QList<QPainterPath> &segments);
 
-    bool   m_selectMode      = false;        // vrai si on est en train de sélectionner
-    QVector<int> m_selectedShapes;            // stocke l’indice des 2 formes sélectionnées
+    bool   m_selectMode      = false;        // vrai si une sélection est active
+    bool   m_connectSelectionMode = false;   // sélection utilisée pour la fonction "Relier"
+    QVector<int> m_selectedShapes;            // indices des formes sélectionnées
     bool m_closeMode = false;               // vrai si on est en train de fermer
+    QList<Shape> m_copiedShapes;            // formes copiées
+    QPointF m_copyAnchor;                   // point d'ancrage de la copie
+    bool m_pasteMode = false;               // vrai si un collage est en attente
+    QPointF m_lastSelectClick;              // dernière position de sélection
 
 
     // Déclaration de la fonction addNode
@@ -206,11 +217,15 @@ private:
     int    m_gridSpacing  = 20;      // Doit rester synchronisé avec celui du paintEvent
     QPointF snapIfNeeded(const QPointF &p) const;
 
+    // Distance minimale entre deux points consécutifs lors du dessin libre
+    qreal  m_minPointDistance = 2.0;
+
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
     void shapeSelection(bool enabled);
     void smoothingChanged(bool enabled);
+    void multiSelectionModeChanged(bool enabled);
 
 private slots:
     void onPinchZoom(const QPointF &center, qreal scaleFactor);

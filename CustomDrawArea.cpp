@@ -20,6 +20,7 @@
 #include <QTouchEvent>
 #include <QPinchGesture>
 #include <utility>
+#include <QTransform>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
@@ -38,7 +39,11 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_currentText("Votre texte ici"),
     m_textFont("Arial", 16),
     m_snapToGrid(false),
-    m_gridSpacing(20)
+    m_gridSpacing(20),
+    m_minPointDistance(2.0),
+    m_copyAnchor(0,0),
+    m_pasteMode(false),
+    m_lastSelectClick(0,0)
 
 {
     setMouseTracking(true);
@@ -325,10 +330,9 @@ void CustomDrawArea::setSmoothingLevel(int level)
 
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
-    if (m_selectMode) {
-            cancelSelection();
-            emit shapeSelection(false);
-        }
+    if (m_selectMode && m_connectSelectionMode) {
+        cancelSelection();
+    }
     if (m_closeMode) {
            m_closeMode = false;
            emit closeModeChanged(false);
@@ -439,6 +443,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
     QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
 
+    if (m_pasteMode) {
+        pasteCopiedShapes(pos);
+        return;
+    }
+
     // ————————— Mode fermeture —————————
     if (m_closeMode) {
         const double tol = 25.0;
@@ -493,44 +502,37 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 
         if (m_selectMode) {
-            // Détection de la forme cliquée (tolérance en pixels)
-                const double tol = 25.0;
-                int hitShape = -1;
-                auto shapesPoly = getCustomShapes();
-                // accède directement à m_shapes, qui stocke tes QPainterPath
-                for (int i = 0; i < m_shapes.size(); ++i) {
-                    QPainterPath &candidatePath = m_shapes[i].path;
-                    // tolérance en pixels
-                    QPainterPathStroker stroker;
-                    stroker.setWidth(tol);
-                    if (stroker.createStroke(candidatePath).contains(pos)) {
-                        hitShape = i;
-                        break;
-                    }
+            const double tol = 25.0;
+            int hitShape = -1;
+            for (int i = m_shapes.size() - 1; i >= 0; --i) {
+                QPainterPathStroker stroker;
+                stroker.setWidth(tol);
+                if (stroker.createStroke(m_shapes[i].path).contains(pos)) {
+                    hitShape = i;
+                    break;
                 }
+            }
 
-                if (hitShape >= 0) {
+            if (hitShape >= 0) {
+                m_lastSelectClick = pos;
+                if (m_selectedShapes.contains(hitShape))
+                    m_selectedShapes.removeAll(hitShape);
+                else
                     m_selectedShapes.append(hitShape);
-                    /*qDebug() << "Forme sélectionnée:" << hitShape
-                             << "→ total =" << m_selectedShapes.size();*/
-                    update();
 
-                    // dès que 2 formes, on relie leurs extrémités les plus proches
-                    if (m_selectedShapes.size() == 2) {
-                        // ajoute d’abord le connecteur comme Shape
-                        connectNearestEndpoints(m_selectedShapes[0],
-                                                m_selectedShapes[1]);
-                        // puis fusionne les deux formes ET le connecteur en une seule forme
-                        mergeShapesAndConnector(m_selectedShapes[0],
-                                                m_selectedShapes[1]);
-                        m_selectMode = false;
-                        m_selectedShapes.clear();
-                        emit shapeSelection(false);
-                        update();
-                    }
+                if (m_connectSelectionMode && m_selectedShapes.size() == 2) {
+                    connectNearestEndpoints(m_selectedShapes[0], m_selectedShapes[1]);
+                    mergeShapesAndConnector(m_selectedShapes[0], m_selectedShapes[1]);
+                    m_selectMode = false;
+                    m_selectedShapes.clear();
+                    m_connectSelectionMode = false;
+                    emit shapeSelection(false);
+                } else if (!m_connectSelectionMode) {
+                    emit multiSelectionModeChanged(true);
                 }
+                update();
+            }
 
-            // 4) On quitte avant ton code habituel
             return;
         }
 
@@ -552,14 +554,22 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     case DrawMode::Freehand:
         m_drawing = true;
         m_freehandPoints.clear();
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        {
+            m_freehandPoints.append(pos);
+        }
         break;
     case DrawMode::PointParPoint:
         if (!m_drawing) {
             m_drawing = true;
             m_freehandPoints.clear();
         }
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        {
+            m_freehandPoints.append(pos);
+        }
         break;
     case DrawMode::Line:
     case DrawMode::Circle:
@@ -600,27 +610,39 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         break;
     case DrawMode::Deplacer:
     {
-        QPainterPathStroker stroker;
-        stroker.setWidth(10);
-        double minDist = std::numeric_limits<double>::max();
-        int selectedIndex = -1;
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            QPainterPath thickPath = stroker.createStroke(m_shapes[i].path);
-            if (thickPath.contains(pos)) {
-                QRectF bounds = m_shapes[i].path.boundingRect();
-                QPointF center = bounds.center();
-                double d = distance(pos, center);
-                if (d < minDist) {
-                    minDist = d;
-                    selectedIndex = i;
+        if (!m_selectedShapes.isEmpty()) {
+            QRectF box;
+            for (int idx : std::as_const(m_selectedShapes)) {
+                if (idx >=0 && idx < m_shapes.size())
+                    box = box.united(m_shapes[idx].path.boundingRect());
+            }
+            QRectF tolBox = box.adjusted(-10, -10, 10, 10);
+            if (tolBox.contains(pos)) {
+                m_shapeMoving = true;
+                m_lastMovePoint = pos;
+            }
+        } else {
+            QPainterPathStroker stroker;
+            stroker.setWidth(10);
+            double minDist = std::numeric_limits<double>::max();
+            int selectedIndex = -1;
+            for (int i = 0; i < m_shapes.size(); ++i) {
+                QPainterPath thickPath = stroker.createStroke(m_shapes[i].path);
+                if (thickPath.contains(pos)) {
+                    QRectF bounds = m_shapes[i].path.boundingRect();
+                    QPointF center = bounds.center();
+                    double d = distance(pos, center);
+                    if (d < minDist) {
+                        minDist = d;
+                        selectedIndex = i;
+                    }
                 }
             }
-        }
-        if (selectedIndex != -1) {
-            m_selectedShapeIndex = selectedIndex;
-            m_shapeMoving = true;
-            m_lastMovePoint = pos;
-            //qDebug() << "Deplacer: tracé sélectionné, index =" << m_selectedShapeIndex;
+            if (selectedIndex != -1) {
+                m_selectedShapeIndex = selectedIndex;
+                m_shapeMoving = true;
+                m_lastMovePoint = pos;
+            }
         }
         break;
     }
@@ -692,7 +714,11 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     {
     case DrawMode::Freehand:
         if (!m_drawing) return;
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        {
+            m_freehandPoints.append(pos);
+        }
         update();
         break;
     case DrawMode::PointParPoint:
@@ -889,9 +915,16 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         break;
     }
     case DrawMode::Deplacer:
-        if (m_shapeMoving && m_selectedShapeIndex >= 0) {
+        if (m_shapeMoving) {
             QPointF delta = pos - m_lastMovePoint;
-            m_shapes[m_selectedShapeIndex].path.translate(delta);
+            if (!m_selectedShapes.isEmpty()) {
+                for (int idx : std::as_const(m_selectedShapes)) {
+                    if (idx >= 0 && idx < m_shapes.size())
+                        m_shapes[idx].path.translate(delta);
+                }
+            } else if (m_selectedShapeIndex >= 0) {
+                m_shapes[m_selectedShapeIndex].path.translate(delta);
+            }
             m_lastMovePoint = pos;
             updateCanvas();
             update();
@@ -923,10 +956,12 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     {
         if (!m_drawing)
             return;
-        m_freehandPoints.append(pos);
+        if (m_freehandPoints.isEmpty() || distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+            m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int iterations = (m_smoothingLevel == 0) ? 5 : (m_smoothingLevel == 1 ? 8 : 12);
+            int iterations = (m_smoothingLevel == 0) ? 1 :
+                             (m_smoothingLevel == 1 ? 2 : 3);
             finalPoints = applyChaikinAlgorithm(m_freehandPoints, iterations);
         } else {
             finalPoints = m_freehandPoints;
@@ -1033,7 +1068,8 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     case DrawMode::Deplacer:
         if (m_shapeMoving) {
             m_shapeMoving = false;
-            m_selectedShapeIndex = -1;
+            if (m_selectedShapes.isEmpty())
+                m_selectedShapeIndex = -1;
             pushState();
         }
         break;
@@ -1213,8 +1249,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         QPainterPath preview;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int it = (m_smoothingLevel == 0) ? 5 :
-                     (m_smoothingLevel == 1 ? 8 : 12);
+            int it = (m_smoothingLevel == 0) ? 1 :
+                     (m_smoothingLevel == 1 ? 2 : 3);
             QList<QPointF> pts = applyChaikinAlgorithm(m_freehandPoints, it);
             preview = generateBezierPath(pts);        // lissé
         } else {
@@ -1348,8 +1384,8 @@ void CustomDrawArea::startShapeSelection()
 {
     // Si on était en mode fermeture, on l'annule
     cancelCloseMode();
-
     m_selectMode = true;
+    m_connectSelectionMode = true;
     m_selectedShapes.clear();
     emit shapeSelection(true);
     update();
@@ -1360,9 +1396,45 @@ void CustomDrawArea::cancelSelection()
     if (m_selectMode) {
         m_selectMode = false;
         m_selectedShapes.clear();
-        emit shapeSelection(false);
+        if (m_connectSelectionMode)
+            emit shapeSelection(false);
+        else
+            emit multiSelectionModeChanged(false);
+        m_connectSelectionMode = false;
         update();
     }
+}
+
+void CustomDrawArea::toggleMultiSelectMode()
+{
+    if (!m_selectMode) {
+        cancelCloseMode();
+        m_selectMode = true;
+        m_connectSelectionMode = false;
+        m_selectedShapes.clear();
+        emit multiSelectionModeChanged(true);
+    } else if (!m_connectSelectionMode) {
+        cancelSelection();
+    }
+    update();
+}
+
+void CustomDrawArea::deleteSelectedShapes()
+{
+    if (m_selectedShapes.isEmpty())
+        return;
+
+    std::sort(m_selectedShapes.begin(), m_selectedShapes.end(), std::greater<int>());
+    pushState();
+    for (int idx : std::as_const(m_selectedShapes)) {
+        if (idx >= 0 && idx < m_shapes.size())
+            m_shapes.removeAt(idx);
+    }
+    m_selectedShapes.clear();
+    updateCanvas();
+    update();
+    emit multiSelectionModeChanged(false);
+    m_selectMode = false;
 }
 
 
@@ -1625,4 +1697,42 @@ void CustomDrawArea::setGridSpacing(int px)
 {
     m_gridSpacing = qMax(1, px);   // sécurité : pas 0
     update();                      // redessine la grille
+}
+
+void CustomDrawArea::copySelectedShapes()
+{
+    m_copiedShapes.clear();
+    for (int idx : std::as_const(m_selectedShapes)) {
+        if (idx >= 0 && idx < m_shapes.size())
+            m_copiedShapes.append(m_shapes[idx]);
+    }
+    m_copyAnchor = m_lastSelectClick;
+}
+
+void CustomDrawArea::enablePasteMode()
+{
+    if (!m_copiedShapes.isEmpty())
+        m_pasteMode = true;
+}
+
+void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
+{
+    if (!m_pasteMode || m_copiedShapes.isEmpty())
+        return;
+
+    QPointF delta = dest - m_copyAnchor;
+    pushState();
+    for (const Shape &s : std::as_const(m_copiedShapes)) {
+        Shape newShape = s;
+        QTransform t;
+        t.translate(delta.x(), delta.y());
+        newShape.path = t.map(s.path);
+        m_shapes.append(newShape);
+    }
+    updateCanvas();
+    update();
+    m_pasteMode = false;
+    m_selectedShapes.clear();
+    emit multiSelectionModeChanged(false);
+    cancelSelection();
 }
