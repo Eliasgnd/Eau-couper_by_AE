@@ -24,3 +24,4 @@ Makefile*
 build*/
 debug/
 release/
+.qmake.stash
