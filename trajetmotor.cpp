@@ -114,20 +114,25 @@ void TrajetMotor::executeTrajet()
         if (cur != s.a) {
             drawSegment(m_visu, cur, s.a, false);
             m_motor.stopJet();
+
+            // Déplacement progressif visuel de la tête
+            moveHeadProgressive(cur, s.a, head);
+
+            // Ensuite, on commande le moteur pour aller à la position finale
             m_motor.moveRapid(s.a.x() * mmPerPx, s.a.y() * mmPerPx);
-            head->setPos(s.a.x() - 3, s.a.y() - 3);
-            QApplication::processEvents();
-            QThread::msleep(VIS_DELAY_MS);
         }
         cur = s.a;
+
 
         // ---------- Coupe (rouge) ---------------------------------------------
         m_motor.startJet();
         drawSegment(m_visu, s.a, s.b, true);
+
+        // Déplacement progressif visuel de la tête
+        moveHeadProgressive(s.a, s.b, head);
+
+        // Puis déplacement réel du moteur à la position cible
         m_motor.moveCut(s.b.x() * mmPerPx, s.b.y() * mmPerPx);
-        head->setPos(s.b.x() - 3, s.b.y() - 3);
-        QApplication::processEvents();
-        QThread::msleep(VIS_DELAY_MS);
 
         // ---------- Progression ------------------------------------------------
         done.insert(key(s.a, s.b));
@@ -169,4 +174,22 @@ void TrajetMotor::stopCut()
     m_stopRequested = true;
     m_paused        = false;
     m_motor.stopJet();
+}
+
+void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end, QGraphicsEllipseItem* head)
+{
+    int dx = end.x() - start.x();
+    int dy = end.y() - start.y();
+    int steps = std::max(std::abs(dx), std::abs(dy));
+    if (steps == 0) return;
+
+    for (int step = 1; step <= steps; ++step) {
+        double t = static_cast<double>(step) / steps;
+        int x = qRound(start.x() + t * dx);
+        int y = qRound(start.y() + t * dy);
+
+        head->setPos(x - 3, y - 3);
+        QApplication::processEvents();
+        QThread::msleep(VIS_DELAY_MS);
+    }
 }
