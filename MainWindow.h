@@ -9,6 +9,7 @@
 #include "Language.h"
 #include <QMenu>
 #include <QAction>
+#include <QTranslator>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -54,10 +55,15 @@ private slots:
     void setLanguageEnglish();
     void showLanguageMenu();
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
-    void updateTranslations();
+    bool loadLanguage(Language lang);
+
 
     Language currentLanguage = Language::French;
+    QTranslator translator;
     QMenu *settingsMenu = nullptr;
     QMenu *languageMenu = nullptr;
     QAction *actionFrench = nullptr;

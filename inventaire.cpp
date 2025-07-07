@@ -134,6 +134,7 @@ void Inventaire::displayShapes()
         frameLayout->addWidget(view, 0, Qt::AlignCenter);
         frameLayout->addWidget(label);
 
+        frame->setProperty("shapeType", static_cast<int>(shapeInfo.second));
         frame->setCursor(Qt::PointingHandCursor);
         frame->installEventFilter(this);
 
@@ -279,53 +280,14 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
     if (event->type() == QEvent::MouseButtonPress) {
         QFrame *frame = qobject_cast<QFrame*>(obj);
         if (frame) {
-            // Tenter de récupérer le label contenu dans le cadre
-            QLabel *label = frame->findChild<QLabel*>();
-            if (label) {
-                QString shapeName = label->text().trimmed();
-                // Debug pour vérifier la valeur lue
-                qDebug() << "[DEBUG] shapeName =" << shapeName;
-
-                bool isPredef = false;
-                ShapeModel::Type type = ShapeModel::Type::Circle; // initialisation par défaut
-
-                // Comparaison insensible à la casse, en acceptant les versions avec ou sans accent.
-                if (shapeName.compare("Cercle", Qt::CaseInsensitive) == 0 ||
-                    shapeName.compare("Circle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Circle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Rectangle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Rectangle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Triangle", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Triangle;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Étoile", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Etoile", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Star;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Star", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Star;
-                    isPredef = true;
-                }
-                else if (shapeName.compare("Cœur", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Coeur", Qt::CaseInsensitive) == 0 ||
-                         shapeName.compare("Heart", Qt::CaseInsensitive) == 0) {
-                    type = ShapeModel::Type::Heart;
-                    isPredef = true;
-                }
-
-                if (isPredef) {
-                    qDebug() << "[EVENT] Sélection d'une forme prédéfinie:" << shapeName;
-                    emit shapeSelected(type, frame->width(), frame->height());
-                    goToMainWindow();
-                    return true;
-                }
+            if (frame->property("shapeType").isValid()) {
+                int val = frame->property("shapeType").toInt();
+                ShapeModel::Type type = static_cast<ShapeModel::Type>(val);
+                emit shapeSelected(type, frame->width(), frame->height());
+                goToMainWindow();
+                return true;
             }
+
 //        checkCustom:
             // Si ce n'est pas une forme prédéfinie, vérifier la propriété custom.
             if (frame->property("CustomShapeIndex").isValid()) {
@@ -350,4 +312,13 @@ void Inventaire::updateTranslations(Language lang)
         ui->buttonMenu->setText("");
     }
     displayShapes();
+}
+
+void Inventaire::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
+        displayShapes();
+    }
+    QWidget::changeEvent(event);
 }

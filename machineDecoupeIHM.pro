@@ -29,5 +29,7 @@ FORMS += \
 # Qt Resource Collection
 RESOURCES += resources.qrc
 
+TRANSLATIONS += translations/eaucouper_en.ts
+
 # Installation (déploiement)
 !isEmpty(target.path): INSTALLS += target

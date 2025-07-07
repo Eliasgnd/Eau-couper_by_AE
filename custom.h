@@ -18,13 +18,15 @@ public:
     explicit custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
     ~custom(); // Destructeur
 
-    void updateTranslations(Language lang);
+protected:
+    void changeEvent(QEvent *event) override;
+
 
 private:
     Ui::custom *ui;
     CustomDrawArea *drawArea; // Instance de la zone de dessin
     QStringList m_favoriteFonts;
-    Language currentLanguage = Language::French;
+
 
 private slots:
     void goToMainWindow(); // Retourner à la fenêtre principale

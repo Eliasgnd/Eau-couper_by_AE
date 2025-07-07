@@ -54,7 +54,6 @@ custom::custom(Language lang, QWidget *parent)
     ui(new Ui::custom)
 {
     ui->setupUi(this);
-    currentLanguage = lang;
 
 
     ui->buttonCopyPaste->setVisible(false);
@@ -72,6 +71,7 @@ custom::custom(Language lang, QWidget *parent)
     } else {
         qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
+
 
     updateTranslations(currentLanguage);
 
@@ -546,46 +546,11 @@ void custom::onCopyPasteClicked()
     }
 }
 
-void custom::updateTranslations(Language lang)
+void custom::changeEvent(QEvent *event)
 {
-    currentLanguage = lang;
-    if (!drawArea) return;
-    if (lang == Language::French) {
-        ui->buttonMenu->setText("Menu principal");
-        ui->Reset->setText("Reset");
-        ui->Appliquer->setText("Appliquer");
-        ui->buttonForme->setText("Forme");
-        ui->buttonRetour->setText("Retour");
-        ui->buttonImporter->setText("Importer");
-        ui->buttonSave->setText("Sauvegarder");
-        ui->buttonGomme->setText("Gomme");
-        ui->buttonSupprimer->setText("Supprimer");
-        ui->buttonDeplacer->setText("Déplacer");
-        ui->buttonSelection->setText("Sélection");
-        if (ui->buttonCopyPaste->isVisible())
-            ui->buttonCopyPaste->setText(ui->buttonCopyPaste->text() == "Paste" ? "Coller" : "Copier");
-        ui->buttonConnect->setText("Relier");
-        ui->buttonSnapGrid->setText(drawArea->isSnapToGridEnabled() ? "Aimant ON" : "Aimant OFF");
-        ui->buttonCloseShape->setText("Fermer");
-        ui->buttonLissage->setText(ui->buttonLissage->isChecked() ? "Lissage ON" : "Lissage OFF");
-    } else {
-        ui->buttonMenu->setText("Main menu");
-        ui->Reset->setText("Reset");
-        ui->Appliquer->setText("Apply");
-        ui->buttonForme->setText("Shape");
-        ui->buttonRetour->setText("Undo");
-        ui->buttonImporter->setText("Import");
-        ui->buttonSave->setText("Save");
-        ui->buttonGomme->setText("Erase");
-        ui->buttonSupprimer->setText("Delete");
-        ui->buttonDeplacer->setText("Move");
-        ui->buttonSelection->setText("Select");
-        if (ui->buttonCopyPaste->isVisible())
-            ui->buttonCopyPaste->setText(ui->buttonCopyPaste->text() == "Coller" ? "Paste" : "Copy");
-        ui->buttonConnect->setText("Connect");
-        ui->buttonSnapGrid->setText(drawArea->isSnapToGridEnabled() ? "Snap Grid: ON" : "Snap Grid: OFF");
-        ui->buttonCloseShape->setText("Close");
-        ui->buttonLissage->setText(ui->buttonLissage->isChecked() ? "Smooth ON" : "Smooth OFF");
+    if (event->type() == QEvent::LanguageChange) {
+        ui->retranslateUi(this);
     }
+    QWidget::changeEvent(event);
 }
 

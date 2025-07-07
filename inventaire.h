@@ -37,6 +37,10 @@ public:
 
     void updateTranslations(Language lang);
 
+protected:
+    void changeEvent(QEvent *event) override;
+
+
 signals:
     // Signal émis lorsqu'une forme prédéfinie est sélectionnée (Cercle, Rectangle, etc.)
     void shapeSelected(ShapeModel::Type type, int width, int height);
