@@ -56,6 +56,9 @@ custom::custom(Language lang, QWidget *parent)
     ui->setupUi(this);
     currentLanguage = lang;
 
+    updateTranslations(currentLanguage);
+
+
     ui->buttonCopyPaste->setVisible(false);
 
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -547,6 +550,7 @@ void custom::updateTranslations(Language lang)
 {
     currentLanguage = lang;
     if (!drawArea) return;
+
     if (lang == Language::French) {
         ui->buttonMenu->setText("Menu principal");
         ui->Reset->setText("Reset");
@@ -559,6 +563,7 @@ void custom::updateTranslations(Language lang)
         ui->buttonSupprimer->setText("Supprimer");
         ui->buttonDeplacer->setText("Déplacer");
         ui->buttonSelection->setText("Sélection");
+
         if (ui->buttonCopyPaste->isVisible())
             ui->buttonCopyPaste->setText(ui->buttonCopyPaste->text() == "Paste" ? "Coller" : "Copier");
         ui->buttonConnect->setText("Relier");
