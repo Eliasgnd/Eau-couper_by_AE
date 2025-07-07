@@ -377,6 +377,7 @@ void MainWindow::showLanguageMenu()
     if (languageMenu && ui->buttonSettings) {
         languageMenu->exec(ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height())));
     }
+
 }
 
 void MainWindow::updateTranslations()
@@ -397,6 +398,7 @@ void MainWindow::updateTranslations()
         ui->buttonCustom->setText("Custom");
         ui->buttonFileReceiver->setText("Réception fichier");
         if (ui->buttonSettings) ui->buttonSettings->setText("Paramètres");
+
         ui->Vitesse_txt->setText("Vitesse : ");
         ui->Pression_txt->setText("Pression : ");
         ui->Reglages_txt->setText("Réglages : ");

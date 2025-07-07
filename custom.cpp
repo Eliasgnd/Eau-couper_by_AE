@@ -56,6 +56,7 @@ custom::custom(Language lang, QWidget *parent)
     ui->setupUi(this);
     currentLanguage = lang;
 
+
     ui->buttonCopyPaste->setVisible(false);
 
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -71,6 +72,8 @@ custom::custom(Language lang, QWidget *parent)
     } else {
         qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
+
+    updateTranslations(currentLanguage);
 
     updateTranslations(currentLanguage);
 
@@ -585,3 +588,4 @@ void custom::updateTranslations(Language lang)
         ui->buttonLissage->setText(ui->buttonLissage->isChecked() ? "Smooth ON" : "Smooth OFF");
     }
 }
+
