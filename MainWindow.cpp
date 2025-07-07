@@ -81,6 +81,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
+    // Création du contrôleur de découpe avant toute connexion
+    trajetMotor = new TrajetMotor(formeVisualization, this);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
@@ -157,10 +159,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
-    connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
-            [this](bool /*optimized*/) {
-                trajetMotor = new TrajetMotor(formeVisualization, this);
-            });
+
 
     // Pause ↔ Reprendre
     connect(ui->Pause, &QPushButton::clicked, this, [this]() {
@@ -187,10 +186,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
-
-
-
-    trajetMotor = new TrajetMotor(formeVisualization, this);
 
 }
 
