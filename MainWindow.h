@@ -6,6 +6,7 @@
 #include "ShapeModel.h"
 #include "CustomDrawArea.h"
 #include "trajetmotor.h"
+#include "Language.h"
 #include <QMenu>
 #include <QAction>
 
@@ -51,9 +52,9 @@ private slots:
 
     void setLanguageFrench();
     void setLanguageEnglish();
+    void showLanguageMenu();
 
 private:
-    enum class Language { French, English };
     void updateTranslations();
 
     Language currentLanguage = Language::French;
