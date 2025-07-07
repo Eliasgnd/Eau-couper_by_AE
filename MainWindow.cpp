@@ -86,7 +86,10 @@ MainWindow::MainWindow(QWidget *parent)
             ui->optimizePlacementButton2->setChecked(false);
             formeVisualization->optimizePlacement();
         } else {
-            formeVisualization->setPredefinedMode();
+            int largeur = ui->Largeur->value();
+            int longueur = ui->Longueur->value();
+            formeVisualization->updateDimensions(largeur, longueur);
+
             // Optionnel : logique si on veut désactiver aussi
         }
     });
@@ -96,7 +99,10 @@ MainWindow::MainWindow(QWidget *parent)
             ui->optimizePlacementButton->setChecked(false);
             formeVisualization->optimizePlacement2();
         } else {
-             formeVisualization->setPredefinedMode();
+            int largeur = ui->Largeur->value();
+            int longueur = ui->Longueur->value();
+            formeVisualization->updateDimensions(largeur, longueur);
+
             // Optionnel
         }
     });
