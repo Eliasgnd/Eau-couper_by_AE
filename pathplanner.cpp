@@ -14,19 +14,26 @@
 //  1.  Fonctions de hachage Qt-compatibles
 // ---------------------------------------------------------------------------
 #include <QtGlobal>                    // QT_VERSION, …
-#include <QtCore/qhashfunctions.h>     // qHashMulti (Qt ≥ 5.15)
+#include <QtCore/qhashfunctions.h>
+
+// Combinaison simple de hachages pour un couple de valeurs
+template <typename T1, typename T2>
+static inline size_t qHashPair(const T1 &v1, const T2 &v2, size_t seed = 0) noexcept
+{
+    seed ^= qHash(v1, 0) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= qHash(v2, 0) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    return seed;
+}
 
 /*----------------------------------------------*
- * a) QPoint : Qt ≥ 5 possède déjà qHash(QPoint) *
+ * a) Hash de QPoint (certaines versions manquent) *
  *----------------------------------------------*/
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
 inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
 {
     return seed
            ^ (static_cast<size_t>(pt.x()) << 16)
            ^  static_cast<size_t>(pt.y());
 }
-#endif
 
 /*-----------------------------------------------------------*
  * b) QPair<QPoint,QPoint> : Qt n’en fournit pas par défaut. *
@@ -34,15 +41,7 @@ inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
 inline size_t qHash(const QPair<QPoint, QPoint> &key,
                     size_t seed = 0) noexcept
 {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    // Utilise l’implémentation générique moderne
-    return qHashMulti(seed, key.first, key.second);
-#else
-    // Fallback compatible Qt < 5.15
-    seed ^= qHash(key.first, 0) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-    seed ^= qHash(key.second, 0);
-    return seed;
-#endif
+    return qHashPair(key.first, key.second, seed);
 }
 
 // ---------------------------------------------------------------------------

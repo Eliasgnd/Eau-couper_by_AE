@@ -24,3 +24,7 @@ Makefile*
 build*/
 debug/
 release/
+
+# Binaries inadvertently committed
+machineDecoupeIHM
+MonServeurTCP
