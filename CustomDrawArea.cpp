@@ -437,6 +437,31 @@ QPainterPath CustomDrawArea::generateRawPath(const QList<QPointF>& pts)
     return path;
 }
 
+QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, double alpha) const
+{
+    if (points.isEmpty())
+        return points;
+    QList<QPointF> result;
+    result.reserve(points.size());
+    QPointF prev = points.first();
+    result.append(prev);
+    for (int i = 1; i < points.size(); ++i) {
+        QPointF p = points[i] * alpha + prev * (1.0 - alpha);
+        result.append(p);
+        prev = p;
+    }
+    return result;
+}
+
+double CustomDrawArea::smoothingAlpha() const
+{
+    switch (m_smoothingLevel) {
+    case 0: return 0.5;
+    case 1: return 0.35;
+    default: return 0.25;
+    }
+}
+
 int CustomDrawArea::computeSmoothingIterations(const QList<QPointF> &pts) const
 {
     int baseIter = (m_smoothingLevel == 0) ? 1 :
@@ -976,8 +1001,11 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int iterations = computeSmoothingIterations(m_freehandPoints);
-            finalPoints = applyChaikinAlgorithm(m_freehandPoints, iterations);
+            QList<QPointF> pts = m_freehandPoints;
+            if (m_lowPassFilterEnabled)
+                pts = applyLowPassFilter(pts, smoothingAlpha());
+            int iterations = computeSmoothingIterations(pts);
+            finalPoints = applyChaikinAlgorithm(pts, iterations);
         } else {
             finalPoints = m_freehandPoints;
         }
@@ -1264,8 +1292,11 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         QPainterPath preview;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int it = computeSmoothingIterations(m_freehandPoints);
-            QList<QPointF> pts = applyChaikinAlgorithm(m_freehandPoints, it);
+            QList<QPointF> pts = m_freehandPoints;
+            if (m_lowPassFilterEnabled)
+                pts = applyLowPassFilter(pts, smoothingAlpha());
+            int it = computeSmoothingIterations(pts);
+            pts = applyChaikinAlgorithm(pts, it);
             preview = generateBezierPath(pts);        // lissé
         } else {
             preview = generateRawPath(m_freehandPoints); // segments bruts

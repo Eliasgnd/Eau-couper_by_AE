@@ -131,6 +131,7 @@ private:
     bool m_drawing;
     bool m_smoothingEnabled;
     int m_smoothingLevel;
+    bool m_lowPassFilterEnabled = true;
     DrawMode m_drawMode = DrawMode::Freehand;
 
     // Variables pour le dessin de formes géométriques
@@ -173,6 +174,8 @@ private:
     double distance(const QPointF &p1, const QPointF &p2);
     QList<QPointF> applyChaikinAlgorithm(const QList<QPointF>& inputPoints, int iterations);
     int computeSmoothingIterations(const QList<QPointF> &pts) const;
+    QList<QPointF> applyLowPassFilter(const QList<QPointF>& points, double alpha) const;
+    double smoothingAlpha() const;
 
     // Gestion du canevas
     void initCanvas();
@@ -239,6 +242,8 @@ public slots:
     void setTwoFingersOn (bool active);
     void setGridSpacing(int px);     // px ≥ 1
     int  gridSpacing() const { return m_gridSpacing; }
+    void setLowPassFilterEnabled(bool enabled) { m_lowPassFilterEnabled = enabled; }
+    bool lowPassFilterEnabled() const { return m_lowPassFilterEnabled; }
 
 };
 
