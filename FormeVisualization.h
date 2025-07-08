@@ -51,9 +51,7 @@ public slots:
     void rotateSelectedShapes(qreal angleDelta);                // rotation
     void addShapeBottomRight();                                 // ajout en bas à droite
     bool validateShapes();                                      // vérifie positions
-
     QList<QPoint> getBlackPixels();                             // pixels noirs
-
     void startDecoupeProgress(int maxSteps);                    // barre prog
     void updateDecoupeProgress(int currentStep);
     void endDecoupeProgress();
