@@ -59,6 +59,10 @@ private:
     Ui::Inventaire *ui;
     static Inventaire *instance;
 
+    QString customShapesFilePath() const;
+    void loadCustomShapes();
+    void saveCustomShapes() const;
+
     // Affiche l'ensemble des formes (prédéfinies + custom) dans le scrollArea
     void displayShapes();
 
