@@ -10,6 +10,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QTranslator>
+#include <QElapsedTimer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -76,6 +77,7 @@ private:
     ShapeModel::Type selectedShapeType;
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
     TrajetMotor* trajetMotor = nullptr;
+    QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
 
     void retranslateDynamicUi();
 

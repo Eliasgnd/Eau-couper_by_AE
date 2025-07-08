@@ -42,6 +42,8 @@ MainWindow::MainWindow(QWidget *parent)
     // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
     QToolButton *settingsBtn = new QToolButton(this);
     settingsBtn->setText(tr("Paramètres"));
+    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
+    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
     settingsBtn->setMenu(languageMenu);                           // rattache le menu
 
@@ -55,6 +57,12 @@ MainWindow::MainWindow(QWidget *parent)
     padding: 6px 14px;
     border: 2px solid #008C9E;
     border-radius: 8px;
+    }
+    QToolButton::menu-indicator {
+    image: url(:/icons/chevron-down-white.svg);  /* petit chevron blanc (ajoute-le au .qrc) */
+    subcontrol-position: right center;
+    subcontrol-origin: padding;
+    padding-left: 6px;                           /* espace entre texte et chevron */
     }
     QToolButton:hover  { background-color: #26C6DA; }  /* plus clair au survol */
     QToolButton:pressed{ background-color: #008C9E; }  /* plus foncé au clic  */
@@ -185,6 +193,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
+
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
 
 }
 
@@ -353,11 +364,37 @@ void MainWindow::StartPixel()
 void MainWindow::updateProgressBar(int remaining, int total) {
     if (total == 0) return;
     int percent = (total - remaining) * 100 / total;
+
+    // Démarrage du chrono à la première mise à jour
+    if (!decoupeTimer.isValid() || remaining == total)
+        decoupeTimer.start();
+
+    // Mise à jour de la barre
     ui->progressBar->setValue(percent);
 
-    // Remise à zéro si tout est terminé (optionnel, dépend de ton besoin)
+    // Calcul de l'estimation du temps restant
+    QString timeText;
+    if (percent > 0 && remaining > 0) {
+        qint64 elapsedMs   = decoupeTimer.elapsed();
+        double totalMs     = static_cast<double>(elapsedMs) / (percent / 100.0);
+        qint64 remainingMs = static_cast<qint64>(totalMs - elapsedMs);
+        if (remainingMs < 0) remainingMs = 0;
+        int seconds = remainingMs / 1000;
+        int minutes = seconds / 60;
+        seconds %= 60;
+        if (minutes > 0)
+            timeText = tr("Temps restant estim\u00e9 : %1m %2s").arg(minutes).arg(seconds);
+        else
+            timeText = tr("Temps restant estim\u00e9 : %1s").arg(seconds);
+    } else {
+        timeText = tr("Temps restant estim\u00e9 : 0s");
+    }
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(timeText);
+
+    // Remise à zéro à la fin
     if (remaining == 0) {
-        //qDebug() << "Découpe terminée.";
+        decoupeTimer.invalidate();
     }
 }
 
@@ -438,6 +475,9 @@ void MainWindow::retranslateDynamicUi()
         // Tu peux sauvegarder l'ancien nombre s'il est dynamique :
         int count = ui->shapeCountSpinBox->value();
         ui->shapeCountLabel->setText(tr("Formes placées: %1").arg(count));
+    }
+    if (ui->timeRemainingLabel) {
+        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
     }
 }
 

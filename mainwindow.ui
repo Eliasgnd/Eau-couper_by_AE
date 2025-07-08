@@ -840,7 +840,7 @@ QPushButton:pressed {
      <string>Quantitée : </string>
     </property>
    </widget>
-   <widget class="QProgressBar" name="progressBar">
+    <widget class="QProgressBar" name="progressBar">
     <property name="enabled">
      <bool>true</bool>
     </property>
@@ -883,8 +883,24 @@ QProgressBar::chunk {
     <property name="textVisible">
      <bool>true</bool>
     </property>
-   </widget>
-   <widget class="QLabel" name="shapeCountLabel">
+    </widget>
+    <widget class="QLabel" name="timeRemainingLabel">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>565</y>
+       <width>221</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Temps restant estimé : 0s</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+    <widget class="QLabel" name="shapeCountLabel">
     <property name="geometry">
      <rect>
       <x>1120</x>
