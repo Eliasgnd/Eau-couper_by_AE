@@ -1,4 +1,5 @@
 #include "FormeVisualization.h"
+#include "qtimer.h"
 #include <QVBoxLayout>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
@@ -176,6 +177,8 @@ void FormeVisualization::setSpacing(int newSpacing)
 
 void FormeVisualization::setPredefinedMode()
 {
+    qDebug() << "[DEBUG] setPredefinedMode() appelé";
+
     if (m_decoupeEnCours) {
         qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setPredefinedMode";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,

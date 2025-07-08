@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ShapeModel.h"
+#include "qmessagebox.h"
 #include "ui_mainwindow.h"
 #include "inventaire.h"
 #include "custom.h"
@@ -319,27 +320,22 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
 
 void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons)
 {
-    if (formeVisualization) {
-        // Forcer le mode custom
-        formeVisualization->setCustomMode();
-
-        // Combiner les polygones pour obtenir le rectangle englobant
-        QPainterPath combinedPath;
-        for (const QPolygonF &poly : polygons) {
-            combinedPath.addPolygon(poly);
-        }
-        QRectF bounds = combinedPath.boundingRect();
-
-        // Calcul des dimensions pour la vue (mais on n'update plus les spin boxes)
-        int largeur = (bounds.width() > 0) ? qRound(bounds.width()) : 100;
-        int hauteur = (bounds.height() > 0) ? qRound(bounds.height()) : 100;
-
-        // Mise à jour du widget de visualisation uniquement
-        formeVisualization->updateDimensions(largeur, hauteur);
-        formeVisualization->displayCustomShapes(polygons);
+    if (formeVisualization && formeVisualization->isDecoupeEnCours()) {
+        // Blocage si une découpe est en cours
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
     }
-    this->show();
+
+    // Applique directement la forme personnalisée sans passer par setPredefinedMode()
+    applyCustomShape(polygons);
 }
+
 
 void MainWindow::resetDrawing() {
     //qDebug() << "Slot resetDrawing() appelé dans MainWindow ! (Rien à faire car le reset est dans custom)";
