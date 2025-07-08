@@ -314,5 +314,5 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,QGr
 
         ++m_progressCounter;
         emit decoupeProgress(m_totalSteps - m_progressCounter, m_totalSteps);
-        
+    }
 }
