@@ -52,7 +52,7 @@ private slots:
     void updateShapeCountLabel(int count);
     void updateSpacing(int value);
     //pour les formes qui arrive de l'inventaire
-    void onCustomShapeSelected(const QList<QPolygonF> &polygons);
+    void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
     void setLanguageFrench();
     void setLanguageEnglish();
