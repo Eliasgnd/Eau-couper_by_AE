@@ -194,6 +194,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
 
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
+
 }
 
 MainWindow::~MainWindow() {
@@ -361,11 +364,37 @@ void MainWindow::StartPixel()
 void MainWindow::updateProgressBar(int remaining, int total) {
     if (total == 0) return;
     int percent = (total - remaining) * 100 / total;
+
+    // Démarrage du chrono à la première mise à jour
+    if (!decoupeTimer.isValid() || remaining == total)
+        decoupeTimer.start();
+
+    // Mise à jour de la barre
     ui->progressBar->setValue(percent);
 
-    // Remise à zéro si tout est terminé (optionnel, dépend de ton besoin)
+    // Calcul de l'estimation du temps restant
+    QString timeText;
+    if (percent > 0 && remaining > 0) {
+        qint64 elapsedMs   = decoupeTimer.elapsed();
+        double totalMs     = static_cast<double>(elapsedMs) / (percent / 100.0);
+        qint64 remainingMs = static_cast<qint64>(totalMs - elapsedMs);
+        if (remainingMs < 0) remainingMs = 0;
+        int seconds = remainingMs / 1000;
+        int minutes = seconds / 60;
+        seconds %= 60;
+        if (minutes > 0)
+            timeText = tr("Temps restant estim\u00e9 : %1m %2s").arg(minutes).arg(seconds);
+        else
+            timeText = tr("Temps restant estim\u00e9 : %1s").arg(seconds);
+    } else {
+        timeText = tr("Temps restant estim\u00e9 : 0s");
+    }
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(timeText);
+
+    // Remise à zéro à la fin
     if (remaining == 0) {
-        //qDebug() << "Découpe terminée.";
+        decoupeTimer.invalidate();
     }
 }
 
@@ -446,6 +475,9 @@ void MainWindow::retranslateDynamicUi()
         // Tu peux sauvegarder l'ancien nombre s'il est dynamique :
         int count = ui->shapeCountSpinBox->value();
         ui->shapeCountLabel->setText(tr("Formes placées: %1").arg(count));
+    }
+    if (ui->timeRemainingLabel) {
+        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
     }
 }
 
