@@ -42,6 +42,9 @@ private:
 
     MainWindow* m_mainWindow = nullptr;
 
+    int m_totalSteps = 0;         // nombre total d'étapes prévues
+    int m_progressCounter = 0;    // étapes déjà effectuées
+
 
 };
 
