@@ -23,6 +23,7 @@ public slots:
     void resume();
     /// Arrêt immédiat et définitif de la découpe en cours
     void stopCut();
+    void moveHeadProgressive(const QPoint& start, const QPoint& end,QGraphicsEllipseItem* head, bool cut);
 
 signals:
     /**

@@ -7,7 +7,7 @@
 #include <QGridLayout>
 #include <QLineEdit>
 #include <QList>
-
+//test brache rudy 2
 class ClavierNumerique : public QDialog
 {
     Q_OBJECT
