@@ -958,6 +958,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
     currentLargeur = layout.largeur;
     currentLongueur = layout.longueur;
     spacing = layout.spacing;
+    shapeCount = layout.items.size();
 
     QPainterPath combinedPath;
     for (const QPolygonF &poly : m_customShapes)
@@ -977,7 +978,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setRotation(li.rotation);
-        item->setPos(li.x - scaledBounds.x(), li.y - scaledBounds.y());
+        item->setPos(li.x, li.y);
         scene->addItem(item);
     }
 
