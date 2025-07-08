@@ -47,7 +47,7 @@ custom::custom(Language lang, QWidget *parent)
             ui->drawingWidget->setLayout(new QVBoxLayout());
         ui->drawingWidget->layout()->addWidget(drawArea);
     } else {
-        qDebug() << "Erreur : ui->drawingWidget est nullptr !";
+        //qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
 
     // Changer la couleur du bouton "fermer" quand il est actif
@@ -84,7 +84,7 @@ custom::custom(Language lang, QWidget *parent)
 
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
     connect(ui->Appliquer, &QPushButton::clicked, this, [this]() {
-        qDebug() << "Signal applyCustomShapeSignal émis avec les formes !";
+        //qDebug() << "Signal applyCustomShapeSignal émis avec les formes !";
         emit applyCustomShapeSignal(drawArea->getCustomShapes());
         this->close();
         delete this;
@@ -92,7 +92,7 @@ custom::custom(Language lang, QWidget *parent)
 
     // Bouton "Reset" : efface le dessin et émet le signal correspondant
     connect(ui->Reset, &QPushButton::clicked, this, [this]() {
-        qDebug() << "Signal resetDrawingSignal émis !";
+        //qDebug() << "Signal resetDrawingSignal émis !";
         drawArea->clearDrawing();
         emit resetDrawingSignal();
     });
@@ -140,7 +140,7 @@ custom::custom(Language lang, QWidget *parent)
     // Bouton "Gomme" : active le mode gomme
     connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Gomme);
-        qDebug() << "Mode Gomme sélectionné";
+        //qDebug() << "Mode Gomme sélectionné";
 
     });
 
@@ -215,33 +215,33 @@ custom::custom(Language lang, QWidget *parent)
     // Mode Texte : afficher fontContainer
     connect(actionText, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Text);
-        qDebug() << "Mode Texte activé";
+        //qDebug() << "Mode Texte activé";
         fontContainer->show();
     });
     // Pour les autres modes, cacher fontContainer
     connect(actionAlaMain, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Freehand);
-        qDebug() << "Mode À la main activé";
+        //qDebug() << "Mode À la main activé";
         fontContainer->hide();
     });
     connect(actionPointParPoint, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::PointParPoint);
-        qDebug() << "Mode Point par point activé";
+        //qDebug() << "Mode Point par point activé";
         fontContainer->hide();
     });
     connect(actionLigne, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Line);
-        qDebug() << "Mode Ligne activé";
+        //qDebug() << "Mode Ligne activé";
         fontContainer->hide();
     });
     connect(actionCercle, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Circle);
-        qDebug() << "Mode Cercle activé";
+        //qDebug() << "Mode Cercle activé";
         fontContainer->hide();
     });
     connect(actionRectangle, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Rectangle);
-        qDebug() << "Mode Rectangle activé";
+        //qDebug() << "Mode Rectangle activé";
         fontContainer->hide();
     });
 
@@ -251,12 +251,12 @@ custom::custom(Language lang, QWidget *parent)
             drawArea->deleteSelectedShapes();
         } else {
             drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
-            qDebug() << "Mode Supprimer sélectionné";
+            //qDebug() << "Mode Supprimer sélectionné";
         }
     });
     connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Deplacer);
-        qDebug() << "Mode Déplacer activé";
+        //qDebug() << "Mode Déplacer activé";
     });
 
     connect(ui->buttonRetour, &QPushButton::clicked, drawArea, &CustomDrawArea::undoLastAction);
@@ -293,7 +293,7 @@ custom::custom(Language lang, QWidget *parent)
             m_favoriteFonts.append(fontFamily);
             favFontCombo->clear();
             favFontCombo->addItems(m_favoriteFonts);
-            qDebug() << "Ajouté aux favoris:" << fontFamily;
+            //qDebug() << "Ajouté aux favoris:" << fontFamily;
         }
     });
 
@@ -307,7 +307,7 @@ custom::custom(Language lang, QWidget *parent)
             QString removed = m_favoriteFonts.takeAt(idx);
             favFontCombo->clear();
             favFontCombo->addItems(m_favoriteFonts);
-            qDebug() << "Favori supprimé:" << removed;
+            //qDebug() << "Favori supprimé:" << removed;
             // Optionnel : appliquer une police par défaut si nécessaire.
         }
     });
@@ -331,7 +331,7 @@ custom::custom(Language lang, QWidget *parent)
             QFont newFont(m_favoriteFonts.at(index), fontSizeSpin->value());
             fontCombo->setCurrentFont(newFont);
             drawArea->setTextFont(newFont);
-            qDebug() << "Police favorite sélectionnée :" << newFont.family();
+            //qDebug() << "Police favorite sélectionnée :" << newFont.family();
         }
     });
 
@@ -393,7 +393,7 @@ void custom::saveCustomShape() {
     // Récupère toutes les formes (traits) du CustomDrawArea
     QList<QPolygonF> shapes = drawArea->getCustomShapes();
     if (shapes.isEmpty()) {
-        qDebug() << "Aucune forme à enregistrer.";
+        //qDebug() << "Aucune forme à enregistrer.";
         return;
     }
 
@@ -402,7 +402,7 @@ void custom::saveCustomShape() {
                                               tr("Entrez un nom pour votre forme :"),
                                               QLineEdit::Normal, "", &ok);
     if (!(ok && !shapeName.isEmpty())) {
-        qDebug() << "Annulation ou nom vide.";
+        //qDebug() << "Annulation ou nom vide.";
         return;
     }
 
@@ -477,7 +477,7 @@ void custom::importerLogo()
     LogoImporter importer;
     QPainterPath outline = importer.importLogo(filePath, includeInternal, 128);
     if (outline.isEmpty()) {
-        qDebug() << "Le chemin importé est vide, vérifiez l'image ou la méthode d'import.";
+        //qDebug() << "Le chemin importé est vide, vérifiez l'image ou la méthode d'import.";
         return;
     }
 
@@ -494,10 +494,10 @@ void custom::importerLogo()
     QPointF drawingCenter(drawArea->width() / 2.0, drawArea->height() / 2.0);
     QPointF offset = drawingCenter - scaledBounds.center();
     scaledOutline.translate(offset);
-    qDebug() << "Bounding rect final (centré):" << scaledOutline.boundingRect();
+    //qDebug() << "Bounding rect final (centré):" << scaledOutline.boundingRect();
 
     QList<QPainterPath> subpaths = separateIntoSubpaths(scaledOutline);
-    qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
+    //qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
     for (const QPainterPath &sp : subpaths) {
         drawArea->addImportedLogoSubpath(sp);
     }
