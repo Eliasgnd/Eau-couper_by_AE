@@ -596,6 +596,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         m_drawing = true;
         m_freehandPoints.clear();
         if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -607,6 +608,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             m_freehandPoints.clear();
         }
         if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -756,6 +758,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     case DrawMode::Freehand:
         if (!m_drawing) return;
         if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -997,7 +1000,9 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     {
         if (!m_drawing)
             return;
-        if (m_freehandPoints.isEmpty() || distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
             m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
