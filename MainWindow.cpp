@@ -162,7 +162,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [this](bool /*optimized*/) {
                 trajetMotor = new TrajetMotor(formeVisualization, this);
+                connect(trajetMotor, &TrajetMotor::decoupeProgress,
+                        this, &MainWindow::updateProgressBar);
             });
+
 
     // Pause ↔ Reprendre
     connect(ui->Pause, &QPushButton::clicked, this, [this]() {
@@ -190,10 +193,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
-
-
-
-    trajetMotor = new TrajetMotor(formeVisualization, this);
 
 }
 
@@ -361,12 +360,15 @@ void MainWindow::StartPixel()
 
 void MainWindow::updateProgressBar(int remaining, int total) {
     if (total == 0) return;
-    int percent = remaining * 100 / total;
+    int percent = (total - remaining) * 100 / total;
     ui->progressBar->setValue(percent);
+
+    // Remise à zéro si tout est terminé (optionnel, dépend de ton besoin)
     if (remaining == 0) {
-        ui->progressBar->setValue(0);
+        qDebug() << "Découpe terminée.";
     }
 }
+
 
 MainWindow* MainWindow::getInstance()
 {
