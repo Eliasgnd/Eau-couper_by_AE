@@ -195,6 +195,10 @@ MainWindow::MainWindow(QWidget *parent)
         formeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
     });
 
+    connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->addShapeBottomRight();
+    });
+
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,

@@ -637,6 +637,71 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
     }
 }
 
+void FormeVisualization::addShapeBottomRight()
+{
+    if (m_decoupeEnCours)
+    {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
+
+    const int drawingWidth = 600;
+    const int drawingHeight = 400;
+
+    QGraphicsItem *newItem = nullptr;
+
+    if (m_isCustomMode && !m_customShapes.isEmpty()) {
+        QPainterPath combinedPath;
+        for (const QPolygonF &poly : m_customShapes)
+            combinedPath.addPolygon(poly);
+        QRectF polyBounds = combinedPath.boundingRect();
+        if (polyBounds.width() <= 0 || polyBounds.height() <= 0)
+            return;
+
+        qreal desiredWidth = currentLargeur;
+        qreal desiredHeight = currentLongueur;
+
+        qreal scaleX = desiredWidth / polyBounds.width();
+        qreal scaleY = desiredHeight / polyBounds.height();
+
+        QTransform transform;
+        transform.scale(scaleX, scaleY);
+        QPainterPath scaledPath = transform.map(combinedPath);
+        QRectF bounds = scaledPath.boundingRect();
+
+        auto *item = new QGraphicsPathItem(scaledPath);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        newItem = item;
+
+        QPointF offset(-bounds.x(), -bounds.y());
+        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
+                        drawingHeight - bounds.height() + offset.y());
+    } else {
+        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
+        if (shapesList.isEmpty())
+            return;
+
+        newItem = shapesList.takeFirst();
+        QRectF bounds = newItem->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
+        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
+                        drawingHeight - bounds.height() + offset.y());
+    }
+
+    if (newItem) {
+        newItem->setFlag(QGraphicsItem::ItemIsMovable, true);
+        newItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        scene->addItem(newItem);
+    }
+}
+
 void FormeVisualization::setCustomMode() {
     m_isCustomMode = true;
     emit optimizationStateChanged(false);
