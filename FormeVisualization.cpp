@@ -71,6 +71,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     redraw();
 }
 
+
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
     // Si aucun espacement n'est demandé, renvoyer le chemin original
@@ -706,6 +707,7 @@ void FormeVisualization::addShapeBottomRight()
     }
 }
 
+
 void FormeVisualization::setCustomMode() {
     m_isCustomMode = true;
     emit optimizationStateChanged(false);
@@ -844,13 +846,13 @@ int FormeVisualization::countPlacedShapes() const
 
 bool FormeVisualization::validateShapes()
 {
+    resetAllShapeColors();
     bool allValid = true;
     QList<QAbstractGraphicsShapeItem*> shapes;
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            shape->setPen(QPen(Qt::black, 1));
             shapes << shape;
         }
     }
@@ -885,4 +887,16 @@ void FormeVisualization::handleSelectionChanged()
             shape->setPen(QPen(Qt::black, 1));
         }
     }
+}
+
+void FormeVisualization::resetAllShapeColors()
+{
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            shape->setPen(QPen(Qt::black, 1));
+        }
+    }
+    graphicsView->viewport()->update();
 }

@@ -51,7 +51,10 @@ public slots:
     void rotateSelectedShapes(qreal angleDelta);                // rotation
     void addShapeBottomRight();                                 // ajout en bas à droite
     bool validateShapes();                                      // vérifie positions
+    void resetAllShapeColors();                                 // remise à zéro des couleurs
+
     QList<QPoint> getBlackPixels();                             // pixels noirs
+
     void startDecoupeProgress(int maxSteps);                    // barre prog
     void updateDecoupeProgress(int currentStep);
     void endDecoupeProgress();
@@ -74,6 +77,7 @@ private slots:
 private:
     int countPlacedShapes() const;
     void redraw();                                              // redessin
+
 
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
