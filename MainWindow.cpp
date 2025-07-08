@@ -401,6 +401,7 @@ void afficherClavier() {
 
 void MainWindow::StartPixel()
 {
+
     if (trajetMotor->isPaused()) {
         // La découpe existe déjà mais est en pause → on la reprend
         trajetMotor->resume();
@@ -408,6 +409,7 @@ void MainWindow::StartPixel()
     }
 
     formeVisualization->resetAllShapeColors();
+
 
     if (!formeVisualization->validateShapes()) {
         QMessageBox::warning(this, tr("Formes invalides"),
@@ -417,6 +419,7 @@ void MainWindow::StartPixel()
 
     formeVisualization->setDecoupeEnCours(true);
     formeVisualization->resetAllShapeColors();
+
     // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
     //qDebug() << "Demarrage Découpe";
     setSpinboxSliderEnabled(false);

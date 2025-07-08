@@ -78,6 +78,7 @@ private:
     int countPlacedShapes() const;
     void redraw();                                              // redessin
 
+
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
     QProgressBar        *progressBar {};
