@@ -741,9 +741,18 @@ bool FormeVisualization::isEditingEnabled() const
 void FormeVisualization::setDecoupeEnCours(bool etat)
 {
     m_decoupeEnCours = etat;
+    // Interdire ou autoriser le déplacement manuel des items
+    for (QGraphicsItem *item : scene->items()) {
+        item->setFlag(QGraphicsItem::ItemIsMovable, !etat);
+    }
 }
 
 bool FormeVisualization::isDecoupeEnCours() const
 {
     return m_decoupeEnCours;
+}
+
+QGraphicsView* FormeVisualization::getGraphicsView() const
+{
+    return graphicsView;
 }
