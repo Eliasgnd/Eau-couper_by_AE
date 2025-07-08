@@ -7,6 +7,7 @@
 #include <QSpinBox>
 #include <QMouseEvent>
 #include <QMessageBox>
+#include <QGraphicsView>
 
 KeyboardEventFilter::KeyboardEventFilter(QObject *parent)
     : QObject(parent),
@@ -20,6 +21,20 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
         auto *me = static_cast<QMouseEvent*>(event);
         if (me->button() != Qt::LeftButton)
             return QObject::eventFilter(obj, event);
+
+        // Blocage du déplacement manuel des formes pendant la découpe
+        if (m_visu && obj == m_visu->getGraphicsView()->viewport()) {
+            if (m_visu->isDecoupeEnCours()) {
+                QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                                   "Découpe en cours",
+                                                   "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                                   QMessageBox::Ok,
+                                                   m_visu);
+                msg->setModal(false);
+                msg->show();
+                return true; // empêche tout déplacement
+            }
+        }
 
         // Filtrer uniquement les QLineEdit (y compris ceux internes aux spinbox)
         if (auto *le = qobject_cast<QLineEdit*>(obj)) {
