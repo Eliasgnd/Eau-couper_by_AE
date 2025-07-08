@@ -42,6 +42,7 @@ public:
     bool isEditingEnabled() const;
     void setDecoupeEnCours(bool etat);
     bool isDecoupeEnCours() const;
+    QGraphicsView* getGraphicsView() const;             // accès à la vue
 
 
 public slots:

@@ -603,6 +603,16 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
 void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 {
+    if (m_decoupeEnCours) {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
     // Parcours de tous les items sélectionnés dans la scène
     for (QGraphicsItem *item : scene->selectedItems()) {
         item->moveBy(dx, dy);
@@ -611,6 +621,16 @@ void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 
 void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
 {
+    if (m_decoupeEnCours) {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
     for (QGraphicsItem *item : scene->selectedItems()) {
         item->setTransformOriginPoint(item->boundingRect().center());   // ← NOUVEAU
         item->setRotation(item->rotation() + angleDelta);
@@ -721,9 +741,18 @@ bool FormeVisualization::isEditingEnabled() const
 void FormeVisualization::setDecoupeEnCours(bool etat)
 {
     m_decoupeEnCours = etat;
+    // Interdire ou autoriser le déplacement manuel des items
+    for (QGraphicsItem *item : scene->items()) {
+        item->setFlag(QGraphicsItem::ItemIsMovable, !etat);
+    }
 }
 
 bool FormeVisualization::isDecoupeEnCours() const
 {
     return m_decoupeEnCours;
+}
+
+QGraphicsView* FormeVisualization::getGraphicsView() const
+{
+    return graphicsView;
 }
