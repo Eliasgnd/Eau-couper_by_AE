@@ -25,6 +25,8 @@
 #include <QWidgetAction>
 #include <QToolButton>
 #include <QMessageBox>
+#include <QInputDialog>
+#include <QLineEdit>
 
 
 
@@ -205,6 +207,19 @@ MainWindow::MainWindow(QWidget *parent)
         formeVisualization->deleteSelectedShapes();
     });
 
+    connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
+        if (!formeVisualization->isCustomMode() || formeVisualization->currentCustomShapeName().isEmpty()) {
+            QMessageBox::warning(this, tr("Disposition"), tr("Sauvegardez d'abord la forme."));
+            return;
+        }
+        bool ok;
+        QString name = QInputDialog::getText(this, tr("Nom de la disposition"), tr("Entrez un nom"), QLineEdit::Normal, "", &ok);
+        if (!ok || name.isEmpty())
+            return;
+        LayoutData layout = formeVisualization->captureCurrentLayout(name);
+        Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
+    });
+
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
@@ -318,6 +333,7 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
     //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
         formeVisualization->displayCustomShapes(shapes);
+        formeVisualization->setCurrentCustomShapeName("");
     } else {
         //qDebug() << "Erreur : formeVisualization est nullptr.";
     }
@@ -327,7 +343,7 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
     this->show();
 }
 
-void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons)
+void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name)
 {
     if (formeVisualization) {
         // Forcer le mode custom
@@ -347,6 +363,25 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons)
         // Mise à jour du widget de visualisation uniquement
         formeVisualization->updateDimensions(largeur, hauteur);
         formeVisualization->displayCustomShapes(polygons);
+        formeVisualization->setCurrentCustomShapeName(name);
+
+        QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
+        if (!layouts.isEmpty()) {
+            QStringList options;
+            options << tr("Aucune");
+            for (const LayoutData &ld : layouts)
+                options << ld.name;
+            bool ok = false;
+            QString choice = QInputDialog::getItem(this, tr("Disposition"), tr("Choisissez une disposition"), options, 0, false, &ok);
+            if (ok && choice != tr("Aucune")) {
+                for (const LayoutData &ld : layouts) {
+                    if (ld.name == choice) {
+                        formeVisualization->applyLayout(ld);
+                        break;
+                    }
+                }
+            }
+        }
     }
     this->show();
 }

@@ -308,7 +308,7 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
                 if (index >= 0 && index < m_customShapes.size()) {
                     const CustomShapeData &data = m_customShapes.at(index);
                     qDebug() << "[EVENT] Sélection d'une forme custom:" << data.name;
-                    emit customShapeSelected(data.polygons);
+                    emit customShapeSelected(data.polygons, data.name);
                     goToMainWindow();
                 }
                 return true;
@@ -372,6 +372,27 @@ void Inventaire::loadCustomShapes()
             }
             data.polygons.append(poly);
         }
+        QJsonArray layoutsArr = obj.value("layouts").toArray();
+        for (const QJsonValue &layoutVal : layoutsArr) {
+            if (!layoutVal.isObject())
+                continue;
+            QJsonObject lo = layoutVal.toObject();
+            LayoutData ld;
+            ld.name = lo.value("name").toString();
+            ld.largeur = lo.value("largeur").toInt();
+            ld.longueur = lo.value("longueur").toInt();
+            ld.spacing = lo.value("spacing").toInt();
+            QJsonArray itemsArr = lo.value("items").toArray();
+            for (const QJsonValue &itVal : itemsArr) {
+                QJsonObject io = itVal.toObject();
+                LayoutItem li;
+                li.x = io.value("x").toDouble();
+                li.y = io.value("y").toDouble();
+                li.rotation = io.value("rotation").toDouble();
+                ld.items.append(li);
+            }
+            data.layouts.append(ld);
+        }
         m_customShapes.append(data);
     }
 }
@@ -394,6 +415,25 @@ void Inventaire::saveCustomShapes() const
             polyArr.append(pointsArr);
         }
         obj["polygons"] = polyArr;
+        QJsonArray layoutsArr;
+        for (const LayoutData &ld : data.layouts) {
+            QJsonObject lo;
+            lo["name"] = ld.name;
+            lo["largeur"] = ld.largeur;
+            lo["longueur"] = ld.longueur;
+            lo["spacing"] = ld.spacing;
+            QJsonArray itemsArr;
+            for (const LayoutItem &li : ld.items) {
+                QJsonObject io;
+                io["x"] = li.x;
+                io["y"] = li.y;
+                io["rotation"] = li.rotation;
+                itemsArr.append(io);
+            }
+            lo["items"] = itemsArr;
+            layoutsArr.append(lo);
+        }
+        obj["layouts"] = layoutsArr;
         arr.append(obj);
     }
     QJsonObject rootObj;
@@ -404,4 +444,24 @@ void Inventaire::saveCustomShapes() const
         file.write(doc.toJson());
         file.close();
     }
+}
+
+void Inventaire::addLayoutToShape(const QString &shapeName, const LayoutData &layout)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName) {
+            data.layouts.append(layout);
+            saveCustomShapes();
+            return;
+        }
+    }
+}
+
+QList<LayoutData> Inventaire::getLayoutsForShape(const QString &shapeName) const
+{
+    for (const CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName)
+            return data.layouts;
+    }
+    return {};
 }

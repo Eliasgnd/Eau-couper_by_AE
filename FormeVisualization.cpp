@@ -11,6 +11,8 @@
 #include <QApplication>
 #include <QPainterPathStroker>  // N'oubliez pas d'inclure ce header
 #include <QMessageBox>
+#include <QAbstractGraphicsShapeItem>
+#include "inventaire.h"
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -210,6 +212,7 @@ void FormeVisualization::setPredefinedMode()
     }
 
     m_isCustomMode = false;
+    m_currentCustomShapeName.clear();
     m_customShapes.clear();
     emit optimizationStateChanged(false);
     redraw();
@@ -944,5 +947,63 @@ void FormeVisualization::resetAllShapeColors()
         }
     }
     graphicsView->viewport()->update();
+}
+
+void FormeVisualization::applyLayout(const LayoutData &layout)
+{
+    if (!m_isCustomMode)
+        return;
+
+    scene->clear();
+    currentLargeur = layout.largeur;
+    currentLongueur = layout.longueur;
+    spacing = layout.spacing;
+
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : m_customShapes)
+        combinedPath.addPolygon(poly);
+    QRectF bounds = combinedPath.boundingRect();
+    qreal scaleX = (bounds.width() > 0) ? static_cast<qreal>(layout.largeur) / bounds.width() : 1.0;
+    qreal scaleY = (bounds.height() > 0) ? static_cast<qreal>(layout.longueur) / bounds.height() : 1.0;
+    QTransform scale;
+    scale.scale(scaleX, scaleY);
+    QPainterPath scaledPath = scale.map(combinedPath);
+    QRectF scaledBounds = scaledPath.boundingRect();
+
+    for (const LayoutItem &li : layout.items) {
+        QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        item->setRotation(li.rotation);
+        item->setPos(li.x - scaledBounds.x(), li.y - scaledBounds.y());
+        scene->addItem(item);
+    }
+
+    emit shapesPlacedCount(layout.items.size());
+    graphicsView->viewport()->update();
+}
+
+LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
+{
+    LayoutData layout;
+    layout.name = name;
+    layout.largeur = currentLargeur;
+    layout.longueur = currentLongueur;
+    layout.spacing = spacing;
+
+    for (QGraphicsItem *item : scene->items()) {
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            if (m_cutMarkers.contains(item))
+                continue;
+            LayoutItem li;
+            li.x = item->pos().x();
+            li.y = item->pos().y();
+            li.rotation = item->rotation();
+            layout.items.append(li);
+        }
+    }
+    return layout;
 }
 
