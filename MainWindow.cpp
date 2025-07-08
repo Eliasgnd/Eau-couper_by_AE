@@ -27,6 +27,7 @@
 #include <QMessageBox>
 
 
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -194,6 +195,14 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(ui->ButtonRotationRight, &QPushButton::clicked, this, [this]() {
         formeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
+    });
+
+    connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->addShapeBottomRight();
+    });
+
+    connect(ui->ButtonDeleteShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->deleteSelectedShapes();
     });
 
     connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
@@ -401,7 +410,6 @@ void afficherClavier() {
 
 void MainWindow::StartPixel()
 {
-
     if (trajetMotor->isPaused()) {
         // La découpe existe déjà mais est en pause → on la reprend
         trajetMotor->resume();
@@ -409,7 +417,6 @@ void MainWindow::StartPixel()
     }
 
     formeVisualization->resetAllShapeColors();
-
 
     if (!formeVisualization->validateShapes()) {
         QMessageBox::warning(this, tr("Formes invalides"),

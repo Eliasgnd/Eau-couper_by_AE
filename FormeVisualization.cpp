@@ -72,6 +72,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
 }
 
 
+
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
     // Si aucun espacement n'est demandé, renvoyer le chemin original
@@ -641,6 +642,33 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
     }
 }
 
+void FormeVisualization::deleteSelectedShapes()
+{
+    if (m_decoupeEnCours)
+    {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
+
+    bool removed = false;
+    const auto selected = scene->selectedItems();
+    for (QGraphicsItem *item : selected) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        scene->removeItem(item);
+        delete item;
+        removed = true;
+    }
+    if (removed)
+        emit shapesPlacedCount(countPlacedShapes());
+}
+
 void FormeVisualization::addShapeBottomRight()
 {
     if (m_decoupeEnCours)
@@ -900,3 +928,4 @@ void FormeVisualization::resetAllShapeColors()
     }
     graphicsView->viewport()->update();
 }
+
