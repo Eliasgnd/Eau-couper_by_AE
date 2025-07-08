@@ -1199,7 +1199,7 @@ QPushButton:pressed {
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="ButtonRotationRight">
+     <widget class="QPushButton" name="ButtonRotationRight">
        <property name="styleSheet">
         <string notr="true">QPushButton {
     background-color: #00BCD4;  /* Cyan primaire */
@@ -1222,14 +1222,64 @@ QPushButton:pressed {
        <property name="text">
         <string/>
        </property>
-       <property name="icon">
-        <iconset resource="resources.qrc">
-         <normaloff>:/icons/rotate-right.svg</normaloff>:/icons/rotate-right.svg</iconset>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
+      <property name="icon">
+       <iconset resource="resources.qrc">
+        <normaloff>:/icons/rotate-right.svg</normaloff>:/icons/rotate-right.svg</iconset>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="ButtonAddShape">
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+      </property>
+     <property name="text">
+      <string>Ajouter</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="ButtonDeleteShape">
+     <property name="styleSheet">
+      <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+     </property>
+     <property name="text">
+      <string>Supprimer</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
