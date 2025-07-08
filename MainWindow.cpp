@@ -377,6 +377,28 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
                 for (const LayoutData &ld : layouts) {
                     if (ld.name == choice) {
                         formeVisualization->applyLayout(ld);
+
+                        ui->Largeur->blockSignals(true);
+                        ui->Longueur->blockSignals(true);
+                        ui->shapeCountSpinBox->blockSignals(true);
+                        ui->spaceSpinBox->blockSignals(true);
+                        ui->Slider_largeur->blockSignals(true);
+                        ui->Slider_longueur->blockSignals(true);
+
+                        ui->Largeur->setValue(ld.largeur);
+                        ui->Longueur->setValue(ld.longueur);
+                        ui->Slider_largeur->setValue(ld.largeur);
+                        ui->Slider_longueur->setValue(ld.longueur);
+                        ui->shapeCountSpinBox->setValue(ld.items.size());
+                        ui->spaceSpinBox->setValue(ld.spacing);
+
+                        ui->Largeur->blockSignals(false);
+                        ui->Longueur->blockSignals(false);
+                        ui->shapeCountSpinBox->blockSignals(false);
+                        ui->spaceSpinBox->blockSignals(false);
+                        ui->Slider_largeur->blockSignals(false);
+                        ui->Slider_longueur->blockSignals(false);
+
                         break;
                     }
                 }
