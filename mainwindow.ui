@@ -243,25 +243,32 @@ QPushButton:pressed {
        </property>
        <property name="styleSheet">
         <string notr="true">QPushButton {
-    background-color: #00BCD4;  /* Cyan primaire */
-    color: white; 
+    background-color: #00BCD4;
+    color: white;
     font-size: 14px;
-    border: 2px solid #008C9E;  /* Bordure légèrement plus foncée */
+    border: 2px solid #008C9E;
     border-radius: 5px;
     padding: 6px 12px;
 }
 
 QPushButton:hover {
-    background-color: #26C6DA;  /* Bleu plus clair au survol */
+    background-color: #26C6DA;
 }
 
 QPushButton:pressed {
-    background-color: #008C9E;  /* Bleu plus foncé lorsqu'on clique */
+    background-color: #008C9E;
+}
+
+QPushButton:checked {
+    background-color: green;  /* État activé */
 }
 </string>
        </property>
        <property name="text">
         <string>Optimiser placement</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -275,25 +282,32 @@ QPushButton:pressed {
        </property>
        <property name="styleSheet">
         <string notr="true">QPushButton {
-    background-color: #00BCD4;  /* Cyan primaire */
-    color: white; 
+    background-color: #00BCD4;
+    color: white;
     font-size: 14px;
-    border: 2px solid #008C9E;  /* Bordure légèrement plus foncée */
+    border: 2px solid #008C9E;
     border-radius: 5px;
     padding: 6px 12px;
 }
 
 QPushButton:hover {
-    background-color: #26C6DA;  /* Bleu plus clair au survol */
+    background-color: #26C6DA;
 }
 
 QPushButton:pressed {
-    background-color: #008C9E;  /* Bleu plus foncé lorsqu'on clique */
+    background-color: #008C9E;
+}
+
+QPushButton:checked {
+    background-color: green;  /* État activé */
 }
 </string>
        </property>
        <property name="text">
         <string>Optimiser placement 2</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -1378,7 +1392,7 @@ QPushButton:hover {
      <x>0</x>
      <y>0</y>
      <width>1920</width>
-     <height>26</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
