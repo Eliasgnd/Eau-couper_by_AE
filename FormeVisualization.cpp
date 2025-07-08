@@ -922,7 +922,11 @@ bool FormeVisualization::validateShapes()
         for (int j = i + 1; j < shapes.size(); ++j) {
             QPainterPath p1 = shapes[i]->mapToScene(shapes[i]->shape());
             QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
-            if (p1.intersects(p2)) {
+            QPainterPath inter = p1.intersected(p2);
+            QRectF iRect = inter.boundingRect();
+            // Consider shapes colliding only if the intersection has a real area
+            if (!iRect.isNull() && iRect.width() > 0.5 && iRect.height() > 0.5) {
+
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
                 allValid = false;
