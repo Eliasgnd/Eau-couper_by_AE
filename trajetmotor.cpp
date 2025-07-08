@@ -7,6 +7,7 @@
 #include <QGraphicsEllipseItem>
 #include <algorithm>
 #include <limits>
+#include <QMessageBox>
 #include "MainWindow.h"
 
 // --- décommentez si Segment est imbriqué dans la classe PathPlanner ---------
@@ -165,6 +166,15 @@ void TrajetMotor::executeTrajet()
         m_visu->setDecoupeEnCours(false);
 
     m_running = false;
+    QMetaObject::invokeMethod(m_mainWindow, [this]() {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Information,
+                                           "Découpe terminée",
+                                           "La découpe s'est terminée avec succès.",
+                                           QMessageBox::Ok,
+                                           m_mainWindow);
+        msg->setModal(false);
+        msg->show();
+    }, Qt::QueuedConnection);
 
 }
 
