@@ -23,6 +23,46 @@ TrajetMotor::TrajetMotor(FormeVisualization* visu, QWidget* parent)
 {}
 
 // -----------------------------------------------------------------------------
+// Estimation du nombre total d'opérations (déplacements + coupes)
+// -----------------------------------------------------------------------------
+static int estimateTotalOperations(const QList<Segment>& segs)
+{
+    if (segs.isEmpty())
+        return 0;
+
+    const auto key = [](const QPoint& a, const QPoint& b) {
+        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
+        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
+        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
+    };
+
+    QSet<quint64> done;
+    QPoint cur = segs.first().a;
+    int ops = 0;
+
+    while (done.size() < segs.size()) {
+        int    bestIdx = -1;
+        double bestDi  = std::numeric_limits<double>::max();
+        for (int i = 0; i < segs.size(); ++i) {
+            if (done.contains(key(segs[i].a, segs[i].b))) continue;
+            const double d = QLineF(cur, segs[i].a).length();
+            if (d < bestDi) { bestDi = d; bestIdx = i; }
+        }
+        if (bestIdx < 0) break;
+        const auto s = segs[bestIdx];
+
+        if (cur != s.a)
+            ++ops;                     // déplacement
+        ++ops;                         // coupe
+
+        done.insert(key(s.a, s.b));
+        cur = s.b;
+    }
+
+    return ops;
+}
+
+// -----------------------------------------------------------------------------
 // Helper pour colorier un segment
 // -----------------------------------------------------------------------------
 static void drawSegment(FormeVisualization* v,
@@ -69,9 +109,9 @@ void TrajetMotor::executeTrajet()
     }
 
     // 2) Progression -----------------------------------------------------------
-    const int totalSegments = segs.size();
-    int remaining           = totalSegments;
-    emit decoupeProgress(remaining, totalSegments);
+    const int totalOps = estimateTotalOperations(segs);
+    int remainingOps   = totalOps;
+    emit decoupeProgress(remainingOps, totalOps);
 
     // 3) Curseur vert ----------------------------------------------------------
     auto *head = new QGraphicsEllipseItem(-3, -3, 6, 6);
@@ -124,6 +164,9 @@ void TrajetMotor::executeTrajet()
 
             // Ensuite, on commande le moteur pour aller à la position finale
             m_motor.moveRapid(s.a.x() * mmPerPx, s.a.y() * mmPerPx);
+
+            --remainingOps;
+            emit decoupeProgress(remainingOps, totalOps);
         }
         cur = s.a;
 
@@ -136,8 +179,8 @@ void TrajetMotor::executeTrajet()
 
         // ---------- Progression ------------------------------------------------
         done.insert(key(s.a, s.b));
-        remaining = totalSegments - done.size();
-        emit decoupeProgress(remaining, totalSegments);
+        --remainingOps;
+        emit decoupeProgress(remainingOps, totalOps);
 
         cur = s.b;
     }
@@ -148,7 +191,7 @@ void TrajetMotor::executeTrajet()
     m_visu->getScene()->removeItem(head);
     delete head;
 
-    emit decoupeProgress(0, totalSegments);
+    emit decoupeProgress(0, totalOps);
     qDebug() << "Découpe terminée – Pas X=" << m_motor.getStepsX()
              << " Y=" << m_motor.getStepsY();
     qDebug() << "[DEBUG] m_mainWindow == nullptr ?" << (m_mainWindow == nullptr);
