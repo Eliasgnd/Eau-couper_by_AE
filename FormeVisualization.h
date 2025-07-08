@@ -70,6 +70,7 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     QPainterPath bufferedPath(const QPainterPath &path, int spacing);

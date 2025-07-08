@@ -2,6 +2,7 @@
 
 #include <QSet>
 #include <QHash>
+#include <QPoint>
 #include <QGraphicsRectItem>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsPolygonItem>
@@ -17,16 +18,14 @@
 #include <QtCore/qhashfunctions.h>     // qHashMulti (Qt ≥ 5.15)
 
 /*----------------------------------------------*
- * a) QPoint : Qt ≥ 5 possède déjà qHash(QPoint) *
+ * a) Hash for QPoint (compatible all Qt versions) *
  *----------------------------------------------*/
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
 inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
 {
-    return seed
-           ^ (static_cast<size_t>(pt.x()) << 16)
-           ^  static_cast<size_t>(pt.y());
+    seed ^= static_cast<size_t>(pt.x()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= static_cast<size_t>(pt.y()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    return seed;
 }
-#endif
 
 /*-----------------------------------------------------------*
  * b) QPair<QPoint,QPoint> : Qt n’en fournit pas par défaut. *
@@ -34,15 +33,10 @@ inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
 inline size_t qHash(const QPair<QPoint, QPoint> &key,
                     size_t seed = 0) noexcept
 {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    // Utilise l’implémentation générique moderne
-    return qHashMulti(seed, key.first, key.second);
-#else
-    // Fallback compatible Qt < 5.15
+    // Implémentation locale compatible avec toutes les versions de Qt
     seed ^= qHash(key.first, 0) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
     seed ^= qHash(key.second, 0);
     return seed;
-#endif
 }
 
 // ---------------------------------------------------------------------------
