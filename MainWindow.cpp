@@ -312,9 +312,6 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
     } else {
         //qDebug() << "Erreur : formeVisualization est nullptr.";
     }
-    // Blocage des modifications pendant la découpe personnalisée
-
-    formeVisualization->setDecoupeEnCours(true);
     this->show();
 }
 
