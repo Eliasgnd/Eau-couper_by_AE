@@ -618,6 +618,9 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         QPointF offset = -scaledBounds.topLeft();
+        // Corrige les petits décalages dus aux arrondis de boundingRect()
+        offset.setX(qRound(offset.x()));
+        offset.setY(qRound(offset.y()));
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
     }
@@ -905,7 +908,8 @@ bool FormeVisualization::validateShapes()
         }
     }
 
-    QRectF bounds = scene->sceneRect();
+    // Ajout d'une tolérance pour éviter les faux positifs sur les bords
+    QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
     for (auto *shape : std::as_const(shapes)) {
         QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
         if (!bounds.contains(rect)) {
@@ -916,7 +920,12 @@ bool FormeVisualization::validateShapes()
 
     for (int i = 0; i < shapes.size(); ++i) {
         for (int j = i + 1; j < shapes.size(); ++j) {
-            if (shapes[i]->collidesWithItem(shapes[j])) {
+            QPainterPath p1 = shapes[i]->mapToScene(shapes[i]->shape());
+            QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
+            QPainterPath inter = p1.intersected(p2);
+            QRectF iRect = inter.boundingRect();
+            // Consider shapes colliding only if the intersection has a real area
+            if (!iRect.isNull() && iRect.width() > 0.5 && iRect.height() > 0.5) {
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
                 allValid = false;
