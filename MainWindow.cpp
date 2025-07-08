@@ -42,8 +42,6 @@ MainWindow::MainWindow(QWidget *parent)
     // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
     QToolButton *settingsBtn = new QToolButton(this);
     settingsBtn->setText(tr("Paramètres"));
-    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
-    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
     settingsBtn->setMenu(languageMenu);                           // rattache le menu
 
@@ -57,12 +55,6 @@ MainWindow::MainWindow(QWidget *parent)
     padding: 6px 14px;
     border: 2px solid #008C9E;
     border-radius: 8px;
-    }
-    QToolButton::menu-indicator {
-    image: url(:/icons/chevron-down-white.svg);  /* petit chevron blanc (ajoute-le au .qrc) */
-    subcontrol-position: right center;
-    subcontrol-origin: padding;
-    padding-left: 6px;                           /* espace entre texte et chevron */
     }
     QToolButton:hover  { background-color: #26C6DA; }  /* plus clair au survol */
     QToolButton:pressed{ background-color: #008C9E; }  /* plus foncé au clic  */
