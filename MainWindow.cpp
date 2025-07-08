@@ -24,6 +24,7 @@
 #include <QPoint>
 #include <QWidgetAction>
 #include <QToolButton>
+#include <QMessageBox>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -193,6 +194,10 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(ui->ButtonRotationRight, &QPushButton::clicked, this, [this]() {
         formeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
+    });
+
+    connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->addShapeBottomRight();
     });
 
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
@@ -399,6 +404,12 @@ void MainWindow::StartPixel()
     if (trajetMotor->isPaused()) {
         // La découpe existe déjà mais est en pause → on la reprend
         trajetMotor->resume();
+        return;
+    }
+
+    if (!formeVisualization->validateShapes()) {
+        QMessageBox::warning(this, tr("Formes invalides"),
+                             tr("Certaines formes dépassent la zone ou se chevauchent."));
         return;
     }
 
