@@ -91,6 +91,7 @@ private:
     bool m_decoupeEnCours = false;
 
 
+
 };
 
 #endif // FORMEVISUALIZATION_H

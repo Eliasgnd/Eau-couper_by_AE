@@ -93,15 +93,9 @@ void FormeVisualization::setModel(ShapeModel::Type model)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
-    }
+    if (m_decoupeEnCours)
+        return;
+
     currentModel = model;
     setPredefinedMode();
     redraw();
@@ -113,6 +107,7 @@ void FormeVisualization::updateDimensions(int largeur, int longueur)
     if (!editingEnabled)
         return;
     if (m_decoupeEnCours) {
+        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans updateDimensions";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
                                            "Impossible de modifier les paramètres ou la forme pendant la découpe.",
@@ -134,6 +129,7 @@ void FormeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
     if (!editingEnabled)
         return;
     if (m_decoupeEnCours) {
+        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setShapeCount";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
                                            "Impossible de modifier les paramètres ou la forme pendant la découpe.",
@@ -159,13 +155,15 @@ void FormeVisualization::setSpacing(int newSpacing)
     if (!editingEnabled)
         return;
     if (m_decoupeEnCours) {
+        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setSpacing";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
                                            "Impossible de modifier les paramètres ou la forme pendant la découpe.",
                                            QMessageBox::Ok,
                                            this);
         msg->setModal(false);
-        msg->show();        return;
+        msg->show();
+        return;
     }
 
     spacing = newSpacing;
@@ -179,6 +177,7 @@ void FormeVisualization::setSpacing(int newSpacing)
 void FormeVisualization::setPredefinedMode()
 {
     if (m_decoupeEnCours) {
+        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setPredefinedMode";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
                                            "Impossible de modifier les paramètres ou la forme pendant la découpe.",
@@ -199,6 +198,7 @@ void FormeVisualization::setPredefinedMode()
 */
 void FormeVisualization::optimizePlacement() {
     if (m_decoupeEnCours) {
+        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
                                            "Impossible de modifier les paramètres ou la forme pendant la découpe.",
@@ -328,6 +328,7 @@ void FormeVisualization::optimizePlacement() {
 
 void FormeVisualization::optimizePlacement2() {
     if (m_decoupeEnCours) {
+        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement2";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
                                            "Impossible de modifier les paramètres ou la forme pendant la découpe.",

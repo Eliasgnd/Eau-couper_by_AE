@@ -213,6 +213,7 @@ void MainWindow::showCustom() {
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
+    qDebug() << "[DEBUG] applyCustomShape appelé";
     qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
         formeVisualization->displayCustomShapes(shapes);
