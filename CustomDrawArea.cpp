@@ -261,18 +261,6 @@ void CustomDrawArea::updateCanvas()
     m_canvas = newCanvas;
 
 
-    //affiche les extrémités, à supprimer plus tard
-    for (const Shape &shape : m_shapes) {
-        if (shape.path.elementCount() > 0) {
-            QPointF start = shape.path.elementAt(0);
-            QPointF end = shape.path.elementAt(shape.path.elementCount() - 1);
-
-            painter.setBrush(Qt::red);
-            painter.drawEllipse(start, 3, 3);
-            painter.setBrush(Qt::blue);
-            painter.drawEllipse(end, 3, 3);
-        }
-    }
 
 }
 
