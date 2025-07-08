@@ -41,6 +41,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     graphicsView->setScene(scene);
     graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    graphicsView->viewport()->installEventFilter(this);
 
     progressBar = new QProgressBar(this);
     progressBar->setValue(0);
@@ -92,6 +93,22 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
 void FormeVisualization::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+}
+
+bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonDblClick) {
+        auto *me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            QPointF scenePos = graphicsView->mapToScene(me->pos());
+            QGraphicsItem *item = scene->itemAt(scenePos, graphicsView->transform());
+            if (item && !m_cutMarkers.contains(item)) {
+                item->setSelected(!item->isSelected());
+            }
+            return true;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void FormeVisualization::setModel(ShapeModel::Type model)
