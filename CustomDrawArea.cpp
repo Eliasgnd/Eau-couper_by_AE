@@ -1523,11 +1523,11 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     double d10 = QLineF(p1_end,   p2_start).length();
     double d11 = QLineF(p1_end,   p2_end).length();
 
-    qDebug() << "Distances entre extrémités :";
-    qDebug() << "p1_start <-> p2_start =" << d00;
-    qDebug() << "p1_start <-> p2_end   =" << d01;
-    qDebug() << "p1_end   <-> p2_start =" << d10;
-    qDebug() << "p1_end   <-> p2_end   =" << d11;
+    //qDebug() << "Distances entre extrémités :";
+    //qDebug() << "p1_start <-> p2_start =" << d00;
+    //qDebug() << "p1_start <-> p2_end   =" << d01;
+    //qDebug() << "p1_end   <-> p2_start =" << d10;
+    //qDebug() << "p1_end   <-> p2_end   =" << d11;
 
     // Trouver la plus petite
     double minDist = d00;
@@ -1537,7 +1537,7 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     if (d10 < minDist) { minDist = d10; config = 2; }
     if (d11 < minDist) { minDist = d11; config = 3; }
 
-    qDebug() << "Configuration la plus proche : case" << config << "avec distance =" << minDist;
+    //qDebug() << "Configuration la plus proche : case" << config << "avec distance =" << minDist;
 
     // Réorienter les points pour tracer dans le bon ordre
     if (config == 0) {
@@ -1569,7 +1569,7 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
 
     for (int idx : toRemove) {
         if (idx >= 0 && idx < m_shapes.size()) {
-            qDebug() << "Suppression forme originalId=" << m_shapes[idx].originalId;
+            //qDebug() << "Suppression forme originalId=" << m_shapes[idx].originalId;
             m_shapes.removeAt(idx);
         }
     }
@@ -1580,7 +1580,7 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     s.originalId = m_nextShapeId++;
     m_shapes.append(s);
 
-    qDebug() << "Fusion effectuée. Total points:" << mergedPoints.size();
+    //qDebug() << "Fusion effectuée. Total points:" << mergedPoints.size();
     pushState();
     updateCanvas();
     update();
@@ -1607,9 +1607,9 @@ void CustomDrawArea::closeCurrentShape()
     pushState();
 
     // Pour chaque forme sélectionnée, on ferme le sous‑chemin
-    qDebug() << "🔁 Fermeture des formes sélectionnées...";
-    qDebug() << "📌 Formes sélectionnées:" << m_selectedShapes;
-    qDebug() << "📌 Nombre total de formes:" << m_shapes.size();
+    //qDebug() << "🔁 Fermeture des formes sélectionnées...";
+    //qDebug() << "📌 Formes sélectionnées:" << m_selectedShapes;
+    //qDebug() << "📌 Nombre total de formes:" << m_shapes.size();
 
     for (int idx : m_selectedShapes) {
         if (idx < 0 || idx >= m_shapes.size()) {
@@ -1618,7 +1618,7 @@ void CustomDrawArea::closeCurrentShape()
         }
         QPainterPath &path = m_shapes[idx].path;
         if (!path.isEmpty()) {
-            qDebug() << "📏 Element count:" << path.elementCount();
+            //qDebug() << "📏 Element count:" << path.elementCount();
             path.closeSubpath();
         }
     }
@@ -1646,9 +1646,9 @@ void CustomDrawArea::cancelCloseMode()
 
 void CustomDrawArea::onPinchZoom(const QPointF &center, qreal scaleFactor)
 {
-    qDebug() << "🔍 Zoom appliqué depuis gesture:";
-    qDebug() << "   ➤ Facteur reçu =" << scaleFactor;
-    qDebug() << "   ➤ Zoom avant =" << m_scale;
+    //qDebug() << "🔍 Zoom appliqué depuis gesture:";
+    //qDebug() << "   ➤ Facteur reçu =" << scaleFactor;
+    //qDebug() << "   ➤ Zoom avant =" << m_scale;
 
     double oldScale = m_scale;
     m_scale *= scaleFactor;
@@ -1718,7 +1718,7 @@ void CustomDrawArea::handlePinchZoom(QPointF screenCenter, qreal factor)
 
 void CustomDrawArea::onTwoFingerPan(const QPointF &delta)
 {
-    qDebug() << "🖐️ Delta reçu:" << delta;
+    //qDebug() << "🖐️ Delta reçu:" << delta;
 
     applyPanDelta(delta);
 }
@@ -1727,7 +1727,7 @@ void CustomDrawArea::onTwoFingerPan(const QPointF &delta)
 void CustomDrawArea::setTwoFingersOn(bool active)
 {
     m_twoFingersOn = active;
-    qDebug() << "[DEBUG] Two fingers state changed:" << active;
+    //qDebug() << "[DEBUG] Two fingers state changed:" << active;
     if (active) {
         m_drawing = false;
         m_drawingLineOrCircle = false;

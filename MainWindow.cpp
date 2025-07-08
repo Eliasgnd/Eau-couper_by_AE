@@ -30,7 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    qDebug() << "Titre du bouton Play =" << ui->Play->text();
+    //qDebug() << "Titre du bouton Play =" << ui->Play->text();
 
     // 1) Crée le menu langue et ses actions (attributs)
     languageMenu  = new QMenu(tr("Langue"), this);
@@ -207,35 +207,35 @@ void MainWindow::updateForme() {
 }
 
 void MainWindow::changeToCircle() {
-    qDebug() << "Changement de forme: Cercle";
+    //qDebug() << "Changement de forme: Cercle";
     selectedShapeType = ShapeModel::Type::Circle;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Circle);
 }
 
 void MainWindow::changeToRectangle() {
-    qDebug() << "Changement de forme: Rectangle";
+    //qDebug() << "Changement de forme: Rectangle";
     selectedShapeType = ShapeModel::Type::Rectangle;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Rectangle);
 }
 
 void MainWindow::changeToTriangle() {
-    qDebug() << "Changement de forme: Triangle";
+    //qDebug() << "Changement de forme: Triangle";
     selectedShapeType = ShapeModel::Type::Triangle;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Triangle);
 }
 
 void MainWindow::changeToStar() {
-    qDebug() << "Changement de forme: Étoile";
+    //qDebug() << "Changement de forme: Étoile";
     selectedShapeType = ShapeModel::Type::Star;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Star);
 }
 
 void MainWindow::changeToHeart() {
-    qDebug() << "Changement de forme: Cœur";
+    //qDebug() << "Changement de forme: Cœur";
     selectedShapeType = ShapeModel::Type::Heart;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Heart);
@@ -258,11 +258,11 @@ void MainWindow::showCustom() {
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
-    qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
+    //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
         formeVisualization->displayCustomShapes(shapes);
     } else {
-        qDebug() << "Erreur : formeVisualization est nullptr.";
+        //qDebug() << "Erreur : formeVisualization est nullptr.";
     }
     this->show();
 }
@@ -292,7 +292,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons)
 }
 
 void MainWindow::resetDrawing() {
-    qDebug() << "Slot resetDrawing() appelé dans MainWindow ! (Rien à faire car le reset est dans custom)";
+    //qDebug() << "Slot resetDrawing() appelé dans MainWindow ! (Rien à faire car le reset est dans custom)";
 }
 
 void MainWindow::updateSpinBoxLongueur(int value) {
@@ -340,7 +340,7 @@ void afficherClavier() {
     if (clavier.exec() == QDialog::Accepted) {  // Affichage modal du clavier
         QString texteSaisi = clavier.getText();
         // Traitez le texte saisi selon vos besoins
-        qDebug() << "Texte saisi :" << texteSaisi;
+        //qDebug() << "Texte saisi :" << texteSaisi;
     }
 }
 
@@ -365,7 +365,7 @@ void MainWindow::updateProgressBar(int remaining, int total) {
 
     // Remise à zéro si tout est terminé (optionnel, dépend de ton besoin)
     if (remaining == 0) {
-        qDebug() << "Découpe terminée.";
+        //qDebug() << "Découpe terminée.";
     }
 }
 
@@ -384,10 +384,10 @@ void MainWindow::showEvent(QShowEvent *event)
     const auto screens = QGuiApplication::screens();
     for (int i = 0; i < screens.size(); ++i) {
         QScreen *s = screens.at(i);
-        qDebug() << "Écran" << i
-                 << "nom =" << s->name()
-                 << "géométrie =" << s->geometry()
-                 << "disponible =" << s->availableGeometry();
+        //qDebug() << "Écran" << i
+        //         << "nom =" << s->name()
+        //         << "géométrie =" << s->geometry()
+        //         << "disponible =" << s->availableGeometry();
     }
     if (screens.size() > 1) {
         QScreen* second = screens.at(0);
@@ -424,7 +424,7 @@ bool MainWindow::loadLanguage(Language lang)
         qWarning() << "❌ Impossible de charger la langue :" << path;
     } else {
         qApp->installTranslator(&translator);
-        qDebug() << "✅ Langue chargée :" << path;
+        //qDebug() << "✅ Langue chargée :" << path;
     }
 
     // Mettre à jour tous les textes
