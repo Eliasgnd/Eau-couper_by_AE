@@ -2,6 +2,7 @@
 
 #include <QSet>
 #include <QHash>
+#include <QPoint>
 #include <QGraphicsRectItem>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsPolygonItem>
@@ -16,31 +17,30 @@
 #include <QtGlobal>                    // QT_VERSION, …
 #include <QtCore/qhashfunctions.h>     // qHashMulti (Qt ≥ 5.15)
 
-/*----------------------------------------------*
- * a) QPoint : Qt ≥ 5 possède déjà qHash(QPoint) *
- *----------------------------------------------*/
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
+/*---------------------------------------*
+ * a) Hash pour QPoint (si Qt ≤ 5.14)    *
+ *---------------------------------------*/
+#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
 inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
 {
-    return seed
-           ^ (static_cast<size_t>(pt.x()) << 16)
-           ^  static_cast<size_t>(pt.y());
+    seed ^= static_cast<size_t>(pt.x()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= static_cast<size_t>(pt.y()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    return seed;
 }
 #endif
 
 /*-----------------------------------------------------------*
- * b) QPair<QPoint,QPoint> : Qt n’en fournit pas par défaut. *
+ * b) Hash pour QPair<QPoint,QPoint> (non fourni par Qt)     *
  *-----------------------------------------------------------*/
 inline size_t qHash(const QPair<QPoint, QPoint> &key,
                     size_t seed = 0) noexcept
 {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    // Utilise l’implémentation générique moderne
+    // Qt 5.15 / Qt 6 : mélange officiel
     return qHashMulti(seed, key.first, key.second);
 #else
-    // Fallback compatible Qt < 5.15
-    seed ^= qHash(key.first, 0) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-    seed ^= qHash(key.second, 0);
+    seed ^= qHash(key.first,  size_t(0)) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= qHash(key.second, size_t(0));
     return seed;
 #endif
 }
@@ -99,8 +99,7 @@ QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
 }
 
 // ---------------------------------------------------------------------------
-//  4.  Construction d’un chemin eulérien (algorithme d’Hierholzer + appairage
-//      glouton des sommets de degré impair).
+//  4.  Construction d’un chemin eulérien (Hierholzer + appairage glouton)
 // ---------------------------------------------------------------------------
 QVector<QPoint> PathPlanner::buildEulerPath(const QList<Segment> &segs)
 {
