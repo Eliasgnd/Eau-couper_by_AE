@@ -926,6 +926,7 @@ bool FormeVisualization::validateShapes()
             QRectF iRect = inter.boundingRect();
             // Consider shapes colliding only if the intersection has a real area
             if (!iRect.isNull() && iRect.width() > 0.5 && iRect.height() > 0.5) {
+
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
                 allValid = false;
