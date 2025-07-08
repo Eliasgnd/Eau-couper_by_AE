@@ -78,6 +78,7 @@ private:
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
     TrajetMotor* trajetMotor = nullptr;
     QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
+    double smoothedTotalMs = -1.0;     // Lissage de l'estimation
 
     void retranslateDynamicUi();
 

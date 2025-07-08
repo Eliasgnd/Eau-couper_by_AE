@@ -366,8 +366,10 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     int percent = (total - remaining) * 100 / total;
 
     // Démarrage du chrono à la première mise à jour
-    if (!decoupeTimer.isValid() || remaining == total)
+    if (!decoupeTimer.isValid() || remaining == total) {
         decoupeTimer.start();
+        smoothedTotalMs = -1.0; // réinitialise l'estimation
+    }
 
     // Mise à jour de la barre
     ui->progressBar->setValue(percent);
@@ -375,9 +377,13 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     // Calcul de l'estimation du temps restant
     QString timeText;
     if (percent > 0 && remaining > 0) {
-        qint64 elapsedMs   = decoupeTimer.elapsed();
-        double totalMs     = static_cast<double>(elapsedMs) / (percent / 100.0);
-        qint64 remainingMs = static_cast<qint64>(totalMs - elapsedMs);
+        qint64 elapsedMs      = decoupeTimer.elapsed();
+        double instantTotalMs = static_cast<double>(elapsedMs) / (percent / 100.0);
+        if (smoothedTotalMs < 0)
+            smoothedTotalMs = instantTotalMs;
+        else
+            smoothedTotalMs = 0.9 * smoothedTotalMs + 0.1 * instantTotalMs;
+        qint64 remainingMs = static_cast<qint64>(smoothedTotalMs - elapsedMs);
         if (remainingMs < 0) remainingMs = 0;
         int seconds = remainingMs / 1000;
         int minutes = seconds / 60;
@@ -395,6 +401,7 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     // Remise à zéro à la fin
     if (remaining == 0) {
         decoupeTimer.invalidate();
+        smoothedTotalMs = -1.0;
     }
 }
 
