@@ -43,7 +43,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Connection de l'inventaire à la forme
     QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
-                     ui->formeVisualizationWidget, &FormeVisualization::setModel);
+                     this, &MainWindow::onShapeSelectedFromInventaire);
+
 
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
@@ -124,9 +125,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
-            [this](bool /*optimized*/) {
-                trajetMotor = new TrajetMotor(formeVisualization, this);
-            });
+            [](bool /*optimized*/) {});
 
     // Pause ↔ Reprendre
     connect(ui->Pause, &QPushButton::clicked, this, [this]() {
@@ -139,14 +138,17 @@ MainWindow::MainWindow(QWidget *parent)
         paused = !paused;
     });
 
-    // Stop
-    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
-        trajetMotor->stopCut();
-    });
-
     // **NOUVELLE CONNEXION** pour la barre de progression de la découpe
     connect(trajetMotor, &TrajetMotor::decoupeProgress,
             this, &MainWindow::updateProgressBar);
+
+    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
+        trajetMotor->stopCut();
+        formeVisualization->setDecoupeEnCours(false);
+        setSpinboxSliderEnabled(true);
+    });
+
+
 
     // Configuration de la barre de progression
     ui->progressBar->setRange(0, 100);
@@ -157,6 +159,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     trajetMotor = new TrajetMotor(formeVisualization, this);
+    trajetMotor->setMainWindow(this);
+
 
 }
 
@@ -222,12 +226,16 @@ void MainWindow::showCustom() {
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
+    qDebug() << "[DEBUG] applyCustomShape appelé";
     qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
         formeVisualization->displayCustomShapes(shapes);
     } else {
         qDebug() << "Erreur : formeVisualization est nullptr.";
     }
+    // Blocage des modifications pendant la découpe personnalisée
+
+    formeVisualization->setDecoupeEnCours(true);
     this->show();
 }
 
@@ -316,9 +324,13 @@ void MainWindow::StartPixel()
         return;
     }
 
+    formeVisualization->setDecoupeEnCours(true);
     // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
     //qDebug() << "Demarrage Découpe";
+    setSpinboxSliderEnabled(false);
     trajetMotor->executeTrajet();
+    // Blocage des paramètres UI pendant la découpe
+
 }
 
 
@@ -429,5 +441,25 @@ void MainWindow::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
+void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
+{
+    selectedShapeType = type;
+    formeVisualization->setPredefinedMode();
+    formeVisualization->setModel(type);
+}
 
+void MainWindow::setSpinboxSliderEnabled(bool enabled)
+{
+    ui->Largeur->setEnabled(enabled);
+    ui->Longueur->setEnabled(enabled);
+    ui->Slider_largeur->setEnabled(enabled);
+    ui->Slider_longueur->setEnabled(enabled);
+    ui->shapeCountSpinBox->setEnabled(enabled);
+    ui->spaceSpinBox->setEnabled(enabled);
+    qDebug() << "[DEBUG] Appel de setSpinboxSliderEnabled(" << enabled << ")";
+}
 
+FormeVisualization* MainWindow::getFormeVisualization() const
+{
+    return formeVisualization;
+}

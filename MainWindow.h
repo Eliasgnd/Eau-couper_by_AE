@@ -22,11 +22,13 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    void StartPixel();
     static MainWindow* getInstance();
+    FormeVisualization* getFormeVisualization() const;
 
 public slots:
     void updateProgressBar(int remaining, int total);
+    void setSpinboxSliderEnabled(bool enabled);
+
 private slots:
     void updateForme();
     void changeToCircle();
@@ -69,6 +71,7 @@ private:
     QAction *actionFrench = nullptr;
     QAction *actionEnglish = nullptr;
 
+    void onShapeSelectedFromInventaire(ShapeModel::Type type);
 
 private:
     Ui::MainWindow *ui;
@@ -77,6 +80,8 @@ private:
     ShapeModel::Type selectedShapeType;
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
     TrajetMotor* trajetMotor;
+    void setFormEditingEnabled(bool enabled);
+    void StartPixel();
 
     void retranslateDynamicUi();
 

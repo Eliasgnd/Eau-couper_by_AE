@@ -23,5 +23,6 @@ int main(int argc, char *argv[])
 
     MainWindow *window = MainWindow::getInstance();
     window->showFullScreen();
+    filter.setFormeVisualization(window->getFormeVisualization());
     return app.exec();
 }

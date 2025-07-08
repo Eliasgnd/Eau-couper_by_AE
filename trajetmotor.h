@@ -2,6 +2,7 @@
 #define TRAJETMOTOR_H
 
 #include <QWidget>
+class MainWindow;
 #include "motorcontrol.h"
 #include "FormeVisualization.h" //rudy le boss
 
@@ -13,6 +14,7 @@ public:
     /// Démarre le parcours de découpe
     void executeTrajet();
     bool isPaused() const { return m_running && m_paused; }
+    void setMainWindow(MainWindow* mainWindow);
 
 public slots:
     /// Met en pause la découpe (le jet s’arrête, la boucle attend)
@@ -36,6 +38,9 @@ private:
     bool m_paused        = false;  // Vrai si pause active
     bool m_stopRequested = false;  // Vrai si arrêt demandé
     bool m_running       = false;   // VRAI = une découpe est déjà en cours
+
+    MainWindow* m_mainWindow = nullptr;
+
 
 };
 
