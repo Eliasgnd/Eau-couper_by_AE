@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QPainterPath>
 #include "ShapeModel.h"
+#include "inventaire.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
@@ -43,6 +44,12 @@ public:
     void setDecoupeEnCours(bool etat);
     bool isDecoupeEnCours() const;
     QGraphicsView* getGraphicsView() const;             // accès à la vue
+
+    bool isCustomMode() const { return m_isCustomMode; }
+    void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
+    QString currentCustomShapeName() const { return m_currentCustomShapeName; }
+    void applyLayout(const LayoutData &layout);
+    LayoutData captureCurrentLayout(const QString &name) const;
 
 
 public slots:
@@ -94,6 +101,7 @@ private:
 
     bool                 m_isCustomMode {false};
     QList<QPolygonF>     m_customShapes;
+    QString              m_currentCustomShapeName;
 
     // liste des points / traces ajoutés pendant la découpe
     QList<QGraphicsItem*> m_cutMarkers;
