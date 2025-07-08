@@ -65,6 +65,9 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     layout->addWidget(progressBar);
     setLayout(layout);
 
+    connect(scene, &QGraphicsScene::selectionChanged,
+            this, &FormeVisualization::handleSelectionChanged);
+
     redraw();
 }
 
@@ -699,6 +702,7 @@ void FormeVisualization::addShapeBottomRight()
         newItem->setFlag(QGraphicsItem::ItemIsMovable, true);
         newItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(newItem);
+        emit shapesPlacedCount(countPlacedShapes());
     }
 }
 
@@ -820,4 +824,65 @@ bool FormeVisualization::isDecoupeEnCours() const
 QGraphicsView* FormeVisualization::getGraphicsView() const
 {
     return graphicsView;
+}
+
+int FormeVisualization::countPlacedShapes() const
+{
+    int count = 0;
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (dynamic_cast<QGraphicsPathItem*>(item) ||
+            dynamic_cast<QGraphicsRectItem*>(item) ||
+            dynamic_cast<QGraphicsEllipseItem*>(item) ||
+            dynamic_cast<QGraphicsPolygonItem*>(item)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+bool FormeVisualization::validateShapes()
+{
+    bool allValid = true;
+    QList<QAbstractGraphicsShapeItem*> shapes;
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            shape->setPen(QPen(Qt::black, 1));
+            shapes << shape;
+        }
+    }
+
+    QRectF bounds = scene->sceneRect();
+    for (auto *shape : std::as_const(shapes)) {
+        QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
+        if (!bounds.contains(rect)) {
+            shape->setPen(QPen(Qt::red, 1));
+            allValid = false;
+        }
+    }
+
+    for (int i = 0; i < shapes.size(); ++i) {
+        for (int j = i + 1; j < shapes.size(); ++j) {
+            if (shapes[i]->collidesWithItem(shapes[j])) {
+                shapes[i]->setPen(QPen(Qt::red, 1));
+                shapes[j]->setPen(QPen(Qt::red, 1));
+                allValid = false;
+            }
+        }
+    }
+
+    emit shapesPlacedCount(shapes.size());
+    return allValid;
+}
+
+void FormeVisualization::handleSelectionChanged()
+{
+    for (QGraphicsItem *item : scene->selectedItems()) {
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            shape->setPen(QPen(Qt::black, 1));
+        }
+    }
 }

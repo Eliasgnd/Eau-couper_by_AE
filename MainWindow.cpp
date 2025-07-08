@@ -24,6 +24,7 @@
 #include <QPoint>
 #include <QWidgetAction>
 #include <QToolButton>
+#include <QMessageBox>
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -403,6 +404,12 @@ void MainWindow::StartPixel()
     if (trajetMotor->isPaused()) {
         // La découpe existe déjà mais est en pause → on la reprend
         trajetMotor->resume();
+        return;
+    }
+
+    if (!formeVisualization->validateShapes()) {
+        QMessageBox::warning(this, tr("Formes invalides"),
+                             tr("Certaines formes dépassent la zone ou se chevauchent."));
         return;
     }
 
