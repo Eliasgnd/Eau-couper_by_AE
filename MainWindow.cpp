@@ -27,6 +27,7 @@
 #include <QMessageBox>
 
 
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -202,6 +203,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->ButtonDeleteShape, &QPushButton::clicked, this, [this]() {
         formeVisualization->deleteSelectedShapes();
+    });
+
+    connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->addShapeBottomRight();
     });
 
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
@@ -421,6 +426,7 @@ void MainWindow::StartPixel()
 
     formeVisualization->setDecoupeEnCours(true);
     formeVisualization->resetAllShapeColors();
+
     // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
     //qDebug() << "Demarrage Découpe";
     setSpinboxSliderEnabled(false);

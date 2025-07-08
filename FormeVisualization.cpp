@@ -71,6 +71,8 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     redraw();
 }
 
+
+
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
     // Si aucun espacement n'est demandé, renvoyer le chemin original
@@ -733,6 +735,7 @@ void FormeVisualization::addShapeBottomRight()
     }
 }
 
+
 void FormeVisualization::setCustomMode() {
     m_isCustomMode = true;
     emit optimizationStateChanged(false);
@@ -925,3 +928,4 @@ void FormeVisualization::resetAllShapeColors()
     }
     graphicsView->viewport()->update();
 }
+
