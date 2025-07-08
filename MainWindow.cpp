@@ -84,6 +84,7 @@ MainWindow::MainWindow(QWidget *parent)
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
     // Création du contrôleur de découpe avant toute connexion
     trajetMotor = new TrajetMotor(formeVisualization, this);
+    trajetMotor->setMainWindow(this);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
@@ -234,8 +235,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
-    trajetMotor = new TrajetMotor(formeVisualization, this);
-    trajetMotor->setMainWindow(this);
 
 
     if (ui->timeRemainingLabel)
