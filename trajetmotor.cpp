@@ -46,6 +46,8 @@ static void drawSegment(FormeVisualization* v,
 // -----------------------------------------------------------------------------
 void TrajetMotor::executeTrajet()
 {
+    qDebug() << "[DEBUG] executeTrajet() exécuté dans instance" << this;
+
     if (m_running) {
         qWarning() << "Découpe déjà en cours (pause ou non).";
         return;
@@ -148,18 +150,22 @@ void TrajetMotor::executeTrajet()
     emit decoupeProgress(0, totalSegments);
     qDebug() << "Découpe terminée – Pas X=" << m_motor.getStepsX()
              << " Y=" << m_motor.getStepsY();
+    qDebug() << "[DEBUG] m_mainWindow == nullptr ?" << (m_mainWindow == nullptr);
 
     if (m_mainWindow) {
         QMetaObject::invokeMethod(m_mainWindow, "setParamWidgetsEnabled",
                                   Qt::QueuedConnection, Q_ARG(bool, true));
-        QMetaObject::invokeMethod(m_mainWindow, []() {
-            MainWindow::getInstance()->setSpinboxSliderEnabled(true);
-        }, Qt::QueuedConnection);
+        qDebug() << "[DEBUG] invokeMethod vers setSpinboxSliderEnabled(true)";
 
+        QMetaObject::invokeMethod(m_mainWindow, "setSpinboxSliderEnabled",
+                                  Qt::QueuedConnection, Q_ARG(bool, true));
     }
+
     if (m_visu)
         m_visu->setDecoupeEnCours(false);
+
     m_running = false;
+
 }
 
 // -----------------------------------------------------------------------------
@@ -188,4 +194,7 @@ void TrajetMotor::stopCut()
 void TrajetMotor::setMainWindow(MainWindow* mainWindow)
 {
     m_mainWindow = mainWindow;
+    qDebug() << "[DEBUG] m_mainWindow défini dans TrajetMotor";
+    qDebug() << "[DEBUG] setMainWindow appelé pour instance" << this;
+
 }
