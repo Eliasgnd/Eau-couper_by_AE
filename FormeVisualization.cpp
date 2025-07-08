@@ -239,7 +239,7 @@ void FormeVisualization::optimizePlacement() {
     } else {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
-            qDebug() << "Erreur : Aucun prototype de forme disponible.";
+            //qDebug() << "Erreur : Aucun prototype de forme disponible.";
             progressBar->setVisible(false);
             return;
         }
@@ -253,7 +253,7 @@ void FormeVisualization::optimizePlacement() {
         else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
             prototypePath.addPolygon(polyItem->polygon());
         else {
-            qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
+            //qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
             progressBar->setVisible(false);
             return;
         }
@@ -320,7 +320,7 @@ void FormeVisualization::optimizePlacement() {
         }
     }
 
-    qDebug() << "Formes placées:" << shapesPlaced;
+    //qDebug() << "Formes placées:" << shapesPlaced;
     emit shapesPlacedCount(shapesPlaced);
     emit optimizationStateChanged(true);
     progressBar->setVisible(false);
@@ -369,7 +369,7 @@ void FormeVisualization::optimizePlacement2() {
     } else {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
-            qDebug() << "Erreur : Aucun prototype de forme disponible.";
+            //qDebug() << "Erreur : Aucun prototype de forme disponible.";
             return;
         }
         QGraphicsItem *prototype = shapesList.first();
@@ -382,7 +382,7 @@ void FormeVisualization::optimizePlacement2() {
         else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
             prototypePath.addPolygon(polyItem->polygon());
         else {
-            qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
+            //qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
             return;
         }
     }
@@ -443,7 +443,7 @@ void FormeVisualization::optimizePlacement2() {
             }
         }
     }
-    qDebug() << "Formes optimisées placées:" << shapesPlaced;
+    //qDebug() << "Formes optimisées placées:" << shapesPlaced;
     emit shapesPlacedCount(shapesPlaced);
     progressBar->setVisible(false);
 }
@@ -470,7 +470,7 @@ void FormeVisualization::redraw()
 
     QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
     if (shapes.isEmpty()) {
-        qDebug() << "Erreur : generateShapes a retourné une liste vide.";
+        //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
         emit shapesPlacedCount(0);
         return;
     }
@@ -480,7 +480,7 @@ void FormeVisualization::redraw()
     qreal effectiveWidth = bounds.width();
     qreal effectiveHeight = bounds.height();
     if (effectiveWidth <= 0 || effectiveHeight <= 0) {
-        qDebug() << "Erreur : dimensions invalides pour la forme.";
+        //qDebug() << "Erreur : dimensions invalides pour la forme.";
         emit shapesPlacedCount(0);
         return;
     }
@@ -492,8 +492,8 @@ void FormeVisualization::redraw()
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
 
-    qDebug() << "Grille :" << maxCols << "colonnes x" << maxRows << "lignes ="
-             << totalCells << "cellules. Placement de" << shapesToPlace << "formes.";
+    //qDebug() << "Grille :" << maxCols << "colonnes x" << maxRows << "lignes ="
+    //         << totalCells << "cellules. Placement de" << shapesToPlace << "formes.";
 
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
@@ -512,7 +512,7 @@ void FormeVisualization::redraw()
             shapeCopy = new QGraphicsPathItem(path->path());
 
         if (!shapeCopy) {
-            qDebug() << "Erreur : Impossible de copier la forme !";
+            //qDebug() << "Erreur : Impossible de copier la forme !";
             continue;
         }
         QPointF offsetCorrection(-bounds.x(), -bounds.y());
@@ -521,7 +521,7 @@ void FormeVisualization::redraw()
         shapeCopy->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(shapeCopy);
     }
-    qDebug() << "Formes prédéfinies placées:" << shapesToPlace;
+    //qDebug() << "Formes prédéfinies placées:" << shapesToPlace;
     emit shapesPlacedCount(shapesToPlace);
 }
 
@@ -541,7 +541,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     scene->clear();
 
     if (shapes.isEmpty()) {
-        qDebug() << "Aucune forme personnalisée à afficher.";
+        //qDebug() << "Aucune forme personnalisée à afficher.";
         return;
     }
 
@@ -561,7 +561,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     }
     QRectF polyBounds = combinedPath.boundingRect();
     if (polyBounds.width() <= 0 || polyBounds.height() <= 0) {
-        qDebug() << "Erreur : dimensions invalides pour le dessin custom combiné.";
+        //qDebug() << "Erreur : dimensions invalides pour le dessin custom combiné.";
         return;
     }
 
@@ -597,7 +597,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         scene->addItem(item);
     }
 
-    qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
+    //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
     emit shapesPlacedCount(shapesToPlace);
 }
 

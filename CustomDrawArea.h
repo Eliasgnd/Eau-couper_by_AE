@@ -131,6 +131,7 @@ private:
     bool m_drawing;
     bool m_smoothingEnabled;
     int m_smoothingLevel;
+    bool m_lowPassFilterEnabled = true;
     DrawMode m_drawMode = DrawMode::Freehand;
 
     // Variables pour le dessin de formes géométriques
@@ -172,6 +173,9 @@ private:
     QPainterPath generateRawPath(const QList<QPointF>& pts);
     double distance(const QPointF &p1, const QPointF &p2);
     QList<QPointF> applyChaikinAlgorithm(const QList<QPointF>& inputPoints, int iterations);
+    int computeSmoothingIterations(const QList<QPointF> &pts) const;
+    QList<QPointF> applyLowPassFilter(const QList<QPointF>& points, double alpha) const;
+    double smoothingAlpha() const;
 
     // Gestion du canevas
     void initCanvas();
@@ -219,6 +223,8 @@ private:
 
     // Distance minimale entre deux points consécutifs lors du dessin libre
     qreal  m_minPointDistance = 2.0;
+    // Seuil de distance moyen en dessous duquel on applique un lissage renforcé
+    qreal  m_lowSpeedThreshold = 5.0;
 
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
@@ -236,6 +242,8 @@ public slots:
     void setTwoFingersOn (bool active);
     void setGridSpacing(int px);     // px ≥ 1
     int  gridSpacing() const { return m_gridSpacing; }
+    void setLowPassFilterEnabled(bool enabled) { m_lowPassFilterEnabled = enabled; }
+    bool lowPassFilterEnabled() const { return m_lowPassFilterEnabled; }
 
 };
 

@@ -10,6 +10,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QTranslator>
+#include <QElapsedTimer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -55,7 +56,6 @@ private slots:
 
     void setLanguageFrench();
     void setLanguageEnglish();
-    void showLanguageMenu();
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -82,7 +82,8 @@ private:
     TrajetMotor* trajetMotor;
     void setFormEditingEnabled(bool enabled);
     void StartPixel();
-
+    QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
+    double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
 
 protected:

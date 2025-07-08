@@ -8,6 +8,7 @@
 #include <QWheelEvent>
 #include <QGestureEvent>
 #include <QPinchGesture>
+#include <QLineF>
 #include <QMap>
 #include <algorithm> // pour std::sort
 #include <QInputDialog>
@@ -260,18 +261,6 @@ void CustomDrawArea::updateCanvas()
     m_canvas = newCanvas;
 
 
-    //affiche les extrémités, à supprimer plus tard
-    for (const Shape &shape : m_shapes) {
-        if (shape.path.elementCount() > 0) {
-            QPointF start = shape.path.elementAt(0);
-            QPointF end = shape.path.elementAt(shape.path.elementCount() - 1);
-
-            painter.setBrush(Qt::red);
-            painter.drawEllipse(start, 3, 3);
-            painter.setBrush(Qt::blue);
-            painter.drawEllipse(end, 3, 3);
-        }
-    }
 
 }
 
@@ -436,6 +425,46 @@ QPainterPath CustomDrawArea::generateRawPath(const QList<QPointF>& pts)
     return path;
 }
 
+QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, double alpha) const
+{
+    if (points.isEmpty())
+        return points;
+    QList<QPointF> result;
+    result.reserve(points.size());
+    QPointF prev = points.first();
+    result.append(prev);
+    for (int i = 1; i < points.size(); ++i) {
+        QPointF p = points[i] * alpha + prev * (1.0 - alpha);
+        result.append(p);
+        prev = p;
+    }
+    return result;
+}
+
+double CustomDrawArea::smoothingAlpha() const
+{
+    switch (m_smoothingLevel) {
+    case 0: return 0.5;
+    case 1: return 0.35;
+    default: return 0.25;
+    }
+}
+
+int CustomDrawArea::computeSmoothingIterations(const QList<QPointF> &pts) const
+{
+    int baseIter = (m_smoothingLevel == 0) ? 1 :
+                   (m_smoothingLevel == 1 ? 2 : 3);
+    if (pts.size() < 2)
+        return baseIter;
+    double total = 0.0;
+    for (int i = 1; i < pts.size(); ++i)
+        total += QLineF(pts[i-1], pts[i]).length();
+    double avg = total / (pts.size() - 1);
+    if (avg < m_lowSpeedThreshold)
+        baseIter += 1;
+    return baseIter;
+}
+
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
     if (m_twoFingersOn)
@@ -555,6 +584,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         m_drawing = true;
         m_freehandPoints.clear();
         if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -566,6 +596,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             m_freehandPoints.clear();
         }
         if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -715,6 +746,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     case DrawMode::Freehand:
         if (!m_drawing) return;
         if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -956,13 +988,17 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     {
         if (!m_drawing)
             return;
-        if (m_freehandPoints.isEmpty() || distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
+        if (m_freehandPoints.isEmpty() ||
+            !m_smoothingEnabled ||
+            distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
             m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int iterations = (m_smoothingLevel == 0) ? 1 :
-                             (m_smoothingLevel == 1 ? 2 : 3);
-            finalPoints = applyChaikinAlgorithm(m_freehandPoints, iterations);
+            QList<QPointF> pts = m_freehandPoints;
+            if (m_lowPassFilterEnabled)
+                pts = applyLowPassFilter(pts, smoothingAlpha());
+            int iterations = computeSmoothingIterations(pts);
+            finalPoints = applyChaikinAlgorithm(pts, iterations);
         } else {
             finalPoints = m_freehandPoints;
         }
@@ -1249,9 +1285,11 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         QPainterPath preview;
         if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
-            int it = (m_smoothingLevel == 0) ? 1 :
-                     (m_smoothingLevel == 1 ? 2 : 3);
-            QList<QPointF> pts = applyChaikinAlgorithm(m_freehandPoints, it);
+            QList<QPointF> pts = m_freehandPoints;
+            if (m_lowPassFilterEnabled)
+                pts = applyLowPassFilter(pts, smoothingAlpha());
+            int it = computeSmoothingIterations(pts);
+            pts = applyChaikinAlgorithm(pts, it);
             preview = generateBezierPath(pts);        // lissé
         } else {
             preview = generateRawPath(m_freehandPoints); // segments bruts
@@ -1391,6 +1429,7 @@ void CustomDrawArea::startShapeSelection()
     update();
 }
 
+
 void CustomDrawArea::cancelSelection()
 {
     if (m_selectMode) {
@@ -1472,11 +1511,11 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     double d10 = QLineF(p1_end,   p2_start).length();
     double d11 = QLineF(p1_end,   p2_end).length();
 
-    qDebug() << "Distances entre extrémités :";
-    qDebug() << "p1_start <-> p2_start =" << d00;
-    qDebug() << "p1_start <-> p2_end   =" << d01;
-    qDebug() << "p1_end   <-> p2_start =" << d10;
-    qDebug() << "p1_end   <-> p2_end   =" << d11;
+    //qDebug() << "Distances entre extrémités :";
+    //qDebug() << "p1_start <-> p2_start =" << d00;
+    //qDebug() << "p1_start <-> p2_end   =" << d01;
+    //qDebug() << "p1_end   <-> p2_start =" << d10;
+    //qDebug() << "p1_end   <-> p2_end   =" << d11;
 
     // Trouver la plus petite
     double minDist = d00;
@@ -1486,7 +1525,7 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     if (d10 < minDist) { minDist = d10; config = 2; }
     if (d11 < minDist) { minDist = d11; config = 3; }
 
-    qDebug() << "Configuration la plus proche : case" << config << "avec distance =" << minDist;
+    //qDebug() << "Configuration la plus proche : case" << config << "avec distance =" << minDist;
 
     // Réorienter les points pour tracer dans le bon ordre
     if (config == 0) {
@@ -1518,7 +1557,7 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
 
     for (int idx : toRemove) {
         if (idx >= 0 && idx < m_shapes.size()) {
-            qDebug() << "Suppression forme originalId=" << m_shapes[idx].originalId;
+            //qDebug() << "Suppression forme originalId=" << m_shapes[idx].originalId;
             m_shapes.removeAt(idx);
         }
     }
@@ -1529,7 +1568,7 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     s.originalId = m_nextShapeId++;
     m_shapes.append(s);
 
-    qDebug() << "Fusion effectuée. Total points:" << mergedPoints.size();
+    //qDebug() << "Fusion effectuée. Total points:" << mergedPoints.size();
     pushState();
     updateCanvas();
     update();
@@ -1556,9 +1595,9 @@ void CustomDrawArea::closeCurrentShape()
     pushState();
 
     // Pour chaque forme sélectionnée, on ferme le sous‑chemin
-    qDebug() << "🔁 Fermeture des formes sélectionnées...";
-    qDebug() << "📌 Formes sélectionnées:" << m_selectedShapes;
-    qDebug() << "📌 Nombre total de formes:" << m_shapes.size();
+    //qDebug() << "🔁 Fermeture des formes sélectionnées...";
+    //qDebug() << "📌 Formes sélectionnées:" << m_selectedShapes;
+    //qDebug() << "📌 Nombre total de formes:" << m_shapes.size();
 
     for (int idx : m_selectedShapes) {
         if (idx < 0 || idx >= m_shapes.size()) {
@@ -1567,7 +1606,7 @@ void CustomDrawArea::closeCurrentShape()
         }
         QPainterPath &path = m_shapes[idx].path;
         if (!path.isEmpty()) {
-            qDebug() << "📏 Element count:" << path.elementCount();
+            //qDebug() << "📏 Element count:" << path.elementCount();
             path.closeSubpath();
         }
     }
@@ -1595,9 +1634,9 @@ void CustomDrawArea::cancelCloseMode()
 
 void CustomDrawArea::onPinchZoom(const QPointF &center, qreal scaleFactor)
 {
-    qDebug() << "🔍 Zoom appliqué depuis gesture:";
-    qDebug() << "   ➤ Facteur reçu =" << scaleFactor;
-    qDebug() << "   ➤ Zoom avant =" << m_scale;
+    //qDebug() << "🔍 Zoom appliqué depuis gesture:";
+    //qDebug() << "   ➤ Facteur reçu =" << scaleFactor;
+    //qDebug() << "   ➤ Zoom avant =" << m_scale;
 
     double oldScale = m_scale;
     m_scale *= scaleFactor;
@@ -1667,7 +1706,7 @@ void CustomDrawArea::handlePinchZoom(QPointF screenCenter, qreal factor)
 
 void CustomDrawArea::onTwoFingerPan(const QPointF &delta)
 {
-    qDebug() << "🖐️ Delta reçu:" << delta;
+    //qDebug() << "🖐️ Delta reçu:" << delta;
 
     applyPanDelta(delta);
 }
@@ -1676,7 +1715,7 @@ void CustomDrawArea::onTwoFingerPan(const QPointF &delta)
 void CustomDrawArea::setTwoFingersOn(bool active)
 {
     m_twoFingersOn = active;
-    qDebug() << "[DEBUG] Two fingers state changed:" << active;
+    //qDebug() << "[DEBUG] Two fingers state changed:" << active;
     if (active) {
         m_drawing = false;
         m_drawingLineOrCircle = false;

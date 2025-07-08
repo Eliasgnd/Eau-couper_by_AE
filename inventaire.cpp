@@ -8,6 +8,12 @@
 #include <QGraphicsPolygonItem>
 #include <QGraphicsPathItem>
 #include <QPainterPath>
+#include <QFile>
+#include <QDir>
+#include <QStandardPaths>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -26,6 +32,8 @@ Inventaire::Inventaire(QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventaire)
 {
     ui->setupUi(this);
+
+    loadCustomShapes();
 
     updateTranslations(currentLanguage);
 
@@ -221,6 +229,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
             label->setText(newName);
             if (index >= 0 && index < m_customShapes.size()) {
                 m_customShapes[index].name = newName;
+                saveCustomShapes();
             }
         }
     });
@@ -230,6 +239,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     int idx = frame->property("CustomShapeIndex").toInt(&ok);
     if (ok && idx >= 0 && idx < m_customShapes.size()) {
         m_customShapes.removeAt(idx);
+        saveCustomShapes();
         }
     // Reconstruit tout l'inventaire :
     displayShapes();
@@ -269,6 +279,8 @@ void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QSt
     newData.polygons = polygons;
     newData.name = name;
     m_customShapes.append(newData);
+
+    saveCustomShapes();
 
     displayShapes();
 }
@@ -322,4 +334,74 @@ void Inventaire::changeEvent(QEvent *event)
         displayShapes();
     }
     QWidget::changeEvent(event);
+}
+
+QString Inventaire::customShapesFilePath() const
+{
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (dir.isEmpty())
+        dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    QDir().mkpath(dir);
+    return dir + "/custom_shapes.json";
+}
+
+void Inventaire::loadCustomShapes()
+{
+    QFile file(customShapesFilePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (!doc.isObject())
+        return;
+    QJsonArray arr = doc.object().value("shapes").toArray();
+    for (const QJsonValue &val : arr) {
+        if (!val.isObject())
+            continue;
+        QJsonObject obj = val.toObject();
+        CustomShapeData data;
+        data.name = obj.value("name").toString();
+        QJsonArray polyArr = obj.value("polygons").toArray();
+        for (const QJsonValue &polyVal : polyArr) {
+            QJsonArray ptArrList = polyVal.toArray();
+            QPolygonF poly;
+            for (const QJsonValue &ptVal : ptArrList) {
+                QJsonArray p = ptVal.toArray();
+                if (p.size() >= 2)
+                    poly.append(QPointF(p.at(0).toDouble(), p.at(1).toDouble()));
+            }
+            data.polygons.append(poly);
+        }
+        m_customShapes.append(data);
+    }
+}
+
+void Inventaire::saveCustomShapes() const
+{
+    QJsonArray arr;
+    for (const CustomShapeData &data : m_customShapes) {
+        QJsonObject obj;
+        obj["name"] = data.name;
+        QJsonArray polyArr;
+        for (const QPolygonF &poly : data.polygons) {
+            QJsonArray pointsArr;
+            for (const QPointF &pt : poly) {
+                QJsonArray ptArr;
+                ptArr.append(pt.x());
+                ptArr.append(pt.y());
+                pointsArr.append(ptArr);
+            }
+            polyArr.append(pointsArr);
+        }
+        obj["polygons"] = polyArr;
+        arr.append(obj);
+    }
+    QJsonObject rootObj;
+    rootObj["shapes"] = arr;
+    QJsonDocument doc(rootObj);
+    QFile file(customShapesFilePath());
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(doc.toJson());
+        file.close();
+    }
 }

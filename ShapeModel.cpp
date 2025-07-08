@@ -6,13 +6,13 @@
 #include <QDebug>
 
 QList<QGraphicsItem*> ShapeModel::generateShapes(Type type, int largeur, int longueur) {
-    qDebug() << "generateShapes appelé avec type:" << static_cast<int>(type)
-             << " largeur:" << largeur << " longueur:" << longueur;
+    //qDebug() << "generateShapes appelé avec type:" << static_cast<int>(type)
+    //         << " largeur:" << largeur << " longueur:" << longueur;
 
     QList<QGraphicsItem*> shapes;
 
     if (largeur <= 0 || longueur <= 0) {
-        qDebug() << "Erreur: dimensions invalides, largeur ou longueur <= 0";
+        //qDebug() << "Erreur: dimensions invalides, largeur ou longueur <= 0";
         return shapes;
     }
 

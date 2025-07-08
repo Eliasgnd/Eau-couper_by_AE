@@ -22,21 +22,55 @@
 #include <QTimer>
 #include <QWindow>
 #include <QPoint>
+#include <QWidgetAction>
+#include <QToolButton>
 
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    qDebug() << "Titre du bouton Play =" << ui->Play->text();
-    // Menu Paramètres avec la sélection de langue
-    settingsMenu = menuBar()->addMenu(tr("Paramètres"));
-    languageMenu = settingsMenu->addMenu(tr("Langue"));
-    actionFrench = languageMenu->addAction(tr("Français"));
+    //qDebug() << "Titre du bouton Play =" << ui->Play->text();
+
+    // 1) Crée le menu langue et ses actions (attributs)
+    languageMenu  = new QMenu(tr("Langue"), this);
+    actionFrench  = languageMenu->addAction(tr("Français"));
     actionEnglish = languageMenu->addAction(tr("Anglais"));
-    connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
-    connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
-    connect(ui->buttonSettings, &QPushButton::clicked, this, &MainWindow::showLanguageMenu);
+    connect(actionFrench ,  &QAction::triggered, this, &MainWindow::setLanguageFrench);
+    connect(actionEnglish,  &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+
+    // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
+    QToolButton *settingsBtn = new QToolButton(this);
+    settingsBtn->setText(tr("Paramètres"));
+    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
+    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
+    settingsBtn->setMenu(languageMenu);                           // rattache le menu
+
+    // 3) StyleSheet cohérent avec le reste de ton UI
+    settingsBtn->setStyleSheet(R"(
+    QToolButton {
+    background-color: #00BCD4;        /* Cyan primaire */
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 6px 14px;
+    border: 2px solid #008C9E;
+    border-radius: 8px;
+    }
+    QToolButton::menu-indicator {
+    image: url(:/icons/chevron-down-white.svg);  /* petit chevron blanc (ajoute-le au .qrc) */
+    subcontrol-position: right center;
+    subcontrol-origin: padding;
+    padding-left: 6px;                           /* espace entre texte et chevron */
+    }
+    QToolButton:hover  { background-color: #26C6DA; }  /* plus clair au survol */
+    QToolButton:pressed{ background-color: #008C9E; }  /* plus foncé au clic  */
+    )");
+
+    // 4) Place le bouton dans le coin supérieur droit de la QMenuBar
+    menuBar()->setCornerWidget(settingsBtn, Qt::TopRightCorner);
+
 
     // place la fenêtre sur le 2ᵉ écran
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -48,6 +82,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
+    // Création du contrôleur de découpe avant toute connexion
+    trajetMotor = new TrajetMotor(formeVisualization, this);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
@@ -127,6 +163,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [](bool /*optimized*/) {});
 
+
     // Pause ↔ Reprendre
     connect(ui->Pause, &QPushButton::clicked, this, [this]() {
         static bool paused = false;
@@ -136,6 +173,12 @@ MainWindow::MainWindow(QWidget *parent)
             trajetMotor->resume();
         }
         paused = !paused;
+    });
+
+    // Stop
+    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
+        trajetMotor->stopCut();
+        ui->progressBar->setValue(0);
     });
 
     // **NOUVELLE CONNEXION** pour la barre de progression de la découpe
@@ -153,14 +196,14 @@ MainWindow::MainWindow(QWidget *parent)
     // Configuration de la barre de progression
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setValue(0);
-    ui->progressBar->setFormat("%p%%");
+    ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
-
-
-
     trajetMotor = new TrajetMotor(formeVisualization, this);
     trajetMotor->setMainWindow(this);
 
+
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
 
 }
 
@@ -175,35 +218,35 @@ void MainWindow::updateForme() {
 }
 
 void MainWindow::changeToCircle() {
-    qDebug() << "Changement de forme: Cercle";
+    //qDebug() << "Changement de forme: Cercle";
     selectedShapeType = ShapeModel::Type::Circle;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Circle);
 }
 
 void MainWindow::changeToRectangle() {
-    qDebug() << "Changement de forme: Rectangle";
+    //qDebug() << "Changement de forme: Rectangle";
     selectedShapeType = ShapeModel::Type::Rectangle;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Rectangle);
 }
 
 void MainWindow::changeToTriangle() {
-    qDebug() << "Changement de forme: Triangle";
+    //qDebug() << "Changement de forme: Triangle";
     selectedShapeType = ShapeModel::Type::Triangle;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Triangle);
 }
 
 void MainWindow::changeToStar() {
-    qDebug() << "Changement de forme: Étoile";
+    //qDebug() << "Changement de forme: Étoile";
     selectedShapeType = ShapeModel::Type::Star;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Star);
 }
 
 void MainWindow::changeToHeart() {
-    qDebug() << "Changement de forme: Cœur";
+    //qDebug() << "Changement de forme: Cœur";
     selectedShapeType = ShapeModel::Type::Heart;
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(ShapeModel::Type::Heart);
@@ -226,12 +269,12 @@ void MainWindow::showCustom() {
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
-    qDebug() << "[DEBUG] applyCustomShape appelé";
-    qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
+
+    //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
         formeVisualization->displayCustomShapes(shapes);
     } else {
-        qDebug() << "Erreur : formeVisualization est nullptr.";
+        //qDebug() << "Erreur : formeVisualization est nullptr.";
     }
     // Blocage des modifications pendant la découpe personnalisée
 
@@ -264,7 +307,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons)
 }
 
 void MainWindow::resetDrawing() {
-    qDebug() << "Slot resetDrawing() appelé dans MainWindow ! (Rien à faire car le reset est dans custom)";
+    //qDebug() << "Slot resetDrawing() appelé dans MainWindow ! (Rien à faire car le reset est dans custom)";
 }
 
 void MainWindow::updateSpinBoxLongueur(int value) {
@@ -312,7 +355,7 @@ void afficherClavier() {
     if (clavier.exec() == QDialog::Accepted) {  // Affichage modal du clavier
         QString texteSaisi = clavier.getText();
         // Traitez le texte saisi selon vos besoins
-        qDebug() << "Texte saisi :" << texteSaisi;
+        //qDebug() << "Texte saisi :" << texteSaisi;
     }
 }
 
@@ -336,9 +379,48 @@ void MainWindow::StartPixel()
 
 void MainWindow::updateProgressBar(int remaining, int total) {
     if (total == 0) return;
-    int percent = 100 - (remaining * 100 / total);
+    int percent = (total - remaining) * 100 / total;
+
+    // Démarrage du chrono à la première mise à jour
+    if (!decoupeTimer.isValid() || remaining == total) {
+        decoupeTimer.start();
+        smoothedTotalMs = -1.0; // réinitialise l'estimation
+    }
+
+    // Mise à jour de la barre
     ui->progressBar->setValue(percent);
+
+    // Calcul de l'estimation du temps restant
+    QString timeText;
+    if (percent > 0 && remaining > 0) {
+        qint64 elapsedMs      = decoupeTimer.elapsed();
+        double instantTotalMs = static_cast<double>(elapsedMs) / (percent / 100.0);
+        if (smoothedTotalMs < 0)
+            smoothedTotalMs = instantTotalMs;
+        else
+            smoothedTotalMs = 0.9 * smoothedTotalMs + 0.1 * instantTotalMs;
+        qint64 remainingMs = static_cast<qint64>(smoothedTotalMs - elapsedMs);
+        if (remainingMs < 0) remainingMs = 0;
+        int seconds = remainingMs / 1000;
+        int minutes = seconds / 60;
+        seconds %= 60;
+        if (minutes > 0)
+            timeText = tr("Temps restant estim\u00e9 : %1m %2s").arg(minutes).arg(seconds);
+        else
+            timeText = tr("Temps restant estim\u00e9 : %1s").arg(seconds);
+    } else {
+        timeText = tr("Temps restant estim\u00e9 : 0s");
+    }
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(timeText);
+
+    // Remise à zéro à la fin
+    if (remaining == 0) {
+        decoupeTimer.invalidate();
+        smoothedTotalMs = -1.0;
+    }
 }
+
 
 MainWindow* MainWindow::getInstance()
 {
@@ -354,10 +436,10 @@ void MainWindow::showEvent(QShowEvent *event)
     const auto screens = QGuiApplication::screens();
     for (int i = 0; i < screens.size(); ++i) {
         QScreen *s = screens.at(i);
-        qDebug() << "Écran" << i
-                 << "nom =" << s->name()
-                 << "géométrie =" << s->geometry()
-                 << "disponible =" << s->availableGeometry();
+        //qDebug() << "Écran" << i
+        //         << "nom =" << s->name()
+        //         << "géométrie =" << s->geometry()
+        //         << "disponible =" << s->availableGeometry();
     }
     if (screens.size() > 1) {
         QScreen* second = screens.at(0);
@@ -381,19 +463,6 @@ void MainWindow::setLanguageEnglish()
     loadLanguage(Language::English);
 }
 
-void MainWindow::showLanguageMenu()
-{
-    qDebug() << "🟢 Bouton paramètres cliqué";
-    if (languageMenu && ui->buttonSettings) {
-        QPoint globalPos = ui->buttonSettings->mapToGlobal(QPoint(0, ui->buttonSettings->height()));
-        qDebug() << "→ Affichage du menu à" << globalPos;
-        languageMenu->exec(globalPos);
-    } else {
-        qDebug() << "❌ languageMenu ou buttonSettings est null";
-    }
-}
-
-
 bool MainWindow::loadLanguage(Language lang)
 {
     qApp->removeTranslator(&translator);
@@ -407,7 +476,7 @@ bool MainWindow::loadLanguage(Language lang)
         qWarning() << "❌ Impossible de charger la langue :" << path;
     } else {
         qApp->installTranslator(&translator);
-        qDebug() << "✅ Langue chargée :" << path;
+        //qDebug() << "✅ Langue chargée :" << path;
     }
 
     // Mettre à jour tous les textes
@@ -429,6 +498,9 @@ void MainWindow::retranslateDynamicUi()
         // Tu peux sauvegarder l'ancien nombre s'il est dynamique :
         int count = ui->shapeCountSpinBox->value();
         ui->shapeCountLabel->setText(tr("Formes placées: %1").arg(count));
+    }
+    if (ui->timeRemainingLabel) {
+        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
     }
 }
 
