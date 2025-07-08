@@ -27,8 +27,8 @@ public slots:
 
 signals:
     /**
-     * @param remaining  segments restants à découper
-     * @param total      nombre total de segments
+     * @param remaining  opérations restantes (déplacements + coupes)
+     * @param total      nombre total d'opérations
      */
     void decoupeProgress(int remaining, int total);
 
