@@ -46,8 +46,6 @@ Dispositions::Dispositions(const QString &shapeName,
 
     connect(ui->buttonMenu, &QPushButton::clicked,
             this, &Dispositions::onMenuButtonClicked);
-    connect(ui->closeBtn,  &QPushButton::clicked,
-            this, &Dispositions::onCloseButtonClicked);
     connect(ui->searchBar, &QLineEdit::textChanged,
             this, &Dispositions::onSearchTextChanged);
     connect(ui->buttonClearSearch, &QPushButton::clicked,
@@ -59,9 +57,6 @@ Dispositions::Dispositions(const QString &shapeName,
         ui->gridLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
     }
-
-    ui->closeBtn->setText(m_lang == Language::French ? tr("Fermer")
-                                                     : tr("Cancel"));
 }
 
 Dispositions::~Dispositions()
