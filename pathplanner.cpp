@@ -15,16 +15,26 @@
 //  1.  Fonctions de hachage Qt-compatibles
 // ---------------------------------------------------------------------------
 #include <QtGlobal>                    // QT_VERSION, …
-#include <QtCore/qhashfunctions.h>     // qHashMulti (Qt ≥ 5.15)
+#include <QtCore/qhashfunctions.h>
+
+#ifndef qHashMulti
+template <typename T1, typename T2>
+static inline uint qHashMulti(uint seed, const T1 &t1, const T2 &t2) noexcept
+{
+    seed = QtPrivate::QHashCombine()(seed, t1);
+    seed = QtPrivate::QHashCombine()(seed, t2);
+    return seed;
+}
+#endif
 
 /*---------------------------------------*
  * a) Hash pour QPoint (si Qt ≤ 5.14)    *
  *---------------------------------------*/
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+static inline uint qHash(const QPoint &pt, uint seed = 0) noexcept
 {
-    seed ^= static_cast<size_t>(pt.x()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-    seed ^= static_cast<size_t>(pt.y()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= uint(pt.x()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
+    seed ^= uint(pt.y()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
     return seed;
 }
 #endif
@@ -32,17 +42,11 @@ inline size_t qHash(const QPoint &pt, size_t seed = 0) noexcept
 /*-----------------------------------------------------------*
  * b) Hash pour QPair<QPoint,QPoint> (non fourni par Qt)     *
  *-----------------------------------------------------------*/
-inline size_t qHash(const QPair<QPoint, QPoint> &key,
-                    size_t seed = 0) noexcept
+static inline uint qHash(const QPair<QPoint, QPoint> &key,
+                         uint seed = 0) noexcept
 {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    // Qt 5.15 / Qt 6 : mélange officiel
-    return qHashMulti(seed, key.first, key.second);
-#else
-    seed ^= qHash(key.first,  size_t(0)) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-    seed ^= qHash(key.second, size_t(0));
+    seed = qHashMulti(seed, key.first, key.second);
     return seed;
-#endif
 }
 
 // ---------------------------------------------------------------------------
