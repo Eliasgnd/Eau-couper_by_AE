@@ -4,6 +4,7 @@
 #include "ui_mainwindow.h"
 #include "inventaire.h"
 #include "custom.h"
+#include "LayoutSelector.h"
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "trajetmotor.h"
@@ -373,41 +374,31 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
 
         QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
         if (!layouts.isEmpty()) {
-            QStringList options;
-            options << tr("Aucune");
-            for (const LayoutData &ld : layouts)
-                options << ld.name;
-            bool ok = false;
-            QString choice = QInputDialog::getItem(this, tr("Disposition"), tr("Choisissez une disposition"), options, 0, false, &ok);
-            if (ok && choice != tr("Aucune")) {
-                for (const LayoutData &ld : layouts) {
-                    if (ld.name == choice) {
-                        formeVisualization->applyLayout(ld);
+            LayoutSelector selector(layouts, polygons, currentLanguage, this);
+            if (selector.exec() == QDialog::Accepted && selector.hasSelection()) {
+                LayoutData ld = selector.selectedLayout();
+                formeVisualization->applyLayout(ld);
 
-                        ui->Largeur->blockSignals(true);
-                        ui->Longueur->blockSignals(true);
-                        ui->shapeCountSpinBox->blockSignals(true);
-                        ui->spaceSpinBox->blockSignals(true);
-                        ui->Slider_largeur->blockSignals(true);
-                        ui->Slider_longueur->blockSignals(true);
+                ui->Largeur->blockSignals(true);
+                ui->Longueur->blockSignals(true);
+                ui->shapeCountSpinBox->blockSignals(true);
+                ui->spaceSpinBox->blockSignals(true);
+                ui->Slider_largeur->blockSignals(true);
+                ui->Slider_longueur->blockSignals(true);
 
-                        ui->Largeur->setValue(ld.largeur);
-                        ui->Longueur->setValue(ld.longueur);
-                        ui->Slider_largeur->setValue(ld.largeur);
-                        ui->Slider_longueur->setValue(ld.longueur);
-                        ui->shapeCountSpinBox->setValue(ld.items.size());
-                        ui->spaceSpinBox->setValue(ld.spacing);
+                ui->Largeur->setValue(ld.largeur);
+                ui->Longueur->setValue(ld.longueur);
+                ui->Slider_largeur->setValue(ld.largeur);
+                ui->Slider_longueur->setValue(ld.longueur);
+                ui->shapeCountSpinBox->setValue(ld.items.size());
+                ui->spaceSpinBox->setValue(ld.spacing);
 
-                        ui->Largeur->blockSignals(false);
-                        ui->Longueur->blockSignals(false);
-                        ui->shapeCountSpinBox->blockSignals(false);
-                        ui->spaceSpinBox->blockSignals(false);
-                        ui->Slider_largeur->blockSignals(false);
-                        ui->Slider_longueur->blockSignals(false);
-
-                        break;
-                    }
-                }
+                ui->Largeur->blockSignals(false);
+                ui->Longueur->blockSignals(false);
+                ui->shapeCountSpinBox->blockSignals(false);
+                ui->spaceSpinBox->blockSignals(false);
+                ui->Slider_largeur->blockSignals(false);
+                ui->Slider_longueur->blockSignals(false);
             }
         }
     }
