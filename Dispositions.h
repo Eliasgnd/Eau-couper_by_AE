@@ -38,12 +38,14 @@ protected:
 private slots:
     void onCloseButtonClicked();
     void onMenuButtonClicked();
+    void onSearchTextChanged(const QString &text);
+    void onClearSearchClicked();
 
 private:
     Ui::Dispositions *ui;
     QFrame* createLayoutFrame(int index);
     QFrame* createBaseShapeFrame();
-    void displayLayouts();
+    void displayLayouts(const QString &filter = QString());
     QList<LayoutData> m_layouts;
     QList<QPolygonF> m_polygons;
     Language m_lang {Language::French};

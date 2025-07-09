@@ -17,6 +17,8 @@
 #include <QPainterPath>
 #include <QTransform>
 #include <QSizePolicy>
+#include <QDateTime>
+#include <algorithm>
 #include "inventaire.h"
 
 Dispositions::Dispositions(const QString &shapeName,
@@ -46,12 +48,16 @@ Dispositions::Dispositions(const QString &shapeName,
             this, &Dispositions::onMenuButtonClicked);
     connect(ui->closeBtn,  &QPushButton::clicked,
             this, &Dispositions::onCloseButtonClicked);
+    connect(ui->searchBar, &QLineEdit::textChanged,
+            this, &Dispositions::onSearchTextChanged);
+    connect(ui->buttonClearSearch, &QPushButton::clicked,
+            this, &Dispositions::onClearSearchClicked);
 
     /* --------------------- grille --------------------- */
     if (ui->gridLayout) {
         ui->gridLayout->setSpacing(20);
         ui->gridLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-        displayLayouts();
+        displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
     }
 
     ui->closeBtn->setText(m_lang == Language::French ? tr("Fermer")
@@ -74,6 +80,18 @@ void Dispositions::onCloseButtonClicked()
 {
     emit closed();
     close();
+}
+
+void Dispositions::onSearchTextChanged(const QString &text)
+{
+    displayLayouts(text);
+}
+
+void Dispositions::onClearSearchClicked()
+{
+    if (ui->searchBar)
+        ui->searchBar->clear();
+    displayLayouts();
 }
 
 /* --------------------- création d’une carte --------------------- */
@@ -180,7 +198,7 @@ QFrame *Dispositions::createLayoutFrame(int index)
                 Inventaire::getInstance()->deleteBaseLayout(m_baseType, index);
             else
                 Inventaire::getInstance()->deleteLayout(m_shapeName, index);
-            displayLayouts();
+            displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
         }
     });
 
@@ -204,7 +222,7 @@ QFrame *Dispositions::createLayoutFrame(int index)
 }
 
 /* --------------------- réaffichage des cartes --------------------- */
-void Dispositions::displayLayouts()
+void Dispositions::displayLayouts(const QString &filter)
 {
     if (!ui->gridLayout)
         return;
@@ -219,10 +237,22 @@ void Dispositions::displayLayouts()
     QFrame *shapeFrame = createBaseShapeFrame();
     ui->gridLayout->addWidget(shapeFrame, 0, 0);
 
+    QList<int> indices;
+    const QString f = filter.trimmed().toLower();
     for (int i = 0; i < m_layouts.size(); ++i) {
-        QFrame *frame = createLayoutFrame(i);
-        int pos = i + 1;
+        if (f.isEmpty() || m_layouts.at(i).name.toLower().contains(f))
+            indices.append(i);
+    }
+
+    std::sort(indices.begin(), indices.end(), [this](int a, int b) {
+        return m_layouts.at(a).lastUsed > m_layouts.at(b).lastUsed;
+    });
+
+    int pos = 1;
+    for (int idx : indices) {
+        QFrame *frame = createLayoutFrame(idx);
         ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
+        ++pos;
     }
 }
 
@@ -283,6 +313,11 @@ bool Dispositions::eventFilter(QObject *obj, QEvent *event)
                 emit shapeOnlySelected();
             } else if (idx >= 0 && idx < m_layouts.size()) {
                 emit layoutSelected(m_layouts.at(idx));
+                m_layouts[idx].lastUsed = QDateTime::currentSecsSinceEpoch();
+                if (m_isBaseShape)
+                    Inventaire::getInstance()->updateBaseLayoutLastUsed(m_baseType, idx);
+                else
+                    Inventaire::getInstance()->updateLayoutLastUsed(m_shapeName, idx);
             }
             emit closed();
             close();
