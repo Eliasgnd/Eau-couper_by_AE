@@ -326,13 +326,13 @@ void FormeVisualization::optimizePlacement() {
                     QPainterPath inter = candidate.intersected(existing);
                     QRectF br = inter.boundingRect();
                     // Une collision est détectée uniquement si la zone
-                    // d'intersection couvre au moins un pixel entier
-                    if (!br.isNull() && br.width() >= 1.0 && br.height() >= 1.0) {
-
+                    // d'intersection excède la taille d'un pixel
+                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                         collision = true;
                         break;
                     }
                 }
+
                 if (!collision) {
                     QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                     item->setPen(QPen(Qt::black, 1));
@@ -455,13 +455,13 @@ void FormeVisualization::optimizePlacement2() {
                 QPainterPath inter = candidate.intersected(existing);
                 QRectF br = inter.boundingRect();
                 // Détecte un chevauchement seulement si l'intersection
-                // correspond à au moins un pixel plein
-                if (!br.isNull() && br.width() >= 1.0 && br.height() >= 1.0) {
-
+                // correspond à plus d'un pixel
+                if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                     collision = true;
                     break;
                 }
             }
+
             if (!collision) {
                 QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                 item->setPen(QPen(Qt::black, 1));
@@ -934,8 +934,9 @@ bool FormeVisualization::validateShapes()
             QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
             QPainterPath inter = p1.intersected(p2);
             QRectF iRect = inter.boundingRect();
-            // Consider shapes colliding only if the intersection has a real area
-            if (!iRect.isNull() && iRect.width() >= 1.0 && iRect.height() >= 1.0) {
+            // Consider shapes colliding only if the intersection is larger than one pixel
+            if (!iRect.isNull() && iRect.width() > 1.0 && iRect.height() > 1.0) {
+
 
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
