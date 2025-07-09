@@ -18,6 +18,7 @@
 #include <QTransform>
 #include <QSizePolicy>
 #include <QDateTime>
+#include <QStringList>
 #include <algorithm>
 #include "inventaire.h"
 
@@ -249,6 +250,14 @@ void Dispositions::displayLayouts(const QString &filter)
         ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
         ++pos;
     }
+}
+
+QStringList Dispositions::getLayoutNames() const
+{
+    QStringList names;
+    for (const LayoutData &ld : m_layouts)
+        names << ld.name;
+    return names;
 }
 
 /* --------------------- carte « forme seule » --------------------- */
