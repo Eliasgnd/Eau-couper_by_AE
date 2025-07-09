@@ -375,7 +375,12 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
         QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
         if (!layouts.isEmpty()) {
             LayoutSelector selector(layouts, polygons, currentLanguage, this);
-            if (selector.exec() == QDialog::Accepted && selector.hasSelection()) {
+            int res = selector.exec();
+            if (selector.shouldOpenInventaire()) {
+                Inventaire::getInstance()->showFullScreen();
+                return;
+            }
+            if (res == QDialog::Accepted && selector.hasSelection()) {
                 LayoutData ld = selector.selectedLayout();
                 formeVisualization->applyLayout(ld);
 
