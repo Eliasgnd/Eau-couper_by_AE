@@ -374,7 +374,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
 
         QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
         if (!layouts.isEmpty()) {
-            Dispositions *disp = new Dispositions(layouts, polygons, currentLanguage);
+            Dispositions *disp = new Dispositions(name, layouts, polygons, currentLanguage);
 
             connect(disp, &Dispositions::layoutSelected, this, [this](const LayoutData &ld){
                 formeVisualization->applyLayout(ld);

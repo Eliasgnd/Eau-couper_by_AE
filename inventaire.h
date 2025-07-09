@@ -58,6 +58,12 @@ public:
     // Enregistre une disposition pour une forme existante
     void addLayoutToShape(const QString &shapeName, const LayoutData &layout);
 
+    // Renomme une disposition
+    void renameLayout(const QString &shapeName, int index, const QString &newName);
+
+    // Supprime une disposition
+    void deleteLayout(const QString &shapeName, int index);
+
     // Retourne les dispositions d'une forme
     QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
     bool shapeNameExists(const QString &name) const;

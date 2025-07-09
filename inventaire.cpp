@@ -463,6 +463,32 @@ void Inventaire::addLayoutToShape(const QString &shapeName, const LayoutData &la
     }
 }
 
+void Inventaire::renameLayout(const QString &shapeName, int index, const QString &newName)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName) {
+            if (index >= 0 && index < data.layouts.size()) {
+                data.layouts[index].name = newName;
+                saveCustomShapes();
+            }
+            return;
+        }
+    }
+}
+
+void Inventaire::deleteLayout(const QString &shapeName, int index)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName) {
+            if (index >= 0 && index < data.layouts.size()) {
+                data.layouts.removeAt(index);
+                saveCustomShapes();
+            }
+            return;
+        }
+    }
+}
+
 QList<LayoutData> Inventaire::getLayoutsForShape(const QString &shapeName) const
 {
     for (const CustomShapeData &data : m_customShapes) {
