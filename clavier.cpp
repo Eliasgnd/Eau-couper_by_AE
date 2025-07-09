@@ -6,7 +6,6 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
 {
     setWindowTitle("Clavier Virtuel AZERTY");
     setFixedSize(650, 420);  // Augmenter la taille pour un meilleur affichage
-    setWindowState(Qt::WindowFullScreen);
     isSymbolMode = false;  // Démarrer en mode clavier principal
 
     QVBoxLayout *layout = new QVBoxLayout(this);
