@@ -17,6 +17,7 @@
 #include <QToolButton>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QTimer>
 #include <QImage>
 #include <QProgressDialog>
 #include <QApplication>
@@ -373,7 +374,7 @@ custom::~custom()
 void custom::goToMainWindow()
 {
     this->close();
-    MainWindow::getInstance()->show();
+    MainWindow::getInstance()->showFullScreen();
 }
 
 void custom::closeCustom()
@@ -398,14 +399,32 @@ void custom::saveCustomShape() {
         return;
     }
 
-    bool ok;
-    QString shapeName = QInputDialog::getText(this, tr("Nom de la forme"),
-                                              tr("Entrez un nom pour votre forme :"),
-                                              QLineEdit::Normal, "", &ok);
-    if (!(ok && !shapeName.isEmpty())) {
-        //qDebug() << "Annulation ou nom vide.";
-        return;
-    }
+    bool ok = false;
+    QString shapeName;
+    do {
+        shapeName = QInputDialog::getText(this, tr("Nom de la forme"),
+                                          tr("Entrez un nom pour votre forme :"),
+                                          QLineEdit::Normal, "", &ok);
+        if (!ok)
+            return; // Annulation
+        if (shapeName.isEmpty())
+            continue;
+        // custom.cpp ── dans saveCustomShape()
+        if (Inventaire::getInstance()->shapeNameExists(shapeName))
+        {
+            // Boîte d'avertissement SANS boutons, modale, fermée après 2,5 s
+            QMessageBox msg(QMessageBox::Warning,
+                            tr("Nom déjà utilisé"),
+                            tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
+                            QMessageBox::NoButton,
+                            this);               // parent
+
+            QTimer::singleShot(2300, &msg, &QMessageBox::accept); // auto-fermeture
+            msg.exec();                                           // MODAL et bloquant
+
+            ok = false;    // force une nouvelle itération du do/while
+        }
+    } while(!ok);
 
     // Calculer le rectangle englobant toutes les formes
     QRectF boundingRect;

@@ -2,6 +2,7 @@
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsPolygonItem>
+#include <QPainterPath>
 #include <cmath>
 #include <QDebug>
 
@@ -138,4 +139,61 @@ QList<QGraphicsItem*> ShapeModel::generateShapes(Type type, int largeur, int lon
     }
 
     return shapes;
+}
+
+QList<QPolygonF> ShapeModel::shapePolygons(Type type, int largeur, int longueur)
+{
+    QList<QPolygonF> polys;
+    switch (type) {
+    case Type::Circle: {
+        QPainterPath p; p.addEllipse(0,0,largeur,longueur);
+        polys.append(p.toFillPolygon());
+        break; }
+    case Type::Rectangle: {
+        QPolygonF r; r << QPointF(0,0) << QPointF(largeur,0)
+                       << QPointF(largeur,longueur) << QPointF(0,longueur);
+        polys.append(r);
+        break; }
+    case Type::Triangle: {
+        QPolygonF tri; tri << QPointF(0,longueur)
+                           << QPointF(largeur/2.0,0)
+                           << QPointF(largeur,longueur);
+        polys.append(tri);
+        break; }
+    case Type::Star: {
+        QPolygonF rawStar; const int branches = 5;
+        for (int k=0;k<branches;++k){
+            qreal outerAngle = (k*2.0*M_PI/branches);
+            rawStar << QPointF(std::cos(outerAngle), std::sin(outerAngle));
+            qreal innerAngle = outerAngle + M_PI/branches;
+            rawStar << QPointF(std::cos(innerAngle)*0.5, std::sin(innerAngle)*0.5);
+        }
+        QRectF norm = rawStar.boundingRect();
+        qreal scaleX = largeur / norm.width();
+        qreal scaleY = longueur / norm.height();
+        QPolygonF finalStar;
+        for (const QPointF &p : rawStar)
+            finalStar << QPointF((p.x()-norm.x())*scaleX,
+                                 (p.y()-norm.y())*scaleY);
+        polys.append(finalStar);
+        break; }
+    case Type::Heart: {
+        QPolygonF rawHeart;
+        for (int k=0;k<360;++k){
+            qreal angle = k * M_PI / 180.0;
+            qreal x = 16*pow(sin(angle),3);
+            qreal y = 13*cos(angle) -5*cos(2*angle) -2*cos(3*angle) - cos(4*angle);
+            rawHeart << QPointF(x,y);
+        }
+        QRectF b = rawHeart.boundingRect();
+        qreal scaleX = largeur / b.width();
+        qreal scaleY = longueur / b.height();
+        QPolygonF finalHeart;
+        for(const QPointF &p: rawHeart)
+            finalHeart << QPointF((p.x()-b.x())*scaleX,
+                                  (p.y()-b.y())*scaleY);
+        polys.append(finalHeart);
+        break; }
+    }
+    return polys;
 }

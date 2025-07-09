@@ -61,7 +61,7 @@ Inventaire* Inventaire::getInstance()
 void Inventaire::goToMainWindow()
 {
     this->hide();
-    MainWindow::getInstance()->show();
+    MainWindow::getInstance()->showFullScreen();
 }
 
 
@@ -114,7 +114,7 @@ void Inventaire::displayShapes()
     for (const auto &shapeInfo : shapeList) {
         QGraphicsScene *scene = new QGraphicsScene();
         QGraphicsView *view = new QGraphicsView(scene);
-        view->setFixedSize(120, 120);
+        view->setFixedSize(120, 150);
         view->setStyleSheet("background-color: white;");
         view->setAlignment(Qt::AlignCenter);
         view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -268,12 +268,9 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 //
 void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
 {
-    // Optionnel : vérifier si une forme avec ce nom existe déjà
-    for (const auto &shapeData : m_customShapes) {
-        if (shapeData.name == name) {
-            qDebug() << "Forme déjà enregistrée avec ce nom";
-            return;
-        }
+    if (shapeNameExists(name)) {
+        qDebug() << "Forme déjà enregistrée avec ce nom";
+        return;
     }
     CustomShapeData newData;
     newData.polygons = polygons;
@@ -308,7 +305,7 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
                 if (index >= 0 && index < m_customShapes.size()) {
                     const CustomShapeData &data = m_customShapes.at(index);
                     qDebug() << "[EVENT] Sélection d'une forme custom:" << data.name;
-                    emit customShapeSelected(data.polygons);
+                    emit customShapeSelected(data.polygons, data.name);
                     goToMainWindow();
                 }
                 return true;
@@ -345,6 +342,15 @@ QString Inventaire::customShapesFilePath() const
     return dir + "/custom_shapes.json";
 }
 
+bool Inventaire::shapeNameExists(const QString &name) const
+{
+    for (const auto &shapeData : m_customShapes) {
+        if (shapeData.name == name)
+            return true;
+    }
+    return false;
+}
+
 void Inventaire::loadCustomShapes()
 {
     QFile file(customShapesFilePath());
@@ -372,7 +378,56 @@ void Inventaire::loadCustomShapes()
             }
             data.polygons.append(poly);
         }
+        QJsonArray layoutsArr = obj.value("layouts").toArray();
+        for (const QJsonValue &layoutVal : layoutsArr) {
+            if (!layoutVal.isObject())
+                continue;
+            QJsonObject lo = layoutVal.toObject();
+            LayoutData ld;
+            ld.name = lo.value("name").toString();
+            ld.largeur = lo.value("largeur").toInt();
+            ld.longueur = lo.value("longueur").toInt();
+            ld.spacing = lo.value("spacing").toInt();
+            QJsonArray itemsArr = lo.value("items").toArray();
+            for (const QJsonValue &itVal : itemsArr) {
+                QJsonObject io = itVal.toObject();
+                LayoutItem li;
+                li.x = io.value("x").toDouble();
+                li.y = io.value("y").toDouble();
+                li.rotation = io.value("rotation").toDouble();
+                ld.items.append(li);
+            }
+            data.layouts.append(ld);
+        }
         m_customShapes.append(data);
+    }
+
+    QJsonObject baseObj = doc.object().value("baseLayouts").toObject();
+    for (auto it = baseObj.begin(); it != baseObj.end(); ++it) {
+        ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        QJsonArray layoutsArr = it.value().toArray();
+        QList<LayoutData> list;
+        for (const QJsonValue &layoutVal : layoutsArr) {
+            if (!layoutVal.isObject())
+                continue;
+            QJsonObject lo = layoutVal.toObject();
+            LayoutData ld;
+            ld.name = lo.value("name").toString();
+            ld.largeur = lo.value("largeur").toInt();
+            ld.longueur = lo.value("longueur").toInt();
+            ld.spacing = lo.value("spacing").toInt();
+            QJsonArray itemsArr = lo.value("items").toArray();
+            for (const QJsonValue &itVal : itemsArr) {
+                QJsonObject io = itVal.toObject();
+                LayoutItem li;
+                li.x = io.value("x").toDouble();
+                li.y = io.value("y").toDouble();
+                li.rotation = io.value("rotation").toDouble();
+                ld.items.append(li);
+            }
+            list.append(ld);
+        }
+        m_baseShapeLayouts[type] = list;
     }
 }
 
@@ -394,14 +449,149 @@ void Inventaire::saveCustomShapes() const
             polyArr.append(pointsArr);
         }
         obj["polygons"] = polyArr;
+        QJsonArray layoutsArr;
+        for (const LayoutData &ld : data.layouts) {
+            QJsonObject lo;
+            lo["name"] = ld.name;
+            lo["largeur"] = ld.largeur;
+            lo["longueur"] = ld.longueur;
+            lo["spacing"] = ld.spacing;
+            QJsonArray itemsArr;
+            for (const LayoutItem &li : ld.items) {
+                QJsonObject io;
+                io["x"] = li.x;
+                io["y"] = li.y;
+                io["rotation"] = li.rotation;
+                itemsArr.append(io);
+            }
+            lo["items"] = itemsArr;
+            layoutsArr.append(lo);
+        }
+        obj["layouts"] = layoutsArr;
         arr.append(obj);
     }
     QJsonObject rootObj;
     rootObj["shapes"] = arr;
+
+    QJsonObject baseObj;
+    for (auto it = m_baseShapeLayouts.constBegin(); it != m_baseShapeLayouts.constEnd(); ++it) {
+        QJsonArray layoutsArr;
+        for (const LayoutData &ld : it.value()) {
+            QJsonObject lo;
+            lo["name"] = ld.name;
+            lo["largeur"] = ld.largeur;
+            lo["longueur"] = ld.longueur;
+            lo["spacing"] = ld.spacing;
+            QJsonArray itemsArr;
+            for (const LayoutItem &li : ld.items) {
+                QJsonObject io;
+                io["x"] = li.x;
+                io["y"] = li.y;
+                io["rotation"] = li.rotation;
+                itemsArr.append(io);
+            }
+            lo["items"] = itemsArr;
+            layoutsArr.append(lo);
+        }
+        baseObj[QString::number(static_cast<int>(it.key()))] = layoutsArr;
+    }
+    rootObj["baseLayouts"] = baseObj;
     QJsonDocument doc(rootObj);
     QFile file(customShapesFilePath());
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
         file.close();
     }
+}
+
+void Inventaire::addLayoutToShape(const QString &shapeName, const LayoutData &layout)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName) {
+            data.layouts.append(layout);
+            saveCustomShapes();
+            return;
+        }
+    }
+}
+
+void Inventaire::renameLayout(const QString &shapeName, int index, const QString &newName)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName) {
+            if (index >= 0 && index < data.layouts.size()) {
+                data.layouts[index].name = newName;
+                saveCustomShapes();
+            }
+            return;
+        }
+    }
+}
+
+void Inventaire::deleteLayout(const QString &shapeName, int index)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName) {
+            if (index >= 0 && index < data.layouts.size()) {
+                data.layouts.removeAt(index);
+                saveCustomShapes();
+            }
+            return;
+        }
+    }
+}
+
+QList<LayoutData> Inventaire::getLayoutsForShape(const QString &shapeName) const
+{
+    for (const CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName)
+            return data.layouts;
+    }
+    return {};
+}
+
+void Inventaire::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
+{
+    m_baseShapeLayouts[type].append(layout);
+    saveCustomShapes();
+}
+
+void Inventaire::renameBaseLayout(ShapeModel::Type type, int index, const QString &newName)
+{
+    auto it = m_baseShapeLayouts.find(type);
+    if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
+        it.value()[index].name = newName;
+        saveCustomShapes();
+    }
+}
+
+void Inventaire::deleteBaseLayout(ShapeModel::Type type, int index)
+{
+    auto it = m_baseShapeLayouts.find(type);
+    if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
+        it.value().removeAt(index);
+        saveCustomShapes();
+    }
+}
+
+QList<LayoutData> Inventaire::getLayoutsForBaseShape(ShapeModel::Type type) const
+{
+    return m_baseShapeLayouts.value(type);
+}
+
+QString Inventaire::baseShapeName(ShapeModel::Type type, Language lang)
+{
+    switch (type) {
+    case ShapeModel::Type::Circle:
+        return lang == Language::French ? QStringLiteral("Cercle") : QStringLiteral("Circle");
+    case ShapeModel::Type::Rectangle:
+        return lang == Language::French ? QStringLiteral("Rectangle") : QStringLiteral("Rectangle");
+    case ShapeModel::Type::Triangle:
+        return lang == Language::French ? QStringLiteral("Triangle") : QStringLiteral("Triangle");
+    case ShapeModel::Type::Star:
+        return lang == Language::French ? QStringLiteral("Étoile") : QStringLiteral("Star");
+    case ShapeModel::Type::Heart:
+        return lang == Language::French ? QStringLiteral("Cœur") : QStringLiteral("Heart");
+    }
+    return {};
 }

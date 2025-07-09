@@ -16,6 +16,7 @@ public:
     // - largeur : Largeur de la forme
     // - longueur : Longueur de la forme
     static QList<QGraphicsItem*> generateShapes(Type type, int largeur, int longueur);
+    static QList<QPolygonF> shapePolygons(Type type, int largeur, int longueur);
 };
 
 #endif // SHAPEMODEL_H

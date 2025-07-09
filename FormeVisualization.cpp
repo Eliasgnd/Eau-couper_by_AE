@@ -12,6 +12,8 @@
 #include <QApplication>
 #include <QPainterPathStroker>  // N'oubliez pas d'inclure ce header
 #include <QMessageBox>
+#include <QAbstractGraphicsShapeItem>
+#include "inventaire.h"
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -213,6 +215,7 @@ void FormeVisualization::setPredefinedMode()
     }
 
     m_isCustomMode = false;
+    m_currentCustomShapeName.clear();
     m_customShapes.clear();
     emit optimizationStateChanged(false);
     redraw();
@@ -323,18 +326,31 @@ void FormeVisualization::optimizePlacement() {
 
                 bool collision = false;
                 for (const QPainterPath &existing : placedPaths) {
-                    if (candidate.intersects(existing)) {
+                    QPainterPath inter = candidate.intersected(existing);
+                    QRectF br = inter.boundingRect();
+                    // Une collision est détectée uniquement si la zone
+                    // d'intersection excède la taille d'un pixel
+                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                         collision = true;
                         break;
                     }
                 }
+
                 if (!collision) {
                     QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                     item->setPen(QPen(Qt::black, 1));
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                    // Ajuste la position en fonction du boundingRect réel de l'élément
+                    QRectF bounds = item->boundingRect();
+                    QPointF offset(x - bounds.x(), y - bounds.y());
+                    item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
+
+                    // Enregistre la position corrigée pour les futurs tests de collision
+                    candidate.translate(offset);
                     placedPaths.append(candidate);
                     shapesPlaced++;
                     break;
@@ -447,18 +463,29 @@ void FormeVisualization::optimizePlacement2() {
 
             bool collision = false;
             for (const QPainterPath &existing : placedPaths) {
-                if (candidate.intersects(existing)) {
+                QPainterPath inter = candidate.intersected(existing);
+                QRectF br = inter.boundingRect();
+                // Détecte un chevauchement seulement si l'intersection
+                // correspond à plus d'un pixel
+                if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                     collision = true;
                     break;
                 }
             }
+
             if (!collision) {
                 QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                 item->setPen(QPen(Qt::black, 1));
                 item->setBrush(Qt::NoBrush);
                 item->setFlag(QGraphicsItem::ItemIsMovable, true);
                 item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                QRectF bounds = item->boundingRect();
+                QPointF offset(x - bounds.x(), y - bounds.y());
+                item->moveBy(offset.x(), offset.y());
                 scene->addItem(item);
+
+                candidate.translate(offset);
                 placedPaths.append(candidate);
                 shapesPlaced++;
                 if (shapesPlaced >= count) {
@@ -617,9 +644,14 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        QPointF offset = -scaledBounds.topLeft();
+        // Calcul de l'offset à partir du boundingRect réel de l'item afin
+        // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
+        // vertical observé avec les formes personnalisées.
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
+
     }
 
     //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
@@ -905,7 +937,8 @@ bool FormeVisualization::validateShapes()
         }
     }
 
-    QRectF bounds = scene->sceneRect();
+    // Ajout d'une tolérance pour éviter les faux positifs sur les bords
+    QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
     for (auto *shape : std::as_const(shapes)) {
         QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
         if (!bounds.contains(rect)) {
@@ -916,7 +949,14 @@ bool FormeVisualization::validateShapes()
 
     for (int i = 0; i < shapes.size(); ++i) {
         for (int j = i + 1; j < shapes.size(); ++j) {
-            if (shapes[i]->collidesWithItem(shapes[j])) {
+            QPainterPath p1 = shapes[i]->mapToScene(shapes[i]->shape());
+            QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
+            QPainterPath inter = p1.intersected(p2);
+            QRectF iRect = inter.boundingRect();
+            // Consider shapes colliding only if the intersection is larger than one pixel
+            if (!iRect.isNull() && iRect.width() > 1.0 && iRect.height() > 1.0) {
+
+
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
                 allValid = false;
@@ -948,3 +988,72 @@ void FormeVisualization::resetAllShapeColors()
     }
     graphicsView->viewport()->update();
 }
+
+
+void FormeVisualization::applyLayout(const LayoutData &layout)
+{
+    if (!m_isCustomMode)
+        return;
+
+    scene->clear();
+    currentLargeur = layout.largeur;
+    currentLongueur = layout.longueur;
+    spacing = layout.spacing;
+    shapeCount = layout.items.size();
+
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : m_customShapes)
+        combinedPath.addPolygon(poly);
+    QRectF bounds = combinedPath.boundingRect();
+    qreal scaleX = (bounds.width() > 0) ? static_cast<qreal>(layout.largeur) / bounds.width() : 1.0;
+    qreal scaleY = (bounds.height() > 0) ? static_cast<qreal>(layout.longueur) / bounds.height() : 1.0;
+    QTransform scale;
+    scale.scale(scaleX, scaleY);
+    QPainterPath scaledPath = scale.map(combinedPath);
+    QRectF scaledBounds = scaledPath.boundingRect();
+
+    for (const LayoutItem &li : layout.items) {
+        QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        item->setTransformOriginPoint(item->boundingRect().center());
+
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
+
+        item->setRotation(li.rotation);
+        item->setPos(li.x + offset.x(), li.y + offset.y());
+        scene->addItem(item);
+    }
+
+    emit shapesPlacedCount(layout.items.size());
+    graphicsView->viewport()->update();
+}
+
+LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
+{
+    LayoutData layout;
+    layout.name = name;
+    layout.largeur = currentLargeur;
+    layout.longueur = currentLongueur;
+    layout.spacing = spacing;
+
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            QRectF bounds = shape->boundingRect();
+            QPointF offset(-bounds.x(), -bounds.y());
+
+            LayoutItem li;
+            li.x = shape->pos().x() - offset.x();
+            li.y = shape->pos().y() - offset.y();
+            li.rotation = shape->rotation();
+            layout.items.append(li);
+        }
+    }
+    return layout;
+}
+
