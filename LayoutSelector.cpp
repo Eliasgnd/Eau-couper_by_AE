@@ -7,6 +7,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QTimer>
 #include <QEvent>
 #include <QPainterPath>
 #include <QTransform>
@@ -19,6 +20,8 @@ LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
 {
     setWindowTitle(m_lang == Language::French ? "Dispositions" : "Layouts");
     resize(800, 600);
+    setWindowState(Qt::WindowFullScreen);
+    QTimer::singleShot(0, this, &QWidget::showFullScreen);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
