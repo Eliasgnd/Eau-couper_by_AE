@@ -1,6 +1,5 @@
-#include "LayoutSelector.h"
+#include "Dispositions.h"
 #include "ui_Dispositions.h"
-#include <QScrollArea>
 #include <QGridLayout>
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -14,24 +13,21 @@
 #include <QTransform>
 #include <QSizePolicy>
 
-LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
-                               const QList<QPolygonF>& shapePolygons,
-                               Language lang,
-                               QWidget *parent)
-    : QDialog(parent), m_layouts(layouts), m_polygons(shapePolygons), m_lang(lang)
+Dispositions::Dispositions(const QList<LayoutData> &layouts,
+                           const QList<QPolygonF> &shapePolygons,
+                           Language lang,
+                           QWidget *parent)
+    : QWidget(parent), ui(new Ui::Dispositions),
+      m_layouts(layouts), m_polygons(shapePolygons), m_lang(lang)
 {
-    setWindowTitle(m_lang == Language::French ? "Dispositions" : "Layouts");
+    ui->setupUi(this);
+    setWindowTitle(m_lang == Language::French ? tr("Dispositions") : tr("Layouts"));
     resize(800, 600);
     setWindowState(Qt::WindowFullScreen);
     QTimer::singleShot(0, this, &QWidget::showFullScreen);
 
-    ui = new Ui::Dispositions;
-    ui->setupUi(this);
-
-    connect(ui->buttonMenu, &QPushButton::clicked, [this]() {
-        m_openInventaire = true;
-        reject();
-    });
+    connect(ui->buttonMenu, &QPushButton::clicked, this, &Dispositions::onMenuButtonClicked);
+    connect(ui->closeBtn, &QPushButton::clicked, this, &Dispositions::onCloseButtonClicked);
 
     if (ui->gridLayout) {
         ui->gridLayout->setSpacing(20);
@@ -48,29 +44,37 @@ LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
     }
 
     if (m_lang == Language::French)
-        ui->closeBtn->setText("Fermer");
+        ui->closeBtn->setText(tr("Fermer"));
     else
         ui->closeBtn->setText(tr("Cancel"));
-    connect(ui->closeBtn, &QPushButton::clicked, this, &LayoutSelector::reject);
 }
 
-LayoutSelector::~LayoutSelector()
+Dispositions::~Dispositions()
 {
     delete ui;
 }
 
-QFrame* LayoutSelector::createLayoutFrame(int index)
+void Dispositions::onMenuButtonClicked()
+{
+    emit requestOpenInventaire();
+    close();
+}
+
+void Dispositions::onCloseButtonClicked()
+{
+    emit closed();
+    close();
+}
+
+QFrame* Dispositions::createLayoutFrame(int index)
 {
     if (index < 0 || index >= m_layouts.size())
         return nullptr;
     const LayoutData &ld = m_layouts.at(index);
 
     QGraphicsScene *scene = new QGraphicsScene();
-
-    // Add a rectangle representing the board to mimic the cutting preview widget
     scene->addRect(0, 0, ld.largeur, ld.longueur, QPen(Qt::black), Qt::NoBrush);
 
-    // Prepare the prototype shape path scaled to the preset dimensions
     QPainterPath combinedPath;
     for (const QPolygonF &poly : m_polygons)
         combinedPath.addPolygon(poly);
@@ -125,7 +129,7 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
     return frame;
 }
 
-QFrame* LayoutSelector::createBaseShapeFrame()
+QFrame* Dispositions::createBaseShapeFrame()
 {
     QGraphicsScene *scene = new QGraphicsScene();
 
@@ -164,26 +168,26 @@ QFrame* LayoutSelector::createBaseShapeFrame()
     return frame;
 }
 
-bool LayoutSelector::eventFilter(QObject *obj, QEvent *event)
+bool Dispositions::eventFilter(QObject *obj, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonPress) {
         QFrame *frame = qobject_cast<QFrame*>(obj);
         if (frame && frame->property("layoutIndex").isValid()) {
             int idx = frame->property("layoutIndex").toInt();
             if (idx == -1) {
-                // Only apply the shape without changing layout
-                m_hasSelection = false;
-                accept();
+                emit shapeOnlySelected();
+                emit closed();
+                close();
                 return true;
             }
             if (idx >= 0 && idx < m_layouts.size()) {
-                m_selectedLayout = m_layouts.at(idx);
-                m_hasSelection = true;
-                accept();
+                emit layoutSelected(m_layouts.at(idx));
+                emit closed();
+                close();
                 return true;
             }
         }
     }
-    return QDialog::eventFilter(obj, event);
+    return QWidget::eventFilter(obj, event);
 }
 

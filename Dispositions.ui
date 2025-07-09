@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>Dispositions</class>
- <widget class="QDialog" name="Dispositions">
+ <widget class="QWidget" name="Dispositions">
   <property name="geometry">
    <rect>
     <x>0</x>
