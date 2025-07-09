@@ -632,6 +632,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         // vertical observé avec les formes personnalisées.
         QRectF bounds = item->boundingRect();
         QPointF offset(-bounds.x(), -bounds.y());
+
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
     }
