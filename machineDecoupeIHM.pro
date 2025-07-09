@@ -9,7 +9,7 @@ HEADERS += \
     MainWindow.h FormeVisualization.h \
     CustomDrawArea.h LogoImporter.h ShapeModel.h \
     ScreenUtils.h \
-    clavier.h claviernumerique.h custom.h inventaire.h \
+    clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     touchgesturereader.h \
     trajetmotor.h \
@@ -19,12 +19,12 @@ SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ShapeModel.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
-    inventaire.cpp keyboardeventfilter.cpp motorcontrol.cpp \
+    inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
     touchgesturereader.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui
 
 # Qt Resource Collection
 RESOURCES += resources.qrc

@@ -308,6 +308,11 @@ Lissage</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../custom.cpp" line="414"/>
+        <source>Nom déjà utilisé</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../custom.cpp" line="484"/>
         <source>Sélectionner une image</source>
         <translation type="unfinished"></translation>
