@@ -24,6 +24,7 @@ protected:
 
 private:
     QFrame* createLayoutFrame(int index);
+    QFrame* createBaseShapeFrame();
     QList<LayoutData> m_layouts;
     QList<QPolygonF> m_polygons;
     LayoutData m_selectedLayout;
