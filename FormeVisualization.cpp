@@ -339,7 +339,15 @@ void FormeVisualization::optimizePlacement() {
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                    // Ajuste la position en fonction du boundingRect réel de l'élément
+                    QRectF bounds = item->boundingRect();
+                    QPointF offset(x - bounds.x(), y - bounds.y());
+                    item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
+
+                    // Enregistre la position corrigée pour les futurs tests de collision
+                    candidate.translate(offset);
                     placedPaths.append(candidate);
                     shapesPlaced++;
                     break;
@@ -468,7 +476,13 @@ void FormeVisualization::optimizePlacement2() {
                 item->setBrush(Qt::NoBrush);
                 item->setFlag(QGraphicsItem::ItemIsMovable, true);
                 item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                QRectF bounds = item->boundingRect();
+                QPointF offset(x - bounds.x(), y - bounds.y());
+                item->moveBy(offset.x(), offset.y());
                 scene->addItem(item);
+
+                candidate.translate(offset);
                 placedPaths.append(candidate);
                 shapesPlaced++;
                 if (shapesPlaced >= count) {
