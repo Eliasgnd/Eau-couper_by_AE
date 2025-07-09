@@ -209,7 +209,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
-        if (!formeVisualization->isCustomMode() || formeVisualization->currentCustomShapeName().isEmpty()) {
+        if (formeVisualization->isCustomMode() && formeVisualization->currentCustomShapeName().isEmpty()) {
             QMessageBox::warning(this, tr("Disposition"), tr("Sauvegardez d'abord la forme."));
             return;
         }
