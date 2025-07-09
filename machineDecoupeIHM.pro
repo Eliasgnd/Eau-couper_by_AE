@@ -9,7 +9,7 @@ HEADERS += \
     MainWindow.h FormeVisualization.h \
     CustomDrawArea.h LogoImporter.h ShapeModel.h \
     ScreenUtils.h \
-    clavier.h claviernumerique.h custom.h inventaire.h \
+    clavier.h claviernumerique.h custom.h inventaire.h LayoutSelector.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     touchgesturereader.h \
     trajetmotor.h \
@@ -19,7 +19,7 @@ SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ShapeModel.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
-    inventaire.cpp keyboardeventfilter.cpp motorcontrol.cpp \
+    inventaire.cpp LayoutSelector.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
     touchgesturereader.cpp
 
