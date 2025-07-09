@@ -5,6 +5,7 @@
 #include <QList>
 #include <QPolygonF>
 #include <QFrame>
+#include <QString>
 #include "inventaire.h" // for LayoutData
 #include "Language.h"
 
@@ -16,7 +17,8 @@ class Dispositions : public QWidget
 {
     Q_OBJECT
 public:
-    Dispositions(const QList<LayoutData> &layouts,
+    Dispositions(const QString &shapeName,
+                 const QList<LayoutData> &layouts,
                  const QList<QPolygonF> &shapePolygons,
                  Language lang,
                  QWidget *parent = nullptr);
@@ -39,9 +41,11 @@ private:
     Ui::Dispositions *ui;
     QFrame* createLayoutFrame(int index);
     QFrame* createBaseShapeFrame();
+    void displayLayouts();
     QList<LayoutData> m_layouts;
     QList<QPolygonF> m_polygons;
     Language m_lang {Language::French};
+    QString m_shapeName;
 };
 
 #endif // DISPOSITIONS_H

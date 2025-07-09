@@ -8,13 +8,19 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QMenu>
+#include <QAction>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QTimer>
 #include <QEvent>
 #include <QPainterPath>
 #include <QTransform>
 #include <QSizePolicy>
+#include "inventaire.h"
 
-Dispositions::Dispositions(const QList<LayoutData> &layouts,
+Dispositions::Dispositions(const QString &shapeName,
+                           const QList<LayoutData> &layouts,
                            const QList<QPolygonF> &shapePolygons,
                            Language lang,
                            QWidget *parent)
@@ -22,7 +28,8 @@ Dispositions::Dispositions(const QList<LayoutData> &layouts,
     ui(new Ui::Dispositions),
     m_layouts(layouts),
     m_polygons(shapePolygons),
-    m_lang(lang)
+    m_lang(lang),
+    m_shapeName(shapeName)
 {
     ui->setupUi(this);
 
@@ -39,19 +46,8 @@ Dispositions::Dispositions(const QList<LayoutData> &layouts,
     /* --------------------- grille --------------------- */
     if (ui->gridLayout) {
         ui->gridLayout->setSpacing(20);
-        /* Aligne tout en haut-gauche */
         ui->gridLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-
-        /* 1) carte « forme seule » */
-        QFrame *shapeFrame = createBaseShapeFrame();
-        ui->gridLayout->addWidget(shapeFrame, 0, 0);
-
-        /* 2) cartes des dispositions */
-        for (int i = 0; i < m_layouts.size(); ++i) {
-            QFrame *frame = createLayoutFrame(i);
-            int pos = i + 1;                     // décalage d’une colonne
-            ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
-        }
+        displayLayouts();
     }
 
     ui->closeBtn->setText(m_lang == Language::French ? tr("Fermer")
@@ -140,9 +136,52 @@ QFrame *Dispositions::createLayoutFrame(int index)
     QLabel *label = new QLabel(ld.name);
     label->setAlignment(Qt::AlignCenter);
 
+    QPushButton *menuButton = new QPushButton("...");
+    menuButton->setFixedSize(25, 25);
+    menuButton->setStyleSheet("border: none; font-size: 14px;");
+
+    QMenu *menu = new QMenu(menuButton);
+    QAction *renameAction = new QAction(m_lang == Language::French ? "Renommer" : "Rename", menu);
+    QAction *deleteAction = new QAction(m_lang == Language::French ? "Supprimer" : "Delete", menu);
+    menu->addAction(renameAction);
+    menu->addAction(deleteAction);
+
+    connect(menuButton, &QPushButton::clicked, [menu, menuButton]() {
+        menu->exec(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
+    });
+
+    connect(renameAction, &QAction::triggered, [this, label, index]() {
+        bool ok;
+        QString newName = QInputDialog::getText(nullptr,
+                                                m_lang == Language::French ? "Renommer la disposition" : "Rename layout",
+                                                m_lang == Language::French ? "Nouveau nom :" : "New name:",
+                                                QLineEdit::Normal,
+                                                label->text(), &ok);
+        if (ok && !newName.isEmpty()) {
+            label->setText(newName);
+            if (index >= 0 && index < m_layouts.size()) {
+                m_layouts[index].name = newName;
+                Inventaire::getInstance()->renameLayout(m_shapeName, index, newName);
+            }
+        }
+    });
+
+    connect(deleteAction, &QAction::triggered, [this, index]() {
+        if (index >= 0 && index < m_layouts.size()) {
+            m_layouts.removeAt(index);
+            Inventaire::getInstance()->deleteLayout(m_shapeName, index);
+            displayLayouts();
+        }
+    });
+
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout->addStretch();
+    headerLayout->addWidget(menuButton);
+
     QVBoxLayout *layout = new QVBoxLayout(frame);
     layout->setContentsMargins(5, 5, 5, 5);
     layout->setSpacing(5);
+    layout->addLayout(headerLayout);
     layout->addWidget(view, 0, Qt::AlignCenter);
     layout->addWidget(label);
 
@@ -152,6 +191,29 @@ QFrame *Dispositions::createLayoutFrame(int index)
     frame->installEventFilter(this);
 
     return frame;
+}
+
+/* --------------------- réaffichage des cartes --------------------- */
+void Dispositions::displayLayouts()
+{
+    if (!ui->gridLayout)
+        return;
+
+    QLayoutItem *child;
+    while ((child = ui->gridLayout->takeAt(0)) != nullptr) {
+        if (QWidget *w = child->widget())
+            w->deleteLater();
+        delete child;
+    }
+
+    QFrame *shapeFrame = createBaseShapeFrame();
+    ui->gridLayout->addWidget(shapeFrame, 0, 0);
+
+    for (int i = 0; i < m_layouts.size(); ++i) {
+        QFrame *frame = createLayoutFrame(i);
+        int pos = i + 1;
+        ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
+    }
 }
 
 /* --------------------- carte « forme seule » --------------------- */
