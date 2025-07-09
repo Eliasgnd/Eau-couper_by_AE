@@ -49,6 +49,10 @@ public slots:
     void displayCustomShapes(const QList<QPolygonF>& shapes);   // affichage custom
     void moveSelectedShapes(qreal dx, qreal dy);                // déplacement
     void rotateSelectedShapes(qreal angleDelta);                // rotation
+    void deleteSelectedShapes();                                // suppression
+    void addShapeBottomRight();                                 // ajout en bas à droite
+    bool validateShapes();                                      // vérifie positions
+    void resetAllShapeColors();                                 // remise à zéro des couleurs
 
     QList<QPoint> getBlackPixels();                             // pixels noirs
 
@@ -66,12 +70,17 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     QPainterPath bufferedPath(const QPainterPath &path, int spacing);
+    void handleSelectionChanged();
 
 private:
+    int countPlacedShapes() const;
     void redraw();                                              // redessin
+
+
 
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
