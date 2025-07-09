@@ -268,12 +268,9 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 //
 void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
 {
-    // Optionnel : vérifier si une forme avec ce nom existe déjà
-    for (const auto &shapeData : m_customShapes) {
-        if (shapeData.name == name) {
-            qDebug() << "Forme déjà enregistrée avec ce nom";
-            return;
-        }
+    if (shapeNameExists(name)) {
+        qDebug() << "Forme déjà enregistrée avec ce nom";
+        return;
     }
     CustomShapeData newData;
     newData.polygons = polygons;
@@ -343,6 +340,15 @@ QString Inventaire::customShapesFilePath() const
         dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     QDir().mkpath(dir);
     return dir + "/custom_shapes.json";
+}
+
+bool Inventaire::shapeNameExists(const QString &name) const
+{
+    for (const auto &shapeData : m_customShapes) {
+        if (shapeData.name == name)
+            return true;
+    }
+    return false;
 }
 
 void Inventaire::loadCustomShapes()
