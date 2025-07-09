@@ -1,6 +1,8 @@
 #include "keyboardeventfilter.h"
 #include "claviernumerique.h"
 #include "clavier.h"
+#include "Dispositions.h"
+#include "inventaire.h"
 #include "MainWindow.h"
 
 #include <QLineEdit>
@@ -66,7 +68,16 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
             // 2) sinon → clavier alphabétique
             else {
                 m_keyboardActive = true;
-                Clavier txtDlg(le->window());
+
+                Clavier::SuggestionProvider provider = [](){
+                    return Inventaire::getInstance()->getAllShapeNames();
+                };
+
+                if (auto *disp = qobject_cast<Dispositions*>(le->window())) {
+                    provider = [disp](){ return disp->getLayoutNames(); };
+                }
+
+                Clavier txtDlg(le->window(), provider);
 
                 // 🔁 Mise à jour de la barre de recherche si on édite celle-ci
                 connect(&txtDlg, &Clavier::textChangedExternally, le, [le](const QString &text){

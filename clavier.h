@@ -7,6 +7,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QSettings>
+#include <functional>
 
 
 //cration brnache global
@@ -15,7 +16,9 @@ class Clavier : public QDialog
     Q_OBJECT
 
 public:
-    explicit Clavier(QWidget *parent = nullptr);  // Constructeur du clavier
+    using SuggestionProvider = std::function<QStringList()>;
+    explicit Clavier(QWidget *parent = nullptr, SuggestionProvider provider = {});  // Constructeur du clavier
+    void setSuggestionProvider(SuggestionProvider provider);
     QString getText() const;  // Récupère le texte saisi
 
 private slots:
@@ -77,6 +80,8 @@ private:
     QStringList usageHistory;
     void loadUsageHistory();
     void saveUsageHistory() const;
+
+    SuggestionProvider suggestionProvider;
 
 signals:
     void textChangedExternally(const QString &text);

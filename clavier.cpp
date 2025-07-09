@@ -4,7 +4,8 @@
 #include <QDebug>
 #include <QRegularExpression>
 
-Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
+Clavier::Clavier(QWidget *parent, SuggestionProvider provider)
+    : QDialog(parent), majusculeActive(true), suggestionProvider(std::move(provider))
 {
     setWindowTitle("Clavier Virtuel AZERTY");
     setFixedSize(650, 540);  // Augmenter la taille pour un meilleur affichage
@@ -229,6 +230,12 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
 QString Clavier::getText() const
 {
     return lineEdit->text();
+}
+
+void Clavier::setSuggestionProvider(SuggestionProvider provider)
+{
+    suggestionProvider = std::move(provider);
+    updateSuggestions();
 }
 
 // Fonction pour ajouter un texte dans le champ
@@ -624,9 +631,13 @@ void Clavier::updateSuggestions()
     QString pattern = "^" + QRegularExpression::escape(currentText);
     QRegularExpression rx(pattern, QRegularExpression::CaseInsensitiveOption);
 
-    QStringList matches = Inventaire::getInstance()
-                              ->getAllShapeNames()
-                              .filter(rx);
+    QStringList baseList;
+    if (suggestionProvider)
+        baseList = suggestionProvider();
+    else
+        baseList = Inventaire::getInstance()->getAllShapeNames();
+
+    QStringList matches = baseList.filter(rx);
 
     if (!matches.isEmpty()) {
         // Tri par historique : les noms dans usageHistory en premier
