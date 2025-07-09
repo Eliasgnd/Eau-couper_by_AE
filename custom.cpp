@@ -374,7 +374,7 @@ custom::~custom()
 void custom::goToMainWindow()
 {
     this->close();
-    MainWindow::getInstance()->show();
+    MainWindow::getInstance()->showFullScreen();
 }
 
 void custom::closeCustom()
