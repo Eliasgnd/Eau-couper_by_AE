@@ -67,6 +67,10 @@ private:
     void updateKeys();  // Met à jour l'affichage des touches selon Majuscule/Minuscule
     void updateKeyboard();
     void updateKeyboardLayout();  // Met à jour la disposition AZERTY/QWERTY
+
+signals:
+    void textChangedExternally(const QString &text);
+
 };
 
 #endif // CLAVIER_H

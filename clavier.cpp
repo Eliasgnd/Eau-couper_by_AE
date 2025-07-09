@@ -221,6 +221,7 @@ void Clavier::handleButton()
             majusculeActive = false;
             updateKeys();  // Mise à jour du clavier en minuscule
         }
+        emit textChangedExternally(lineEdit->text());
     }
 }
 
@@ -232,6 +233,7 @@ void Clavier::deleteChar()
         QString text = lineEdit->text();
         text.chop(1);
         lineEdit->setText(text);
+        emit textChangedExternally(lineEdit->text());
     }
 }
 
@@ -291,12 +293,14 @@ void Clavier::updateKeys()
 void Clavier::addSpace()
 {
     lineEdit->insert(" ");
+    emit textChangedExternally(lineEdit->text());
 }
 
 // Ajout de l'underscore
 void Clavier::addUnderscore()
 {
     lineEdit->insert("_");
+    emit textChangedExternally(lineEdit->text());
 }
 
 void Clavier::updateKeyboard()
@@ -447,6 +451,7 @@ void Clavier::insertAccent() {
     QPushButton* accentButton = qobject_cast<QPushButton*>(sender());
     if (accentButton) {
         lineEdit->insert(accentButton->text());
+        emit textChangedExternally(lineEdit->text());
     }
     hideAccentPopup();
 }
