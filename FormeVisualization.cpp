@@ -323,7 +323,11 @@ void FormeVisualization::optimizePlacement() {
 
                 bool collision = false;
                 for (const QPainterPath &existing : placedPaths) {
-                    if (candidate.intersects(existing)) {
+                    QPainterPath inter = candidate.intersected(existing);
+                    QRectF br = inter.boundingRect();
+                    // Une collision est détectée uniquement si la zone
+                    // d'intersection couvre au moins un pixel entier
+                    if (!br.isNull() && br.width() >= 1.0 && br.height() >= 1.0) {
                         collision = true;
                         break;
                     }
@@ -447,7 +451,11 @@ void FormeVisualization::optimizePlacement2() {
 
             bool collision = false;
             for (const QPainterPath &existing : placedPaths) {
-                if (candidate.intersects(existing)) {
+                QPainterPath inter = candidate.intersected(existing);
+                QRectF br = inter.boundingRect();
+                // Détecte un chevauchement seulement si l'intersection
+                // correspond à au moins un pixel plein
+                if (!br.isNull() && br.width() >= 1.0 && br.height() >= 1.0) {
                     collision = true;
                     break;
                 }
@@ -925,7 +933,7 @@ bool FormeVisualization::validateShapes()
             QPainterPath inter = p1.intersected(p2);
             QRectF iRect = inter.boundingRect();
             // Consider shapes colliding only if the intersection has a real area
-            if (!iRect.isNull() && iRect.width() > 0.5 && iRect.height() > 0.5) {
+            if (!iRect.isNull() && iRect.width() >= 1.0 && iRect.height() >= 1.0) {
 
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
