@@ -332,6 +332,7 @@ void FormeVisualization::optimizePlacement() {
                         break;
                     }
                 }
+
                 if (!collision) {
                     QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                     item->setPen(QPen(Qt::black, 1));
@@ -460,6 +461,7 @@ void FormeVisualization::optimizePlacement2() {
                     break;
                 }
             }
+
             if (!collision) {
                 QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                 item->setPen(QPen(Qt::black, 1));
@@ -934,6 +936,7 @@ bool FormeVisualization::validateShapes()
             QRectF iRect = inter.boundingRect();
             // Consider shapes colliding only if the intersection is larger than one pixel
             if (!iRect.isNull() && iRect.width() > 1.0 && iRect.height() > 1.0) {
+
 
                 shapes[i]->setPen(QPen(Qt::red, 1));
                 shapes[j]->setPen(QPen(Qt::red, 1));
