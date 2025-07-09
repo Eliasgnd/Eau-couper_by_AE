@@ -356,9 +356,15 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
         }
         QRectF bounds = combinedPath.boundingRect();
 
-        // Calcul des dimensions pour la vue (mais on n'update plus les spin boxes)
-        int largeur = (bounds.width() > 0) ? qRound(bounds.width()) : 100;
-        int hauteur = (bounds.height() > 0) ? qRound(bounds.height()) : 100;
+        // Dimensions basées sur les valeurs actuelles des spin box
+        int largeur = ui->Largeur->value();
+        int hauteur = ui->Longueur->value();
+
+        // Valeurs par défaut si les spin box n'ont pas encore été définies
+        if (largeur <= 0)
+            largeur = (bounds.width()  > 0) ? qRound(bounds.width())  : 100;
+        if (hauteur <= 0)
+            hauteur = (bounds.height() > 0) ? qRound(bounds.height()) : 100;
 
         // Mise à jour du widget de visualisation uniquement
         formeVisualization->updateDimensions(largeur, hauteur);
