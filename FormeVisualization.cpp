@@ -1056,4 +1056,4 @@ LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
     }
     return layout;
 }
-
+//creation de la branche
