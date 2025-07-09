@@ -68,7 +68,7 @@ private:
     void saveCustomShapes() const;
 
     // Affiche l'ensemble des formes (prédéfinies + custom) dans le scrollArea
-    void displayShapes();
+    void displayShapes(const QString &filter = QString());
 
     // Construit et renvoie le QFrame d'une forme custom à l'index donné
     QFrame* addCustomShapeToGrid(int index);

@@ -74,12 +74,11 @@ void Inventaire::goToMainWindow()
 //
 // Affiche les formes prédéfinies suivies des formes custom dans le scrollArea.
 //
-void Inventaire::displayShapes()
+void Inventaire::displayShapes(const QString &filter)
 {
     if (!ui->scrollAreaInventaire)
         return;
 
-    // Supprime l'ancien widget d'affichage
     QWidget *oldWidget = ui->scrollAreaInventaire->widget();
     if (oldWidget) {
         ui->scrollAreaInventaire->takeWidget();
@@ -95,8 +94,11 @@ void Inventaire::displayShapes()
     ui->scrollAreaInventaire->setWidgetResizable(true);
 
     int row = 0, col = 0;
+    QString f = filter.trimmed().toLower();  // nettoyage
 
-    // Affichage des formes prédéfinies
+    // --------------------------
+    // Formes prédéfinies
+    // --------------------------
     QList<QPair<QString, ShapeModel::Type>> shapeList;
     if (currentLanguage == Language::French) {
         shapeList = {
@@ -117,6 +119,9 @@ void Inventaire::displayShapes()
     }
 
     for (const auto &shapeInfo : shapeList) {
+        if (!f.isEmpty() && !shapeInfo.first.toLower().contains(f))
+            continue;  // filtre appliqué
+
         QGraphicsScene *scene = new QGraphicsScene();
         QGraphicsView *view = new QGraphicsView(scene);
         view->setFixedSize(120, 120);
@@ -125,7 +130,6 @@ void Inventaire::displayShapes()
         view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-        // Prévisualisation avec une forme 70x70
         QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(shapeInfo.second, 70, 70);
         if (!shapes.isEmpty()) {
             QGraphicsItem *shapeItem = shapes.first();
@@ -159,18 +163,28 @@ void Inventaire::displayShapes()
         }
     }
 
-    // Affichage des formes custom sauvegardées
+    // --------------------------
+    // Formes custom filtrées
+    // --------------------------
     for (int i = 0; i < m_customShapes.size(); ++i) {
+        const CustomShapeData &data = m_customShapes[i];
+
+        if (!f.isEmpty() && !data.name.toLower().contains(f))
+            continue;
+
         if (col >= 7) {
             col = 0;
             row++;
         }
+
         QFrame* customFrame = addCustomShapeToGrid(i);
         gridLayout->addWidget(customFrame, row, col);
         col++;
     }
+
     this->update();
 }
+
 
 //
 // Construit et retourne la vignette (QFrame) correspondant à la forme custom à l'index donné.
@@ -428,11 +442,14 @@ void Inventaire::onSearchTextChanged(const QString &text)
         bool match = name.contains(searchText);
         frame->setVisible(match);
     }
+    displayShapes(text);
+
 }
 
 void Inventaire::onClearSearchClicked()
 {
     ui->searchBar->clear();  // Vide le champ
+    displayShapes();
 }
 
 QStringList Inventaire::getAllShapeNames() const {
