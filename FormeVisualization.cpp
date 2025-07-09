@@ -1015,8 +1015,12 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setTransformOriginPoint(item->boundingRect().center());
+
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
+
         item->setRotation(li.rotation);
-        item->setPos(li.x, li.y);
+        item->setPos(li.x + offset.x(), li.y + offset.y());
         scene->addItem(item);
     }
 
@@ -1035,11 +1039,16 @@ LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
-        LayoutItem li;
-        li.x = item->pos().x();
-        li.y = item->pos().y();
-        li.rotation = item->rotation();
-        layout.items.append(li);
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            QRectF bounds = shape->boundingRect();
+            QPointF offset(-bounds.x(), -bounds.y());
+
+            LayoutItem li;
+            li.x = shape->pos().x() - offset.x();
+            li.y = shape->pos().y() - offset.y();
+            li.rotation = shape->rotation();
+            layout.items.append(li);
+        }
     }
     return layout;
 }
