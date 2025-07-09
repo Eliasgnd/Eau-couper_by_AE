@@ -32,9 +32,14 @@ LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
     grid->setSpacing(20);
     grid->setAlignment(Qt::AlignTop);
 
+    // First card : only apply the base shape
+    QFrame *shapeFrame = createBaseShapeFrame();
+    grid->addWidget(shapeFrame, 0, 0);
+
     for (int i = 0; i < m_layouts.size(); ++i) {
         QFrame *frame = createLayoutFrame(i);
-        grid->addWidget(frame, i / 4, i % 4);
+        int pos = i + 1; // shift because of base frame
+        grid->addWidget(frame, pos / 4, pos % 4);
     }
 
     scroll->setWidget(container);
@@ -112,12 +117,56 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
     return frame;
 }
 
+QFrame* LayoutSelector::createBaseShapeFrame()
+{
+    QGraphicsScene *scene = new QGraphicsScene();
+
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : m_polygons)
+        combinedPath.addPolygon(poly);
+
+    scene->addPath(combinedPath, QPen(Qt::black, 1), Qt::NoBrush);
+    scene->setSceneRect(combinedPath.boundingRect().adjusted(-5, -5, 5, 5));
+
+    QGraphicsView *view = new QGraphicsView(scene);
+    view->setFixedSize(300, 200);
+    view->setRenderHint(QPainter::Antialiasing);
+    view->setStyleSheet("background-color: white;");
+    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+
+    QFrame *frame = new QFrame();
+    frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
+    frame->setFixedSize(325, 250);
+
+    QLabel *label = new QLabel(m_lang == Language::French ? "Forme seule" : "Shape only");
+    label->setAlignment(Qt::AlignCenter);
+
+    QVBoxLayout *layout = new QVBoxLayout(frame);
+    layout->setContentsMargins(5, 5, 5, 5);
+    layout->setSpacing(5);
+    layout->addWidget(view, 0, Qt::AlignCenter);
+    layout->addWidget(label);
+
+    frame->setProperty("layoutIndex", -1);
+    frame->setCursor(Qt::PointingHandCursor);
+    frame->installEventFilter(this);
+    return frame;
+}
+
 bool LayoutSelector::eventFilter(QObject *obj, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonPress) {
         QFrame *frame = qobject_cast<QFrame*>(obj);
         if (frame && frame->property("layoutIndex").isValid()) {
             int idx = frame->property("layoutIndex").toInt();
+            if (idx == -1) {
+                // Only apply the shape without changing layout
+                m_hasSelection = false;
+                accept();
+                return true;
+            }
             if (idx >= 0 && idx < m_layouts.size()) {
                 m_selectedLayout = m_layouts.at(idx);
                 m_hasSelection = true;
