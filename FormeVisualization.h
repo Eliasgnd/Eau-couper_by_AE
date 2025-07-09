@@ -48,6 +48,7 @@ public:
     bool isCustomMode() const { return m_isCustomMode; }
     void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
     QString currentCustomShapeName() const { return m_currentCustomShapeName; }
+    QList<QPolygonF> currentCustomShapes() const { return m_customShapes; }
     void applyLayout(const LayoutData &layout);
     LayoutData captureCurrentLayout(const QString &name) const;
 

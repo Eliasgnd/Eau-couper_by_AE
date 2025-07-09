@@ -85,6 +85,7 @@ private:
     QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
     double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
+    bool promptAndSaveCurrentCustomShape();
 
 protected:
     void showEvent(QShowEvent *event) override;
