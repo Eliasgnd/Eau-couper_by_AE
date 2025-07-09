@@ -41,6 +41,11 @@ Inventaire::Inventaire(QWidget *parent)
 
     connect(ui->buttonMenu, &QPushButton::clicked, this, &Inventaire::goToMainWindow);
     displayShapes();
+
+    connect(ui->searchBar, &QLineEdit::textChanged, this, &Inventaire::onSearchTextChanged);
+
+    connect(ui->buttonClearSearch, &QPushButton::clicked, this, &Inventaire::onClearSearchClicked);
+
 }
 
 Inventaire::~Inventaire()
@@ -404,4 +409,28 @@ void Inventaire::saveCustomShapes() const
         file.write(doc.toJson());
         file.close();
     }
+}
+
+void Inventaire::onSearchTextChanged(const QString &text)
+{
+    QString searchText = text.trimmed().toLower();
+
+    QWidget *scrollWidget = ui->scrollAreaInventaire->widget();
+    if (!scrollWidget)
+        return;
+
+    for (QFrame *frame : scrollWidget->findChildren<QFrame*>()) {
+        QLabel *label = frame->findChild<QLabel*>();
+        if (!label)
+            continue;
+
+        QString name = label->text().toLower();
+        bool match = name.contains(searchText);
+        frame->setVisible(match);
+    }
+}
+
+void Inventaire::onClearSearchClicked()
+{
+    ui->searchBar->clear();  // Vide le champ
 }

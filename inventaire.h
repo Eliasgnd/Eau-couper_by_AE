@@ -54,6 +54,8 @@ protected:
 private slots:
     // Retour vers le MainWindow
     void goToMainWindow();
+    void onSearchTextChanged(const QString &text);
+    void onClearSearchClicked();
 
 private:
     Ui::Inventaire *ui;
