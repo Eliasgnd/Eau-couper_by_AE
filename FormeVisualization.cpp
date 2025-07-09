@@ -627,10 +627,11 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        QPointF offset = -scaledBounds.topLeft();
-        // Corrige les petits décalages dus aux arrondis de boundingRect()
-        offset.setX(qRound(offset.x()));
-        offset.setY(qRound(offset.y()));
+        // Calcul de l'offset à partir du boundingRect réel de l'item afin
+        // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
+        // vertical observé avec les formes personnalisées.
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
     }
