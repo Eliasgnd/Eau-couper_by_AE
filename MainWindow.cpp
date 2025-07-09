@@ -4,7 +4,7 @@
 #include "ui_mainwindow.h"
 #include "inventaire.h"
 #include "custom.h"
-#include "LayoutSelector.h"
+#include "Dispositions.h"
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "trajetmotor.h"
@@ -374,14 +374,9 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
 
         QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
         if (!layouts.isEmpty()) {
-            LayoutSelector selector(layouts, polygons, currentLanguage, this);
-            int res = selector.exec();
-            if (selector.shouldOpenInventaire()) {
-                Inventaire::getInstance()->showFullScreen();
-                return;
-            }
-            if (res == QDialog::Accepted && selector.hasSelection()) {
-                LayoutData ld = selector.selectedLayout();
+            Dispositions *disp = new Dispositions(layouts, polygons, currentLanguage);
+
+            connect(disp, &Dispositions::layoutSelected, this, [this](const LayoutData &ld){
                 formeVisualization->applyLayout(ld);
 
                 ui->Largeur->blockSignals(true);
@@ -404,7 +399,23 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
                 ui->spaceSpinBox->blockSignals(false);
                 ui->Slider_largeur->blockSignals(false);
                 ui->Slider_longueur->blockSignals(false);
-            }
+            });
+
+            connect(disp, &Dispositions::shapeOnlySelected, this, [](){});
+
+            connect(disp, &Dispositions::closed, this, [this, disp]() {
+                this->showFullScreen();
+                disp->deleteLater();
+            });
+
+            connect(disp, &Dispositions::requestOpenInventaire, this, [this, disp]() {
+                disp->deleteLater();
+                Inventaire::getInstance()->showFullScreen();
+            });
+
+            this->hide();
+            disp->showFullScreen();
+            return;
         }
     }
     this->showFullScreen();
