@@ -17,6 +17,7 @@
 #include <QToolButton>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QTimer>
 #include <QImage>
 #include <QProgressDialog>
 #include <QApplication>
@@ -398,14 +399,27 @@ void custom::saveCustomShape() {
         return;
     }
 
-    bool ok;
-    QString shapeName = QInputDialog::getText(this, tr("Nom de la forme"),
-                                              tr("Entrez un nom pour votre forme :"),
-                                              QLineEdit::Normal, "", &ok);
-    if (!(ok && !shapeName.isEmpty())) {
-        //qDebug() << "Annulation ou nom vide.";
-        return;
-    }
+    bool ok = false;
+    QString shapeName;
+    do {
+        shapeName = QInputDialog::getText(this, tr("Nom de la forme"),
+                                          tr("Entrez un nom pour votre forme :"),
+                                          QLineEdit::Normal, "", &ok);
+        if (!ok)
+            return; // Annulation
+        if (shapeName.isEmpty())
+            continue;
+        if (Inventaire::getInstance()->shapeNameExists(shapeName)) {
+            QMessageBox *msg = new QMessageBox(QMessageBox::Warning,
+                                               tr("Nom d\u00e9j\u00e0 utilis\u00e9"),
+                                               tr("Nom d\u00e9j\u00e0 utilis\u00e9"),
+                                               QMessageBox::NoButton, this);
+            msg->setWindowModality(Qt::NonModal);
+            msg->show();
+            QTimer::singleShot(2500, msg, &QMessageBox::accept);
+            ok = false; // Re-prompt
+        }
+    } while(!ok);
 
     // Calculer le rectangle englobant toutes les formes
     QRectF boundingRect;

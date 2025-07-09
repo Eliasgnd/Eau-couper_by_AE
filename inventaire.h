@@ -84,6 +84,7 @@ private:
     static Inventaire *instance;
 
     QString customShapesFilePath() const;
+    bool shapeNameExists(const QString &name) const;
     void loadCustomShapes();
     void saveCustomShapes() const;
 
