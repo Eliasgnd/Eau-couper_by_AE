@@ -1033,15 +1033,13 @@ LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
     layout.spacing = spacing;
 
     for (QGraphicsItem *item : scene->items()) {
-        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            if (m_cutMarkers.contains(item))
-                continue;
-            LayoutItem li;
-            li.x = item->pos().x();
-            li.y = item->pos().y();
-            li.rotation = item->rotation();
-            layout.items.append(li);
-        }
+        if (m_cutMarkers.contains(item))
+            continue;
+        LayoutItem li;
+        li.x = item->pos().x();
+        li.y = item->pos().y();
+        li.rotation = item->rotation();
+        layout.items.append(li);
     }
     return layout;
 }
