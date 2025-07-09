@@ -130,7 +130,7 @@ QFrame *Dispositions::createLayoutFrame(int index)
                          "border: 2px solid black; "
                          "border-radius: 15px;");
     /* taille fixe → pas d’étirement */
-    frame->setFixedSize(350, 250);
+    frame->setFixedSize(350, 285);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     QLabel *label = new QLabel(ld.name);
@@ -229,7 +229,7 @@ QFrame *Dispositions::createBaseShapeFrame()
     scene->setSceneRect(combinedPath.boundingRect().adjusted(-5, -5, 5, 5));
 
     QGraphicsView *view = new QGraphicsView(scene);
-    view->setFixedSize(300, 200);
+    view->setFixedSize(300, 230);
     view->setRenderHint(QPainter::Antialiasing);
     view->setStyleSheet("background-color: white;");
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -241,7 +241,7 @@ QFrame *Dispositions::createBaseShapeFrame()
     frame->setStyleSheet("background-color: white; "
                          "border: 2px solid black; "
                          "border-radius: 15px;");
-    frame->setFixedSize(325, 250);
+    frame->setFixedSize(350, 285);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     QLabel *label = new QLabel(m_lang == Language::French

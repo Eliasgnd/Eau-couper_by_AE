@@ -114,7 +114,7 @@ void Inventaire::displayShapes()
     for (const auto &shapeInfo : shapeList) {
         QGraphicsScene *scene = new QGraphicsScene();
         QGraphicsView *view = new QGraphicsView(scene);
-        view->setFixedSize(120, 120);
+        view->setFixedSize(120, 150);
         view->setStyleSheet("background-color: white;");
         view->setAlignment(Qt::AlignCenter);
         view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
