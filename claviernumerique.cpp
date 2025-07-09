@@ -7,6 +7,7 @@ ClavierNumerique::ClavierNumerique(QWidget *parent)
 {
     setWindowTitle("Pavé Numérique");
     setFixedSize(300, 490);
+    setWindowState(Qt::WindowFullScreen);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     lineEdit = new QLineEdit(this);

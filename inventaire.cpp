@@ -61,7 +61,7 @@ Inventaire* Inventaire::getInstance()
 void Inventaire::goToMainWindow()
 {
     this->hide();
-    MainWindow::getInstance()->show();
+    MainWindow::getInstance()->showFullScreen();
 }
 
 

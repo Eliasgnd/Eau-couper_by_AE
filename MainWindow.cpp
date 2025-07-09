@@ -315,7 +315,7 @@ void MainWindow::changeToHeart() {
 
 void MainWindow::showInventaire() {
     this->hide();
-    Inventaire::getInstance()->show();
+    Inventaire::getInstance()->showFullScreen();
 }
 
 void MainWindow::showCustom() {
@@ -326,7 +326,7 @@ void MainWindow::showCustom() {
             this, &MainWindow::applyCustomShape);
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
-    customWindow->show();
+    customWindow->showFullScreen();
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
@@ -341,7 +341,7 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
     // Blocage des modifications pendant la découpe personnalisée
 
     formeVisualization->setDecoupeEnCours(true);
-    this->show();
+    this->showFullScreen();
 }
 
 void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name)
@@ -402,7 +402,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons, const Q
             }
         }
     }
-    this->show();
+    this->showFullScreen();
 }
 
 void MainWindow::resetDrawing() {
