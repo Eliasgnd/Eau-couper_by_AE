@@ -83,7 +83,7 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
     scene->setSceneRect(scene->itemsBoundingRect().adjusted(-5, -5, 5, 5));
 
     QGraphicsView *view = new QGraphicsView(scene);
-    view->setFixedSize(120, 120);
+    view->setFixedSize(300, 200);
     view->setRenderHint(QPainter::Antialiasing);
     view->setStyleSheet("background-color: white;");
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -92,7 +92,7 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
 
     QFrame *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
-    frame->setFixedSize(150, 200);
+    frame->setFixedSize(325, 250);
 
     QLabel *label = new QLabel(ld.name);
     label->setAlignment(Qt::AlignCenter);
