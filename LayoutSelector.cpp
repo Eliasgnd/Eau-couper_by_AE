@@ -25,6 +25,38 @@ LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
+    // Top-right close button styled like the inventory one
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    QPushButton *closeHeaderBtn = new QPushButton(this);
+    closeHeaderBtn->setIcon(QIcon(":/icons/cross.svg"));
+    closeHeaderBtn->setIconSize(QSize(40, 40));
+    closeHeaderBtn->setFixedSize(61, 51);
+    closeHeaderBtn->setStyleSheet(
+        "QPushButton {"
+        "background-color: #F44336;"
+        "color: white;"
+        "font-size: 14px;"
+        "border: 2px solid #D32F2F;"
+        "border-radius: 5px;"
+        "padding: 6px 12px;"
+        "text-align: left;"
+        "padding-left: 8px;"
+        "padding-right: 8px;"
+        "}"
+        "QPushButton:hover {"
+        "background-color: #E57373;"
+        "}"
+        "QPushButton:pressed {"
+        "background-color: #C62828;"
+        "}");
+    connect(closeHeaderBtn, &QPushButton::clicked, [this]() {
+        m_openInventaire = true;
+        reject();
+    });
+    headerLayout->addStretch();
+    headerLayout->addWidget(closeHeaderBtn);
+    mainLayout->addLayout(headerLayout);
+
     QScrollArea *scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     QWidget *container = new QWidget();

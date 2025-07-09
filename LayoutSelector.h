@@ -18,6 +18,7 @@ public:
 
     bool hasSelection() const { return m_hasSelection; }
     LayoutData selectedLayout() const { return m_selectedLayout; }
+    bool shouldOpenInventaire() const { return m_openInventaire; }
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -30,6 +31,7 @@ private:
     LayoutData m_selectedLayout;
     bool m_hasSelection = false;
     Language m_lang {Language::French};
+    bool m_openInventaire = false;
 };
 
 #endif // LAYOUTSELECTOR_H
