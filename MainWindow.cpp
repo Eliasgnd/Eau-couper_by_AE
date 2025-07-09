@@ -209,19 +209,33 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
+        auto saveLayout = [this]() {
+            bool ok;
+            QString name = QInputDialog::getText(this,
+                                                tr("Nom de la disposition"),
+                                                tr("Entrez un nom"),
+                                                QLineEdit::Normal,
+                                                "",
+                                                &ok);
+            if (!ok || name.isEmpty())
+                return;
+            LayoutData layout = formeVisualization->captureCurrentLayout(name);
+            if (formeVisualization->isCustomMode())
+                Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
+            else
+                Inventaire::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+        };
+
         if (formeVisualization->isCustomMode() && formeVisualization->currentCustomShapeName().isEmpty()) {
-            QMessageBox::warning(this, tr("Disposition"), tr("Sauvegardez d'abord la forme."));
+            QMessageBox::warning(this,
+                                 tr("Disposition"),
+                                 tr("Forme non sauvegardée — veuillez la sauvegarder d'abord."));
+            if (promptAndSaveCurrentCustomShape())
+                saveLayout();
             return;
         }
-        bool ok;
-        QString name = QInputDialog::getText(this, tr("Nom de la disposition"), tr("Entrez un nom"), QLineEdit::Normal, "", &ok);
-        if (!ok || name.isEmpty())
-            return;
-        LayoutData layout = formeVisualization->captureCurrentLayout(name);
-        if (formeVisualization->isCustomMode())
-            Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
-        else
-            Inventaire::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+
+        saveLayout();
     });
 
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
@@ -718,4 +732,43 @@ void MainWindow::setSpinboxSliderEnabled(bool enabled)
 FormeVisualization* MainWindow::getFormeVisualization() const
 {
     return formeVisualization;
+}
+
+bool MainWindow::promptAndSaveCurrentCustomShape()
+{
+    if (!formeVisualization)
+        return false;
+
+    QList<QPolygonF> shapes = formeVisualization->currentCustomShapes();
+    if (shapes.isEmpty())
+        return false;
+
+    bool ok = false;
+    QString shapeName;
+    do {
+        shapeName = QInputDialog::getText(this,
+                                          tr("Nom de la forme"),
+                                          tr("Entrez un nom pour votre forme :"),
+                                          QLineEdit::Normal,
+                                          "",
+                                          &ok);
+        if (!ok)
+            return false;
+        if (shapeName.isEmpty())
+            continue;
+        if (Inventaire::getInstance()->shapeNameExists(shapeName)) {
+            QMessageBox msg(QMessageBox::Warning,
+                            tr("Nom déjà utilisé"),
+                            tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
+                            QMessageBox::NoButton,
+                            this);
+            QTimer::singleShot(2300, &msg, &QMessageBox::accept);
+            msg.exec();
+            ok = false;
+        }
+    } while (!ok);
+
+    Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
+    formeVisualization->setCurrentCustomShapeName(shapeName);
+    return true;
 }
