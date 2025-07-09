@@ -648,6 +648,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
+
     }
 
     //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
