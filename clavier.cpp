@@ -16,6 +16,8 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     suggestionList->setVisible(false);  // caché par défaut
     suggestionList->setMaximumHeight(120);
     suggestionList->setStyleSheet("font-size: 14px; background: white; border: 1px solid gray;");
+    lineEdit->setFixedHeight(50);  // Agrandir la zone de texte
+    layout->addWidget(lineEdit);
     layout->addWidget(suggestionList);
 
     // Lorsqu'on clique sur une suggestion
@@ -30,9 +32,6 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
         usageHistory.prepend(text);    // Ajoute en tête
     });
 
-
-    lineEdit->setFixedHeight(50);  // Agrandir la zone de texte
-    layout->addWidget(lineEdit);
 
     gridLayout = new QGridLayout(this);  // ✅ Variable membre, accessible partout
 
