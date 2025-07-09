@@ -1014,6 +1014,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        item->setTransformOriginPoint(item->boundingRect().center());
         item->setRotation(li.rotation);
         item->setPos(li.x, li.y);
         scene->addItem(item);
