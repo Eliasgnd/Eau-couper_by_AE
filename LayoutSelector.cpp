@@ -51,12 +51,19 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
     const LayoutData &ld = m_layouts.at(index);
 
     QGraphicsScene *scene = new QGraphicsScene();
+
+    // Add a rectangle representing the board to mimic the cutting preview widget
+    scene->addRect(0, 0, ld.largeur, ld.longueur, QPen(Qt::black), Qt::NoBrush);
+
+    // Prepare the prototype shape path scaled to the preset dimensions
     QPainterPath combinedPath;
     for (const QPolygonF &poly : m_polygons)
         combinedPath.addPolygon(poly);
+
     QRectF bounds = combinedPath.boundingRect();
     qreal scaleX = (bounds.width() > 0) ? static_cast<qreal>(ld.largeur) / bounds.width() : 1.0;
     qreal scaleY = (bounds.height() > 0) ? static_cast<qreal>(ld.longueur) / bounds.height() : 1.0;
+
     QTransform scale;
     scale.scale(scaleX, scaleY);
     QPainterPath scaledPath = scale.map(combinedPath);
@@ -77,6 +84,7 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
 
     QGraphicsView *view = new QGraphicsView(scene);
     view->setFixedSize(120, 120);
+    view->setRenderHint(QPainter::Antialiasing);
     view->setStyleSheet("background-color: white;");
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
