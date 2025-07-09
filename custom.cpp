@@ -409,15 +409,20 @@ void custom::saveCustomShape() {
             return; // Annulation
         if (shapeName.isEmpty())
             continue;
-        if (Inventaire::getInstance()->shapeNameExists(shapeName)) {
-            QMessageBox *msg = new QMessageBox(QMessageBox::Warning,
-                                               tr("Nom d\u00e9j\u00e0 utilis\u00e9"),
-                                               tr("Nom d\u00e9j\u00e0 utilis\u00e9"),
-                                               QMessageBox::NoButton, this);
-            msg->setWindowModality(Qt::NonModal);
-            msg->show();
-            QTimer::singleShot(2500, msg, &QMessageBox::accept);
-            ok = false; // Re-prompt
+        // custom.cpp ── dans saveCustomShape()
+        if (Inventaire::getInstance()->shapeNameExists(shapeName))
+        {
+            // Boîte d'avertissement SANS boutons, modale, fermée après 2,5 s
+            QMessageBox msg(QMessageBox::Warning,
+                            tr("Nom déjà utilisé"),
+                            tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
+                            QMessageBox::NoButton,
+                            this);               // parent
+
+            QTimer::singleShot(2300, &msg, &QMessageBox::accept); // auto-fermeture
+            msg.exec();                                           // MODAL et bloquant
+
+            ok = false;    // force une nouvelle itération du do/while
         }
     } while(!ok);
 

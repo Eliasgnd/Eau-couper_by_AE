@@ -60,6 +60,7 @@ public:
 
     // Retourne les dispositions d'une forme
     QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
+    bool shapeNameExists(const QString &name) const;
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -84,7 +85,6 @@ private:
     static Inventaire *instance;
 
     QString customShapesFilePath() const;
-    bool shapeNameExists(const QString &name) const;
     void loadCustomShapes();
     void saveCustomShapes() const;
 
