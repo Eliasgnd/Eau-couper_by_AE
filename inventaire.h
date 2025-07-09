@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QPolygonF>
 #include <QList>
+#include <QMap>
 #include "ShapeModel.h"
 #include <QFrame>
 #include "Language.h"
@@ -58,15 +59,24 @@ public:
     // Enregistre une disposition pour une forme existante
     void addLayoutToShape(const QString &shapeName, const LayoutData &layout);
 
+    // Enregistre une disposition pour une forme de base
+    void addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout);
+
     // Renomme une disposition
     void renameLayout(const QString &shapeName, int index, const QString &newName);
+
+    void renameBaseLayout(ShapeModel::Type type, int index, const QString &newName);
 
     // Supprime une disposition
     void deleteLayout(const QString &shapeName, int index);
 
+    void deleteBaseLayout(ShapeModel::Type type, int index);
+
     // Retourne les dispositions d'une forme
     QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
+    QList<LayoutData> getLayoutsForBaseShape(ShapeModel::Type type) const;
     bool shapeNameExists(const QString &name) const;
+    static QString baseShapeName(ShapeModel::Type type, Language lang);
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -102,6 +112,7 @@ private:
 
     // Liste des formes custom sauvegardées
     QList<CustomShapeData> m_customShapes;
+    QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     Language currentLanguage = Language::French;
 };
 

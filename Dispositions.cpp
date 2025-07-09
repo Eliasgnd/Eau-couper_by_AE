@@ -23,13 +23,17 @@ Dispositions::Dispositions(const QString &shapeName,
                            const QList<LayoutData> &layouts,
                            const QList<QPolygonF> &shapePolygons,
                            Language lang,
+                           bool isBaseShape,
+                           ShapeModel::Type baseType,
                            QWidget *parent)
     : QWidget(parent),
     ui(new Ui::Dispositions),
     m_layouts(layouts),
     m_polygons(shapePolygons),
     m_lang(lang),
-    m_shapeName(shapeName)
+    m_shapeName(shapeName),
+    m_isBaseShape(isBaseShape),
+    m_baseType(baseType)
 {
     ui->setupUi(this);
 
@@ -161,7 +165,10 @@ QFrame *Dispositions::createLayoutFrame(int index)
             label->setText(newName);
             if (index >= 0 && index < m_layouts.size()) {
                 m_layouts[index].name = newName;
-                Inventaire::getInstance()->renameLayout(m_shapeName, index, newName);
+                if (m_isBaseShape)
+                    Inventaire::getInstance()->renameBaseLayout(m_baseType, index, newName);
+                else
+                    Inventaire::getInstance()->renameLayout(m_shapeName, index, newName);
             }
         }
     });
@@ -169,7 +176,10 @@ QFrame *Dispositions::createLayoutFrame(int index)
     connect(deleteAction, &QAction::triggered, [this, index]() {
         if (index >= 0 && index < m_layouts.size()) {
             m_layouts.removeAt(index);
-            Inventaire::getInstance()->deleteLayout(m_shapeName, index);
+            if (m_isBaseShape)
+                Inventaire::getInstance()->deleteBaseLayout(m_baseType, index);
+            else
+                Inventaire::getInstance()->deleteLayout(m_shapeName, index);
             displayLayouts();
         }
     });
