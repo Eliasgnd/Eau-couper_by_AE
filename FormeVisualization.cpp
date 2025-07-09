@@ -328,6 +328,7 @@ void FormeVisualization::optimizePlacement() {
                     // Une collision est détectée uniquement si la zone
                     // d'intersection couvre au moins un pixel entier
                     if (!br.isNull() && br.width() >= 1.0 && br.height() >= 1.0) {
+
                         collision = true;
                         break;
                     }
@@ -456,6 +457,7 @@ void FormeVisualization::optimizePlacement2() {
                 // Détecte un chevauchement seulement si l'intersection
                 // correspond à au moins un pixel plein
                 if (!br.isNull() && br.width() >= 1.0 && br.height() >= 1.0) {
+
                     collision = true;
                     break;
                 }
