@@ -323,7 +323,9 @@ void FormeVisualization::optimizePlacement() {
 
                 bool collision = false;
                 for (const QPainterPath &existing : placedPaths) {
-                    if (candidate.intersects(existing)) {
+                    QPainterPath inter = candidate.intersected(existing);
+                    QRectF br = inter.boundingRect();
+                    if (!br.isNull() && br.width() > 0.5 && br.height() > 0.5) {
                         collision = true;
                         break;
                     }
@@ -447,7 +449,9 @@ void FormeVisualization::optimizePlacement2() {
 
             bool collision = false;
             for (const QPainterPath &existing : placedPaths) {
-                if (candidate.intersects(existing)) {
+                QPainterPath inter = candidate.intersected(existing);
+                QRectF br = inter.boundingRect();
+                if (!br.isNull() && br.width() > 0.5 && br.height() > 0.5) {
                     collision = true;
                     break;
                 }
