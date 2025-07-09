@@ -8,6 +8,10 @@
 #include "inventaire.h" // for LayoutData
 #include "Language.h"
 
+namespace Ui {
+class Dispositions;
+}
+
 class LayoutSelector : public QDialog {
     Q_OBJECT
 public:
@@ -15,6 +19,7 @@ public:
                    const QList<QPolygonF>& shapePolygons,
                    Language lang,
                    QWidget *parent = nullptr);
+    ~LayoutSelector();
 
     bool hasSelection() const { return m_hasSelection; }
     LayoutData selectedLayout() const { return m_selectedLayout; }
@@ -24,6 +29,7 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
+    Ui::Dispositions *ui;
     QFrame* createLayoutFrame(int index);
     QFrame* createBaseShapeFrame();
     QList<LayoutData> m_layouts;

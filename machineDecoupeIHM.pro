@@ -24,7 +24,7 @@ SOURCES += \
     touchgesturereader.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui
 
 # Qt Resource Collection
 RESOURCES += resources.qrc

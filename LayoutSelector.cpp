@@ -1,4 +1,5 @@
 #include "LayoutSelector.h"
+#include "ui_Dispositions.h"
 #include <QScrollArea>
 #include <QGridLayout>
 #include <QGraphicsView>
@@ -23,65 +24,38 @@ LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
     setWindowState(Qt::WindowFullScreen);
     QTimer::singleShot(0, this, &QWidget::showFullScreen);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    ui = new Ui::Dispositions;
+    ui->setupUi(this);
 
-    // Top-right close button styled like the inventory one
-    QHBoxLayout *headerLayout = new QHBoxLayout();
-    QPushButton *closeHeaderBtn = new QPushButton(this);
-    closeHeaderBtn->setIcon(QIcon(":/icons/cross.svg"));
-    closeHeaderBtn->setIconSize(QSize(40, 40));
-    closeHeaderBtn->setFixedSize(61, 51);
-    closeHeaderBtn->setStyleSheet(
-        "QPushButton {"
-        "background-color: #F44336;"
-        "color: white;"
-        "font-size: 14px;"
-        "border: 2px solid #D32F2F;"
-        "border-radius: 5px;"
-        "padding: 6px 12px;"
-        "text-align: left;"
-        "padding-left: 8px;"
-        "padding-right: 8px;"
-        "}"
-        "QPushButton:hover {"
-        "background-color: #E57373;"
-        "}"
-        "QPushButton:pressed {"
-        "background-color: #C62828;"
-        "}");
-    connect(closeHeaderBtn, &QPushButton::clicked, [this]() {
+    connect(ui->buttonMenu, &QPushButton::clicked, [this]() {
         m_openInventaire = true;
         reject();
     });
-    headerLayout->addStretch();
-    headerLayout->addWidget(closeHeaderBtn);
-    mainLayout->addLayout(headerLayout);
 
-    QScrollArea *scroll = new QScrollArea(this);
-    scroll->setWidgetResizable(true);
-    QWidget *container = new QWidget();
-    QGridLayout *grid = new QGridLayout(container);
-    grid->setSpacing(20);
-    grid->setAlignment(Qt::AlignTop);
+    if (ui->gridLayout) {
+        ui->gridLayout->setSpacing(20);
+        ui->gridLayout->setAlignment(Qt::AlignTop);
 
-    // First card : only apply the base shape
-    QFrame *shapeFrame = createBaseShapeFrame();
-    grid->addWidget(shapeFrame, 0, 0);
+        QFrame *shapeFrame = createBaseShapeFrame();
+        ui->gridLayout->addWidget(shapeFrame, 0, 0);
 
-    for (int i = 0; i < m_layouts.size(); ++i) {
-        QFrame *frame = createLayoutFrame(i);
-        int pos = i + 1; // shift because of base frame
-        grid->addWidget(frame, pos / 4, pos % 4);
+        for (int i = 0; i < m_layouts.size(); ++i) {
+            QFrame *frame = createLayoutFrame(i);
+            int pos = i + 1; // shift because of base frame
+            ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
+        }
     }
 
-    scroll->setWidget(container);
-    mainLayout->addWidget(scroll);
-
-    QPushButton *closeBtn = new QPushButton(tr("Cancel"), this);
     if (m_lang == Language::French)
-        closeBtn->setText("Fermer");
-    connect(closeBtn, &QPushButton::clicked, this, &LayoutSelector::reject);
-    mainLayout->addWidget(closeBtn, 0, Qt::AlignCenter);
+        ui->closeBtn->setText("Fermer");
+    else
+        ui->closeBtn->setText(tr("Cancel"));
+    connect(ui->closeBtn, &QPushButton::clicked, this, &LayoutSelector::reject);
+}
+
+LayoutSelector::~LayoutSelector()
+{
+    delete ui;
 }
 
 QFrame* LayoutSelector::createLayoutFrame(int index)
