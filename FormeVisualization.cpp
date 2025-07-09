@@ -627,10 +627,12 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        // Correction de l'offset pour aligner précisément le coin supérieur
-        // gauche de la forme sur la cellule cible. Utiliser la valeur exacte
-        // permet d'éviter les erreurs d'arrondi (1 pixel de décalage).
-        QPointF offset = -scaledBounds.topLeft();
+        // Calcul de l'offset à partir du boundingRect réel de l'item afin
+        // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
+        // vertical observé avec les formes personnalisées.
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
+
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
     }
