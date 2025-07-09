@@ -21,6 +21,8 @@ public:
                  const QList<LayoutData> &layouts,
                  const QList<QPolygonF> &shapePolygons,
                  Language lang,
+                 bool isBaseShape = false,
+                 ShapeModel::Type baseType = ShapeModel::Type::Circle,
                  QWidget *parent = nullptr);
     ~Dispositions();
 
@@ -46,6 +48,8 @@ private:
     QList<QPolygonF> m_polygons;
     Language m_lang {Language::French};
     QString m_shapeName;
+    bool m_isBaseShape {false};
+    ShapeModel::Type m_baseType {ShapeModel::Type::Circle};
 };
 
 #endif // DISPOSITIONS_H

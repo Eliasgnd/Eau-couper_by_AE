@@ -209,7 +209,7 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
-        if (!formeVisualization->isCustomMode() || formeVisualization->currentCustomShapeName().isEmpty()) {
+        if (formeVisualization->isCustomMode() && formeVisualization->currentCustomShapeName().isEmpty()) {
             QMessageBox::warning(this, tr("Disposition"), tr("Sauvegardez d'abord la forme."));
             return;
         }
@@ -218,7 +218,10 @@ MainWindow::MainWindow(QWidget *parent)
         if (!ok || name.isEmpty())
             return;
         LayoutData layout = formeVisualization->captureCurrentLayout(name);
-        Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
+        if (formeVisualization->isCustomMode())
+            Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
+        else
+            Inventaire::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
     });
 
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
@@ -641,6 +644,62 @@ void MainWindow::changeEvent(QEvent *event)
 void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
 {
     selectedShapeType = type;
+    QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForBaseShape(type);
+    if (!layouts.isEmpty()) {
+        QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
+        QString name = Inventaire::baseShapeName(type, currentLanguage);
+        Dispositions *disp = new Dispositions(name, layouts, polys, currentLanguage, true, type);
+
+        connect(disp, &Dispositions::layoutSelected, this, [this, type](const LayoutData &ld){
+            QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
+            formeVisualization->setCustomMode();
+            formeVisualization->displayCustomShapes(shapePolys);
+            formeVisualization->setCurrentCustomShapeName(Inventaire::baseShapeName(type, Language::French));
+            formeVisualization->applyLayout(ld);
+
+            ui->Largeur->blockSignals(true);
+            ui->Longueur->blockSignals(true);
+            ui->shapeCountSpinBox->blockSignals(true);
+            ui->spaceSpinBox->blockSignals(true);
+            ui->Slider_largeur->blockSignals(true);
+            ui->Slider_longueur->blockSignals(true);
+
+            ui->Largeur->setValue(ld.largeur);
+            ui->Longueur->setValue(ld.longueur);
+            ui->Slider_largeur->setValue(ld.largeur);
+            ui->Slider_longueur->setValue(ld.longueur);
+            ui->shapeCountSpinBox->setValue(ld.items.size());
+            ui->spaceSpinBox->setValue(ld.spacing);
+
+            ui->Largeur->blockSignals(false);
+            ui->Longueur->blockSignals(false);
+            ui->shapeCountSpinBox->blockSignals(false);
+            ui->spaceSpinBox->blockSignals(false);
+            ui->Slider_largeur->blockSignals(false);
+            ui->Slider_longueur->blockSignals(false);
+        });
+
+        connect(disp, &Dispositions::shapeOnlySelected, this, [this, type]() {
+            selectedShapeType = type;
+            formeVisualization->setPredefinedMode();
+            formeVisualization->setModel(type);
+        });
+
+        connect(disp, &Dispositions::closed, this, [this, disp]() {
+            this->showFullScreen();
+            disp->deleteLater();
+        });
+
+        connect(disp, &Dispositions::requestOpenInventaire, this, [this, disp]() {
+            disp->deleteLater();
+            Inventaire::getInstance()->showFullScreen();
+        });
+
+        this->hide();
+        disp->showFullScreen();
+        return;
+    }
+
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(type);
 }
