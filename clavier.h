@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QGridLayout>
 #include <QLineEdit>
+#include <QListWidget>
 //cration brnache global
 class Clavier : public QDialog
 {
@@ -67,7 +68,9 @@ private:
     void updateKeys();  // Met à jour l'affichage des touches selon Majuscule/Minuscule
     void updateKeyboard();
     void updateKeyboardLayout();  // Met à jour la disposition AZERTY/QWERTY
+    QListWidget *suggestionList = nullptr; // Suggestion de noms
 
+    void updateSuggestions();
 signals:
     void textChangedExternally(const QString &text);
 

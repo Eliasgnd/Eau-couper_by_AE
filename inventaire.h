@@ -37,6 +37,8 @@ public:
 
     void updateTranslations(Language lang);
 
+    QStringList getAllShapeNames() const;
+
 protected:
     void changeEvent(QEvent *event) override;
 

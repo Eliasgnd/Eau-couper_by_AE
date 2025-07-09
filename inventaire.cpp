@@ -434,3 +434,20 @@ void Inventaire::onClearSearchClicked()
 {
     ui->searchBar->clear();  // Vide le champ
 }
+
+QStringList Inventaire::getAllShapeNames() const {
+    QStringList names;
+
+    // Formes prédéfinies
+    if (currentLanguage == Language::French) {
+        names << "Cercle" << "Rectangle" << "Triangle" << "Étoile" << "Cœur";
+    } else {
+        names << "Circle" << "Rectangle" << "Triangle" << "Star" << "Heart";
+    }
+
+    // Formes custom
+    for (const CustomShapeData &data : m_customShapes)
+        names << data.name;
+
+    return names;
+}
