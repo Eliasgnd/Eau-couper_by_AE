@@ -20,10 +20,16 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
 
     // Lorsqu'on clique sur une suggestion
     connect(suggestionList, &QListWidget::itemClicked, this, [=](QListWidgetItem *item){
-        lineEdit->setText(item->text());
+        QString text = item->text();
+        lineEdit->setText(text);
         suggestionList->hide();
-        emit textChangedExternally(lineEdit->text());  // met à jour l'inventaire
+        emit textChangedExternally(text);
+
+        // 🔁 Mise à jour de l’historique
+        usageHistory.removeAll(text);  // Évite les doublons
+        usageHistory.prepend(text);    // Ajoute en tête
     });
+
 
     lineEdit->setFixedHeight(50);  // Agrandir la zone de texte
     layout->addWidget(lineEdit);
@@ -217,6 +223,8 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     accentMap.insert("N", {"Ñ"});
     currentLayout = QWERTY;  // ✅ QWERTY sélectionné dès le lancement
     updateKeyboardLayout();  // ✅ Applique immédiatement le layout QWERTY
+    loadUsageHistory();
+
 }
 
 QString Clavier::getText() const
@@ -261,6 +269,11 @@ void Clavier::deleteChar()
 void Clavier::validateText()
 {
     accept();
+    QString current = lineEdit->text();
+    usageHistory.removeAll(current);
+    usageHistory.prepend(current);
+    saveUsageHistory();
+
 }
 
 void Clavier::toggleShift()
@@ -617,9 +630,33 @@ void Clavier::updateSuggestions()
                               .filter(rx);
 
     if (!matches.isEmpty()) {
-        suggestionList->addItems(matches);
+        // Tri par historique : les noms dans usageHistory en premier
+        QStringList orderedMatches;
+        for (const QString &name : usageHistory) {
+            if (matches.contains(name)) {
+                orderedMatches << name;
+            }
+        }
+        for (const QString &name : matches) {
+            if (!orderedMatches.contains(name))
+                orderedMatches << name;
+        }
+
+        suggestionList->addItems(orderedMatches);
         suggestionList->setVisible(true);
     } else {
         suggestionList->setVisible(false);
     }
+}
+
+void Clavier::loadUsageHistory()
+{
+    QSettings settings("AubeElectronique", "EauCouper");
+    usageHistory = settings.value("Clavier/UsageHistory").toStringList();
+}
+
+void Clavier::saveUsageHistory() const
+{
+    QSettings settings("AubeElectronique", "EauCouper");
+    settings.setValue("Clavier/UsageHistory", usageHistory);
 }

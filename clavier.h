@@ -6,6 +6,9 @@
 #include <QGridLayout>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QSettings>
+
+
 //cration brnache global
 class Clavier : public QDialog
 {
@@ -71,6 +74,10 @@ private:
     QListWidget *suggestionList = nullptr; // Suggestion de noms
 
     void updateSuggestions();
+    QStringList usageHistory;
+    void loadUsageHistory();
+    void saveUsageHistory() const;
+
 signals:
     void textChangedExternally(const QString &text);
 
