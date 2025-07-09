@@ -82,25 +82,23 @@ QPushButton:pressed {
       <bool>true</bool>
      </property>
      <widget class="QWidget" name="scrollAreaWidgetContents">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>100</width>
-        <height>100</height>
-       </rect>
-      </property>
-      <widget class="QWidget" name="gridContainer" native="true">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>0</y>
-         <width>100</width>
-         <height>100</height>
-        </rect>
+      <layout class="QGridLayout" name="gridLayout">
+       <property name="leftMargin">
+        <number>10</number>
        </property>
-       <layout class="QGridLayout" name="gridLayout"/>
-      </widget>
+       <property name="topMargin">
+        <number>10</number>
+       </property>
+       <property name="rightMargin">
+        <number>10</number>
+       </property>
+       <property name="bottomMargin">
+        <number>10</number>
+       </property>
+       <property name="spacing">
+        <number>20</number>
+       </property>
+      </layout>
      </widget>
     </widget>
    </item>

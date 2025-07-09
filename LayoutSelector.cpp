@@ -12,6 +12,7 @@
 #include <QEvent>
 #include <QPainterPath>
 #include <QTransform>
+#include <QSizePolicy>
 
 LayoutSelector::LayoutSelector(const QList<LayoutData>& layouts,
                                const QList<QPolygonF>& shapePolygons,
@@ -106,7 +107,8 @@ QFrame* LayoutSelector::createLayoutFrame(int index)
 
     QFrame *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
-    frame->setFixedSize(325, 250);
+    frame->setMinimumSize(325, 250);
+    frame->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
     QLabel *label = new QLabel(ld.name);
     label->setAlignment(Qt::AlignCenter);
@@ -144,7 +146,8 @@ QFrame* LayoutSelector::createBaseShapeFrame()
 
     QFrame *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
-    frame->setFixedSize(325, 250);
+    frame->setMinimumSize(325, 250);
+    frame->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
 
     QLabel *label = new QLabel(m_lang == Language::French ? "Forme seule" : "Shape only");
     label->setAlignment(Qt::AlignCenter);
