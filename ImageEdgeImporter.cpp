@@ -74,6 +74,6 @@ bool ImageEdgeImporter::loadAndProcess(const QString &filePath,
         path.lineTo(pts[i].x, pts[i].y);
     path.closeSubpath();
 
-    edgePath = path;          // pas de Qt::simplified() (garde les ergots)
+    edgePath = m_p.final_simplify ? path.simplified() : path;
     return true;
 }

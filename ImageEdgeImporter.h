@@ -15,6 +15,7 @@ struct EdgeParams
     bool  morph_close       = true;  // ferme petits trous
     int   morph_kernel      = 5;     // 3 ou 5
     double epsilon_percent  = 0.0001;   // 0 pour aucun approx. (garde ergots)
+    bool  final_simplify    = true;     // QPainterPath::simplified()
 };
 
 class ImageEdgeImporter
