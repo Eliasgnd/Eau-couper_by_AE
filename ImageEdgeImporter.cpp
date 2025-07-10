@@ -13,13 +13,19 @@ bool ImageEdgeImporter::loadAndProcess(const QString &filePath,
     if (img.empty())
         return false;
 
+    // ---
+    // Apply a small Gaussian blur to smooth the image before extracting edges.
+    // This reduces noise and results in cleaner contours.
+    cv::Mat imgBlurred;
+    cv::GaussianBlur(img, imgBlurred, cv::Size(5, 5), 0);
+
     cv::Mat imgRgb;
-    cv::cvtColor(img, imgRgb, cv::COLOR_BGR2RGB);
+    cv::cvtColor(imgBlurred, imgRgb, cv::COLOR_BGR2RGB);
     colorImage = QImage(imgRgb.data, imgRgb.cols, imgRgb.rows,
                         static_cast<int>(imgRgb.step), QImage::Format_RGB888).copy();
 
     cv::Mat gray;
-    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(imgBlurred, gray, cv::COLOR_BGR2GRAY);
     cv::Mat edges;
     cv::Canny(gray, edges, 100, 200);
 
