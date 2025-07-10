@@ -227,7 +227,7 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     ui->buttonClearSearch->setVisible(!inFolderView);
     inFolderView = false;
     currentFolder.clear();
-    ui->buttonClearSearch->setVisible(true); // remet la croix rouge
+    ui->buttonMenu->setVisible(true);   // remet la croix rouge
     update();
 }
 
@@ -278,6 +278,17 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     QAction *renameAction = menu->addAction(currentLanguage == Language::French ? "Renommer"  : "Rename");
     QAction *deleteAction = menu->addAction(currentLanguage == Language::French ? "Supprimer" : "Delete");
 
+    const QString currentFolderName = m_customShapes[index].folder;
+
+    if (!currentFolderName.isEmpty()) {
+        QAction *removeFromFolder = menu->addAction("❌ Retirer du dossier");
+        connect(removeFromFolder, &QAction::triggered, this, [this, index]() {
+            m_customShapes[index].folder.clear();  // retire la forme du dossier
+            saveCustomShapes();
+            displayShapes();  // revient à l'inventaire principal
+        });
+    }
+
     if (!this->m_folders.isEmpty()) {
         qDebug() << "Création du sous-menu Ajouter au dossier...";
         qDebug() << "m_folders contient" << m_folders.size() << "éléments :";
@@ -285,13 +296,22 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 
         // ➕ Ajoute tout en haut :
         QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier...");
-        connect(newFolderAction, &QAction::triggered, this, [this]() {
+        connect(newFolderAction, &QAction::triggered, this, [this, index]() {
             bool ok;
             QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
             if (ok && !name.trimmed().isEmpty()) {
-                m_folders.append({ name.trimmed() });
-                saveCustomShapes();  // ou saveState() si tu veux rendre persistant
-                displayShapes();     // recharge pour que le dossier apparaisse
+                QString cleanName = name.trimmed();
+
+                // Ajoute le dossier
+                m_folders.append({ cleanName });
+
+                // Ajoute immédiatement la forme sélectionnée dans ce dossier
+                if (index >= 0 && index < m_customShapes.size()) {
+                    m_customShapes[index].folder = cleanName;
+                }
+
+                saveCustomShapes();
+                displayShapes();
             }
         });
         for (const InventaireFolder &folder : m_folders) {
@@ -866,6 +886,8 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
 
 void Inventaire::displayShapesInFolder(const QString &folderName, const QString &filter)
 {
+    QString search = filter.trimmed();
+
     // Nettoyer l'ancien contenu
     if (!ui->scrollAreaInventaire)
         return;
@@ -897,7 +919,7 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         if (!inFolderView && !data.folder.isEmpty())
             continue;
 
-        if (!filter.isEmpty() && !data.name.toLower().contains(filter.toLower()))
+        if (!search.isEmpty() && !data.name.toLower().contains(search))
             continue;
 
         if (col >= 7) {
@@ -920,8 +942,7 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
 
     // ajouter le bouton en haut à gauche du layout principal
     gridLayout->addWidget(retourButton, row + 1, 0, Qt::AlignLeft);
-    ui->buttonClearSearch->setVisible(!inFolderView);
-    ui->buttonClearSearch->setVisible(false); // cache la croix rouge
+    ui->buttonMenu->setVisible(false);  // masque la croix rouge
 
 }
 
