@@ -162,42 +162,13 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         if (!f.isEmpty() && !shapeInfo.first.toLower().contains(f))
             continue; // name does not match filter
 
-        // Thumbnail scene
-        auto *scene = new QGraphicsScene();
-        auto *view  = new QGraphicsView(scene);
-        view->setFixedSize(120, 120);
-        view->setStyleSheet("background-color: white;");
-        view->setAlignment(Qt::AlignCenter);
-        view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        const QString folder = m_baseShapeFolders.value(shapeInfo.second);
+        if (!folder.isEmpty() && !inFolderView)
+            continue;
+        if (inFolderView && folder != currentFolder)
+            continue;
 
-        const QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(shapeInfo.second, 70, 70);
-        if (!shapes.isEmpty()) {
-            QGraphicsItem *shapeItem = shapes.first();
-            scene->addItem(shapeItem);
-            scene->setSceneRect(shapeItem->boundingRect().adjusted(-5, -5, 5, 5));
-            view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
-        }
-
-        auto *frame = new QFrame();
-        frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
-        frame->setFixedSize(150, 220);
-
-        auto *label = new QLabel(shapeInfo.first);
-        label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("color: black; font-size: 16px;");
-
-        auto *frameLayout = new QVBoxLayout(frame);
-        frameLayout->setContentsMargins(5, 5, 5, 5);
-        frameLayout->setSpacing(5);
-        frameLayout->addWidget(view, 0, Qt::AlignCenter);
-        frameLayout->addWidget(label);
-
-        // Store built-in shape type
-        frame->setProperty("shapeType", static_cast<int>(shapeInfo.second));
-        frame->setCursor(Qt::PointingHandCursor);
-        frame->installEventFilter(this);
-
+        QFrame *frame = createBaseShapeCard(shapeInfo.second, shapeInfo.first);
         gridLayout->addWidget(frame, row, col);
         if (++col >= 7) {
             col = 0;
@@ -525,6 +496,7 @@ void Inventaire::loadCustomShapes()
 {
     m_customShapes.clear();
     m_baseShapeLayouts.clear();
+    m_baseShapeFolders.clear();
     m_folders.clear();
 
     QFile file(customShapesFilePath());
@@ -634,6 +606,12 @@ void Inventaire::loadCustomShapes()
         }
         m_baseShapeLayouts[type] = list;
     }
+
+    const QJsonObject baseFoldersObj = root.value("baseFolders").toObject();
+    for (auto it = baseFoldersObj.begin(); it != baseFoldersObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        m_baseShapeFolders[type] = it.value().toString();
+    }
 }
 
 void Inventaire::saveCustomShapes() const
@@ -706,6 +684,11 @@ void Inventaire::saveCustomShapes() const
         baseObj[QString::number(static_cast<int>(it.key()))] = layoutsArr;
     }
 
+    QJsonObject baseFoldersObj;
+    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
+        baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
+    }
+
     QJsonArray foldersArr;
     for (const InventaireFolder &f : m_folders) {
         QJsonObject fo;
@@ -717,6 +700,7 @@ void Inventaire::saveCustomShapes() const
     QJsonObject rootObj;
     rootObj["shapes"]      = shapesArr;
     rootObj["baseLayouts"] = baseObj;
+    rootObj["baseFolders"] = baseFoldersObj;
     rootObj["folders"]     = foldersArr;
 
     QFile file(customShapesFilePath());
@@ -861,6 +845,108 @@ QString Inventaire::baseShapeName(ShapeModel::Type type, Language lang)
     return {};
 }
 
+QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &name)
+{
+    auto *scene = new QGraphicsScene();
+    auto *view  = new QGraphicsView(scene);
+    view->setFixedSize(120, 120);
+    view->setStyleSheet("background-color: white;");
+    view->setAlignment(Qt::AlignCenter);
+    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    const QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(type, 70, 70);
+    if (!shapes.isEmpty()) {
+        QGraphicsItem *shapeItem = shapes.first();
+        scene->addItem(shapeItem);
+        scene->setSceneRect(shapeItem->boundingRect().adjusted(-5, -5, 5, 5));
+        view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    }
+
+    auto *frame = new QFrame();
+    frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
+    frame->setFixedSize(150, 220);
+
+    auto *label = new QLabel(name);
+    label->setAlignment(Qt::AlignCenter);
+    label->setStyleSheet("color: black; font-size: 16px;");
+
+    auto *menuButton = new QPushButton("…");
+    menuButton->setFixedSize(25, 25);
+    menuButton->setStyleSheet("border: none; font-size: 14px;");
+
+    QMenu *menu = new QMenu(menuButton);
+
+    const QString currentFolderName = m_baseShapeFolders.value(type);
+    if (!currentFolderName.isEmpty()) {
+        QAction *removeFromFolder = menu->addAction("❌ Retirer du dossier");
+        connect(removeFromFolder, &QAction::triggered, this, [this, type]() {
+            QString oldFolder = m_baseShapeFolders.value(type);
+            QString parentFolder;
+            for (const InventaireFolder &f : m_folders) {
+                if (f.name == oldFolder) { parentFolder = f.parentFolder; break; }
+            }
+            m_baseShapeFolders[type] = parentFolder;
+            saveCustomShapes();
+            if (parentFolder.isEmpty())
+                displayShapes();
+            else
+                displayShapesInFolder(parentFolder, ui->searchBar->text());
+        });
+    }
+
+    if (!m_folders.isEmpty()) {
+        QMenu *folderSubMenu = menu->addMenu("Ajouter au dossier");
+        QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier...");
+        connect(newFolderAction, &QAction::triggered, this, [this, type]() {
+            bool ok; QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
+            if (ok && !name.trimmed().isEmpty()) {
+                QString cleanName = name.trimmed();
+                QString parent = inFolderView ? currentFolder : "";
+                m_folders.append({cleanName, parent});
+                m_baseShapeFolders[type] = cleanName;
+                saveCustomShapes();
+                if (inFolderView)
+                    displayShapesInFolder(currentFolder, ui->searchBar->text());
+                else
+                    displayShapes(ui->searchBar->text());
+            }
+        });
+        for (const InventaireFolder &folder : m_folders) {
+            if (inFolderView && folder.parentFolder != currentFolder)
+                continue;
+            if (!inFolderView && !folder.parentFolder.isEmpty())
+                continue;
+            QAction *folderAction = folderSubMenu->addAction(folder.name);
+            connect(folderAction, &QAction::triggered, this, [this, type, folder]() {
+                m_baseShapeFolders[type] = folder.name;
+                saveCustomShapes();
+                displayShapes();
+            });
+        }
+    }
+
+    connect(menuButton, &QPushButton::clicked, [menu, menuButton]() {
+        menu->exec(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
+    });
+
+    auto *headerLayout = new QHBoxLayout();
+    headerLayout->addStretch();
+    headerLayout->addWidget(menuButton);
+
+    auto *mainLayout = new QVBoxLayout(frame);
+    mainLayout->setContentsMargins(5, 5, 5, 5);
+    mainLayout->setSpacing(5);
+    mainLayout->addLayout(headerLayout);
+    mainLayout->addWidget(view, 0, Qt::AlignCenter);
+    mainLayout->addWidget(label);
+
+    frame->setProperty("shapeType", static_cast<int>(type));
+    frame->setCursor(Qt::PointingHandCursor);
+    frame->installEventFilter(this);
+    return frame;
+}
+
 QFrame* Inventaire::createFolderCard(const QString& folderName)
 {
     // Icône SVG centrée sans cadre
@@ -978,6 +1064,36 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         QFrame *card = createFolderCard(folder.name);
         gridLayout->addWidget(card, row, col);
         if (++col >= 7) { col = 0; row++; }
+    }
+
+    QList<QPair<QString, ShapeModel::Type>> shapeList;
+    if (currentLanguage == Language::French) {
+        shapeList = {
+            {"Cercle",    ShapeModel::Type::Circle},
+            {"Rectangle", ShapeModel::Type::Rectangle},
+            {"Triangle",  ShapeModel::Type::Triangle},
+            {"Étoile",    ShapeModel::Type::Star},
+            {"Cœur",      ShapeModel::Type::Heart}
+        };
+    } else {
+        shapeList = {
+            {"Circle",    ShapeModel::Type::Circle},
+            {"Rectangle", ShapeModel::Type::Rectangle},
+            {"Triangle",  ShapeModel::Type::Triangle},
+            {"Star",      ShapeModel::Type::Star},
+            {"Heart",     ShapeModel::Type::Heart}
+        };
+    }
+
+    for (const auto &shapeInfo : shapeList) {
+        QString folder = m_baseShapeFolders.value(shapeInfo.second);
+        if (folder != folderName)
+            continue;
+        if (!search.isEmpty() && !shapeInfo.first.toLower().contains(search))
+            continue;
+        if (col >= 7) { col = 0; row++; }
+        QFrame *frame = createBaseShapeCard(shapeInfo.second, shapeInfo.first);
+        gridLayout->addWidget(frame, row, col++);
     }
 
     for (int i = 0; i < m_customShapes.size(); ++i) {

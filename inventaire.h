@@ -130,10 +130,12 @@ private:
 
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
+    QMap<ShapeModel::Type, QString> m_baseShapeFolders;
     Language currentLanguage {Language::French};
     QList<InventaireFolder> m_folders;
 
     QFrame *createFolderCard(const QString &folderName);
+    QFrame *createBaseShapeCard(ShapeModel::Type type, const QString &name);
     bool inFolderView = false;
     QString currentFolder;
 
