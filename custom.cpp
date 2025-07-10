@@ -554,30 +554,32 @@ void custom::importerLogo()
 void custom::importerImageCouleur()
 {
     QString filePath = QFileDialog::getOpenFileName(
-        this,
-        tr("Sélectionner une image"),
-        "",
-        tr("Images (*.png *.jpg *.bmp)")
-        );
-    if (filePath.isEmpty())
-        return;
+        this, tr("Sélectionner une image"),
+        "",  tr("Images (*.png *.jpg *.bmp)"));
+    if (filePath.isEmpty()) return;
 
-    QImage colorImg, edgeImg;
-    if (!m_imageImporter.loadAndProcess(filePath, colorImg, edgeImg)) {
-        QMessageBox::warning(this, tr("Erreur"), tr("Impossible de charger l'image."));
+    QPainterPath edge;
+    if (!m_imageImporter.loadAndProcess(filePath, edge)) {
+        QMessageBox::warning(this, tr("Erreur"),
+                             tr("Contour introuvable."));
         return;
     }
 
-    m_colorScene->clear();
-    m_edgeScene->clear();
-    m_colorScene->addPixmap(QPixmap::fromImage(colorImg));
-    m_colorScene->setSceneRect(colorImg.rect());
-    m_edgeScene->addPixmap(QPixmap::fromImage(edgeImg));
-    m_edgeScene->setSceneRect(edgeImg.rect());
-    m_colorView->fitInView(m_colorScene->sceneRect(), Qt::KeepAspectRatio);
-    m_edgeView->fitInView(m_edgeScene->sceneRect(), Qt::KeepAspectRatio);
-    m_colorView->setVisible(true);
-    m_edgeView->setVisible(true);
+    // mise à l'échelle + centrage (identique à importerLogo)
+    QRectF br = edge.boundingRect();
+    double scale = 300.0 / std::max(br.width(), br.height());
+    QTransform T;
+    T.translate(-br.x(), -br.y());
+    T.scale(scale, scale);
+    QPainterPath scaled = T.map(edge);
+    scaled.translate(QPointF(drawArea->width()/2.0,
+                             drawArea->height()/2.0) -
+                     scaled.boundingRect().center());
+
+    QList<QPainterPath> subs =
+        CustomDrawArea::separateIntoSubpaths(scaled);
+    for (const QPainterPath &sp : subs)
+        drawArea->addImportedLogoSubpath(sp);
 }
 
 void custom::onCopyPasteClicked()

@@ -1,10 +1,18 @@
+QMAKE_MSC_VER = 1929  # Visual Studio 2022 (19.29+)
+
 QT += core gui widgets svg network bluetooth
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
-CONFIG += c++17 link_pkgconfig
-PKGCONFIG += opencv4
 
+INCLUDEPATH += C:/Users/elias/Desktop/opencv/build/include
+LIBS += -LC:/Users/elias/Desktop/opencv/build/x64/vc16/lib
+
+CONFIG(debug, debug|release) {
+    LIBS += -lopencv_world4120d
+} else {
+    LIBS += -lopencv_world4120
+}
 
 HEADERS += \
     MainWindow.h FormeVisualization.h \

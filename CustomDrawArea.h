@@ -96,6 +96,7 @@ public:
     void setSnapToGridEnabled(bool enabled) { m_snapToGrid = enabled; update(); }
     bool isSnapToGridEnabled()      const  { return m_snapToGrid;      }
 
+    static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 
 public slots:
     void undoLastAction(); // Annule la dernière action
@@ -204,7 +205,6 @@ private:
     QVector<QPointF> m_nodes;  // Pour stocker les positions des nœuds
 
 
-    QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
     QList<QPainterPath> m_paths;
 
     bool gestureEvent(QGestureEvent *event);
