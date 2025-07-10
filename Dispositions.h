@@ -6,6 +6,7 @@
 #include <QPolygonF>
 #include <QFrame>
 #include <QString>
+#include <QStringList>
 #include "inventaire.h" // for LayoutData
 #include "Language.h"
 
@@ -46,6 +47,7 @@ private:
     QFrame* createLayoutFrame(int index);
     QFrame* createBaseShapeFrame();
     void displayLayouts(const QString &filter = QString());
+    QStringList getLayoutNames() const;
     QList<LayoutData> m_layouts;
     QList<QPolygonF> m_polygons;
     Language m_lang {Language::French};

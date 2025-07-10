@@ -68,6 +68,7 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
                 m_keyboardActive = true;
                 Clavier txtDlg(le->window());
 
+
                 // 🔁 Mise à jour de la barre de recherche si on édite celle-ci
                 connect(&txtDlg, &Clavier::textChangedExternally, le, [le](const QString &text){
                     if (le->text() != text) {

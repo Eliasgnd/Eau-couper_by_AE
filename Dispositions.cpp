@@ -18,6 +18,7 @@
 #include <QTransform>
 #include <QSizePolicy>
 #include <QDateTime>
+#include <QStringList>
 #include <algorithm>
 #include "inventaire.h"
 
@@ -46,8 +47,6 @@ Dispositions::Dispositions(const QString &shapeName,
 
     connect(ui->buttonMenu, &QPushButton::clicked,
             this, &Dispositions::onMenuButtonClicked);
-    connect(ui->closeBtn,  &QPushButton::clicked,
-            this, &Dispositions::onCloseButtonClicked);
     connect(ui->searchBar, &QLineEdit::textChanged,
             this, &Dispositions::onSearchTextChanged);
     connect(ui->buttonClearSearch, &QPushButton::clicked,
@@ -59,9 +58,6 @@ Dispositions::Dispositions(const QString &shapeName,
         ui->gridLayout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
     }
-
-    ui->closeBtn->setText(m_lang == Language::French ? tr("Fermer")
-                                                     : tr("Cancel"));
 }
 
 Dispositions::~Dispositions()
@@ -254,6 +250,14 @@ void Dispositions::displayLayouts(const QString &filter)
         ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
         ++pos;
     }
+}
+
+QStringList Dispositions::getLayoutNames() const
+{
+    QStringList names;
+    for (const LayoutData &ld : m_layouts)
+        names << ld.name;
+    return names;
 }
 
 /* --------------------- carte « forme seule » --------------------- */

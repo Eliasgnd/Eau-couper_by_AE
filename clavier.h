@@ -9,6 +9,7 @@
 #include <QSettings>
 
 
+
 //cration brnache global
 class Clavier : public QDialog
 {
@@ -16,6 +17,7 @@ class Clavier : public QDialog
 
 public:
     explicit Clavier(QWidget *parent = nullptr);  // Constructeur du clavier
+
     QString getText() const;  // Récupère le texte saisi
 
 private slots:
@@ -77,6 +79,7 @@ private:
     QStringList usageHistory;
     void loadUsageHistory();
     void saveUsageHistory() const;
+
 
 signals:
     void textChangedExternally(const QString &text);
