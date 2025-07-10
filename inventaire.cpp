@@ -124,6 +124,8 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     const QString f = filter.trimmed().toLower();
 
     for (const InventaireFolder &folder : m_folders) {
+        if (!folder.parentFolder.isEmpty())
+            continue;  // ❌ n’afficher que les dossiers racines
         if (!filter.isEmpty() && !folder.name.toLower().contains(filter.toLower()))
             continue;
 
@@ -301,22 +303,31 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
             QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
             if (ok && !name.trimmed().isEmpty()) {
                 QString cleanName = name.trimmed();
-
-                // Ajoute le dossier
-                m_folders.append({ cleanName });
-
-                // Ajoute immédiatement la forme sélectionnée dans ce dossier
+                QString parent = inFolderView ? currentFolder : "";
+                m_folders.append({ cleanName, parent });
                 if (index >= 0 && index < m_customShapes.size()) {
                     m_customShapes[index].folder = cleanName;
                 }
 
                 saveCustomShapes();
-                displayShapes();
+                if (inFolderView)
+                    displayShapesInFolder(currentFolder, ui->searchBar->text());
+                else
+                    displayShapes(ui->searchBar->text());
             }
         });
+        QString currentFolderName = m_customShapes[index].folder;
+
         for (const InventaireFolder &folder : m_folders) {
+            if (inFolderView && folder.parentFolder != currentFolder)
+                continue;  // 👉 dans un dossier, ne proposer que ses sous-dossiers
+
+            if (!inFolderView && !folder.parentFolder.isEmpty())
+                continue;  // 👉 dans l'inventaire principal, ne proposer que les dossiers racines
+
             qDebug() << " - " << folder.name;
             QAction *folderAction = folderSubMenu->addAction(folder.name);
+
             connect(folderAction, &QAction::triggered, this,
                     [this, folder, frame]() {
                         bool ok = false;
@@ -328,6 +339,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
                         }
                     });
         }
+
     }
 
 
@@ -911,6 +923,15 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
 
     int row = 0, col = 0;
 
+    for (const InventaireFolder &folder : m_folders) {
+        if (folder.parentFolder != folderName)
+            continue;
+
+        QFrame *card = createFolderCard(folder.name);
+        gridLayout->addWidget(card, row, col);
+        if (++col >= 7) { col = 0; row++; }
+    }
+
     for (int i = 0; i < m_customShapes.size(); ++i) {
         const CustomShapeData &data = m_customShapes[i];
 
@@ -937,9 +958,23 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     retourButton->setStyleSheet("color: white; background-color: red; font-size: 14px;");
     retourButton->setFixedSize(120, 40);
     connect(retourButton, &QPushButton::clicked, this, [this]() {
-        displayShapes();  // revient à l'inventaire principal
-    });
+        // Cherche le dossier courant
+        QString parent;
+        for (const InventaireFolder &f : m_folders) {
+            if (f.name == currentFolder) {
+                parent = f.parentFolder;
+                break;
+            }
+        }
 
+        if (parent.isEmpty()) {
+            // Aucun parent ⇒ revenir à l'inventaire principal
+            displayShapes();
+        } else {
+            // Retourner au dossier parent
+            displayShapesInFolder(parent, "");
+        }
+    });
     // ajouter le bouton en haut à gauche du layout principal
     gridLayout->addWidget(retourButton, row + 1, 0, Qt::AlignLeft);
     ui->buttonMenu->setVisible(false);  // masque la croix rouge

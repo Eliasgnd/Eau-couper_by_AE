@@ -46,7 +46,9 @@ struct CustomShapeData {
 // Structure pour un dossier
 struct InventaireFolder {
     QString name;
+    QString parentFolder;  // vide si dossier racine
 };
+
 
 // -----------------------------------------------------------------------------
 // Inventaire widget
