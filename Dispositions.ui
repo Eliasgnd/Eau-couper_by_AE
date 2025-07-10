@@ -16,7 +16,7 @@
      <item>
       <spacer name="horizontalSpacer">
        <property name="orientation">
-        <enum>Qt::Horizontal</enum>
+        <enum>Qt::Orientation::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
@@ -82,6 +82,14 @@ QPushButton:pressed {
       <bool>true</bool>
      </property>
      <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>776</width>
+        <height>516</height>
+       </rect>
+      </property>
       <layout class="QGridLayout" name="gridLayout">
        <property name="leftMargin">
         <number>10</number>
@@ -100,13 +108,6 @@ QPushButton:pressed {
        </property>
       </layout>
      </widget>
-    </widget>
-   </item>
-   <item alignment="Qt::AlignHCenter">
-    <widget class="QPushButton" name="closeBtn">
-     <property name="text">
-      <string>Fermer</string>
-     </property>
     </widget>
    </item>
   </layout>
