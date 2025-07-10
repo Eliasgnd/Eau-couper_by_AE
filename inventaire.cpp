@@ -43,12 +43,14 @@ Inventaire* Inventaire::instance = nullptr;
 Inventaire::Inventaire(QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventaire)
 {
-    m_folders.append({ "Exemples" });
-    m_folders.append({ "Maquettes" });
-
     ui->setupUi(this);
 
     loadCustomShapes();
+
+    if (m_folders.isEmpty()) {
+        m_folders.append({ "Exemples" });
+        m_folders.append({ "Maquettes" });
+    }
 
     updateTranslations(currentLanguage);
 
@@ -523,6 +525,7 @@ void Inventaire::loadCustomShapes()
 {
     m_customShapes.clear();
     m_baseShapeLayouts.clear();
+    m_folders.clear();
 
     QFile file(customShapesFilePath());
     if (!file.open(QIODevice::ReadOnly))
@@ -534,6 +537,20 @@ void Inventaire::loadCustomShapes()
         return;
 
     const QJsonObject root = doc.object();
+
+    // ------------------------------
+    // Folders
+    // ------------------------------
+    const QJsonArray foldersArr = root.value("folders").toArray();
+    for (const QJsonValue &val : foldersArr) {
+        if (!val.isObject())
+            continue;
+        const QJsonObject obj = val.toObject();
+        InventaireFolder f;
+        f.name = obj.value("name").toString();
+        f.parentFolder = obj.value("parentFolder").toString();
+        m_folders.append(f);
+    }
 
     // ------------------------------
     // Custom shapes
@@ -617,6 +634,11 @@ void Inventaire::loadCustomShapes()
         }
         m_baseShapeLayouts[type] = list;
     }
+
+    if (m_folders.isEmpty()) {
+        m_folders.append({ "Exemples" });
+        m_folders.append({ "Maquettes" });
+    }
 }
 
 void Inventaire::saveCustomShapes() const
@@ -689,9 +711,18 @@ void Inventaire::saveCustomShapes() const
         baseObj[QString::number(static_cast<int>(it.key()))] = layoutsArr;
     }
 
+    QJsonArray foldersArr;
+    for (const InventaireFolder &f : m_folders) {
+        QJsonObject fo;
+        fo["name"] = f.name;
+        fo["parentFolder"] = f.parentFolder;
+        foldersArr.append(fo);
+    }
+
     QJsonObject rootObj;
     rootObj["shapes"]      = shapesArr;
     rootObj["baseLayouts"] = baseObj;
+    rootObj["folders"]     = foldersArr;
 
     QFile file(customShapesFilePath());
     if (file.open(QIODevice::WriteOnly)) {
