@@ -46,6 +46,10 @@ Dispositions::Dispositions(const QString &shapeName,
             this, &Dispositions::onMenuButtonClicked);
     connect(ui->closeBtn,  &QPushButton::clicked,
             this, &Dispositions::onCloseButtonClicked);
+    connect(ui->searchBar, &QLineEdit::textChanged,
+            this, &Dispositions::onSearchTextChanged);
+    connect(ui->buttonClearSearch, &QPushButton::clicked,
+            this, &Dispositions::onClearSearchClicked);
 
     /* --------------------- grille --------------------- */
     if (ui->gridLayout) {
@@ -204,7 +208,7 @@ QFrame *Dispositions::createLayoutFrame(int index)
 }
 
 /* --------------------- réaffichage des cartes --------------------- */
-void Dispositions::displayLayouts()
+void Dispositions::displayLayouts(const QString &filter)
 {
     if (!ui->gridLayout)
         return;
@@ -216,13 +220,24 @@ void Dispositions::displayLayouts()
         delete child;
     }
 
-    QFrame *shapeFrame = createBaseShapeFrame();
-    ui->gridLayout->addWidget(shapeFrame, 0, 0);
+    const QString f = filter.trimmed().toLower();
+
+    int index = 0;
+
+    const QString baseName = m_lang == Language::French ? "Forme seule" : "Shape only";
+    if (f.isEmpty() || baseName.toLower().contains(f)) {
+        QFrame *shapeFrame = createBaseShapeFrame();
+        ui->gridLayout->addWidget(shapeFrame, index / 4, index % 4);
+        ++index;
+    }
 
     for (int i = 0; i < m_layouts.size(); ++i) {
+        if (!f.isEmpty() && !m_layouts.at(i).name.toLower().contains(f))
+            continue;
+
         QFrame *frame = createLayoutFrame(i);
-        int pos = i + 1;
-        ui->gridLayout->addWidget(frame, pos / 4, pos % 4);
+        ui->gridLayout->addWidget(frame, index / 4, index % 4);
+        ++index;
     }
 }
 
@@ -290,4 +305,16 @@ bool Dispositions::eventFilter(QObject *obj, QEvent *event)
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+
+void Dispositions::onSearchTextChanged(const QString &text)
+{
+    displayLayouts(text);
+}
+
+void Dispositions::onClearSearchClicked()
+{
+    if (ui->searchBar)
+        ui->searchBar->clear();
+    displayLayouts();
 }
