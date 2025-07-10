@@ -285,10 +285,32 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     if (!currentFolderName.isEmpty()) {
         QAction *removeFromFolder = menu->addAction("❌ Retirer du dossier");
         connect(removeFromFolder, &QAction::triggered, this, [this, index]() {
-            m_customShapes[index].folder.clear();  // retire la forme du dossier
+            if (index < 0 || index >= m_customShapes.size())
+                return;
+
+            QString oldFolder = m_customShapes[index].folder;
+            // Cherche le dossier parent
+            QString parentFolder;
+            for (const InventaireFolder &f : m_folders) {
+                if (f.name == oldFolder) {
+                    parentFolder = f.parentFolder;
+                    break;
+                }
+            }
+
+            // Réaffecte le dossier parent à la forme (ou rien si on est à la racine)
+            m_customShapes[index].folder = parentFolder;
+
+
             saveCustomShapes();
-            displayShapes();  // revient à l'inventaire principal
+
+            if (parentFolder.isEmpty()) {
+                displayShapes();  // retour à la racine
+            } else {
+                displayShapesInFolder(parentFolder, ui->searchBar->text());  // retour au dossier parent
+            }
         });
+
     }
 
     if (!this->m_folders.isEmpty()) {
