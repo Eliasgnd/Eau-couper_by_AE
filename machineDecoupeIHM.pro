@@ -2,12 +2,13 @@ QT += core gui widgets svg network bluetooth
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
-CONFIG += c++17
+CONFIG += c++17 link_pkgconfig
+PKGCONFIG += opencv4
 
 
 HEADERS += \
     MainWindow.h FormeVisualization.h \
-    CustomDrawArea.h LogoImporter.h ShapeModel.h \
+    CustomDrawArea.h LogoImporter.h ImageEdgeImporter.h ShapeModel.h \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
@@ -17,7 +18,7 @@ HEADERS += \
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
-    CustomDrawArea.cpp LogoImporter.cpp ShapeModel.cpp \
+    CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \

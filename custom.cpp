@@ -5,6 +5,9 @@
 #include "clavier.h"
 #include "inventaire.h"
 #include "LogoImporter.h"
+#include "ImageEdgeImporter.h"
+#include <QGraphicsView>
+#include <QGraphicsScene>
 #include "Language.h"
 #include <QSpinBox>
 #include <QPushButton>
@@ -39,14 +42,29 @@ custom::custom(Language lang, QWidget *parent)
 
     ScreenUtils::placeOnSecondaryScreen(this);
 
+    // Création des vues pour l'image couleur et l'image de bords
+    m_colorView = new QGraphicsView(this);
+    m_edgeView  = new QGraphicsView(this);
+    m_colorScene = new QGraphicsScene(this);
+    m_edgeScene  = new QGraphicsScene(this);
+    m_colorView->setScene(m_colorScene);
+    m_edgeView->setScene(m_edgeScene);
+    m_colorView->setVisible(false);
+    m_edgeView->setVisible(false);
+
     // Création de l'instance de CustomDrawArea
     drawArea = new CustomDrawArea(this);
 
-    // Ajout de drawArea dans le widget "drawingWidget"
+    // Ajout des vues et de drawArea dans le widget "drawingWidget"
     if (ui->drawingWidget) {
         if (!ui->drawingWidget->layout())
             ui->drawingWidget->setLayout(new QVBoxLayout());
-        ui->drawingWidget->layout()->addWidget(drawArea);
+        auto *dwLayout = qobject_cast<QVBoxLayout*>(ui->drawingWidget->layout());
+        QHBoxLayout *imgLayout = new QHBoxLayout();
+        imgLayout->addWidget(m_colorView);
+        imgLayout->addWidget(m_edgeView);
+        dwLayout->addLayout(imgLayout);
+        dwLayout->addWidget(drawArea);
     } else {
         //qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
@@ -262,7 +280,17 @@ custom::custom(Language lang, QWidget *parent)
     });
 
     connect(ui->buttonRetour, &QPushButton::clicked, drawArea, &CustomDrawArea::undoLastAction);
-    connect(ui->buttonImporter, &QPushButton::clicked, this, &custom::importerLogo);
+
+    // Menu pour les différents types d'importation d'image
+    QMenu *importMenu = new QMenu(this);
+    QAction *actionImportLogo = new QAction(tr("Importer un logo"), this);
+    QAction *actionImportImage = new QAction(tr("Importer image couleur"), this);
+    importMenu->addAction(actionImportLogo);
+    importMenu->addAction(actionImportImage);
+    ui->buttonImporter->setMenu(importMenu);
+    ui->buttonImporter->setPopupMode(QToolButton::InstantPopup);
+    connect(actionImportLogo, &QAction::triggered, this, &custom::importerLogo);
+    connect(actionImportImage, &QAction::triggered, this, &custom::importerImageCouleur);
 
     // --- Connexions pour mettre à jour la police dans drawArea ---
     connect(fontCombo, &QFontComboBox::currentFontChanged, this, [=]() {
@@ -521,6 +549,35 @@ void custom::importerLogo()
     for (const QPainterPath &sp : subpaths) {
         drawArea->addImportedLogoSubpath(sp);
     }
+}
+
+void custom::importerImageCouleur()
+{
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        tr("Sélectionner une image"),
+        "",
+        tr("Images (*.png *.jpg *.bmp)")
+        );
+    if (filePath.isEmpty())
+        return;
+
+    QImage colorImg, edgeImg;
+    if (!m_imageImporter.loadAndProcess(filePath, colorImg, edgeImg)) {
+        QMessageBox::warning(this, tr("Erreur"), tr("Impossible de charger l'image."));
+        return;
+    }
+
+    m_colorScene->clear();
+    m_edgeScene->clear();
+    m_colorScene->addPixmap(QPixmap::fromImage(colorImg));
+    m_colorScene->setSceneRect(colorImg.rect());
+    m_edgeScene->addPixmap(QPixmap::fromImage(edgeImg));
+    m_edgeScene->setSceneRect(edgeImg.rect());
+    m_colorView->fitInView(m_colorScene->sceneRect(), Qt::KeepAspectRatio);
+    m_edgeView->fitInView(m_edgeScene->sceneRect(), Qt::KeepAspectRatio);
+    m_colorView->setVisible(true);
+    m_edgeView->setVisible(true);
 }
 
 void custom::onCopyPasteClicked()
