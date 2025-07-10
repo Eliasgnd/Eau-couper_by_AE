@@ -4,6 +4,9 @@
 #include <QWidget>
 #include "CustomDrawArea.h"
 #include "Language.h"
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include "ImageEdgeImporter.h"
 
 namespace Ui {
 class custom;
@@ -25,6 +28,11 @@ protected:
 private:
     Ui::custom *ui;
     CustomDrawArea *drawArea; // Instance de la zone de dessin
+    QGraphicsView  *m_colorView{};
+    QGraphicsView  *m_edgeView{};
+    QGraphicsScene *m_colorScene{};
+    QGraphicsScene *m_edgeScene{};
+    ImageEdgeImporter m_imageImporter;
     QStringList m_favoriteFonts;
 
 
@@ -33,6 +41,7 @@ private slots:
     void ouvrirClavier(); // Ouvrir le clavier virtuel
     void closeCustom(); // Fermer la fenêtre custom
     void importerLogo(); // Importer un logo dans la zone de dessin
+    void importerImageCouleur(); // Importer une image couleur et afficher les bords
     void saveCustomShape(); // Sauvegarder une forme personnalisée
     void onCopyPasteClicked(); // Gérer le bouton copier/coller
 
