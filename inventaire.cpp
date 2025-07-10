@@ -165,7 +165,7 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         // Thumbnail scene
         auto *scene = new QGraphicsScene();
         auto *view  = new QGraphicsView(scene);
-        view->setFixedSize(120, 150);
+        view->setFixedSize(120, 120);
         view->setStyleSheet("background-color: white;");
         view->setAlignment(Qt::AlignCenter);
         view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -633,11 +633,6 @@ void Inventaire::loadCustomShapes()
             list.append(ld);
         }
         m_baseShapeLayouts[type] = list;
-    }
-
-    if (m_folders.isEmpty()) {
-        m_folders.append({ "Exemples" });
-        m_folders.append({ "Maquettes" });
     }
 }
 
