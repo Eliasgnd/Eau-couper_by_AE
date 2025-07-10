@@ -8,6 +8,8 @@
 #include <QFrame>
 #include <QString>
 #include <QStringList>
+#include <QCompleter>
+#include <QStringListModel>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -113,6 +115,7 @@ private:
 
     // Display all shapes (built‑in + custom). Optional filter on name.
     void displayShapes(const QString &filter = QString());
+    void updateCompleter();
 
     // Build and return the QFrame representing the custom shape at index
     QFrame* addCustomShapeToGrid(int index);
@@ -126,6 +129,7 @@ private:
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     Language currentLanguage {Language::French};
+    QCompleter *m_completer {nullptr};
 };
 
 #endif // INVENTAIRE_H

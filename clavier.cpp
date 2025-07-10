@@ -4,7 +4,8 @@
 #include <QDebug>
 #include <QRegularExpression>
 
-Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
+Clavier::Clavier(QWidget *parent)
+    : QDialog(parent), majusculeActive(true)
 {
     setWindowTitle("Clavier Virtuel AZERTY");
     setFixedSize(650, 540);  // Augmenter la taille pour un meilleur affichage
@@ -230,6 +231,7 @@ QString Clavier::getText() const
 {
     return lineEdit->text();
 }
+
 
 // Fonction pour ajouter un texte dans le champ
 void Clavier::handleButton()

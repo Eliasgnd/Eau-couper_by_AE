@@ -18,6 +18,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QCompleter>
+#include <QStringListModel>
 #include <QDateTime>
 
 #include <QVBoxLayout>
@@ -206,6 +208,8 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     }
 
     update();
+
+    updateCompleter();
 }
 
 // -----------------------------------------------------------------------------
@@ -271,6 +275,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
             label->setText(newName);
             m_customShapes[index].name = newName;
             saveCustomShapes();
+            updateCompleter();
         }
     });
 
@@ -282,6 +287,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
             saveCustomShapes();
         }
         displayShapes();
+        updateCompleter();
     });
 
     auto *headerLayout = new QHBoxLayout();
@@ -320,6 +326,7 @@ void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QSt
 
     saveCustomShapes();
     displayShapes();
+    updateCompleter();
 }
 
 // -----------------------------------------------------------------------------
@@ -501,6 +508,8 @@ void Inventaire::loadCustomShapes()
         }
         m_baseShapeLayouts[type] = list;
     }
+
+    updateCompleter();
 }
 
 void Inventaire::saveCustomShapes() const
@@ -616,6 +625,22 @@ QStringList Inventaire::getAllShapeNames() const
         names << data.name;
 
     return names;
+}
+
+void Inventaire::updateCompleter()
+{
+    if (!ui->searchBar)
+        return;
+
+    if (!m_completer) {
+        m_completer = new QCompleter(this);
+        m_completer->setCaseSensitivity(Qt::CaseInsensitive);
+        ui->searchBar->setCompleter(m_completer);
+    }
+
+    QStringList names = getAllShapeNames();
+    auto *model = new QStringListModel(names, m_completer);
+    m_completer->setModel(model);
 }
 
 // -----------------------------------------------------------------------------
