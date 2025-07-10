@@ -1,4 +1,4 @@
-#include "Inventaire.h"
+#include "inventaire.h"
 #include "ui_inventaire.h"
 #include "ShapeModel.h"
 #include "MainWindow.h"
