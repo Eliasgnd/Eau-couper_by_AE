@@ -43,6 +43,9 @@ Inventaire* Inventaire::instance = nullptr;
 Inventaire::Inventaire(QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventaire)
 {
+    m_folders.append({ "Exemples" });
+    m_folders.append({ "Maquettes" });
+
     ui->setupUi(this);
 
     loadCustomShapes();
@@ -61,6 +64,7 @@ Inventaire::Inventaire(QWidget *parent)
 
     // Initial display
     displayShapes();
+
 }
 
 Inventaire::~Inventaire()
@@ -115,6 +119,15 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     int row = 0;
     int col = 0;
     const QString f = filter.trimmed().toLower();
+
+    for (const InventaireFolder &folder : m_folders) {
+        if (!filter.isEmpty() && !folder.name.toLower().contains(filter.toLower()))
+            continue;
+
+        QFrame *card = createFolderCard(folder.name);  // à créer plus bas
+        gridLayout->addWidget(card, row, col);
+        if (++col >= 7) { col = 0; row++; }
+    }
 
     // ---------------------------------------------------------------------
     // Built-in shapes
@@ -254,7 +267,41 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     QAction *renameAction = menu->addAction(currentLanguage == Language::French ? "Renommer"  : "Rename");
     QAction *deleteAction = menu->addAction(currentLanguage == Language::French ? "Supprimer" : "Delete");
 
+    if (!this->m_folders.isEmpty()) {
+        qDebug() << "Création du sous-menu Ajouter au dossier...";
+        qDebug() << "m_folders contient" << m_folders.size() << "éléments :";
+        QMenu *folderSubMenu = menu->addMenu("Ajouter au dossier");
+
+        // ➕ Ajoute tout en haut :
+        QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier...");
+        connect(newFolderAction, &QAction::triggered, this, [this]() {
+            bool ok;
+            QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
+            if (ok && !name.trimmed().isEmpty()) {
+                m_folders.append({ name.trimmed() });
+                saveCustomShapes();  // ou saveState() si tu veux rendre persistant
+                displayShapes();     // recharge pour que le dossier apparaisse
+            }
+        });
+        for (const InventaireFolder &folder : m_folders) {
+            qDebug() << " - " << folder.name;
+            QAction *folderAction = folderSubMenu->addAction(folder.name);
+            connect(folderAction, &QAction::triggered, this,
+                    [this, folder, frame]() {
+                        bool ok = false;
+                        int idx = frame->property("CustomShapeIndex").toInt(&ok);
+                        if (ok && idx >= 0 && idx < m_customShapes.size()) {
+                            m_customShapes[idx].folder = folder.name;
+                            saveCustomShapes();
+                            displayShapes();
+                        }
+                    });
+        }
+    }
+
+
     connect(menuButton, &QPushButton::clicked, [menu, menuButton]() {
+//        menu->setMinimumWidth(200);  // force un espace suffisant
         menu->exec(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
     });
 
@@ -347,6 +394,12 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
                 }
                 return true;
             }
+            if (frame->property("isFolder").toBool()) {
+                QString name = frame->property("folderName").toString();
+                displayShapesInFolder(name);  // à créer
+                return true;
+            }
+
         }
     }
     return QWidget::eventFilter(obj, event);
@@ -428,6 +481,7 @@ void Inventaire::loadCustomShapes()
         const QJsonObject obj = val.toObject();
         CustomShapeData data;
         data.name = obj.value("name").toString();
+        data.folder = obj.value("folder").toString();
 
         // Polygons
         const QJsonArray polyArr = obj.value("polygons").toArray();
@@ -506,6 +560,7 @@ void Inventaire::saveCustomShapes() const
     for (const CustomShapeData &data : m_customShapes) {
         QJsonObject obj;
         obj["name"] = data.name;
+        obj["folder"] = data.folder;
 
         // Polygons
         QJsonArray polyArr;
@@ -708,4 +763,69 @@ QString Inventaire::baseShapeName(ShapeModel::Type type, Language lang)
         return lang == Language::French ? QStringLiteral("Cœur")      : QStringLiteral("Heart");
     }
     return {};
+}
+
+QFrame* Inventaire::createFolderCard(const QString& folderName)
+{
+    QPixmap pix(":/folder-svgrepo-com.svg");
+    auto *scene = new QGraphicsScene();
+    auto *item = new QGraphicsPixmapItem(pix.scaled(70, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    scene->addItem(item);
+
+    auto *view = new QGraphicsView(scene);
+    view->setFixedSize(120, 120);
+    view->setStyleSheet("background-color: white;");
+    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    auto *menuButton = new QPushButton("...");
+    menuButton->setFixedSize(20, 20);
+    menuButton->setCursor(Qt::PointingHandCursor);
+
+    auto *headerLayout = new QHBoxLayout();
+    headerLayout->addStretch();
+    headerLayout->addWidget(menuButton);
+
+    auto *label = new QLabel(folderName);
+    label->setAlignment(Qt::AlignCenter);
+    label->setStyleSheet("color: black; font-size: 16px;");
+
+    auto *frame = new QFrame();
+    frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
+    frame->setFixedSize(150, 220);
+
+    auto *mainLayout = new QVBoxLayout(frame);
+    mainLayout->setContentsMargins(5, 5, 5, 5);
+    mainLayout->setSpacing(5);
+    mainLayout->addLayout(headerLayout);
+    mainLayout->addWidget(view, 0, Qt::AlignCenter);
+    mainLayout->addWidget(label);
+
+    frame->setProperty("isFolder", true);
+    frame->setProperty("folderName", folderName);
+    frame->setCursor(Qt::PointingHandCursor);
+    frame->installEventFilter(this);
+
+    return frame;
+}
+
+void Inventaire::displayShapesInFolder(const QString &folderName)
+{
+    displayShapes();  // recharge tout
+    auto *widget = ui->scrollAreaInventaire->widget();
+    if (!widget) return;
+
+    for (QFrame *frame : widget->findChildren<QFrame*>()) {
+        if (frame->property("isFolder").toBool()) {
+            frame->setVisible(false);
+            continue;
+        }
+        if (frame->property("CustomShapeIndex").isValid()) {
+            int index = frame->property("CustomShapeIndex").toInt();
+            const auto &data = m_customShapes.at(index);
+            frame->setVisible(data.folder == folderName);
+        } else {
+            frame->setVisible(false);  // cache formes prédéfinies
+        }
+    }
 }

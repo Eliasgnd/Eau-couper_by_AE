@@ -39,7 +39,13 @@ struct LayoutData {
 struct CustomShapeData {
     QList<QPolygonF> polygons;
     QString name;
+    QString folder;
     QList<LayoutData> layouts;
+};
+
+// Structure pour un dossier
+struct InventaireFolder {
+    QString name;
 };
 
 // -----------------------------------------------------------------------------
@@ -123,6 +129,10 @@ private:
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     Language currentLanguage {Language::French};
+    QList<InventaireFolder> m_folders;
+
+    QFrame *createFolderCard(const QString &folderName);
+    void displayShapesInFolder(const QString &folderName);
 };
 
 #endif // INVENTAIRE_H
