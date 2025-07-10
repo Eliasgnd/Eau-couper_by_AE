@@ -132,7 +132,10 @@ private:
     QList<InventaireFolder> m_folders;
 
     QFrame *createFolderCard(const QString &folderName);
-    void displayShapesInFolder(const QString &folderName);
+    bool inFolderView = false;
+    QString currentFolder;
+
+    void displayShapesInFolder(const QString &folderName, const QString &filter);
 };
 
 #endif // INVENTAIRE_H

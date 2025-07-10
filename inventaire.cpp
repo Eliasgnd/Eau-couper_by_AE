@@ -108,6 +108,9 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         oldWidget->deleteLater();
     }
 
+    inFolderView = false;
+    currentFolder.clear();
+
     QWidget *scrollWidget = new QWidget();
     QGridLayout *gridLayout = new QGridLayout(scrollWidget);
     gridLayout->setSpacing(25);
@@ -202,9 +205,14 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     // Custom shapes (filtered)
     // ---------------------------------------------------------------------
     for (int i = 0; i < m_customShapes.size(); ++i) {
-        const CustomShapeData &data = m_customShapes.at(i);
+        const CustomShapeData &data = m_customShapes[i];
+        if (!data.folder.isEmpty() && !inFolderView)
+            continue;
 
-        if (!f.isEmpty() && !data.name.toLower().contains(f))
+        if (inFolderView && data.folder != currentFolder)
+            continue;
+
+        if (!filter.isEmpty() && !data.name.toLower().contains(filter.toLower()))
             continue;
 
         if (col >= 7) {
@@ -216,7 +224,10 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         gridLayout->addWidget(customFrame, row, col);
         ++col;
     }
-
+    ui->buttonClearSearch->setVisible(!inFolderView);
+    inFolderView = false;
+    currentFolder.clear();
+    ui->buttonClearSearch->setVisible(true); // remet la croix rouge
     update();
 }
 
@@ -396,7 +407,7 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
             }
             if (frame->property("isFolder").toBool()) {
                 QString name = frame->property("folderName").toString();
-                displayShapesInFolder(name);  // à créer
+                displayShapesInFolder(name, ui->searchBar->text());
                 return true;
             }
 
@@ -640,8 +651,13 @@ void Inventaire::saveCustomShapes() const
 // -----------------------------------------------------------------------------
 void Inventaire::onSearchTextChanged(const QString &text)
 {
-    displayShapes(text);
+    if (inFolderView) {
+        displayShapesInFolder(currentFolder, text);
+    } else {
+        displayShapes(text);
+    }
 }
+
 
 void Inventaire::onClearSearchClicked()
 {
@@ -767,65 +783,145 @@ QString Inventaire::baseShapeName(ShapeModel::Type type, Language lang)
 
 QFrame* Inventaire::createFolderCard(const QString& folderName)
 {
-    QPixmap pix(":/folder-svgrepo-com.svg");
-    auto *scene = new QGraphicsScene();
-    auto *item = new QGraphicsPixmapItem(pix.scaled(70, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    scene->addItem(item);
+    // Icône SVG centrée sans cadre
+    QLabel *iconLabel = new QLabel();
+    QPixmap icon(":/folder-svgrepo-com.svg");
+    iconLabel->setPixmap(icon.scaled(70, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    iconLabel->setAlignment(Qt::AlignCenter);
 
-    auto *view = new QGraphicsView(scene);
-    view->setFixedSize(120, 120);
-    view->setStyleSheet("background-color: white;");
-    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    auto *menuButton = new QPushButton("...");
-    menuButton->setFixedSize(20, 20);
-    menuButton->setCursor(Qt::PointingHandCursor);
-
-    auto *headerLayout = new QHBoxLayout();
-    headerLayout->addStretch();
-    headerLayout->addWidget(menuButton);
-
-    auto *label = new QLabel(folderName);
+    // Nom du dossier
+    QLabel *label = new QLabel(folderName);
     label->setAlignment(Qt::AlignCenter);
     label->setStyleSheet("color: black; font-size: 16px;");
 
-    auto *frame = new QFrame();
+    // Bouton "..." en haut à droite
+    QPushButton *menuButton = new QPushButton("...");
+    menuButton->setFixedSize(20, 20);
+    menuButton->setCursor(Qt::PointingHandCursor);
+    menuButton->setStyleSheet("border: none;");
+
+    QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout->addStretch();
+    headerLayout->addWidget(menuButton);
+
+    // Carte contenant l’ensemble
+    QFrame *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
 
-    auto *mainLayout = new QVBoxLayout(frame);
+    QVBoxLayout *mainLayout = new QVBoxLayout(frame);
     mainLayout->setContentsMargins(5, 5, 5, 5);
     mainLayout->setSpacing(5);
     mainLayout->addLayout(headerLayout);
-    mainLayout->addWidget(view, 0, Qt::AlignCenter);
+    mainLayout->addWidget(iconLabel);
     mainLayout->addWidget(label);
 
+    // Propriétés de la carte dossier
     frame->setProperty("isFolder", true);
     frame->setProperty("folderName", folderName);
     frame->setCursor(Qt::PointingHandCursor);
     frame->installEventFilter(this);
 
+    // Menu contextuel identique aux formes (renommer / supprimer)
+    QMenu *menu = new QMenu(menuButton);
+    QAction *renameAction = menu->addAction("Renommer");
+    QAction *deleteAction = menu->addAction("Supprimer");
+
+    connect(renameAction, &QAction::triggered, this, [this, label, folderName]() {
+        bool ok;
+        QString newName = QInputDialog::getText(this, "Renommer le dossier", "Nouveau nom :", QLineEdit::Normal, folderName, &ok);
+        if (ok && !newName.trimmed().isEmpty()) {
+            for (InventaireFolder &f : m_folders) {
+                if (f.name == folderName) {
+                    f.name = newName.trimmed();
+                    break;
+                }
+            }
+            saveCustomShapes(); // facultatif ici
+            displayShapes();
+        }
+    });
+
+    connect(deleteAction, &QAction::triggered, this, [this, folderName]() {
+        m_folders.erase(std::remove_if(m_folders.begin(), m_folders.end(),
+                                       [=](const InventaireFolder &f) { return f.name == folderName; }),
+                        m_folders.end());
+
+        // Supprime les formes associées au dossier si besoin
+        for (CustomShapeData &shape : m_customShapes)
+            if (shape.folder == folderName)
+                shape.folder.clear();
+
+        saveCustomShapes();
+        displayShapes();
+    });
+
+    connect(menuButton, &QPushButton::clicked, this, [menu, menuButton]() {
+        menu->exec(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
+    });
+
     return frame;
 }
 
-void Inventaire::displayShapesInFolder(const QString &folderName)
-{
-    displayShapes();  // recharge tout
-    auto *widget = ui->scrollAreaInventaire->widget();
-    if (!widget) return;
 
-    for (QFrame *frame : widget->findChildren<QFrame*>()) {
-        if (frame->property("isFolder").toBool()) {
-            frame->setVisible(false);
-            continue;
-        }
-        if (frame->property("CustomShapeIndex").isValid()) {
-            int index = frame->property("CustomShapeIndex").toInt();
-            const auto &data = m_customShapes.at(index);
-            frame->setVisible(data.folder == folderName);
-        } else {
-            frame->setVisible(false);  // cache formes prédéfinies
-        }
+void Inventaire::displayShapesInFolder(const QString &folderName, const QString &filter)
+{
+    // Nettoyer l'ancien contenu
+    if (!ui->scrollAreaInventaire)
+        return;
+
+    QWidget *oldWidget = ui->scrollAreaInventaire->widget();
+    if (oldWidget) {
+        ui->scrollAreaInventaire->takeWidget();
+        oldWidget->deleteLater();
     }
+
+    inFolderView = true;
+    currentFolder = folderName;
+
+    QWidget *scrollWidget = new QWidget();
+    QGridLayout *gridLayout = new QGridLayout(scrollWidget);
+    gridLayout->setSpacing(25);
+    gridLayout->setAlignment(Qt::AlignTop);
+
+    ui->scrollAreaInventaire->setWidget(scrollWidget);
+    ui->scrollAreaInventaire->setWidgetResizable(true);
+
+    int row = 0, col = 0;
+
+    for (int i = 0; i < m_customShapes.size(); ++i) {
+        const CustomShapeData &data = m_customShapes[i];
+
+        if (inFolderView && data.folder != currentFolder)
+            continue;
+        if (!inFolderView && !data.folder.isEmpty())
+            continue;
+
+        if (!filter.isEmpty() && !data.name.toLower().contains(filter.toLower()))
+            continue;
+
+        if (col >= 7) {
+            col = 0;
+            row++;
+        }
+
+        QFrame* customFrame = addCustomShapeToGrid(i);
+        gridLayout->addWidget(customFrame, row, col++);
+    }
+
+
+    // 👉 ajouter un bouton retour
+    QPushButton *retourButton = new QPushButton("← Retour");
+    retourButton->setStyleSheet("color: white; background-color: red; font-size: 14px;");
+    retourButton->setFixedSize(120, 40);
+    connect(retourButton, &QPushButton::clicked, this, [this]() {
+        displayShapes();  // revient à l'inventaire principal
+    });
+
+    // ajouter le bouton en haut à gauche du layout principal
+    gridLayout->addWidget(retourButton, row + 1, 0, Qt::AlignLeft);
+    ui->buttonClearSearch->setVisible(!inFolderView);
+    ui->buttonClearSearch->setVisible(false); // cache la croix rouge
+
 }
+
