@@ -47,11 +47,6 @@ Inventaire::Inventaire(QWidget *parent)
 
     loadCustomShapes();
 
-    if (m_folders.isEmpty()) {
-        m_folders.append({ "Exemples" });
-        m_folders.append({ "Maquettes" });
-    }
-
     updateTranslations(currentLanguage);
 
     // Place window on secondary screen if available
