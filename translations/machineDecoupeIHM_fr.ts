@@ -319,7 +319,7 @@ Lissage</source>
     </message>
     <message>
         <location filename="../custom.cpp" line="486"/>
-        <source>Images (*.png *.jpg *.bmp *.svg)</source>
+        <source>Images (*.png *.jpg *.bmp *.svg *.webp)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

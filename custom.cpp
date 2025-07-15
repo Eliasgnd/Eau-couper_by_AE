@@ -509,7 +509,7 @@ void custom::importerLogo()
         this,
         tr("Sélectionner une image"),
         "",
-        tr("Images (*.png *.jpg *.bmp *.svg)")
+        tr("Images (*.png *.jpg *.bmp *.svg *.webp)")
         );
     if (filePath.isEmpty())
         return;
@@ -555,7 +555,7 @@ void custom::importerImageCouleur()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this, tr("Sélectionner une image"),
-        "",  tr("Images (*.png *.jpg *.bmp)"));
+        "",  tr("Images (*.png *.jpg *.bmp *.webp)"));
     if (filePath.isEmpty()) return;
 
     QPainterPath edge;
