@@ -20,6 +20,7 @@ HEADERS += \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
+    skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
     Language.h
@@ -30,6 +31,7 @@ SOURCES += \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
+    skeletonizer.cpp \
     touchgesturereader.cpp
 
 FORMS += \
