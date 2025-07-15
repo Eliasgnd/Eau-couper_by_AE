@@ -729,6 +729,52 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         }
         break;
     }
+    case DrawMode::ThinText:
+    {
+        bool ok = false;
+        QString text = QInputDialog::getText(this, tr("Saisir un texte"),
+                                             tr("Texte :"), QLineEdit::Normal,
+                                             m_currentText, &ok);
+        if (ok && !text.isEmpty())
+        {
+            m_currentText = text;
+            QFont thinFont = m_textFont;
+            thinFont.setWeight(QFont::Thin);
+            QPainterPath textPath;
+            textPath.addText(pos, thinFont, text);
+
+            QList<QPainterPath> letterPaths;
+            if (textPath.elementCount() > 0) {
+                QPainterPath currentSubpath;
+                for (int i = 0; i < textPath.elementCount(); ++i) {
+                    QPainterPath::Element e = textPath.elementAt(i);
+                    if (e.isMoveTo()) {
+                        if (!currentSubpath.isEmpty())
+                        {
+                            letterPaths.append(currentSubpath);
+                            currentSubpath = QPainterPath();
+                        }
+                        currentSubpath.moveTo(e.x, e.y);
+                    } else {
+                        currentSubpath.lineTo(e.x, e.y);
+                    }
+                }
+                if (!currentSubpath.isEmpty())
+                    letterPaths.append(currentSubpath);
+            }
+
+            for (const QPainterPath &letterPath : letterPaths) {
+                Shape letterShape;
+                letterShape.path = letterPath;
+                letterShape.originalId = m_nextShapeId++;
+                m_shapes.append(letterShape);
+            }
+            pushState();
+            updateCanvas();
+            update();
+        }
+        break;
+    }
     }  // Fin du switch
     QWidget::mousePressEvent(event);
     update();
@@ -1115,6 +1161,8 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     case DrawMode::Supprimer:
         break;
     case DrawMode::Text:  // Ajouté pour couvrir le mode Text, même si rien n'est fait ici
+        break;
+    case DrawMode::ThinText:  // Ajouté pour le mode texte fin
         break;
     }
     QWidget::mouseReleaseEvent(event);
