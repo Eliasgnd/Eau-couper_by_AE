@@ -49,6 +49,7 @@ Dispositions::Dispositions(const QString &shapeName,
     connect(ui->buttonClearSearch, &QPushButton::clicked,
             this, &Dispositions::onClearSearchClicked);
 
+
     /* --------------------- grille --------------------- */
     if (ui->gridLayout) {
         ui->gridLayout->setSpacing(20);

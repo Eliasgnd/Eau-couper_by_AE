@@ -39,8 +39,16 @@ struct LayoutData {
 struct CustomShapeData {
     QList<QPolygonF> polygons;
     QString name;
+    QString folder;
     QList<LayoutData> layouts;
 };
+
+// Structure pour un dossier
+struct InventaireFolder {
+    QString name;
+    QString parentFolder;  // vide si dossier racine
+};
+
 
 // -----------------------------------------------------------------------------
 // Inventaire widget
@@ -122,7 +130,16 @@ private:
 
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
+    QMap<ShapeModel::Type, QString> m_baseShapeFolders;
     Language currentLanguage {Language::French};
+    QList<InventaireFolder> m_folders;
+
+    QFrame *createFolderCard(const QString &folderName);
+    QFrame *createBaseShapeCard(ShapeModel::Type type, const QString &name);
+    bool inFolderView = false;
+    QString currentFolder;
+
+    void displayShapesInFolder(const QString &folderName, const QString &filter);
 };
 
 #endif // INVENTAIRE_H
