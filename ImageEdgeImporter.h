@@ -4,29 +4,41 @@
 #include <QPainterPath>
 #include <QString>
 
-/* ─────────────  Paramètres réglables  ───────────── */
+/* ─── Paramètres utilisateurs ─────────────────────────── */
 struct EdgeParams
 {
-    int   bilateral_d       = 25;     // diamètre du filtre bilatéral
-    int   bilateral_sigma   = 100;    // sigma couleur & espace
-    int   clahe_clip        = 2;     // 1-5 ; > = + contraste
-    int   adapt_block       = 51;    // toujours impair (17-51)
-    int   adapt_C           = 1;     // 1-10
-    bool  morph_close       = true;  // ferme petits trous
-    int   morph_kernel      = 5;     // 3 ou 5
-    double epsilon_percent  = 0.0001;   // 0 pour aucun approx. (garde ergots)
-    bool  final_simplify    = true;     // QPainterPath::simplified()
+    /* Pré‑filtrage */
+    int  bilateral_d      = 25;   // >0 = bilatéral ; 0 ⇒ edgePreserving
+    int  bilateral_sigma  = 100;
+
+    /* CLAHE & seuillage adaptatif */
+    int  clahe_clip       = 2;    // 2–4 selon le contraste
+    int  adapt_block      = 51;   // doit rester impair
+    int  adapt_C          = 1;
+
+    /* Morphologie */
+    bool morph_close      = true;
+    int  morph_kernel     = 5;    // 3,5,7…
+
+    /* Alternative Canny */
+    bool useCanny         = true;
+    int  canny_low        = 80;
+    int  canny_high       = 200;
+
+    /* Échelle & sortie */
+    int    resize_max_w   = 1024; // 0 = pas de redimensionnement
+    double epsilon_percent= 0.0001; // 1 % du périmètre (lissage fort)
+    bool   final_simplify = true; // QPainterPath::simplified()
 };
 
+/* ─── Importeur principal ─────────────────────────────── */
 class ImageEdgeImporter
 {
 public:
-    /* règle les paramètres (optionnel) */
-    void  setParams(const EdgeParams &p) { m_p = p; }
+    explicit ImageEdgeImporter(const EdgeParams& p = EdgeParams()) : m_p(p) {}
+    bool loadAndProcess(const QString& filePath, QPainterPath& edgePath);
 
-    /* extrait le contour principal → edgePath */
-    bool  loadAndProcess(const QString &filePath,
-                        QPainterPath   &edgePath);
+    EdgeParams& params() { return m_p; }
 
 private:
     EdgeParams m_p;
