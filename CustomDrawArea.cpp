@@ -360,13 +360,22 @@ CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_drawMode
 QList<QPolygonF> CustomDrawArea::getCustomShapes() const
 {
     QList<QPolygonF> list;
-    for (const Shape &shape : m_shapes) {
-        QPolygonF polygon;
-        for (int i = 0; i < shape.path.elementCount(); ++i) {
-            QPainterPath::Element e = shape.path.elementAt(i);
-            polygon << QPointF(e.x, e.y);
+
+    for (const Shape &shape : m_shapes)
+    {
+        /* 1. on sépare le QPainterPath en véritables sous‑chemins */
+        QList<QPainterPath> subs = separateIntoSubpaths(shape.path);
+
+        /* 2. chaque sous‑chemin devient son propre polygone       */
+        for (const QPainterPath &sp : subs)
+        {
+            QPolygonF poly;
+            for (int i = 0; i < sp.elementCount(); ++i)
+                poly << QPointF(sp.elementAt(i).x, sp.elementAt(i).y);
+
+            if (!poly.isEmpty())
+                list.append(poly);
         }
-        list.append(polygon);
     }
     return list;
 }
@@ -745,9 +754,9 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         }
         break;
     }
-    // ──────────────────────────────────────────────────────────────
-    //  Mode ThinText  → contours externes uniquement, pas de squelette
-    // ──────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────
+    //  Mode ThinText  → squelette affiné + lissage Chaikin
+    // ────────────────────────────────────────────────────────────────
     case DrawMode::ThinText:
     {
         bool ok = false;
@@ -761,80 +770,83 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
         m_currentText = text;
 
-        /* ---------- 1. Rendu sur bitmap quatre fois plus grand ---------- */
-           const int oversample = 4;
+        /* ---------- 1.  Rendu bitmap sur‑échantillonné ---------- */
+        const int oversample = 16;                 //  ➜ augmenter pour des bords plus fins
         QFont thinFont = m_textFont;
         thinFont.setWeight(QFont::Thin);
 
-        /* chemin d'origine (échelle 1) pour connaître la taille */
         QPainterPath path1x;
-        path1x.addText(QPointF(0,0), thinFont, text);
-        QRectF   br1x = path1x.boundingRect();
+        path1x.addText(QPointF(0, 0), thinFont, text);
+        QRectF br1x = path1x.boundingRect();
 
-        QSize imgSz = (br1x.size() * oversample).toSize() + QSize(8,8);
+        QSize imgSz = (br1x.size() * oversample).toSize() + QSize(8, 8);
         QImage img(imgSz, QImage::Format_Grayscale8);
-        img.fill(255);              // fond blanc
+        img.fill(255);                             // fond blanc
 
         {
             QPainter p(&img);
-            p.setRenderHint(QPainter::Antialiasing, false); // bitmap net
-            p.setPen (Qt::NoPen);
-            p.setBrush(Qt::black);  // texte noir
-            p.translate(4 - br1x.left()*oversample,
-                        4 - br1x.top()*oversample);
+            p.setRenderHint(QPainter::Antialiasing, false); // pas d’antialias → bitmap net
+            p.setPen(Qt::NoPen);
+            p.setBrush(Qt::black);
+            p.translate(4 - br1x.left() * oversample,
+                        4 - br1x.top()  * oversample);
             p.scale(oversample, oversample);
             p.drawPath(path1x);
         }
 
-        /* ---------- 2. Squelettisation Zhang‑Suen ---------- */
-           QImage skelImg = Skeletonizer::thin(img);   // ta classe existante
+        /* ---------- 2.  Squelettisation Zhang‑Suen ---------- */
+        QImage skelImg = Skeletonizer::thin(img);
 
-        /* ---------- 3. Conversion bitmap → QPainterPath ---------- */
-           QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
+        /* ---------- 3.  Bitmap → QPainterPath (8‑connexe) ---------- */
+        QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
 
-        /* on ramène à l’échelle normale */
-        QTransform t;
-        t.scale(1.0/oversample, 1.0/oversample);
-        skelPath = t.map(skelPath);
-
-        /* repositionnement sur le clic */
+        /* ↓ retourne à l’échelle normale et positionne au clic ↓ */
+        QTransform tr;
+        tr.scale(1.0 / oversample, 1.0 / oversample);
+        skelPath = tr.map(skelPath);
         skelPath.translate(pos);
 
-        /* ---------- 4. Adoucissement Chaikin (1 itération) ---------- */
-           auto chaikin = [](const QPainterPath& in)->QPainterPath {
-        if (in.elementCount() < 3) return in;
-        QList<QPointF> pts;
-        for (int i=0;i<in.elementCount();++i)
-            pts.append({in.elementAt(i).x, in.elementAt(i).y});
-        QList<QPointF> out;
-        out.reserve(pts.size()*2);
-        out.append(pts.first());
-        for (int i=0;i<pts.size()-1;++i){
-            QPointF p0 = pts[i];
-            QPointF p1 = pts[i+1];
-            out.append( p0*0.75 + p1*0.25 );
-            out.append( p0*0.25 + p1*0.75 );
-        }
-        out.append(pts.last());
-        QPainterPath r;
-        r.moveTo(out.first());
-        for (int i=1;i<out.size();++i) r.lineTo(out[i]);
-        return r;
-    };
-        skelPath = chaikin(skelPath);
+        /* ---------- 4.  Découpe en sous‑chemins + Chaikin ---------- */
+        auto chaikin = [](const QPainterPath &in, int passes = 3) {
+            if (in.elementCount() < 3) return in;
+            QPainterPath out = in;
+            for (int pass = 0; pass < passes; ++pass) {
+                QList<QPointF> pts;
+                for (int i = 0; i < out.elementCount(); ++i)
+                    pts.append({out.elementAt(i).x, out.elementAt(i).y});
 
-        /* ---------- 5. Ajout dans la scène ---------- */
-           Shape s;
-        s.path = skelPath;
-        s.originalId = m_nextShapeId++;
-        m_shapes.append(s);
+                QList<QPointF> smth;
+                smth.reserve(pts.size() * 2);
+                smth.append(pts.first());
+                for (int i = 0; i < pts.size() - 1; ++i) {
+                    const QPointF &p0 = pts[i];
+                    const QPointF &p1 = pts[i + 1];
+                    smth.append(p0 * 0.75 + p1 * 0.25);
+                    smth.append(p0 * 0.25 + p1 * 0.75);
+                }
+                smth.append(pts.last());
+
+                out = QPainterPath();
+                out.moveTo(smth.first());
+                for (int i = 1; i < smth.size(); ++i) out.lineTo(smth[i]);
+            }
+            return out;
+        };
+
+        const QList<QPainterPath> subpaths = separateIntoSubpaths(skelPath);
+        for (const QPainterPath &sub : subpaths) {
+            if (sub.isEmpty()) continue;
+            Shape s;
+            s.path       = chaikin(sub, /*passes=*/3);   // 3 passes Chaikin
+            s.originalId = m_nextShapeId++;             // ID unique  → pas de fusion sauvage
+            m_shapes.append(s);
+        }
 
         pushState();
         updateCanvas();
         update();
         break;
     }
-
     }  // Fin du switch
     QWidget::mousePressEvent(event);
     update();
