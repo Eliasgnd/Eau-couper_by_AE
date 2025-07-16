@@ -250,6 +250,7 @@ void FormeVisualization::optimizePlacement() {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
             //qDebug() << "Erreur : Aucun prototype de forme disponible.";
+            m_optimizationRunning = false;
             progressBar->setVisible(false);
             return;
         }
@@ -390,6 +391,8 @@ void FormeVisualization::optimizePlacement2() {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
             //qDebug() << "Erreur : Aucun prototype de forme disponible.";
+            m_optimizationRunning = false;
+            progressBar->setVisible(false);
             return;
         }
         QGraphicsItem *prototype = shapesList.first();
