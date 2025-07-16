@@ -1077,16 +1077,17 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
                 // Vérifier si la gomme intersecte réellement la forme
                 if (shape.path.intersects(eraserPath)) {
                     QPainterPath newPath = shape.path.subtracted(eraserPath);
-                    // Si la soustraction produit quelque chose et que son boundingRect est raisonnable, on garde le résultat.
-                    QRectF br = newPath.boundingRect();
-                    if (!newPath.isEmpty() && br.width() > 1 && br.height() > 1) {
-                        Shape ns;
-                        ns.path = newPath;
-                        ns.originalId = shape.originalId;  // Conserver l'ID du trait
-                        newShapes.append(ns);
-                    } else {
-                        // Sinon, conserver le shape original pour éviter qu'il disparaisse
-                        newShapes.append(shape);
+
+                    // Découper le résultat en sous-chemins pour conserver des segments indépendants
+                    QList<QPainterPath> subpaths = separateIntoSubpaths(newPath);
+                    for (const QPainterPath &sub : subpaths) {
+                        QRectF br = sub.boundingRect();
+                        if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
+                            Shape ns;
+                            ns.path = sub;
+                            ns.originalId = shape.originalId;  // Conserver l'ID du trait
+                            newShapes.append(ns);
+                        }
                     }
                 } else {
                     // Si la gomme n'intersecte pas, on conserve le shape tel quel
