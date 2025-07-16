@@ -542,6 +542,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             QList<QPainterPath> subpaths = separateIntoSubpaths(path);
             int target = -1;
             double bestDist = tol;
+
             for (int i = 0; i < subpaths.size(); ++i) {
                 QPainterPathStroker stroker;
                 stroker.setWidth(tol);
@@ -554,6 +555,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     bestDist = d;
                     target = i;
                 }
+
             }
 
             if (target >= 0) {
