@@ -5,8 +5,18 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
-INCLUDEPATH += C:/Users/elias/Desktop/opencv/build/include
-LIBS += -LC:/Users/elias/Desktop/opencv/build/x64/vc16/lib
+# Chemins vers les fichiers d'en-tête OpenCV
+INCLUDEPATH += C:/Users/v.butez/Documents/Eau-couper/Programme/Eau-couper_by_AE/opencv/build/include
+INCLUDEPATH += C:/Users/v.butez/Documents/Eau-couper/Programme/Eau-couper_by_AE/opencv/build/include/opencv2
+
+# Chemin vers les bibliothèques OpenCV
+LIBS += -LC:/Users/v.butez/Documents/Eau-couper/Programme/Eau-couper_by_AE/opencv/build/x64/vc16/lib
+
+# Nom exact de la bibliothèque à lier (vérifie le numéro de version dans le dossier lib)
+LIBS += -lopencv_world4120d  # pour Debug
+# LIBS += -lopencv_world4120   # pour Release
+
+
 
 CONFIG(debug, debug|release) {
     LIBS += -lopencv_world4120d
