@@ -806,38 +806,14 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         skelPath = tr.map(skelPath);
         skelPath.translate(pos);
 
-        /* ---------- 4.  Découpe en sous‑chemins + Chaikin ---------- */
-        auto chaikin = [](const QPainterPath &in, int passes = 3) {
-            if (in.elementCount() < 3) return in;
-            QPainterPath out = in;
-            for (int pass = 0; pass < passes; ++pass) {
-                QList<QPointF> pts;
-                for (int i = 0; i < out.elementCount(); ++i)
-                    pts.append({out.elementAt(i).x, out.elementAt(i).y});
-
-                QList<QPointF> smth;
-                smth.reserve(pts.size() * 2);
-                smth.append(pts.first());
-                for (int i = 0; i < pts.size() - 1; ++i) {
-                    const QPointF &p0 = pts[i];
-                    const QPointF &p1 = pts[i + 1];
-                    smth.append(p0 * 0.75 + p1 * 0.25);
-                    smth.append(p0 * 0.25 + p1 * 0.75);
-                }
-                smth.append(pts.last());
-
-                out = QPainterPath();
-                out.moveTo(smth.first());
-                for (int i = 1; i < smth.size(); ++i) out.lineTo(smth[i]);
-            }
-            return out;
-        };
+        /* ---------- 4.  Lissage et découpe des sous-chemins ---------- */
+        skelPath = Skeletonizer::smoothPath(skelPath, 3, 1.0);
 
         const QList<QPainterPath> subpaths = separateIntoSubpaths(skelPath);
         for (const QPainterPath &sub : subpaths) {
             if (sub.isEmpty()) continue;
             Shape s;
-            s.path       = chaikin(sub, /*passes=*/3);   // 3 passes Chaikin
+            s.path       = sub;
             s.originalId = m_nextShapeId++;             // ID unique  → pas de fusion sauvage
             m_shapes.append(s);
         }

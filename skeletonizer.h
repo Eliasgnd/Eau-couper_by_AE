@@ -12,8 +12,14 @@
 class Skeletonizer
 {
 public:
+    /**
+     *  Utilitaires de lissage et de simplification de chemins squelette
+     *
+     */
     static QImage        thin(const QImage &gray);          // entrée : niveau de gris ou binaire
     static QPainterPath  bitmapToPath(const QImage &binary); // noir = premier‑plan
+
+    static QPainterPath  smoothPath(const QPainterPath &path, int chaikinPasses = 3, double epsilon = 1.0);
 };
 
 #endif // SKELETONIZER_H
