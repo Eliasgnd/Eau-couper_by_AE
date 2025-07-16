@@ -106,3 +106,91 @@ QPainterPath Skeletonizer::bitmapToPath(const QImage &img)
     }
     return path;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Lissage et simplification d'un QPainterPath                       */
+/* ------------------------------------------------------------------ */
+
+static double perpDist(const QPointF &p, const QPointF &a, const QPointF &b)
+{
+    QLineF l(a, b);
+    if (l.length() == 0.0)
+        return QLineF(p, a).length();
+    const double t = qMax(0.0, qMin(1.0, QPointF::dotProduct(p - a, b - a) / (l.length()*l.length())));
+    QPointF proj = a + t * (b - a);
+    return QLineF(p, proj).length();
+}
+
+static QList<QPointF> douglasPeucker(const QList<QPointF> &pts, double epsilon)
+{
+    if (pts.size() < 3)
+        return pts;
+
+    double maxDist = 0.0;
+    int index = 0;
+    for (int i = 1; i < pts.size() - 1; ++i) {
+        double d = perpDist(pts[i], pts.first(), pts.last());
+        if (d > maxDist) { maxDist = d; index = i; }
+    }
+
+    if (maxDist > epsilon) {
+        QList<QPointF> res1 = douglasPeucker(pts.mid(0, index + 1), epsilon);
+        QList<QPointF> res2 = douglasPeucker(pts.mid(index), epsilon);
+        res1.pop_back();
+        res1.append(res2);
+        return res1;
+    }
+
+    return { pts.first(), pts.last() };
+}
+
+static QList<QPointF> chaikinSmooth(const QList<QPointF> &pts, int passes)
+{
+    QList<QPointF> out = pts;
+    for (int pass = 0; pass < passes; ++pass) {
+        QList<QPointF> smth;
+        smth.reserve(out.size() * 2);
+        smth.append(out.first());
+        for (int i = 0; i < out.size() - 1; ++i) {
+            const QPointF &p0 = out[i];
+            const QPointF &p1 = out[i + 1];
+            smth.append(p0 * 0.75 + p1 * 0.25);
+            smth.append(p0 * 0.25 + p1 * 0.75);
+        }
+        smth.append(out.last());
+        out = smth;
+    }
+    return out;
+}
+
+QPainterPath Skeletonizer::smoothPath(const QPainterPath &path, int chaikinPasses, double epsilon)
+{
+    QPainterPath result;
+    int n = path.elementCount();
+    if (n == 0)
+        return result;
+
+    int start = 0;
+    while (start < n) {
+        int end = start + 1;
+        while (end < n && !path.elementAt(end).isMoveTo())
+            ++end;
+
+        QList<QPointF> pts;
+        for (int i = start; i < end; ++i)
+            pts.append(QPointF(path.elementAt(i).x, path.elementAt(i).y));
+
+        pts = douglasPeucker(pts, epsilon);
+        pts = chaikinSmooth(pts, chaikinPasses);
+
+        if (!pts.isEmpty()) {
+            result.moveTo(pts.first());
+            for (int i = 1; i < pts.size(); ++i)
+                result.lineTo(pts[i]);
+        }
+
+        start = end;
+    }
+
+    return result;
+}
