@@ -501,23 +501,38 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 return;
             }
 
-            QPointF start = path.elementAt(0);
-            QPointF end = path.elementAt(path.elementCount() - 1);
-            double distance = QLineF(start, end).length();
-
-            //qDebug() << "Début-fin:" << start << "→" << end << " (distance:" << distance << ")";
-
-            if (distance > 2.0) {
-                path.lineTo(start);  // fermer avec ligne
-                //qDebug() << "✅ Ligne ajoutée entre extrémités.";
+            QList<QPainterPath> subpaths = separateIntoSubpaths(path);
+            int target = -1;
+            for (int i = 0; i < subpaths.size(); ++i) {
+                QPainterPathStroker stroker;
+                stroker.setWidth(tol);
+                if (stroker.createStroke(subpaths[i]).contains(pos)) {
+                    target = i;
+                    break;
+                }
             }
 
-            path.closeSubpath();  // finalise fermeture
-            //qDebug() << "✔ Chemin fermé.";
+            if (target >= 0) {
+                QPainterPath sub = subpaths[target];
+                if (!sub.isEmpty()) {
+                    QPointF s = sub.elementAt(0);
+                    QPointF e = sub.elementAt(sub.elementCount() - 1);
+                    if (QLineF(s, e).length() > 2.0)
+                        sub.lineTo(s);
+                    sub.closeSubpath();
+                }
+                subpaths[target] = sub;
 
-            pushState();
-            updateCanvas();
-            update();
+                QPainterPath newPath;
+                for (const QPainterPath &sp : std::as_const(subpaths))
+                    newPath.addPath(sp);
+                path = newPath;
+
+                pushState();
+                updateCanvas();
+                update();
+            }
+
             m_closeMode = false;
             emit closeModeChanged(false);
             return; // important
