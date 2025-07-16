@@ -1423,6 +1423,9 @@ void CustomDrawArea::startShapeSelection()
 {
     // Si on était en mode fermeture, on l'annule
     cancelCloseMode();
+    // Si on venait du mode déplacement, repasse en mode standard
+    if (m_drawMode == DrawMode::Deplacer)
+        m_drawMode = DrawMode::Freehand;
     m_selectMode = true;
     m_connectSelectionMode = true;
     m_selectedShapes.clear();
