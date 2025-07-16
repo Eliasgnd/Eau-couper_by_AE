@@ -255,8 +255,8 @@ void CustomDrawArea::updateCanvas()
     QPainter painter(&newCanvas);
     painter.setRenderHint(QPainter::Antialiasing, m_smoothingEnabled);
 
-    // Stylo noir, épaisseur 2, pas de remplissage
-    QPen pen(Qt::black, 2);
+    // Stylo noir, épaisseur 1, pas de remplissage
+    QPen pen(Qt::black, 1);
     pen.setCosmetic(true);
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);  // <- IMPORTANT
@@ -770,51 +770,68 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
         m_currentText = text;
 
-        /* ---------- 1.  Rendu bitmap sur‑échantillonné ---------- */
         const int oversample = 16;                 //  ➜ augmenter pour des bords plus fins
         QFont thinFont = m_textFont;
         thinFont.setWeight(QFont::Thin);
 
-        QPainterPath path1x;
-        path1x.addText(QPointF(0, 0), thinFont, text);
-        QRectF br1x = path1x.boundingRect();
+        // Construction du chemin complet à la position cliquée
+        QPainterPath textPath;
+        textPath.addText(pos, thinFont, text);
 
-        QSize imgSz = (br1x.size() * oversample).toSize() + QSize(8, 8);
-        QImage img(imgSz, QImage::Format_Grayscale8);
-        img.fill(255);                             // fond blanc
-
-        {
-            QPainter p(&img);
-            p.setRenderHint(QPainter::Antialiasing, false); // pas d’antialias → bitmap net
-            p.setPen(Qt::NoPen);
-            p.setBrush(Qt::black);
-            p.translate(4 - br1x.left() * oversample,
-                        4 - br1x.top()  * oversample);
-            p.scale(oversample, oversample);
-            p.drawPath(path1x);
+        // Découpage en sous-chemins correspondant à chaque lettre
+        QList<QPainterPath> letterPaths;
+        if (textPath.elementCount() > 0) {
+            QPainterPath currentSubpath;
+            for (int i = 0; i < textPath.elementCount(); ++i) {
+                QPainterPath::Element e = textPath.elementAt(i);
+                if (e.isMoveTo()) {
+                    if (!currentSubpath.isEmpty()) {
+                        letterPaths.append(currentSubpath);
+                        currentSubpath = QPainterPath();
+                    }
+                    currentSubpath.moveTo(e.x, e.y);
+                } else {
+                    currentSubpath.lineTo(e.x, e.y);
+                }
+            }
+            if (!currentSubpath.isEmpty())
+                letterPaths.append(currentSubpath);
         }
 
-        /* ---------- 2.  Squelettisation Zhang‑Suen ---------- */
-        QImage skelImg = Skeletonizer::thin(img);
+        // Squelettisation et création d'une Shape pour chaque lettre
+        for (const QPainterPath &letterPath : letterPaths) {
+            if (letterPath.isEmpty())
+                continue;
 
-        /* ---------- 3.  Bitmap → QPainterPath (8‑connexe) ---------- */
-        QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
+            QRectF br = letterPath.boundingRect();
 
-        /* ↓ retourne à l’échelle normale et positionne au clic ↓ */
-        QTransform tr;
-        tr.scale(1.0 / oversample, 1.0 / oversample);
-        skelPath = tr.map(skelPath);
-        skelPath.translate(pos);
+            QSize imgSz = (br.size() * oversample).toSize() + QSize(8, 8);
+            QImage img(imgSz, QImage::Format_Grayscale8);
+            img.fill(255);
 
-        /* ---------- 4.  Lissage et découpe des sous-chemins ---------- */
-        skelPath = Skeletonizer::smoothPath(skelPath, 3, 1.0);
+            QPainter p(&img);
+            p.setRenderHint(QPainter::Antialiasing, false);
+            p.setPen(Qt::NoPen);
+            p.setBrush(Qt::black);
+            p.translate(4 - br.left() * oversample,
+                        4 - br.top()  * oversample);
+            p.scale(oversample, oversample);
+            p.drawPath(letterPath);
 
-        const QList<QPainterPath> subpaths = separateIntoSubpaths(skelPath);
-        for (const QPainterPath &sub : subpaths) {
-            if (sub.isEmpty()) continue;
+            QImage skelImg = Skeletonizer::thin(img);
+            QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
+
+            QTransform tr;
+            tr.scale(1.0 / oversample, 1.0 / oversample);
+            skelPath = tr.map(skelPath);
+            skelPath.translate(br.left() - 4.0 / oversample,
+                               br.top()  - 4.0 / oversample);
+
+            skelPath = Skeletonizer::smoothPath(skelPath, 3, 1.0);
+
             Shape s;
-            s.path       = sub;
-            s.originalId = m_nextShapeId++;             // ID unique  → pas de fusion sauvage
+            s.path       = skelPath;
+            s.originalId = m_nextShapeId++;
             m_shapes.append(s);
         }
 
@@ -1320,9 +1337,10 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     }
     // -- connecteurs en trait noir continu --
     // Dessin des formes (incluant désormais tes connecteurs)
-    QPen normalPen(Qt::black, 2);
+    QPen normalPen(Qt::black, 1);
     normalPen.setCosmetic(true);
     painter.setPen(normalPen);
+    painter.setBrush(Qt::NoBrush);
     for (const Shape &s : m_shapes) {
         if (s.path.isEmpty())
             continue;
