@@ -425,6 +425,44 @@ QPainterPath CustomDrawArea::generateRawPath(const QList<QPointF>& pts)
     return path;
 }
 
+static double distanceToSegment(const QPointF &p, const QPointF &a, const QPointF &b)
+{
+    QLineF line(a, b);
+    double len2 = line.length() * line.length();
+    if (len2 <= 0.000001)
+        return QLineF(p, a).length();
+    double t = ((p.x() - a.x()) * (b.x() - a.x()) +
+                (p.y() - a.y()) * (b.y() - a.y())) / len2;
+    if (t < 0.0)
+        t = 0.0;
+    else if (t > 1.0)
+        t = 1.0;
+    QPointF proj(a.x() + t * (b.x() - a.x()),
+                 a.y() + t * (b.y() - a.y()));
+    return QLineF(p, proj).length();
+}
+
+static double distanceToPath(const QPainterPath &path, const QPointF &p)
+{
+    if (path.isEmpty())
+        return std::numeric_limits<double>::max();
+    double best = std::numeric_limits<double>::max();
+    QPointF prev(path.elementAt(0).x, path.elementAt(0).y);
+    for (int i = 1; i < path.elementCount(); ++i) {
+        QPainterPath::Element el = path.elementAt(i);
+        if (el.isMoveTo()) {
+            prev = QPointF(el.x, el.y);
+            continue;
+        }
+        QPointF curr(el.x, el.y);
+        double d = distanceToSegment(p, prev, curr);
+        if (d < best)
+            best = d;
+        prev = curr;
+    }
+    return best;
+}
+
 QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, double alpha) const
 {
     if (points.isEmpty())
@@ -503,6 +541,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
             QList<QPainterPath> subpaths = separateIntoSubpaths(path);
             int target = -1;
+            double bestDist = tol;
+
             for (int i = 0; i < subpaths.size(); ++i) {
                 QPainterPathStroker stroker;
                 stroker.setWidth(tol);
@@ -510,6 +550,12 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     target = i;
                     break;
                 }
+                double d = distanceToPath(subpaths[i], pos);
+                if (d < bestDist) {
+                    bestDist = d;
+                    target = i;
+                }
+
             }
 
             if (target >= 0) {
