@@ -52,7 +52,7 @@ private slots:
     void updateShapeCountLabel(int count);
     void updateSpacing(int value);
     //pour les formes qui arrive de l'inventaire
-    void onCustomShapeSelected(const QList<QPolygonF> &polygons);
+    void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
     void setLanguageFrench();
     void setLanguageEnglish();
@@ -85,6 +85,7 @@ private:
     QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
     double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
+    bool promptAndSaveCurrentCustomShape();
 
 protected:
     void showEvent(QShowEvent *event) override;

@@ -1,17 +1,37 @@
 #include "clavier.h"
+#include "inventaire.h"
 #include <QTimer>
 #include <QDebug>
+#include <QRegularExpression>
 
 Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
 {
     setWindowTitle("Clavier Virtuel AZERTY");
-    setFixedSize(650, 420);  // Augmenter la taille pour un meilleur affichage
+    setFixedSize(650, 540);  // Augmenter la taille pour un meilleur affichage
     isSymbolMode = false;  // Démarrer en mode clavier principal
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     lineEdit = new QLineEdit(this);
+    suggestionList = new QListWidget(this);
+    suggestionList->setVisible(false);  // caché par défaut
+    suggestionList->setMaximumHeight(120);
+    suggestionList->setStyleSheet("font-size: 14px; background: white; border: 1px solid gray;");
     lineEdit->setFixedHeight(50);  // Agrandir la zone de texte
     layout->addWidget(lineEdit);
+    layout->addWidget(suggestionList);
+
+    // Lorsqu'on clique sur une suggestion
+    connect(suggestionList, &QListWidget::itemClicked, this, [=](QListWidgetItem *item){
+        QString text = item->text();
+        lineEdit->setText(text);
+        suggestionList->hide();
+        emit textChangedExternally(text);
+
+        // 🔁 Mise à jour de l’historique
+        usageHistory.removeAll(text);  // Évite les doublons
+        usageHistory.prepend(text);    // Ajoute en tête
+    });
+
 
     gridLayout = new QGridLayout(this);  // ✅ Variable membre, accessible partout
 
@@ -202,6 +222,8 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     accentMap.insert("N", {"Ñ"});
     currentLayout = QWERTY;  // ✅ QWERTY sélectionné dès le lancement
     updateKeyboardLayout();  // ✅ Applique immédiatement le layout QWERTY
+    loadUsageHistory();
+
 }
 
 QString Clavier::getText() const
@@ -213,16 +235,21 @@ QString Clavier::getText() const
 void Clavier::handleButton()
 {
     QPushButton *button = qobject_cast<QPushButton *>(sender());
-    if (button) {
-        QString text = button->text();
-        lineEdit->insert(text);
-        // Désactiver Shift après une lettre SEULEMENT si ce n'est pas verrouillé
-        if (majusculeActive && !shiftLock) {
-            majusculeActive = false;
-            updateKeys();  // Mise à jour du clavier en minuscule
-        }
+    if (!button) return;
+
+    QString text = button->text();
+    lineEdit->insert(text);
+
+    emit textChangedExternally(lineEdit->text());
+
+    if (majusculeActive && !shiftLock) {
+        majusculeActive = false;
+        updateKeys();
     }
+
+    updateSuggestions();
 }
+
 
 // Fonction pour supprimer un caractère
 void Clavier::deleteChar()
@@ -232,6 +259,8 @@ void Clavier::deleteChar()
         QString text = lineEdit->text();
         text.chop(1);
         lineEdit->setText(text);
+        emit textChangedExternally(lineEdit->text());
+        updateSuggestions();
     }
 }
 
@@ -239,6 +268,11 @@ void Clavier::deleteChar()
 void Clavier::validateText()
 {
     accept();
+    QString current = lineEdit->text();
+    usageHistory.removeAll(current);
+    usageHistory.prepend(current);
+    saveUsageHistory();
+
 }
 
 void Clavier::toggleShift()
@@ -291,12 +325,16 @@ void Clavier::updateKeys()
 void Clavier::addSpace()
 {
     lineEdit->insert(" ");
+    emit textChangedExternally(lineEdit->text());
+    updateSuggestions();
 }
 
 // Ajout de l'underscore
 void Clavier::addUnderscore()
 {
     lineEdit->insert("_");
+    emit textChangedExternally(lineEdit->text());
+    updateSuggestions();
 }
 
 void Clavier::updateKeyboard()
@@ -447,6 +485,8 @@ void Clavier::insertAccent() {
     QPushButton* accentButton = qobject_cast<QPushButton*>(sender());
     if (accentButton) {
         lineEdit->insert(accentButton->text());
+        emit textChangedExternally(lineEdit->text());
+        updateSuggestions();
     }
     hideAccentPopup();
 }
@@ -569,4 +609,53 @@ void Clavier::updateKeyboardLayout()
 
     // 5) Mettre à jour maj/min
     updateKeys();
+}
+
+void Clavier::updateSuggestions()
+{
+    QString currentText = lineEdit->text().trimmed();
+    suggestionList->clear();
+
+    if (currentText.isEmpty()) {
+        suggestionList->setVisible(false);
+        return;
+    }
+
+    QString pattern = "^" + QRegularExpression::escape(currentText);
+    QRegularExpression rx(pattern, QRegularExpression::CaseInsensitiveOption);
+
+    QStringList matches = Inventaire::getInstance()
+                              ->getAllShapeNames()
+                              .filter(rx);
+
+    if (!matches.isEmpty()) {
+        // Tri par historique : les noms dans usageHistory en premier
+        QStringList orderedMatches;
+        for (const QString &name : usageHistory) {
+            if (matches.contains(name)) {
+                orderedMatches << name;
+            }
+        }
+        for (const QString &name : matches) {
+            if (!orderedMatches.contains(name))
+                orderedMatches << name;
+        }
+
+        suggestionList->addItems(orderedMatches);
+        suggestionList->setVisible(true);
+    } else {
+        suggestionList->setVisible(false);
+    }
+}
+
+void Clavier::loadUsageHistory()
+{
+    QSettings settings("AubeElectronique", "EauCouper");
+    usageHistory = settings.value("Clavier/UsageHistory").toStringList();
+}
+
+void Clavier::saveUsageHistory() const
+{
+    QSettings settings("AubeElectronique", "EauCouper");
+    settings.setValue("Clavier/UsageHistory", usageHistory);
 }

@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QPainterPath>
 #include "ShapeModel.h"
+#include "inventaire.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
@@ -46,11 +47,22 @@ public:
     bool isOptimizationRunning() const { return m_optimizationRunning; }
     QGraphicsView* getGraphicsView() const;             // accès à la vue
 
+    bool isCustomMode() const { return m_isCustomMode; }
+    void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
+    QString currentCustomShapeName() const { return m_currentCustomShapeName; }
+    QList<QPolygonF> currentCustomShapes() const { return m_customShapes; }
+    void applyLayout(const LayoutData &layout);
+    LayoutData captureCurrentLayout(const QString &name) const;
+
 
 public slots:
     void displayCustomShapes(const QList<QPolygonF>& shapes);   // affichage custom
     void moveSelectedShapes(qreal dx, qreal dy);                // déplacement
     void rotateSelectedShapes(qreal angleDelta);                // rotation
+    void deleteSelectedShapes();                                // suppression
+    void addShapeBottomRight();                                 // ajout en bas à droite
+    bool validateShapes();                                      // vérifie positions
+    void resetAllShapeColors();                                 // remise à zéro des couleurs
 
     QList<QPoint> getBlackPixels();                             // pixels noirs
 
@@ -68,12 +80,17 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     QPainterPath bufferedPath(const QPainterPath &path, int spacing);
+    void handleSelectionChanged();
 
 private:
+    int countPlacedShapes() const;
     void redraw();                                              // redessin
+
+
 
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
@@ -87,6 +104,7 @@ private:
 
     bool                 m_isCustomMode {false};
     QList<QPolygonF>     m_customShapes;
+    QString              m_currentCustomShapeName;
 
     // liste des points / traces ajoutés pendant la découpe
     QList<QGraphicsItem*> m_cutMarkers;

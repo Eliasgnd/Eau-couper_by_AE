@@ -1,4 +1,5 @@
 #include "FormeVisualization.h"
+#include "qtimer.h"
 #include <QVBoxLayout>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
@@ -11,6 +12,8 @@
 #include <QApplication>
 #include <QPainterPathStroker>  // N'oubliez pas d'inclure ce header
 #include <QMessageBox>
+#include <QAbstractGraphicsShapeItem>
+#include "inventaire.h"
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -41,6 +44,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     graphicsView->setScene(scene);
     graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    graphicsView->viewport()->installEventFilter(this);
 
     progressBar = new QProgressBar(this);
     progressBar->setValue(0);
@@ -65,8 +69,13 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     layout->addWidget(progressBar);
     setLayout(layout);
 
+    connect(scene, &QGraphicsScene::selectionChanged,
+            this, &FormeVisualization::handleSelectionChanged);
+
     redraw();
 }
+
+
 
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
@@ -87,6 +96,22 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
 void FormeVisualization::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+}
+
+bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonDblClick) {
+        auto *me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            QPointF scenePos = graphicsView->mapToScene(me->pos());
+            QGraphicsItem *item = scene->itemAt(scenePos, graphicsView->transform());
+            if (item && !m_cutMarkers.contains(item)) {
+                item->setSelected(!item->isSelected());
+            }
+            return true;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void FormeVisualization::setModel(ShapeModel::Type model)
@@ -182,6 +207,8 @@ void FormeVisualization::setSpacing(int newSpacing)
 
 void FormeVisualization::setPredefinedMode()
 {
+    qDebug() << "[DEBUG] setPredefinedMode() appelé";
+
     if (m_decoupeEnCours) {
         qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setPredefinedMode";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
@@ -196,6 +223,7 @@ void FormeVisualization::setPredefinedMode()
     cancelOptimization();
 
     m_isCustomMode = false;
+    m_currentCustomShapeName.clear();
     m_customShapes.clear();
     emit optimizationStateChanged(false);
     redraw();
@@ -250,7 +278,9 @@ void FormeVisualization::optimizePlacement() {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
             //qDebug() << "Erreur : Aucun prototype de forme disponible.";
+
             m_optimizationRunning = false;
+
             progressBar->setVisible(false);
             return;
         }
@@ -316,18 +346,31 @@ void FormeVisualization::optimizePlacement() {
 
                 bool collision = false;
                 for (const QPainterPath &existing : placedPaths) {
-                    if (candidate.intersects(existing)) {
+                    QPainterPath inter = candidate.intersected(existing);
+                    QRectF br = inter.boundingRect();
+                    // Une collision est détectée uniquement si la zone
+                    // d'intersection excède la taille d'un pixel
+                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                         collision = true;
                         break;
                     }
                 }
+
                 if (!collision) {
                     QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                     item->setPen(QPen(Qt::black, 1));
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                    // Ajuste la position en fonction du boundingRect réel de l'élément
+                    QRectF bounds = item->boundingRect();
+                    QPointF offset(x - bounds.x(), y - bounds.y());
+                    item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
+
+                    // Enregistre la position corrigée pour les futurs tests de collision
+                    candidate.translate(offset);
                     placedPaths.append(candidate);
                     shapesPlaced++;
                     break;
@@ -339,7 +382,9 @@ void FormeVisualization::optimizePlacement() {
     }
 
     //qDebug() << "Formes placées:" << shapesPlaced;
+
     m_optimizationRunning = false;
+
     emit shapesPlacedCount(shapesPlaced);
     emit optimizationStateChanged(true);
     progressBar->setVisible(false);
@@ -391,6 +436,7 @@ void FormeVisualization::optimizePlacement2() {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
             //qDebug() << "Erreur : Aucun prototype de forme disponible.";
+
             m_optimizationRunning = false;
             progressBar->setVisible(false);
             return;
@@ -452,18 +498,29 @@ void FormeVisualization::optimizePlacement2() {
 
             bool collision = false;
             for (const QPainterPath &existing : placedPaths) {
-                if (candidate.intersects(existing)) {
+                QPainterPath inter = candidate.intersected(existing);
+                QRectF br = inter.boundingRect();
+                // Détecte un chevauchement seulement si l'intersection
+                // correspond à plus d'un pixel
+                if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                     collision = true;
                     break;
                 }
             }
+
             if (!collision) {
                 QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
                 item->setPen(QPen(Qt::black, 1));
                 item->setBrush(Qt::NoBrush);
                 item->setFlag(QGraphicsItem::ItemIsMovable, true);
                 item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                QRectF bounds = item->boundingRect();
+                QPointF offset(x - bounds.x(), y - bounds.y());
+                item->moveBy(offset.x(), offset.y());
                 scene->addItem(item);
+
+                candidate.translate(offset);
                 placedPaths.append(candidate);
                 shapesPlaced++;
                 if (shapesPlaced >= count) {
@@ -474,7 +531,9 @@ void FormeVisualization::optimizePlacement2() {
         }
     }
     //qDebug() << "Formes optimisées placées:" << shapesPlaced;
+
     m_optimizationRunning = false;
+
     emit shapesPlacedCount(shapesPlaced);
     progressBar->setVisible(false);
 }
@@ -625,9 +684,14 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        QPointF offset = -scaledBounds.topLeft();
+        // Calcul de l'offset à partir du boundingRect réel de l'item afin
+        // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
+        // vertical observé avec les formes personnalisées.
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
+
     }
 
     //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
@@ -650,6 +714,7 @@ void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
     for (QGraphicsItem *item : scene->selectedItems()) {
         item->moveBy(dx, dy);
     }
+
 }
 
 void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
@@ -669,6 +734,102 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
         item->setRotation(item->rotation() + angleDelta);
     }
 }
+
+
+
+void FormeVisualization::deleteSelectedShapes()
+{
+    if (m_decoupeEnCours)
+    {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
+
+    bool removed = false;
+    const auto selected = scene->selectedItems();
+    for (QGraphicsItem *item : selected) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        scene->removeItem(item);
+        delete item;
+        removed = true;
+    }
+    if (removed)
+        emit shapesPlacedCount(countPlacedShapes());
+}
+
+void FormeVisualization::addShapeBottomRight()
+{
+    if (m_decoupeEnCours)
+    {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
+
+    const int drawingWidth = 600;
+    const int drawingHeight = 400;
+
+    QGraphicsItem *newItem = nullptr;
+
+    if (m_isCustomMode && !m_customShapes.isEmpty()) {
+        QPainterPath combinedPath;
+        for (const QPolygonF &poly : m_customShapes)
+            combinedPath.addPolygon(poly);
+        QRectF polyBounds = combinedPath.boundingRect();
+        if (polyBounds.width() <= 0 || polyBounds.height() <= 0)
+            return;
+
+        qreal desiredWidth = currentLargeur;
+        qreal desiredHeight = currentLongueur;
+
+        qreal scaleX = desiredWidth / polyBounds.width();
+        qreal scaleY = desiredHeight / polyBounds.height();
+
+        QTransform transform;
+        transform.scale(scaleX, scaleY);
+        QPainterPath scaledPath = transform.map(combinedPath);
+        QRectF bounds = scaledPath.boundingRect();
+
+        auto *item = new QGraphicsPathItem(scaledPath);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        newItem = item;
+
+        QPointF offset(-bounds.x(), -bounds.y());
+        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
+                        drawingHeight - bounds.height() + offset.y());
+    } else {
+        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
+        if (shapesList.isEmpty())
+            return;
+
+        newItem = shapesList.takeFirst();
+        QRectF bounds = newItem->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
+        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
+                        drawingHeight - bounds.height() + offset.y());
+    }
+
+    if (newItem) {
+        newItem->setFlag(QGraphicsItem::ItemIsMovable, true);
+        newItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        scene->addItem(newItem);
+        emit shapesPlacedCount(countPlacedShapes());
+    }
+}
+
 
 void FormeVisualization::setCustomMode() {
     cancelOptimization();
@@ -786,6 +947,7 @@ bool FormeVisualization::isDecoupeEnCours() const
     return m_decoupeEnCours;
 }
 
+
 void FormeVisualization::cancelOptimization()
 {
     if (m_optimizationRunning)
@@ -796,3 +958,154 @@ QGraphicsView* FormeVisualization::getGraphicsView() const
 {
     return graphicsView;
 }
+
+int FormeVisualization::countPlacedShapes() const
+{
+    int count = 0;
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (dynamic_cast<QGraphicsPathItem*>(item) ||
+            dynamic_cast<QGraphicsRectItem*>(item) ||
+            dynamic_cast<QGraphicsEllipseItem*>(item) ||
+            dynamic_cast<QGraphicsPolygonItem*>(item)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+bool FormeVisualization::validateShapes()
+{
+    resetAllShapeColors();
+    bool allValid = true;
+    QList<QAbstractGraphicsShapeItem*> shapes;
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            shapes << shape;
+        }
+    }
+
+    // Ajout d'une tolérance pour éviter les faux positifs sur les bords
+    QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
+    for (auto *shape : std::as_const(shapes)) {
+        QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
+        if (!bounds.contains(rect)) {
+            shape->setPen(QPen(Qt::red, 1));
+            allValid = false;
+        }
+    }
+
+    for (int i = 0; i < shapes.size(); ++i) {
+        for (int j = i + 1; j < shapes.size(); ++j) {
+            QPainterPath p1 = shapes[i]->mapToScene(shapes[i]->shape());
+            QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
+            QPainterPath inter = p1.intersected(p2);
+            QRectF iRect = inter.boundingRect();
+            // Consider shapes colliding only if the intersection is larger than one pixel
+            if (!iRect.isNull() && iRect.width() > 1.0 && iRect.height() > 1.0) {
+
+
+                shapes[i]->setPen(QPen(Qt::red, 1));
+                shapes[j]->setPen(QPen(Qt::red, 1));
+                allValid = false;
+            }
+        }
+    }
+
+    emit shapesPlacedCount(shapes.size());
+    return allValid;
+}
+
+void FormeVisualization::handleSelectionChanged()
+{
+    for (QGraphicsItem *item : scene->selectedItems()) {
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            shape->setPen(QPen(Qt::black, 1));
+        }
+    }
+}
+
+void FormeVisualization::resetAllShapeColors()
+{
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            shape->setPen(QPen(Qt::black, 1));
+        }
+    }
+    graphicsView->viewport()->update();
+}
+
+
+void FormeVisualization::applyLayout(const LayoutData &layout)
+{
+    if (!m_isCustomMode)
+        return;
+
+    scene->clear();
+    currentLargeur = layout.largeur;
+    currentLongueur = layout.longueur;
+    spacing = layout.spacing;
+    shapeCount = layout.items.size();
+
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : m_customShapes)
+        combinedPath.addPolygon(poly);
+    QRectF bounds = combinedPath.boundingRect();
+    qreal scaleX = (bounds.width() > 0) ? static_cast<qreal>(layout.largeur) / bounds.width() : 1.0;
+    qreal scaleY = (bounds.height() > 0) ? static_cast<qreal>(layout.longueur) / bounds.height() : 1.0;
+    QTransform scale;
+    scale.scale(scaleX, scaleY);
+    QPainterPath scaledPath = scale.map(combinedPath);
+    QRectF scaledBounds = scaledPath.boundingRect();
+
+    for (const LayoutItem &li : layout.items) {
+        QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        item->setTransformOriginPoint(item->boundingRect().center());
+
+        QRectF bounds = item->boundingRect();
+        QPointF offset(-bounds.x(), -bounds.y());
+
+        item->setRotation(li.rotation);
+        item->setPos(li.x + offset.x(), li.y + offset.y());
+        scene->addItem(item);
+    }
+
+    emit shapesPlacedCount(layout.items.size());
+    graphicsView->viewport()->update();
+}
+
+LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
+{
+    LayoutData layout;
+    layout.name = name;
+    layout.largeur = currentLargeur;
+    layout.longueur = currentLongueur;
+    layout.spacing = spacing;
+
+    for (QGraphicsItem *item : scene->items()) {
+        if (m_cutMarkers.contains(item))
+            continue;
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+            QRectF bounds = shape->boundingRect();
+            QPointF offset(-bounds.x(), -bounds.y());
+
+            LayoutItem li;
+            li.x = shape->pos().x() - offset.x();
+            li.y = shape->pos().y() - offset.y();
+            li.rotation = shape->rotation();
+            layout.items.append(li);
+        }
+    }
+    return layout;
+}
+
+

@@ -308,14 +308,19 @@ Lissage</source>
         <translation>Enter a name for your shape:</translation>
     </message>
     <message>
+        <location filename="../custom.cpp" line="414"/>
+        <source>Nom déjà utilisé</source>
+        <translation>Name already used</translation>
+    </message>
+    <message>
         <location filename="../custom.cpp" line="484"/>
         <source>Sélectionner une image</source>
         <translation>Select an image</translation>
     </message>
     <message>
         <location filename="../custom.cpp" line="486"/>
-        <source>Images (*.png *.jpg *.bmp *.svg)</source>
-        <translation>Images (*.png *.jpg *.bmp *.svg)</translation>
+        <source>Images (*.png *.jpg *.bmp *.svg *.webp)</source>
+        <translation>Images (*.png *.jpg *.bmp *.svg *.webp)</translation>
     </message>
     <message>
         <location filename="../custom.cpp" line="493"/>

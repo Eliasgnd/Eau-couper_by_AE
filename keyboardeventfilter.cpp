@@ -67,12 +67,24 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
             else {
                 m_keyboardActive = true;
                 Clavier txtDlg(le->window());
+
+                // 🔁 Mise à jour de la barre de recherche si on édite celle-ci
+                connect(&txtDlg, &Clavier::textChangedExternally, le, [le](const QString &text){
+                    if (le->text() != text) {
+                        le->setText(text);  // 🟢 met à jour si différent
+                    }
+                    QMetaObject::invokeMethod(le, "textChanged", Qt::QueuedConnection, Q_ARG(QString, text));
+                });
+
+
                 if (txtDlg.exec() == QDialog::Accepted) {
                     le->setText(txtDlg.getText());
                 }
+
                 m_keyboardActive = false;
                 return true;
             }
+
         }
     }
 

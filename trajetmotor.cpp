@@ -129,6 +129,7 @@ static void drawSegment(FormeVisualization* v,
 // -----------------------------------------------------------------------------
 void TrajetMotor::executeTrajet()
 {
+    m_interrupted = false;
     qDebug() << "[DEBUG] executeTrajet() exécuté dans instance" << this;
 
     if (m_running) {
@@ -249,14 +250,26 @@ void TrajetMotor::executeTrajet()
 
     m_running = false;
     QMetaObject::invokeMethod(m_mainWindow, [this]() {
+        QString titre;
+        QString message;
+
+        if (m_interrupted) {
+            titre = "Découpe interrompue";
+            message = "La découpe a été arrêtée manuellement.";
+        } else {
+            titre = "Découpe terminée";
+            message = "La découpe s'est terminée avec succès.";
+        }
+
         QMessageBox* msg = new QMessageBox(QMessageBox::Information,
-                                           "Découpe terminée",
-                                           "La découpe s'est terminée avec succès.",
+                                           titre,
+                                           message,
                                            QMessageBox::Ok,
                                            m_mainWindow);
         msg->setModal(false);
         msg->show();
     }, Qt::QueuedConnection);
+
 
 }
 
@@ -280,6 +293,7 @@ void TrajetMotor::stopCut()
     if (!m_running) return;
     m_stopRequested = true;
     m_paused        = false;
+    m_interrupted = true;
     m_motor.stopJet();
 }
 

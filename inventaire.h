@@ -4,74 +4,142 @@
 #include <QWidget>
 #include <QPolygonF>
 #include <QList>
-#include "ShapeModel.h"
+#include <QMap>
 #include <QFrame>
+#include <QString>
+#include <QStringList>
+#include "ShapeModel.h"
 #include "Language.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Inventaire; }
 QT_END_NAMESPACE
 
-// Structure pour stocker une forme custom (avec plusieurs tracés) et son nom
+// -----------------------------------------------------------------------------
+// Data structures
+// -----------------------------------------------------------------------------
+
+// Single item in a saved layout
+struct LayoutItem {
+    double x {0};
+    double y {0};
+    double rotation {0};
+};
+
+// Complete layout for a custom shape
+struct LayoutData {
+    QString name;
+    int largeur  {0};
+    int longueur {0};
+    int spacing  {0};
+    QList<LayoutItem> items;
+};
+
+// Custom shape definition (can contain multiple polygons) and its saved layouts
 struct CustomShapeData {
     QList<QPolygonF> polygons;
     QString name;
+    QString folder;
+    QList<LayoutData> layouts;
+};
+
+// Structure pour un dossier
+struct InventaireFolder {
+    QString name;
+    QString parentFolder;  // vide si dossier racine
 };
 
 
+// -----------------------------------------------------------------------------
+// Inventaire widget
+// -----------------------------------------------------------------------------
 class Inventaire : public QWidget
 {
     Q_OBJECT
 
 public:
-
-    bool gros_cavu;
     explicit Inventaire(QWidget *parent = nullptr);
-    ~Inventaire();
+    ~Inventaire() override;
 
-    // Singleton pour accéder à l'inventaire globalement
+    // Singleton accessor
     static Inventaire* getInstance();
 
-    // Méthode pour ajouter une forme custom sauvegardée (liste de QPolygonF) dans l'inventaire
-    void addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name);
+    // Public attributes -------------------------------------------------------
+    bool gros_cavu {false};
 
+    // -------------------------------------------------------------------------
+    // API – Custom shapes
+    // -------------------------------------------------------------------------
+    void addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name);
+    QStringList getAllShapeNames() const;
+
+    // Layouts for custom shapes
+    void addLayoutToShape(const QString &shapeName, const LayoutData &layout);
+    void renameLayout(const QString &shapeName, int index, const QString &newName);
+    void deleteLayout(const QString &shapeName, int index);
+    QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
+
+    // Layouts for base (built‑in) shapes
+    void addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout);
+    void renameBaseLayout(ShapeModel::Type type, int index, const QString &newName);
+    void deleteBaseLayout(ShapeModel::Type type, int index);
+    QList<LayoutData> getLayoutsForBaseShape(ShapeModel::Type type) const;
+
+    // Utility helpers
+    bool shapeNameExists(const QString &name) const;
+    static QString baseShapeName(ShapeModel::Type type, Language lang);
+
+    // Internationalisation
     void updateTranslations(Language lang);
 
+signals:
+    void shapeSelected(ShapeModel::Type type, int width, int height);
+    void customShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
+
 protected:
+    // React to palette / language changes
     void changeEvent(QEvent *event) override;
 
-
-signals:
-    // Signal émis lorsqu'une forme prédéfinie est sélectionnée (Cercle, Rectangle, etc.)
-    void shapeSelected(ShapeModel::Type type, int width, int height);
-
-    // Signal émis lorsqu'une forme custom est sélectionnée
-    void customShapeSelected(const QList<QPolygonF> &polygons);
-protected:
-    // Pour intercepter les clics sur les cadres (vignettes)
+    // Intercept clicks on thumbnails
     bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
-    // Retour vers le MainWindow
     void goToMainWindow();
+    void onSearchTextChanged(const QString &text);
+    void onClearSearchClicked();
 
 private:
-    Ui::Inventaire *ui;
-    static Inventaire *instance;
-
+    // ---------------------------------------------------------------------
+    // Internal helpers
+    // ---------------------------------------------------------------------
     QString customShapesFilePath() const;
     void loadCustomShapes();
     void saveCustomShapes() const;
 
-    // Affiche l'ensemble des formes (prédéfinies + custom) dans le scrollArea
-    void displayShapes();
+    // Display all shapes (built‑in + custom). Optional filter on name.
+    void displayShapes(const QString &filter = QString());
 
-    // Construit et renvoie le QFrame d'une forme custom à l'index donné
+    // Build and return the QFrame representing the custom shape at index
     QFrame* addCustomShapeToGrid(int index);
 
-    // Liste des formes custom sauvegardées
+    // ---------------------------------------------------------------------
+    // Data members
+    // ---------------------------------------------------------------------
+    Ui::Inventaire *ui {nullptr};
+    static Inventaire *instance;
+
     QList<CustomShapeData> m_customShapes;
-    Language currentLanguage = Language::French;
+    QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
+    QMap<ShapeModel::Type, QString> m_baseShapeFolders;
+    Language currentLanguage {Language::French};
+    QList<InventaireFolder> m_folders;
+
+    QFrame *createFolderCard(const QString &folderName);
+    QFrame *createBaseShapeCard(ShapeModel::Type type, const QString &name);
+    bool inFolderView = false;
+    QString currentFolder;
+
+    void displayShapesInFolder(const QString &folderName, const QString &filter);
 };
 
 #endif // INVENTAIRE_H
