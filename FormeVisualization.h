@@ -42,6 +42,8 @@ public:
     bool isEditingEnabled() const;
     void setDecoupeEnCours(bool etat);
     bool isDecoupeEnCours() const;
+    void cancelOptimization();
+    bool isOptimizationRunning() const { return m_optimizationRunning; }
     QGraphicsView* getGraphicsView() const;             // accès à la vue
 
 
@@ -90,6 +92,8 @@ private:
     QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
     bool m_decoupeEnCours = false;
+    bool m_optimizationRunning = false;
+    bool m_cancelOptimization = false;
 
 
 

@@ -95,6 +95,7 @@ void FormeVisualization::setModel(ShapeModel::Type model)
         return;
     if (m_decoupeEnCours)
         return;
+    cancelOptimization();
 
     currentModel = model;
     setPredefinedMode();
@@ -116,6 +117,7 @@ void FormeVisualization::updateDimensions(int largeur, int longueur)
         msg->setModal(false);
         msg->show();        return;
     }
+    cancelOptimization();
     currentLargeur = largeur;
     currentLongueur = longueur;
     if (m_isCustomMode && !m_customShapes.isEmpty())
@@ -139,6 +141,8 @@ void FormeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
         msg->show();
         return;
     }
+
+    cancelOptimization();
 
     shapeCount = count;
     currentModel = type;
@@ -166,6 +170,8 @@ void FormeVisualization::setSpacing(int newSpacing)
         return;
     }
 
+    cancelOptimization();
+
     spacing = newSpacing;
     emit spacingChanged(newSpacing);
     if (m_isCustomMode && !m_customShapes.isEmpty())
@@ -187,6 +193,8 @@ void FormeVisualization::setPredefinedMode()
         msg->show();        return;
     }
 
+    cancelOptimization();
+
     m_isCustomMode = false;
     m_customShapes.clear();
     emit optimizationStateChanged(false);
@@ -197,7 +205,7 @@ void FormeVisualization::setPredefinedMode()
    ****** OPTIMIZE PLACEMENT 1 (avec caching et test rapide) ******
 */
 void FormeVisualization::optimizePlacement() {
-    if (m_decoupeEnCours) {
+    if (m_decoupeEnCours || m_optimizationRunning) {
         qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
@@ -211,6 +219,8 @@ void FormeVisualization::optimizePlacement() {
     // Remise à zéro de l'espacement
     setSpacing(0);
 
+    m_optimizationRunning = true;
+    m_cancelOptimization = false;
     emit optimizationStateChanged(true);
     scene->clear();
     progressBar->setVisible(true);
@@ -278,6 +288,13 @@ void FormeVisualization::optimizePlacement() {
             progressCounter++;
             progressBar->setValue(progressCounter);
             qApp->processEvents();
+            if (m_cancelOptimization) {
+                m_cancelOptimization = false;
+                m_optimizationRunning = false;
+                emit optimizationStateChanged(false);
+                progressBar->setVisible(false);
+                return;
+            }
 
             for (int angle : angles) {
                 QTransform trans;
@@ -321,13 +338,14 @@ void FormeVisualization::optimizePlacement() {
     }
 
     //qDebug() << "Formes placées:" << shapesPlaced;
+    m_optimizationRunning = false;
     emit shapesPlacedCount(shapesPlaced);
     emit optimizationStateChanged(true);
     progressBar->setVisible(false);
 }
 
 void FormeVisualization::optimizePlacement2() {
-    if (m_decoupeEnCours) {
+    if (m_decoupeEnCours || m_optimizationRunning) {
         qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement2";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
                                            "Découpe en cours",
@@ -340,6 +358,8 @@ void FormeVisualization::optimizePlacement2() {
 
     // Remise à zéro de l'espacement
     setSpacing(0);
+    m_optimizationRunning = true;
+    m_cancelOptimization = false;
     scene->clear();
     graphicsView->update();
 
@@ -411,6 +431,13 @@ void FormeVisualization::optimizePlacement2() {
             progressCounter++;
             progressBar->setValue(progressCounter);
             qApp->processEvents();
+            if (m_cancelOptimization) {
+                m_cancelOptimization = false;
+                m_optimizationRunning = false;
+                emit optimizationStateChanged(false);
+                progressBar->setVisible(false);
+                return;
+            }
 
             QTransform candidateTransform;
             candidateTransform.translate(x, y);
@@ -444,6 +471,7 @@ void FormeVisualization::optimizePlacement2() {
         }
     }
     //qDebug() << "Formes optimisées placées:" << shapesPlaced;
+    m_optimizationRunning = false;
     emit shapesPlacedCount(shapesPlaced);
     progressBar->setVisible(false);
 }
@@ -537,6 +565,8 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         msg->show();
         return;
     }
+
+    cancelOptimization();
 
     scene->clear();
 
@@ -638,6 +668,7 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
 }
 
 void FormeVisualization::setCustomMode() {
+    cancelOptimization();
     m_isCustomMode = true;
     emit optimizationStateChanged(false);
 }
@@ -750,6 +781,12 @@ void FormeVisualization::setDecoupeEnCours(bool etat)
 bool FormeVisualization::isDecoupeEnCours() const
 {
     return m_decoupeEnCours;
+}
+
+void FormeVisualization::cancelOptimization()
+{
+    if (m_optimizationRunning)
+        m_cancelOptimization = true;
 }
 
 QGraphicsView* FormeVisualization::getGraphicsView() const
