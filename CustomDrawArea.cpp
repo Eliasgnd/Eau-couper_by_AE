@@ -510,24 +510,36 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
     QPointF clickPos = (event->pos() - m_offset) / m_scale;
 
-    if (!m_selectedShapes.isEmpty() &&
-        QLineF(clickPos, m_rotationHandle).length() < 10) {
-        m_rotating = true;
-
+    if (!m_selectedShapes.isEmpty()) {
         int idx = m_selectedShapes.first();
         if (idx >= 0 && idx < m_shapes.size()) {
             QRectF bounds = m_shapes[idx].path.boundingRect();
-            m_rotationCenter = bounds.center();
+            QPointF center = bounds.center();
+            m_rotationCenter = center;
 
-            QPointF delta = m_rotationHandle - m_rotationCenter;
-            m_rotationHandlePos.radius = std::hypot(delta.x(), delta.y());
-            m_rotationHandlePos.angleOffset = std::atan2(delta.y(), delta.x()) - m_shapes[idx].rotationAngle;
+            // Recalculer la position du handle avant de tester la distance
+            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
+            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                           std::sin(totalAngle) * m_rotationHandlePos.radius);
+            m_rotationHandle = center + offset;
         }
+    }
 
-        m_lastAngle = std::atan2(clickPos.y() - m_rotationCenter.y(), clickPos.x() - m_rotationCenter.x());
+    // Maintenant tester la distance
+    if (!m_selectedShapes.isEmpty() &&
+        QLineF(clickPos, m_rotationHandle).length() < 10) {
+
+        m_rotating = true;
+
+        // idx est déjà connu ici
+        m_lastAngle = std::atan2(clickPos.y() - m_rotationCenter.y(),
+                                 clickPos.x() - m_rotationCenter.x());
+
         event->accept();
         return;
     }
+
+
 
 
 
