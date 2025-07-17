@@ -912,36 +912,45 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
         });
     }
 
-    if (!m_folders.isEmpty()) {
-        QMenu *folderSubMenu = menu->addMenu("Ajouter au dossier");
-        QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier...");
-        connect(newFolderAction, &QAction::triggered, this, [this, type]() {
-            bool ok; QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
-            if (ok && !name.trimmed().isEmpty()) {
-                QString cleanName = name.trimmed();
-                QString parent = inFolderView ? currentFolder : "";
-                m_folders.append({cleanName, parent});
-                m_baseShapeFolders[type] = cleanName;
-                saveCustomShapes();
-                if (inFolderView)
-                    displayShapesInFolder(currentFolder, ui->searchBar->text());
-                else
-                    displayShapes(ui->searchBar->text());
-            }
-        });
-        for (const InventaireFolder &folder : m_folders) {
-            if (inFolderView && folder.parentFolder != currentFolder)
-                continue;
-            if (!inFolderView && !folder.parentFolder.isEmpty())
-                continue;
-            QAction *folderAction = folderSubMenu->addAction(folder.name);
-            connect(folderAction, &QAction::triggered, this, [this, type, folder]() {
+    // --- Sous‑menu "Ajouter au dossier" ---
+    // (créé même s'il n'existe encore aucun dossier)
+    QMenu *folderSubMenu = menu->addMenu("Ajouter au dossier");
+
+    // ➕ 1) Action de création d’un nouveau dossier
+    QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier…");
+    connect(newFolderAction, &QAction::triggered, this, [this, type]() {
+        bool ok;
+        QString name = QInputDialog::getText(
+            this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
+
+        if (ok && !name.trimmed().isEmpty()) {
+            QString cleanName = name.trimmed();
+            QString parent    = inFolderView ? currentFolder : "";
+            m_folders.append({cleanName, parent});
+            m_baseShapeFolders[type] = cleanName;   // on range la forme dans le nouveau dossier
+            saveCustomShapes();
+
+            if (inFolderView)
+                displayShapesInFolder(currentFolder, ui->searchBar->text());
+            else
+                displayShapes(ui->searchBar->text());
+        }
+    });
+
+    // ➕ 2) Lister ensuite les dossiers existants (s’il y en a)
+    for (const InventaireFolder &folder : m_folders) {
+    if (inFolderView && folder.parentFolder != currentFolder) continue;
+    if (!inFolderView && !folder.parentFolder.isEmpty())      continue;
+
+    QAction *folderAction = folderSubMenu->addAction(folder.name);
+    connect(folderAction, &QAction::triggered, this,
+            [this, type, folder]() {
                 m_baseShapeFolders[type] = folder.name;
                 saveCustomShapes();
                 displayShapes();
             });
-        }
-    }
+}
+
 
     connect(menuButton, &QPushButton::clicked, [menu, menuButton]() {
         menu->exec(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
