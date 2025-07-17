@@ -92,6 +92,7 @@ public:
     // Internationalisation
     void updateTranslations(Language lang);
 
+    QPixmap renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size);
 signals:
     void shapeSelected(ShapeModel::Type type, int width, int height);
     void customShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
@@ -140,6 +141,7 @@ private:
     QString currentFolder;
 
     void displayShapesInFolder(const QString &folderName, const QString &filter);
+    bool folderIsEmpty(const QString &folderName) const;
 };
 
 #endif // INVENTAIRE_H

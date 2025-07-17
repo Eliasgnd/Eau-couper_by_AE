@@ -30,5 +30,7 @@
         <file alias="link.svg">icons/link.svg</file>
         <file alias="fence.svg">icons/fence.svg</file>
         <file alias="magnet.svg">icons/magnet.svg</file>
+        <file alias="folder.svg">icons/folder.svg</file>
+        <file alias="folderfull.svg">icons/folderfull.svg</file>
     </qresource>
 </RCC>

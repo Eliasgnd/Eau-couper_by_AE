@@ -31,6 +31,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QDebug>
+#include <QSvgRenderer>
 
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
@@ -81,6 +82,34 @@ Inventaire* Inventaire::getInstance()
     }
     return instance;
 }
+
+
+QPixmap Inventaire::renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size)
+{
+    QSvgRenderer renderer(filePath);
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // Crée un masque noir/blanc à partir du SVG
+    QImage mask(size, QImage::Format_ARGB32_Premultiplied);
+    mask.fill(Qt::transparent);
+    QPainter maskPainter(&mask);
+    renderer.render(&maskPainter);
+    maskPainter.end();
+
+    // Colore la forme
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(pixmap.rect(), color);
+    painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    painter.drawImage(0, 0, mask);
+    painter.end();
+
+    return pixmap;
+}
+
 
 // -----------------------------------------------------------------------------
 // Navigation helpers
@@ -281,32 +310,28 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 
     }
 
-    if (!this->m_folders.isEmpty()) {
-        qDebug() << "Création du sous-menu Ajouter au dossier...";
-        qDebug() << "m_folders contient" << m_folders.size() << "éléments :";
-        QMenu *folderSubMenu = menu->addMenu("Ajouter au dossier");
+    QMenu *folderSubMenu = menu->addMenu("Ajouter au dossier");
 
-        // ➕ Ajoute tout en haut :
-        QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier...");
-        connect(newFolderAction, &QAction::triggered, this, [this, index]() {
-            bool ok;
-            QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
-            if (ok && !name.trimmed().isEmpty()) {
-                QString cleanName = name.trimmed();
-                QString parent = inFolderView ? currentFolder : "";
-                m_folders.append({ cleanName, parent });
-                if (index >= 0 && index < m_customShapes.size()) {
-                    m_customShapes[index].folder = cleanName;
-                }
-
-                saveCustomShapes();
-                if (inFolderView)
-                    displayShapesInFolder(currentFolder, ui->searchBar->text());
-                else
-                    displayShapes(ui->searchBar->text());
+    // ➕ Toujours proposer la création d'un nouveau dossier
+    QAction *newFolderAction = folderSubMenu->addAction("➕ Créer un nouveau dossier...");
+    connect(newFolderAction, &QAction::triggered, this, [this, index]() {
+        bool ok;
+        QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            QString cleanName = name.trimmed();
+            QString parent = inFolderView ? currentFolder : "";
+            m_folders.append({ cleanName, parent });
+            if (index >= 0 && index < m_customShapes.size()) {
+                m_customShapes[index].folder = cleanName;
             }
-        });
-        QString currentFolderName = m_customShapes[index].folder;
+
+            saveCustomShapes();
+            if (inFolderView)
+                displayShapesInFolder(currentFolder, ui->searchBar->text());
+            else
+                displayShapes(ui->searchBar->text());
+        }
+    });
 
         for (const InventaireFolder &folder : m_folders) {
             if (inFolderView && folder.parentFolder != currentFolder)
@@ -329,9 +354,6 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
                         }
                     });
         }
-
-    }
-
 
     connect(menuButton, &QPushButton::clicked, [menu, menuButton]() {
 //        menu->setMinimumWidth(200);  // force un espace suffisant
@@ -944,10 +966,19 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
 
 QFrame* Inventaire::createFolderCard(const QString& folderName)
 {
-    // Icône SVG centrée sans cadre
     QLabel *iconLabel = new QLabel();
-    QPixmap icon(":/folder-svgrepo-com.svg");
-    iconLabel->setPixmap(icon.scaled(70, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    QString iconPath = folderIsEmpty(folderName) ? ":/icons/folder.svg" : ":/icons/folderfull.svg";
+
+    QSvgRenderer renderer(iconPath);
+    QPixmap icon(120, 120);
+    icon.fill(Qt::transparent);
+
+    QPainter painter(&icon);
+    painter.setRenderHint(QPainter::Antialiasing);
+    renderer.render(&painter);
+    painter.end();
+
+    iconLabel->setPixmap(icon);
     iconLabel->setAlignment(Qt::AlignCenter);
 
     // Nom du dossier
@@ -957,7 +988,7 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
 
     // Bouton "..." en haut à droite
     QPushButton *menuButton = new QPushButton("...");
-    menuButton->setFixedSize(20, 20);
+    menuButton->setFixedSize(25, 25);
     menuButton->setCursor(Qt::PointingHandCursor);
     menuButton->setStyleSheet("border: none;");
 
@@ -971,8 +1002,8 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
     frame->setFixedSize(150, 220);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(frame);
-    mainLayout->setContentsMargins(5, 5, 5, 5);
-    mainLayout->setSpacing(5);
+   // mainLayout->setContentsMargins(5, 5, 5, 5);
+   // mainLayout->setSpacing(5);
     mainLayout->addLayout(headerLayout);
     mainLayout->addWidget(iconLabel);
     mainLayout->addWidget(label);
@@ -1139,3 +1170,24 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     ui->buttonMenu->setVisible(false);  // masque la croix rouge
 
 }
+
+bool Inventaire::folderIsEmpty(const QString& folderName) const
+{
+    // Sous-dossiers
+    for (const InventaireFolder& folder : m_folders)
+        if (folder.parentFolder == folderName)
+            return false;
+
+    // Formes custom
+    for (const CustomShapeData& shape : m_customShapes)
+        if (shape.folder == folderName)
+            return false;
+
+    // Formes de base
+    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it)
+        if (it.value() == folderName)
+            return false;
+
+    return true;
+}
+
