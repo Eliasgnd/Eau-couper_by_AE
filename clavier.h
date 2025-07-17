@@ -47,7 +47,7 @@ private:
     QWidget* accentPopup; // Popup pour afficher les accents disponibles
     QWidget* overlay = nullptr;  // Overlay pour bloquer l'écran lors de la sélection d'accents
     QGridLayout* accentLayout; // Layout pour les boutons d'accents
-    QGridLayout *gridLayout; // Layout général du clavier
+    QGridLayout *gridLayout; // Layout général du  clavier
 
     enum KeyboardLayout { AZERTY, QWERTY };  // Types de dispositions clavier supportées
     KeyboardLayout currentLayout;  // Stocke la disposition actuelle
