@@ -108,6 +108,7 @@ private slots:
     void goToMainWindow();
     void onSearchTextChanged(const QString &text);
     void onClearSearchClicked();
+    void onCreateFolderClicked();
 
 private:
     // ---------------------------------------------------------------------
