@@ -1344,16 +1344,32 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     // ─── Surbrillance des segments sélectionnés ───────────────────
     // ─── Surbrillance des formes sélectionnées ───────────────────
     if (!m_selectedShapes.isEmpty()) {
-        // Si le handle est trop éloigné, ne pas l'afficher
-        const double maxDistance = 150.0;  // seuil arbitraire à ajuster
+        QPen normalPen(Qt::black, 2);
+        normalPen.setCosmetic(true);
+
+        QPen selectedPen(Qt::cyan, 4);
+        selectedPen.setCosmetic(true);
+
+        for (int i = 0; i < m_shapes.size(); ++i) {
+            if (m_selectedShapes.contains(i)) {
+                painter.setPen(selectedPen);
+            } else {
+                painter.setPen(normalPen);
+            }
+            painter.setBrush(Qt::NoBrush);  // Pas de remplissage
+            painter.drawPath(m_shapes[i].path);
+        }
+
+        // Afficher la poignée si pas trop éloignée
+        const double maxDistance = 150.0;
         double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
 
         if (distanceToCenter <= maxDistance) {
-            //painter.setBrush(Qt::blue);
             painter.setPen(Qt::black);
             painter.drawEllipse(m_rotationHandle, 6, 6);
         }
     }
+
 
     if (!m_selectedShapes.isEmpty()) {
         int idx = m_selectedShapes.first(); // ← Important : ici la déclaration
