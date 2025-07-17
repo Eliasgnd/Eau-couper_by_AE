@@ -770,7 +770,6 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
         m_currentText = text;
 
-        const int oversample = 16;                 //  ➜ augmenter pour des bords plus fins
         QFont thinFont = m_textFont;
         thinFont.setWeight(QFont::Thin);
 
@@ -799,38 +798,44 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         }
 
         // Squelettisation et création d'une Shape pour chaque lettre
-        for (const QPainterPath &letterPath : letterPaths) {
-            if (letterPath.isEmpty())
-                continue;
-
+        // ↓ à la place de ta boucle “for (const QPainterPath &letterPath …) ”
+        for (const QPainterPath &letterPath : letterPaths)
+        {
+            if (letterPath.isEmpty()) continue;
             QRectF br = letterPath.boundingRect();
 
-            QSize imgSz = (br.size() * oversample).toSize() + QSize(8, 8);
+            /* 1. bitmap */
+            const int oversample = 8;                 // ← 8 au lieu de 16
+            QSize imgSz = (br.size()*oversample).toSize() + QSize(8,8);
             QImage img(imgSz, QImage::Format_Grayscale8);
             img.fill(255);
 
             QPainter p(&img);
-            p.setRenderHint(QPainter::Antialiasing, false);
-            p.setPen(Qt::NoPen);
+            p.setRenderHint(QPainter::Antialiasing,false);
+            p.setPen (Qt::NoPen);
             p.setBrush(Qt::black);
-            p.translate(4 - br.left() * oversample,
-                        4 - br.top()  * oversample);
+            p.translate(4 - br.left()*oversample,
+                        4 - br.top ()*oversample);
             p.scale(oversample, oversample);
-            p.drawPath(letterPath);
+            p.drawPath(letterPath);                  // trait plein (épais de 1px)
 
+            /* 2. thinning */
             QImage skelImg = Skeletonizer::thin(img);
+
+            /* 3. vectorisation */
             QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
-
-            QTransform tr;
-            tr.scale(1.0 / oversample, 1.0 / oversample);
+            QTransform tr;  tr.scale(1.0/oversample, 1.0/oversample);
             skelPath = tr.map(skelPath);
-            skelPath.translate(br.left() - 4.0 / oversample,
-                               br.top()  - 4.0 / oversample);
+            skelPath.translate(br.left()-4.0/oversample,
+                               br.top() -4.0/oversample);
 
-            skelPath = Skeletonizer::smoothPath(skelPath, 3, 1.0);
+            /* 4. lissage doux                               */
+            skelPath = Skeletonizer::smoothPath(skelPath,
+                                                /*chaikinPasses=*/1,
+                                                /*epsilon=*/0.05);
 
-            Shape s;
-            s.path       = skelPath;
+            /* 5. sauvegarde                                 */
+            Shape s;  s.path = skelPath;
             s.originalId = m_nextShapeId++;
             m_shapes.append(s);
         }

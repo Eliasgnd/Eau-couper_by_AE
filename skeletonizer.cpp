@@ -77,33 +77,68 @@ QPainterPath Skeletonizer::bitmapToPath(const QImage &img)
     const int w = img.width(), h = img.height();
     auto black = [&](int x,int y){ return qGray(img.pixel(x,y)) < 128; };
 
-    QVector<uchar> done(w*h, 0);              // marquage des pixels déjà traités
+    QVector<uchar> done(w*h, 0);
     QPainterPath path;
 
-    /* --- balayage horizontal -------------------------------------- */
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ) {
+    /* --- passe horizontale ----------------------------------------- */
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; )
+        {
             if (!black(x,y) || done[y*w+x]) { ++x; continue; }
-            int x2 = x;
-            while (x2+1 < w && black(x2+1,y)) ++x2;            // run noir
-            path.moveTo(x   +0.5, y+0.5);
+            int x2 = x;  while (x2+1 < w && black(x2+1,y)) ++x2;
+            path.moveTo(x +0.5, y+0.5);
             path.lineTo(x2+0.5, y+0.5);
-            while (x <= x2) done[y*w + x++] = 1;               // marque la run
+            while (x <= x2) done[y*w + x++] = 1;
         }
-    }
 
-    /* --- balayage vertical ---------------------------------------- */
+    /* --- passe verticale ------------------------------------------- */
     done.fill(0);
-    for (int x = 0; x < w; ++x) {
-        for (int y = 0; y < h; ) {
+    for (int x = 0; x < w; ++x)
+        for (int y = 0; y < h; )
+        {
             if (!black(x,y) || done[y*w+x]) { ++y; continue; }
-            int y2 = y;
-            while (y2+1 < h && black(x,y2+1)) ++y2;
+            int y2 = y;  while (y2+1 < h && black(x,y2+1)) ++y2;
             path.moveTo(x+0.5, y +0.5);
             path.lineTo(x+0.5, y2+0.5);
             while (y <= y2) done[y++*w + x] = 1;
         }
-    }
+
+    /* --- passe diagonale ↘ (x+,y+) -------------------------------- */
+    done.fill(0);
+    for (int y0 = 0; y0 < h; ++y0)
+        for (int x0 = 0; x0 < w; ++x0)
+        {
+            int x = x0, y = y0;
+            if (x>=w || y>=h || !black(x,y) || done[y*w+x]) continue;
+
+            int len = 0;
+            while (x<w && y<h && black(x,y)) { ++x; ++y; ++len; }
+
+            if (len >= 1) {
+                path.moveTo(x0+0.5, y0+0.5);
+                path.lineTo(x-1+0.5, y-1+0.5);
+                for (int i=0;i<len;++i) done[(y0+i)*w + (x0+i)] = 1;
+            }
+        }
+
+    /* --- passe diagonale ↗ (x+,y−) -------------------------------- */
+    done.fill(0);
+    for (int y0 = h-1; y0 >= 0; --y0)
+        for (int x0 = 0; x0 < w; ++x0)
+        {
+            int x = x0, y = y0;
+            if (x>=w || y<0 || !black(x,y) || done[y*w+x]) continue;
+
+            int len = 0;
+            while (x<w && y>=0 && black(x,y)) { ++x; --y; ++len; }
+
+            if (len >= 1) {
+                path.moveTo(x0+0.5, y0+0.5);
+                path.lineTo(x-1+0.5, y+1+0.5);
+                for (int i=0;i<len;++i) done[(y0-i)*w + (x0+i)] = 1;
+            }
+        }
+
     return path;
 }
 
@@ -163,34 +198,39 @@ static QList<QPointF> chaikinSmooth(const QList<QPointF> &pts, int passes)
     return out;
 }
 
-QPainterPath Skeletonizer::smoothPath(const QPainterPath &path, int chaikinPasses, double epsilon)
+QPainterPath Skeletonizer::smoothPath(const QPainterPath &path,
+                                      int chaikinPasses,
+                                      double epsilon)
 {
     QPainterPath result;
-    int n = path.elementCount();
+    const int n = path.elementCount();
     if (n == 0)
         return result;
 
     int start = 0;
-    while (start < n) {
+    while (start < n)
+    {
+        /* --- extrait un sous‑chemin -------------------------------- */
         int end = start + 1;
         while (end < n && !path.elementAt(end).isMoveTo())
             ++end;
 
         QList<QPointF> pts;
         for (int i = start; i < end; ++i)
-            pts.append(QPointF(path.elementAt(i).x, path.elementAt(i).y));
+            pts.append({ path.elementAt(i).x, path.elementAt(i).y });
 
+        /* --- simplification + lissage ------------------------------ */
         pts = douglasPeucker(pts, epsilon);
-        pts = chaikinSmooth(pts, chaikinPasses);
+        pts = chaikinSmooth (pts, chaikinPasses);
 
+        /* --- reconstruction ---------------------------------------- */
         if (!pts.isEmpty()) {
-            result.moveTo(pts.first());
-            for (int i = 1; i < pts.size(); ++i)
-                result.lineTo(pts[i]);
+            result.moveTo(pts.first());            // toujours garder l’extrémité
+            for (int i = 1; i < pts.size(); ++i)   // s’il n’y en a qu’une,
+                result.lineTo(pts[i]);             // la boucle ne s’exécute pas
         }
 
         start = end;
     }
-
     return result;
 }
