@@ -22,6 +22,7 @@
 #include <QPinchGesture>
 #include <utility>
 #include <QTransform>
+#include <QSvgRenderer>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
@@ -78,6 +79,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
 
     m_touchReader->start();          // ← on lance le thread UNE seule fois
     initializeLimitRect();
+
+    m_handleRenderer.load(QStringLiteral(":/icons/rotate.svg"));
 
 }
 
@@ -1356,19 +1359,23 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
             } else {
                 painter.setPen(normalPen);
             }
-            painter.setBrush(Qt::NoBrush);  // Pas de remplissage
+            painter.setBrush(Qt::NoBrush);
             painter.drawPath(m_shapes[i].path);
         }
 
-        // Afficher la poignée si pas trop éloignée
+        // Afficher la poignée SVG si pas trop éloignée
         const double maxDistance = 150.0;
         double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
 
-        if (distanceToCenter <= maxDistance) {
-            painter.setPen(Qt::black);
-            painter.drawEllipse(m_rotationHandle, 6, 6);
+        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
+            const int iconSize = 24;  // taille du SVG en pixels
+            QRectF targetRect(m_rotationHandle.x() - iconSize / 2,
+                              m_rotationHandle.y() - iconSize / 2,
+                              iconSize, iconSize);
+            m_handleRenderer.render(&painter, targetRect);
         }
     }
+
 
 
     if (!m_selectedShapes.isEmpty()) {

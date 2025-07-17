@@ -1,6 +1,7 @@
 #ifndef CUSTOMDRAWAREA_H
 #define CUSTOMDRAWAREA_H
 
+#include "qsvgrenderer.h"
 #include "touchgesturereader.h"
 #include <QWidget>
 #include <QPointF>
@@ -239,6 +240,7 @@ private:
     QPointF m_rotationCenter;      // Centre de rotation
     bool m_rotating = false;       // Vrai si on est en train de tourner
     qreal m_lastAngle = 0.0;       // Dernier angle mesuré
+    QSvgRenderer m_handleRenderer;
 
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
