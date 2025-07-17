@@ -629,7 +629,6 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     break;
                 }
             }
-
             if (hitShape >= 0) {
                 m_lastSelectClick = pos;
                 if (m_selectedShapes.contains(hitShape))
@@ -637,22 +636,25 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 else
                     m_selectedShapes.append(hitShape);
 
-                // === AJOUT : initialise la poignée dès la sélection ===
-                int idx = m_selectedShapes.first();
-                if (idx >= 0 && idx < m_shapes.size()) {
-                    QRectF bounds = m_shapes[idx].path.boundingRect();
-                    QPointF center = bounds.center();
-                    m_rotationCenter = center;
+                // === Correction : vérifier que m_selectedShapes n'est pas vide ===
+                if (!m_selectedShapes.isEmpty()) {
+                    int idx = m_selectedShapes.first();
+                    if (idx >= 0 && idx < m_shapes.size()) {
+                        QRectF bounds = m_shapes[idx].path.boundingRect();
+                        QPointF center = bounds.center();
+                        m_rotationCenter = center;
 
-                    // Position handle au-dessus de la forme, sans rotation
-                    m_rotationHandle = QPointF(center.x(), bounds.top() - 20);
+                        // Position handle au-dessus de la forme, sans rotation
+                        m_rotationHandle = QPointF(center.x(), bounds.top() - 20);
 
-                    QPointF delta = m_rotationHandle - center;
-                    m_rotationHandlePos.radius = std::hypot(delta.x(), delta.y());
-                    m_rotationHandlePos.angleOffset = std::atan2(delta.y(), delta.x()) - m_shapes[idx].rotationAngle;
+                        QPointF delta = m_rotationHandle - center;
+                        m_rotationHandlePos.radius = std::hypot(delta.x(), delta.y());
+                        m_rotationHandlePos.angleOffset = std::atan2(delta.y(), delta.x()) - m_shapes[idx].rotationAngle;
+                    }
                 }
                 update();
             }
+
             return;
         }
 
@@ -1392,6 +1394,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
             painter.restore();
         }
     }
+
     if (!m_selectedShapes.isEmpty()) {
         int idx = m_selectedShapes.first();
         if (idx >= 0 && idx < m_shapes.size()) {
