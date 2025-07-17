@@ -59,6 +59,7 @@ Inventaire::Inventaire(QWidget *parent)
     // Search bar
     connect(ui->searchBar, &QLineEdit::textChanged, this, &Inventaire::onSearchTextChanged);
     connect(ui->buttonClearSearch, &QPushButton::clicked, this, &Inventaire::onClearSearchClicked);
+    connect(ui->buttonNewFolder, &QPushButton::clicked, this, &Inventaire::onCreateFolderClicked);
 
     // Initial display
     displayShapes();
@@ -745,6 +746,28 @@ void Inventaire::onClearSearchClicked()
     if (ui->searchBar)
         ui->searchBar->clear();
     displayShapes();
+}
+
+void Inventaire::onCreateFolderClicked()
+{
+    bool ok = false;
+    QString name = QInputDialog::getText(this,
+                                         tr("Nouveau dossier"),
+                                         tr("Nom du dossier :"),
+                                         QLineEdit::Normal,
+                                         QString(),
+                                         &ok);
+    if (ok && !name.trimmed().isEmpty()) {
+        QString clean = name.trimmed();
+        QString parent = inFolderView ? currentFolder : QString();
+        m_folders.append({clean, parent});
+        saveCustomShapes();
+
+        if (inFolderView)
+            displayShapesInFolder(currentFolder, ui->searchBar->text());
+        else
+            displayShapes(ui->searchBar->text());
+    }
 }
 
 QStringList Inventaire::getAllShapeNames() const
