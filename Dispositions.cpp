@@ -18,6 +18,8 @@
 #include <QPainterPath>
 #include <QTransform>
 #include <QSizePolicy>
+#include <QDateTime>
+
 #include <algorithm>
 #include "inventaire.h"
 
@@ -54,6 +56,10 @@ Dispositions::Dispositions(const QString &shapeName,
     if (ui->comboSort) {
         ui->comboSort->addItem("Nom (A \342\206\222 Z)");
         ui->comboSort->addItem("Nom (Z \342\206\222 A)");
+        ui->comboSort->addItem("Utilisation fr\303\251quente");
+        ui->comboSort->addItem("R\303\251cent \342\206\222 Ancien");
+        ui->comboSort->addItem("Ancien \342\206\222 R\303\251cent");
+
         connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this, &Dispositions::onSortChanged);
     }
@@ -230,7 +236,8 @@ void Dispositions::displayLayouts(const QString &filter)
 
     int sortMode = ui->comboSort ? ui->comboSort->currentIndex() : 0;
 
-    struct Item { int index; QString name; };
+    struct Item { int index; QString name; int usage; QDateTime last; };
+
     QList<Item> items;
 
     const QString baseName = m_lang == Language::French ? "Forme seule" : "Shape only";
@@ -239,13 +246,19 @@ void Dispositions::displayLayouts(const QString &filter)
     for (int i = 0; i < m_layouts.size(); ++i) {
         if (!f.isEmpty() && !m_layouts.at(i).name.toLower().contains(f))
             continue;
-        items.append({i, m_layouts.at(i).name});
+        const LayoutData &ld = m_layouts.at(i);
+        items.append({i, ld.name, ld.usageCount, ld.lastUsed});
     }
 
     std::sort(items.begin(), items.end(), [sortMode](const Item &a, const Item &b){
-        if (sortMode == 0)
-            return a.name.toLower() < b.name.toLower();
-        return a.name.toLower() > b.name.toLower();
+        switch(sortMode){
+        case 0: return a.name.toLower() < b.name.toLower();
+        case 1: return a.name.toLower() > b.name.toLower();
+        case 2: return a.usage > b.usage;
+        case 3: return a.last > b.last;
+        case 4: return a.last < b.last;
+        }
+        return false;
     });
 
     int index = 0;
@@ -254,6 +267,7 @@ void Dispositions::displayLayouts(const QString &filter)
         ui->gridLayout->addWidget(shapeFrame, index / 4, index % 4);
         ++index;
     }
+
 
     for (const Item &it : items) {
         QFrame *frame = createLayoutFrame(it.index);
@@ -318,7 +332,16 @@ bool Dispositions::eventFilter(QObject *obj, QEvent *event)
             if (idx == -1) {                 // « forme seule »
                 emit shapeOnlySelected();
             } else if (idx >= 0 && idx < m_layouts.size()) {
-                emit layoutSelected(m_layouts.at(idx));
+                LayoutData ld = m_layouts.at(idx);
+                if (m_isBaseShape)
+                    Inventaire::getInstance()->incrementBaseLayoutUsage(m_baseType, idx);
+                else
+                    Inventaire::getInstance()->incrementLayoutUsage(m_shapeName, idx);
+                ld.usageCount++;
+                ld.lastUsed = QDateTime::currentDateTime();
+                m_layouts[idx].usageCount = ld.usageCount;
+                m_layouts[idx].lastUsed = ld.lastUsed;
+                emit layoutSelected(ld);
             }
             emit closed();
             close();

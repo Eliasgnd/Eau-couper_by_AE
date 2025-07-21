@@ -576,6 +576,10 @@ void Inventaire::loadCustomShapes()
             ld.largeur   = lo.value("largeur").toInt();
             ld.longueur  = lo.value("longueur").toInt();
             ld.spacing   = lo.value("spacing").toInt();
+            ld.usageCount = lo.value("usageCount").toInt();
+            qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
+            if (tsLayout > 0)
+                ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
             const QJsonArray itemsArr = lo.value("items").toArray();
             for (const QJsonValue &itemVal : itemsArr) {
                 const QJsonObject io = itemVal.toObject();
@@ -608,6 +612,10 @@ void Inventaire::loadCustomShapes()
             ld.largeur  = lo.value("largeur").toInt();
             ld.longueur = lo.value("longueur").toInt();
             ld.spacing  = lo.value("spacing").toInt();
+            ld.usageCount = lo.value("usageCount").toInt();
+            qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
+            if (tsLayout > 0)
+                ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
             const QJsonArray itemsArr = lo.value("items").toArray();
             for (const QJsonValue &itemVal : itemsArr) {
                 const QJsonObject io = itemVal.toObject();
@@ -677,6 +685,8 @@ void Inventaire::saveCustomShapes() const
             lo["largeur"]  = ld.largeur;
             lo["longueur"] = ld.longueur;
             lo["spacing"]  = ld.spacing;
+            lo["usageCount"] = ld.usageCount;
+            lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
             QJsonArray itemsArr;
             for (const LayoutItem &li : ld.items) {
                 QJsonObject io;
@@ -703,6 +713,8 @@ void Inventaire::saveCustomShapes() const
             lo["largeur"]  = ld.largeur;
             lo["longueur"] = ld.longueur;
             lo["spacing"]  = ld.spacing;
+            lo["usageCount"] = ld.usageCount;
+            lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
             QJsonArray itemsArr;
             for (const LayoutItem &li : ld.items) {
                 QJsonObject io;
@@ -905,6 +917,28 @@ void Inventaire::deleteBaseLayout(ShapeModel::Type type, int index)
 QList<LayoutData> Inventaire::getLayoutsForBaseShape(ShapeModel::Type type) const
 {
     return m_baseShapeLayouts.value(type);
+}
+
+void Inventaire::incrementLayoutUsage(const QString &shapeName, int index)
+{
+    for (CustomShapeData &data : m_customShapes) {
+        if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
+            data.layouts[index].usageCount++;
+            data.layouts[index].lastUsed = QDateTime::currentDateTime();
+            saveCustomShapes();
+            return;
+        }
+    }
+}
+
+void Inventaire::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
+{
+    auto it = m_baseShapeLayouts.find(type);
+    if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
+        it.value()[index].usageCount++;
+        it.value()[index].lastUsed = QDateTime::currentDateTime();
+        saveCustomShapes();
+    }
 }
 
 // -----------------------------------------------------------------------------
