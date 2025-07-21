@@ -11,6 +11,9 @@
 #include <QAction>
 #include <QTranslator>
 #include <QElapsedTimer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QLineEdit>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -54,6 +57,9 @@ private slots:
     //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
+    void toggleAIPrompt();
+    void generateAIImage();
+
     void setLanguageFrench();
     void setLanguageEnglish();
 
@@ -86,6 +92,7 @@ private:
     double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
     bool promptAndSaveCurrentCustomShape();
+    QNetworkAccessManager *m_netManager = nullptr;
 
 protected:
     void showEvent(QShowEvent *event) override;

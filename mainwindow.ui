@@ -428,6 +428,60 @@ QPushButton:pressed {
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QPushButton" name="buttonGenerateAI">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>40</height>
+        </size>
+       </property>
+       <property name="layoutDirection">
+        <enum>Qt::LayoutDirection::LeftToRight</enum>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+       </property>
+       <property name="text">
+        <string>Générer logo IA</string>
+       </property>
+       <property name="icon">
+        <iconset resource="resources.qrc">
+         <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="lineEditAIPrompt">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>30</height>
+        </size>
+       </property>
+       <property name="placeholderText">
+        <string>Décrivez l'image...</string>
+       </property>
+       <property name="visible">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
    <widget class="QSlider" name="Slider_longueur">
