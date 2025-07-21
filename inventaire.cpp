@@ -25,7 +25,6 @@
 #include <QFrame>
 #include <QLabel>
 #include <QListWidget>
-#include "draggablelistwidget.h"
 #include <QMenu>
 #include <QAction>
 #include <QInputDialog>
@@ -148,7 +147,7 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     inFolderView = false;
     currentFolder.clear();
 
-    DraggableListWidget *listWidget = new DraggableListWidget();
+    QListWidget *listWidget = new QListWidget();
     listWidget->setViewMode(QListView::IconMode);
     listWidget->setResizeMode(QListView::Adjust);
     listWidget->setMovement(QListView::Snap);
@@ -170,7 +169,6 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         item->setSizeHint(card->size());
         item->setData(Qt::UserRole, 0);
         item->setData(Qt::UserRole + 1, folder.name);
-        item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
         listWidget->addItem(item);
         listWidget->setItemWidget(item, card);
     }
@@ -193,7 +191,6 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         item->setSizeHint(frame->size());
         item->setData(Qt::UserRole, 1);
         item->setData(Qt::UserRole + 1, static_cast<int>(type));
-        item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
         listWidget->addItem(item);
         listWidget->setItemWidget(item, frame);
     }
@@ -215,7 +212,6 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         item->setSizeHint(customFrame->size());
         item->setData(Qt::UserRole, 2);
         item->setData(Qt::UserRole + 1, data.name);
-        item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
         listWidget->addItem(item);
         listWidget->setItemWidget(item, customFrame);
     }
@@ -223,13 +219,6 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     inFolderView = false;
     currentFolder.clear();
     connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
-    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this,
-            [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){
-                applyReorderFromList(listWidget); });
-    connect(listWidget, &DraggableListWidget::dragStarted, this,
-            [this](){ m_dragInProgress = true; });
-    connect(listWidget, &DraggableListWidget::dragFinished, this,
-            [this, listWidget](){ m_dragInProgress = false; applyReorderFromList(listWidget); });
     ui->buttonMenu->setVisible(true);
     update();
 }
@@ -400,10 +389,8 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     mainLayout->addWidget(view, 0, Qt::AlignCenter);
     mainLayout->addWidget(label);
 
-    // Store index for later retrieval (eventFilter)
     frame->setProperty("CustomShapeIndex", index);
     frame->setCursor(Qt::PointingHandCursor);
-    frame->installEventFilter(this);
 
     return frame;
 }
@@ -425,29 +412,6 @@ void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QSt
 
     saveCustomShapes();
     displayShapes();
-}
-
-// -----------------------------------------------------------------------------
-// Event filter – detect clicks on thumbnails
-// -----------------------------------------------------------------------------
-bool Inventaire::eventFilter(QObject *obj, QEvent *event)
-{
-    if (auto *frame = qobject_cast<QFrame*>(obj)) {
-        if (event->type() == QEvent::MouseButtonPress) {
-            m_lastPressedFrame = frame;
-            m_pressTimer.start();
-            m_longPress = false;
-        } else if (event->type() == QEvent::MouseButtonRelease) {
-            if (frame == m_lastPressedFrame) {
-                if (m_dragInProgress)
-                    m_longPress = false;
-                else
-                    m_longPress = m_pressTimer.elapsed() > LONG_PRESS_THRESHOLD;
-                m_lastPressedFrame = nullptr;
-            }
-        }
-    }
-    return QWidget::eventFilter(obj, event);
 }
 
 // -----------------------------------------------------------------------------
@@ -621,10 +585,7 @@ void Inventaire::loadCustomShapes()
         m_baseShapeFolders[type] = it.value().toString();
     }
 
-    const QJsonArray baseOrderArr = root.value("baseOrder").toArray();
-    for (const QJsonValue &v : baseOrderArr) {
-        m_baseShapeOrder.append(static_cast<ShapeModel::Type>(v.toInt()));
-    }
+    // Preserve default order of built-in shapes
 }
 
 void Inventaire::saveCustomShapes() const
@@ -701,10 +662,6 @@ void Inventaire::saveCustomShapes() const
     for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
         baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
     }
-    QJsonArray baseOrderArr;
-    for (ShapeModel::Type t : m_baseShapeOrder)
-        baseOrderArr.append(static_cast<int>(t));
-
     QJsonArray foldersArr;
     for (const InventaireFolder &f : m_folders) {
         QJsonObject fo;
@@ -717,7 +674,6 @@ void Inventaire::saveCustomShapes() const
     rootObj["shapes"]      = shapesArr;
     rootObj["baseLayouts"] = baseObj;
     rootObj["baseFolders"] = baseFoldersObj;
-    rootObj["baseOrder"]   = baseOrderArr;
     rootObj["folders"]     = foldersArr;
 
     QFile file(customShapesFilePath());
@@ -991,7 +947,6 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
 
     frame->setProperty("shapeType", static_cast<int>(type));
     frame->setCursor(Qt::PointingHandCursor);
-    frame->installEventFilter(this);
     return frame;
 }
 
@@ -1043,7 +998,6 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
     frame->setProperty("isFolder", true);
     frame->setProperty("folderName", folderName);
     frame->setCursor(Qt::PointingHandCursor);
-    frame->installEventFilter(this);
 
     // Menu contextuel identique aux formes (renommer / supprimer)
     QMenu *menu = new QMenu(menuButton);
@@ -1104,7 +1058,7 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     inFolderView = true;
     currentFolder = folderName;
 
-    DraggableListWidget *listWidget = new DraggableListWidget();
+    QListWidget *listWidget = new QListWidget();
     listWidget->setViewMode(QListView::IconMode);
     listWidget->setResizeMode(QListView::Adjust);
     listWidget->setMovement(QListView::Snap);
@@ -1122,7 +1076,6 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         it->setSizeHint(card->size());
         it->setData(Qt::UserRole, 0);
         it->setData(Qt::UserRole + 1, folder.name);
-        it->setFlags(it->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
         listWidget->addItem(it);
         listWidget->setItemWidget(it, card);
     }
@@ -1139,7 +1092,6 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         it->setSizeHint(frame->size());
         it->setData(Qt::UserRole, 1);
         it->setData(Qt::UserRole + 1, static_cast<int>(type));
-        it->setFlags(it->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
         listWidget->addItem(it);
         listWidget->setItemWidget(it, frame);
     }
@@ -1160,7 +1112,6 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         it->setSizeHint(customFrame->size());
         it->setData(Qt::UserRole, 2);
         it->setData(Qt::UserRole + 1, data.name);
-        it->setFlags(it->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
         listWidget->addItem(it);
         listWidget->setItemWidget(it, customFrame);
     }
@@ -1191,17 +1142,9 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     // ajouter le bouton en haut à gauche du layout principal
     QListWidgetItem *backItem = new QListWidgetItem(listWidget);
     backItem->setSizeHint(retourButton->size());
-    backItem->setFlags(backItem->flags() & ~Qt::ItemIsDragEnabled & ~Qt::ItemIsDropEnabled);
     listWidget->addItem(backItem);
     listWidget->setItemWidget(backItem, retourButton);
     connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
-    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this,
-            [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){
-                applyReorderFromList(listWidget); });
-    connect(listWidget, &DraggableListWidget::dragStarted, this,
-            [this](){ m_dragInProgress = true; });
-    connect(listWidget, &DraggableListWidget::dragFinished, this,
-            [this, listWidget](){ m_dragInProgress = false; applyReorderFromList(listWidget); });
     ui->buttonMenu->setVisible(false);
 
 }
@@ -1226,79 +1169,8 @@ bool Inventaire::folderIsEmpty(const QString& folderName) const
     return true;
 }
 
-void Inventaire::applyReorderFromList(QListWidget *listWidget)
-{
-    if (!listWidget) return;
-
-    QString parent = inFolderView ? currentFolder : QString();
-
-    QStringList folderNames;
-    QList<ShapeModel::Type> baseTypes;
-    QStringList customNames;
-
-    for (int i = 0; i < listWidget->count(); ++i) {
-        QListWidgetItem *it = listWidget->item(i);
-        int t = it->data(Qt::UserRole).toInt();
-        if (t == 0) {
-            folderNames << it->data(Qt::UserRole + 1).toString();
-        } else if (t == 1) {
-            baseTypes << static_cast<ShapeModel::Type>(it->data(Qt::UserRole + 1).toInt());
-        } else if (t == 2) {
-            customNames << it->data(Qt::UserRole + 1).toString();
-        }
-    }
-
-    // --- Folders ---
-    QMap<QString, InventaireFolder> folderMap;
-    for (const InventaireFolder &f : m_folders)
-        folderMap[f.name] = f;
-    QList<int> folderIndices;
-    for (int i = 0; i < m_folders.size(); ++i) {
-        if (m_folders[i].parentFolder == parent)
-            folderIndices.append(i);
-    }
-    for (int i = 0; i < folderNames.size() && i < folderIndices.size(); ++i) {
-        m_folders[folderIndices[i]] = folderMap.value(folderNames[i]);
-    }
-
-    // --- Base shapes ---
-    QList<int> baseIndices;
-    for (int i = 0; i < m_baseShapeOrder.size(); ++i) {
-        if (m_baseShapeFolders.value(m_baseShapeOrder[i]) == parent)
-            baseIndices.append(i);
-    }
-    for (int i = 0; i < baseTypes.size() && i < baseIndices.size(); ++i) {
-        m_baseShapeOrder[baseIndices[i]] = baseTypes[i];
-    }
-
-    // --- Custom shapes ---
-    QMap<QString, CustomShapeData> customMap;
-    for (const CustomShapeData &c : m_customShapes)
-        customMap[c.name] = c;
-    QList<int> customIndices;
-    for (int i = 0; i < m_customShapes.size(); ++i) {
-        if (m_customShapes[i].folder == parent)
-            customIndices.append(i);
-    }
-    for (int i = 0; i < customNames.size() && i < customIndices.size(); ++i) {
-        m_customShapes[customIndices[i]] = customMap.value(customNames[i]);
-    }
-
-    saveCustomShapes();
-    if (inFolderView)
-        displayShapesInFolder(currentFolder, ui->searchBar->text());
-    else
-        displayShapes(ui->searchBar->text());
-}
-
 void Inventaire::onItemClicked(QListWidgetItem *item)
 {
-    if (m_dragInProgress)
-        return;
-    if (m_longPress) {
-        m_longPress = false;
-        return; // ignore click after a long press
-    }
     if (!item) return;
     int t = item->data(Qt::UserRole).toInt();
     if (t == 0) {
