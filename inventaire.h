@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QListWidget>
+#include <QDateTime>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -42,12 +43,16 @@ struct CustomShapeData {
     QString name;
     QString folder;
     QList<LayoutData> layouts;
+    int usageCount {0};
+    QDateTime lastUsed;
 };
 
 // Structure pour un dossier
 struct InventaireFolder {
     QString name;
     QString parentFolder;  // vide si dossier racine
+    int usageCount {0};
+    QDateTime lastUsed;
 };
 
 
@@ -108,6 +113,8 @@ private slots:
     void onClearSearchClicked();
     void onCreateFolderClicked();
     void onItemClicked(QListWidgetItem *item);
+    void onSortChanged(int index);
+    void onFilterChanged(int index);
 
 private:
     // ---------------------------------------------------------------------
@@ -132,6 +139,8 @@ private:
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     QMap<ShapeModel::Type, QString> m_baseShapeFolders;
+    QMap<ShapeModel::Type, int> m_baseUsageCount;
+    QMap<ShapeModel::Type, QDateTime> m_baseLastUsed;
     QList<ShapeModel::Type> m_baseShapeOrder;
     Language currentLanguage {Language::French};
     QList<InventaireFolder> m_folders;

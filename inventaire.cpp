@@ -33,6 +33,7 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <QSvgRenderer>
+#include <algorithm>
 
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
@@ -69,6 +70,22 @@ Inventaire::Inventaire(QWidget *parent)
     connect(ui->searchBar, &QLineEdit::textChanged, this, &Inventaire::onSearchTextChanged);
     connect(ui->buttonClearSearch, &QPushButton::clicked, this, &Inventaire::onClearSearchClicked);
     connect(ui->buttonNewFolder, &QPushButton::clicked, this, &Inventaire::onCreateFolderClicked);
+
+    if (ui->comboSort) {
+        ui->comboSort->addItem("Nom (A \342\206\222 Z)");
+        ui->comboSort->addItem("Nom (Z \342\206\222 A)");
+        ui->comboSort->addItem("Utilisation fr\303\251quente");
+        ui->comboSort->addItem("R\303\251cent \342\206\222 Ancien");
+        ui->comboSort->addItem("Ancien \342\206\222 R\303\251cent");
+        connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Inventaire::onSortChanged);
+    }
+
+    if (ui->comboFilter) {
+        ui->comboFilter->addItem("Tout");
+        ui->comboFilter->addItem("Dossiers uniquement");
+        ui->comboFilter->addItem("Formes sans dossier");
+        connect(ui->comboFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Inventaire::onFilterChanged);
+    }
 
     // Initial display
     displayShapes();
@@ -157,63 +174,74 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     ui->scrollAreaInventaire->setWidgetResizable(true);
 
     const QString f = filter.trimmed().toLower();
+    int filterMode = ui->comboFilter ? ui->comboFilter->currentIndex() : 0;
+    int sortMode = ui->comboSort ? ui->comboSort->currentIndex() : 0;
 
-    for (const InventaireFolder &folder : m_folders) {
+    struct Item { int type; int index; ShapeModel::Type shape; QString name; int usage; QDateTime last; QFrame* frame; };
+    QList<Item> items;
+
+    // Folders
+    for (int i=0;i<m_folders.size();++i) {
+        const InventaireFolder &folder = m_folders[i];
         if (!folder.parentFolder.isEmpty())
             continue;
-        if (!filter.isEmpty() && !folder.name.toLower().contains(f))
+        if (!f.isEmpty() && !folder.name.toLower().contains(f))
             continue;
-
-        QFrame *card = createFolderCard(folder.name);
-        QListWidgetItem *item = new QListWidgetItem(listWidget);
-        item->setSizeHint(card->size());
-        item->setData(Qt::UserRole, 0);
-        item->setData(Qt::UserRole + 1, folder.name);
-        listWidget->addItem(item);
-        listWidget->setItemWidget(item, card);
+        if (filterMode==2) // shapes only
+            continue;
+        Item it{0, i, ShapeModel::Type::Circle, folder.name, folder.usageCount, folder.lastUsed, createFolderCard(folder.name)};
+        items.append(it);
     }
 
-    // ---------------------------------------------------------------------
     // Built-in shapes
-    // ---------------------------------------------------------------------
-    for (ShapeModel::Type type : m_baseShapeOrder) {
-        QString name = baseShapeName(type, currentLanguage);
-        if (!f.isEmpty() && !name.toLower().contains(f))
-            continue;
-        const QString folder = m_baseShapeFolders.value(type);
-        if (!folder.isEmpty() && !inFolderView)
-            continue;
-        if (inFolderView && folder != currentFolder)
-            continue;
+    if (filterMode!=1) {
+        for (ShapeModel::Type type : m_baseShapeOrder) {
+            QString name = baseShapeName(type, currentLanguage);
+            if (!f.isEmpty() && !name.toLower().contains(f))
+                continue;
+            const QString folder = m_baseShapeFolders.value(type);
+            if (!folder.isEmpty())
+                continue; // only root shapes
 
-        QFrame *frame = createBaseShapeCard(type, name);
-        QListWidgetItem *item = new QListWidgetItem(listWidget);
-        item->setSizeHint(frame->size());
-        item->setData(Qt::UserRole, 1);
-        item->setData(Qt::UserRole + 1, static_cast<int>(type));
-        listWidget->addItem(item);
-        listWidget->setItemWidget(item, frame);
+            Item it; it.type=1; it.index=0; it.shape=type; it.name=name; it.usage=m_baseUsageCount.value(type); it.last=m_baseLastUsed.value(type); it.frame=createBaseShapeCard(type,name);
+            items.append(it);
+        }
     }
 
-    // ---------------------------------------------------------------------
-    // Custom shapes (filtered)
-    // ---------------------------------------------------------------------
-    for (int i = 0; i < m_customShapes.size(); ++i) {
-        const CustomShapeData &data = m_customShapes[i];
-        if (!data.folder.isEmpty() && !inFolderView)
-            continue;
-        if (inFolderView && data.folder != currentFolder)
-            continue;
-        if (!filter.isEmpty() && !data.name.toLower().contains(f))
-            continue;
+    // Custom shapes
+    if (filterMode!=1) {
+        for (int i = 0; i < m_customShapes.size(); ++i) {
+            const CustomShapeData &data = m_customShapes[i];
+            if (!data.folder.isEmpty())
+                continue;
+            if (!f.isEmpty() && !data.name.toLower().contains(f))
+                continue;
+            Item it{2, i, ShapeModel::Type::Circle, data.name, data.usageCount, data.lastUsed, addCustomShapeToGrid(i)};
+            items.append(it);
+        }
+    }
 
-        QFrame *customFrame = addCustomShapeToGrid(i);
+    // sorting
+    std::sort(items.begin(), items.end(), [sortMode](const Item &a, const Item &b){
+        switch(sortMode){
+        case 0: return a.name.toLower() < b.name.toLower();
+        case 1: return a.name.toLower() > b.name.toLower();
+        case 2: return a.usage > b.usage;
+        case 3: return a.last > b.last; // recent first
+        case 4: return a.last < b.last;
+        }
+        return false;
+    });
+
+    for (const Item &it : items) {
         QListWidgetItem *item = new QListWidgetItem(listWidget);
-        item->setSizeHint(customFrame->size());
-        item->setData(Qt::UserRole, 2);
-        item->setData(Qt::UserRole + 1, data.name);
+        item->setSizeHint(it.frame->size());
+        item->setData(Qt::UserRole, it.type);
+        if (it.type==0) item->setData(Qt::UserRole+1, it.name);
+        else if (it.type==1) item->setData(Qt::UserRole+1, static_cast<int>(it.shape));
+        else if (it.type==2) item->setData(Qt::UserRole+1, it.name);
         listWidget->addItem(item);
-        listWidget->setItemWidget(item, customFrame);
+        listWidget->setItemWidget(item, it.frame);
     }
     ui->buttonClearSearch->setVisible(!inFolderView);
     inFolderView = false;
@@ -493,6 +521,10 @@ void Inventaire::loadCustomShapes()
         InventaireFolder f;
         f.name = obj.value("name").toString();
         f.parentFolder = obj.value("parentFolder").toString();
+        f.usageCount = obj.value("usageCount").toInt();
+        qint64 ts = static_cast<qint64>(obj.value("lastUsed").toDouble());
+        if (ts > 0)
+            f.lastUsed = QDateTime::fromSecsSinceEpoch(ts);
         m_folders.append(f);
     }
 
@@ -508,6 +540,10 @@ void Inventaire::loadCustomShapes()
         CustomShapeData data;
         data.name = obj.value("name").toString();
         data.folder = obj.value("folder").toString();
+        data.usageCount = obj.value("usageCount").toInt();
+        qint64 tsShape = static_cast<qint64>(obj.value("lastUsed").toDouble());
+        if (tsShape > 0)
+            data.lastUsed = QDateTime::fromSecsSinceEpoch(tsShape);
 
         // Polygons
         const QJsonArray polyArr = obj.value("polygons").toArray();
@@ -585,6 +621,20 @@ void Inventaire::loadCustomShapes()
         m_baseShapeFolders[type] = it.value().toString();
     }
 
+    const QJsonObject usageObj = root.value("baseUsageCount").toObject();
+    for (auto it = usageObj.begin(); it != usageObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        m_baseUsageCount[type] = it.value().toInt();
+    }
+
+    const QJsonObject lastUsedObj = root.value("baseLastUsed").toObject();
+    for (auto it = lastUsedObj.begin(); it != lastUsedObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        qint64 ts = static_cast<qint64>(it.value().toDouble());
+        if (ts > 0)
+            m_baseLastUsed[type] = QDateTime::fromSecsSinceEpoch(ts);
+    }
+
     // Preserve default order of built-in shapes
 }
 
@@ -595,6 +645,8 @@ void Inventaire::saveCustomShapes() const
         QJsonObject obj;
         obj["name"] = data.name;
         obj["folder"] = data.folder;
+        obj["usageCount"] = data.usageCount;
+        obj["lastUsed"] = data.lastUsed.isValid() ? static_cast<qint64>(data.lastUsed.toSecsSinceEpoch()) : 0;
 
         // Polygons
         QJsonArray polyArr;
@@ -662,11 +714,21 @@ void Inventaire::saveCustomShapes() const
     for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
         baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
     }
+    QJsonObject usageObj;
+    for (auto it = m_baseUsageCount.constBegin(); it != m_baseUsageCount.constEnd(); ++it) {
+        usageObj[QString::number(static_cast<int>(it.key()))] = it.value();
+    }
+    QJsonObject lastUsedObj;
+    for (auto it = m_baseLastUsed.constBegin(); it != m_baseLastUsed.constEnd(); ++it) {
+        lastUsedObj[QString::number(static_cast<int>(it.key()))] = static_cast<qint64>(it.value().toSecsSinceEpoch());
+    }
     QJsonArray foldersArr;
     for (const InventaireFolder &f : m_folders) {
         QJsonObject fo;
         fo["name"] = f.name;
         fo["parentFolder"] = f.parentFolder;
+        fo["usageCount"] = f.usageCount;
+        fo["lastUsed"] = f.lastUsed.isValid() ? static_cast<qint64>(f.lastUsed.toSecsSinceEpoch()) : 0;
         foldersArr.append(fo);
     }
 
@@ -674,6 +736,8 @@ void Inventaire::saveCustomShapes() const
     rootObj["shapes"]      = shapesArr;
     rootObj["baseLayouts"] = baseObj;
     rootObj["baseFolders"] = baseFoldersObj;
+    rootObj["baseUsageCount"] = usageObj;
+    rootObj["baseLastUsed"] = lastUsedObj;
     rootObj["folders"]     = foldersArr;
 
     QFile file(customShapesFilePath());
@@ -723,6 +787,22 @@ void Inventaire::onCreateFolderClicked()
         else
             displayShapes(ui->searchBar->text());
     }
+}
+
+void Inventaire::onSortChanged(int)
+{
+    if (inFolderView)
+        displayShapesInFolder(currentFolder, ui->searchBar->text());
+    else
+        displayShapes(ui->searchBar->text());
+}
+
+void Inventaire::onFilterChanged(int)
+{
+    if (inFolderView)
+        displayShapesInFolder(currentFolder, ui->searchBar->text());
+    else
+        displayShapes(ui->searchBar->text());
 }
 
 QStringList Inventaire::getAllShapeNames() const
@@ -1067,53 +1147,66 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     ui->scrollAreaInventaire->setWidget(listWidget);
     ui->scrollAreaInventaire->setWidgetResizable(true);
 
-    for (const InventaireFolder &folder : m_folders) {
+    int filterMode = ui->comboFilter ? ui->comboFilter->currentIndex() : 0;
+    int sortMode = ui->comboSort ? ui->comboSort->currentIndex() : 0;
+
+    struct Item { int type; int index; ShapeModel::Type shape; QString name; int usage; QDateTime last; QFrame* frame; };
+    QList<Item> items;
+
+    for (int i=0;i<m_folders.size();++i) {
+        const InventaireFolder &folder = m_folders[i];
         if (folder.parentFolder != folderName)
             continue;
-
-        QFrame *card = createFolderCard(folder.name);
-        QListWidgetItem *it = new QListWidgetItem(listWidget);
-        it->setSizeHint(card->size());
-        it->setData(Qt::UserRole, 0);
-        it->setData(Qt::UserRole + 1, folder.name);
-        listWidget->addItem(it);
-        listWidget->setItemWidget(it, card);
+        if (!search.isEmpty() && !folder.name.toLower().contains(search.toLower()))
+            continue;
+        if (filterMode==2) continue; // shapes only
+        Item it{0,i,ShapeModel::Type::Circle,folder.name,folder.usageCount,folder.lastUsed,createFolderCard(folder.name)};
+        items.append(it);
     }
 
-    for (ShapeModel::Type type : m_baseShapeOrder) {
-        QString folder = m_baseShapeFolders.value(type);
-        if (folder != folderName)
-            continue;
-        QString name = baseShapeName(type, currentLanguage);
-        if (!search.isEmpty() && !name.toLower().contains(search.toLower()))
-            continue;
-        QFrame *frame = createBaseShapeCard(type, name);
-        QListWidgetItem *it = new QListWidgetItem(listWidget);
-        it->setSizeHint(frame->size());
-        it->setData(Qt::UserRole, 1);
-        it->setData(Qt::UserRole + 1, static_cast<int>(type));
-        listWidget->addItem(it);
-        listWidget->setItemWidget(it, frame);
+    if (filterMode!=1) {
+        for (ShapeModel::Type type : m_baseShapeOrder) {
+            QString folder = m_baseShapeFolders.value(type);
+            if (folder != folderName)
+                continue;
+            QString name = baseShapeName(type, currentLanguage);
+            if (!search.isEmpty() && !name.toLower().contains(search.toLower()))
+                continue;
+            Item it{1,0,type,name,m_baseUsageCount.value(type),m_baseLastUsed.value(type),createBaseShapeCard(type,name)};
+            items.append(it);
+        }
+
+        for (int i = 0; i < m_customShapes.size(); ++i) {
+            const CustomShapeData &data = m_customShapes[i];
+            if (data.folder != folderName)
+                continue;
+            if (!search.isEmpty() && !data.name.toLower().contains(search.toLower()))
+                continue;
+            Item it{2,i,ShapeModel::Type::Circle,data.name,data.usageCount,data.lastUsed,addCustomShapeToGrid(i)};
+            items.append(it);
+        }
     }
 
-    for (int i = 0; i < m_customShapes.size(); ++i) {
-        const CustomShapeData &data = m_customShapes[i];
+    std::sort(items.begin(), items.end(), [sortMode](const Item&a,const Item&b){
+        switch(sortMode){
+        case 0: return a.name.toLower()<b.name.toLower();
+        case 1: return a.name.toLower()>b.name.toLower();
+        case 2: return a.usage>b.usage;
+        case 3: return a.last>b.last;
+        case 4: return a.last<b.last;
+        }
+        return false;
+    });
 
-        if (inFolderView && data.folder != currentFolder)
-            continue;
-        if (!inFolderView && !data.folder.isEmpty())
-            continue;
-
-        if (!search.isEmpty() && !data.name.toLower().contains(search.toLower()))
-            continue;
-
-        QFrame* customFrame = addCustomShapeToGrid(i);
-        QListWidgetItem *it = new QListWidgetItem(listWidget);
-        it->setSizeHint(customFrame->size());
-        it->setData(Qt::UserRole, 2);
-        it->setData(Qt::UserRole + 1, data.name);
-        listWidget->addItem(it);
-        listWidget->setItemWidget(it, customFrame);
+    for (const Item& it : items) {
+        QListWidgetItem *qi = new QListWidgetItem(listWidget);
+        qi->setSizeHint(it.frame->size());
+        qi->setData(Qt::UserRole,it.type);
+        if(it.type==0) qi->setData(Qt::UserRole+1,it.name);
+        else if(it.type==1) qi->setData(Qt::UserRole+1,static_cast<int>(it.shape));
+        else qi->setData(Qt::UserRole+1,it.name);
+        listWidget->addItem(qi);
+        listWidget->setItemWidget(qi,it.frame);
     }
 
 
@@ -1175,15 +1268,29 @@ void Inventaire::onItemClicked(QListWidgetItem *item)
     int t = item->data(Qt::UserRole).toInt();
     if (t == 0) {
         QString name = item->data(Qt::UserRole + 1).toString();
+        for (InventaireFolder &f : m_folders) {
+            if (f.name == name) {
+                f.usageCount++;
+                f.lastUsed = QDateTime::currentDateTime();
+                break;
+            }
+        }
+        saveCustomShapes();
         displayShapesInFolder(name, ui->searchBar->text());
     } else if (t == 1) {
         ShapeModel::Type type = static_cast<ShapeModel::Type>(item->data(Qt::UserRole + 1).toInt());
+        m_baseUsageCount[type]++;
+        m_baseLastUsed[type] = QDateTime::currentDateTime();
+        saveCustomShapes();
         emit shapeSelected(type, 150, 220);
         goToMainWindow();
     } else if (t == 2) {
         QString name = item->data(Qt::UserRole + 1).toString();
-        for (const CustomShapeData &c : m_customShapes) {
+        for (CustomShapeData &c : m_customShapes) {
             if (c.name == name) {
+                c.usageCount++;
+                c.lastUsed = QDateTime::currentDateTime();
+                saveCustomShapes();
                 emit customShapeSelected(c.polygons, c.name);
                 goToMainWindow();
                 break;
