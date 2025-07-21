@@ -64,7 +64,6 @@ public:
     bool isSmoothingEnabled() const;
     void setSmoothingEnabled(bool enabled);
     void toggleSmoothing();
-    void setSmoothingLevel(int level); // Définit le niveau de lissage
 
     // Gestion des modes de dessin
     void setDrawMode(DrawMode mode);
@@ -261,6 +260,8 @@ public slots:
     int  gridSpacing() const { return m_gridSpacing; }
     void setLowPassFilterEnabled(bool enabled) { m_lowPassFilterEnabled = enabled; }
     bool lowPassFilterEnabled() const { return m_lowPassFilterEnabled; }
+    void setSmoothingLevel(int level); // Définit le niveau de lissage
+
 
 };
 

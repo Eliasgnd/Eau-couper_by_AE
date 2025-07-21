@@ -327,15 +327,14 @@ void CustomDrawArea::toggleSmoothing()
 }
 void CustomDrawArea::setSmoothingLevel(int level)
 {
-    if (level == 0)
-        m_smoothingLevel = 0;
-    else if (level == 1)
-        m_smoothingLevel = 1;
-    else
-        m_smoothingLevel = 2;
+    m_smoothingLevel = std::clamp(level, 0, 10);  // si tu limites le slider à 0-10
+
+    qDebug() << "Niveau de lissage défini à :" << m_smoothingLevel << ", alpha:" << smoothingAlpha();
+
     m_freehandPoints.clear();
     update();
 }
+
 
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
@@ -343,12 +342,12 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
         cancelSelection();
     }
     if (m_closeMode) {
-           m_closeMode = false;
-           emit closeModeChanged(false);
-       }
+        m_closeMode = false;
+        emit closeModeChanged(false);
+    }
 
     m_drawMode = mode;
-    //qDebug() << "New mode:" << static_cast<int>(m_drawMode);
+
     m_drawing = false;
     m_drawingLineOrCircle = false;
     m_freehandPoints.clear();
@@ -356,8 +355,15 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     m_shapeMoving = false;
     m_panningActive = false;
     m_gommeErasing = false;
+
+    // Exemple : Reset du niveau de lissage si tu veux un comportement par défaut par mode
+    if (m_drawMode != DrawMode::Freehand) {
+        setSmoothingLevel(0);  // désactive ou remet le lissage faible
+    }
+
     update();
 }
+
 
 CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_drawMode; }
 
@@ -512,17 +518,23 @@ QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, 
 
 double CustomDrawArea::smoothingAlpha() const
 {
-    switch (m_smoothingLevel) {
-    case 0: return 0.5;
-    case 1: return 0.35;
-    default: return 0.25;
-    }
+    const double minAlpha = 0.05;
+    const double maxAlpha = 1;
+    const int maxLevel = 10;
+
+    double t = static_cast<double>(m_smoothingLevel) / maxLevel;
+    double curvedT = std::pow(t, 0.5);  // racine carrée pour que les petits niveaux montent vite
+
+    return maxAlpha - (maxAlpha - minAlpha) * curvedT;
 }
+
+
 
 int CustomDrawArea::computeSmoothingIterations(const QList<QPointF> &pts) const
 {
-    int baseIter = (m_smoothingLevel == 0) ? 1 :
-                   (m_smoothingLevel == 1 ? 2 : 3);
+    int baseIter = 1 + m_smoothingLevel / 3;  // augmente progressivement
+    baseIter = std::min(baseIter, 5);  // limite à 5
+
     if (pts.size() < 2)
         return baseIter;
     double total = 0.0;

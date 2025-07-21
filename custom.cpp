@@ -161,8 +161,18 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Gomme);
         //qDebug() << "Mode Gomme sélectionné";
-
     });
+
+    ui->smoothingSlider->setMinimum(0);
+    ui->smoothingSlider->setMaximum(10);
+    ui->smoothingSlider->setSingleStep(1);
+    ui->smoothingSlider->setPageStep(1);
+    ui->smoothingSlider->setTickInterval(1);
+    ui->smoothingSlider->setTickPosition(QSlider::TicksBelow);
+
+    // Ensuite seulement tu connectes :
+    connect(ui->smoothingSlider, &QSlider::valueChanged, drawArea, &CustomDrawArea::setSmoothingLevel);
+
 
     // --- Déclarations préliminaires pour le menu et le conteneur de police ---
     QMenu *menuForme = new QMenu(this);
