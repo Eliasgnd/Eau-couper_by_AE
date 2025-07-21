@@ -223,9 +223,13 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     inFolderView = false;
     currentFolder.clear();
     connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
-    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this, [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){ applyReorderFromList(listWidget); });
-    connect(listWidget, &DraggableListWidget::dragStarted, this, [this](){ m_dragInProgress = true; });
-    connect(listWidget, &DraggableListWidget::dragFinished, this, [this](){ m_dragInProgress = false; });
+    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this,
+            [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){
+                applyReorderFromList(listWidget); });
+    connect(listWidget, &DraggableListWidget::dragStarted, this,
+            [this](){ m_dragInProgress = true; });
+    connect(listWidget, &DraggableListWidget::dragFinished, this,
+            [this, listWidget](){ m_dragInProgress = false; applyReorderFromList(listWidget); });
     ui->buttonMenu->setVisible(true);
     update();
 }
@@ -1191,9 +1195,13 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     listWidget->addItem(backItem);
     listWidget->setItemWidget(backItem, retourButton);
     connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
-    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this, [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){ applyReorderFromList(listWidget); });
-    connect(listWidget, &DraggableListWidget::dragStarted, this, [this](){ m_dragInProgress = true; });
-    connect(listWidget, &DraggableListWidget::dragFinished, this, [this](){ m_dragInProgress = false; });
+    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this,
+            [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){
+                applyReorderFromList(listWidget); });
+    connect(listWidget, &DraggableListWidget::dragStarted, this,
+            [this](){ m_dragInProgress = true; });
+    connect(listWidget, &DraggableListWidget::dragFinished, this,
+            [this, listWidget](){ m_dragInProgress = false; applyReorderFromList(listWidget); });
     ui->buttonMenu->setVisible(false);
 
 }

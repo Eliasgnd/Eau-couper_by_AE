@@ -14,7 +14,21 @@ signals:
     void dragFinished();
 
 protected:
-    void startDrag(Qt::DropActions supportedActions) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
+private:
+    void startManualDrag();
+    void updateDrag(const QPoint &pos);
+    void finishDrag();
+
+    QPoint m_startPos;
+    QPoint m_dragOffset;
+    QListWidgetItem *m_dragItem {nullptr};
+    QListWidgetItem *m_placeholderItem {nullptr};
+    QWidget *m_dragWidget {nullptr};
+    bool m_dragging {false};
 };
 
 #endif // DRAGGABLELISTWIDGET_H
