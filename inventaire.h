@@ -8,6 +8,8 @@
 #include <QFrame>
 #include <QString>
 #include <QStringList>
+#include <QListWidget>
+#include <QDateTime>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -41,12 +43,16 @@ struct CustomShapeData {
     QString name;
     QString folder;
     QList<LayoutData> layouts;
+    int usageCount {0};
+    QDateTime lastUsed;
 };
 
 // Structure pour un dossier
 struct InventaireFolder {
     QString name;
     QString parentFolder;  // vide si dossier racine
+    int usageCount {0};
+    QDateTime lastUsed;
 };
 
 
@@ -92,6 +98,7 @@ public:
     // Internationalisation
     void updateTranslations(Language lang);
 
+    QPixmap renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size);
 signals:
     void shapeSelected(ShapeModel::Type type, int width, int height);
     void customShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
@@ -100,13 +107,14 @@ protected:
     // React to palette / language changes
     void changeEvent(QEvent *event) override;
 
-    // Intercept clicks on thumbnails
-    bool eventFilter(QObject *obj, QEvent *event) override;
-
 private slots:
     void goToMainWindow();
     void onSearchTextChanged(const QString &text);
     void onClearSearchClicked();
+    void onCreateFolderClicked();
+    void onItemClicked(QListWidgetItem *item);
+    void onSortChanged(int index);
+    void onFilterChanged(int index);
 
 private:
     // ---------------------------------------------------------------------
@@ -131,6 +139,9 @@ private:
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     QMap<ShapeModel::Type, QString> m_baseShapeFolders;
+    QMap<ShapeModel::Type, int> m_baseUsageCount;
+    QMap<ShapeModel::Type, QDateTime> m_baseLastUsed;
+    QList<ShapeModel::Type> m_baseShapeOrder;
     Language currentLanguage {Language::French};
     QList<InventaireFolder> m_folders;
 
@@ -140,6 +151,8 @@ private:
     QString currentFolder;
 
     void displayShapesInFolder(const QString &folderName, const QString &filter);
+    bool folderIsEmpty(const QString &folderName) const;
+    bool folderContainsMatchingShape(const QString &folderName, const QString &text) const;
 };
 
 #endif // INVENTAIRE_H

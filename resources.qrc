@@ -29,7 +29,10 @@
         <file alias="diamond.svg">icons/diamond.svg</file>
         <file alias="link.svg">icons/link.svg</file>
         <file alias="fence.svg">icons/fence.svg</file>
-        <file alias="magnet.svg">icons/magnet.svg</file>
         <file alias="rotate.svg">icons/rotate.svg</file>
+        <file alias="magnet.svg">icons/magnet.svg</file>
+        <file alias="folder.svg">icons/folder.svg</file>
+        <file alias="folderfull.svg">icons/folderfull.svg</file>
+        <file alias="plus.svg">icons/plus.svg</file>
     </qresource>
 </RCC>
