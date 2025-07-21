@@ -185,7 +185,8 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         const InventaireFolder &folder = m_folders[i];
         if (!folder.parentFolder.isEmpty())
             continue;
-        if (!f.isEmpty() && !folder.name.toLower().contains(f))
+        if (!f.isEmpty() && !folder.name.toLower().contains(f) &&
+            !folderContainsMatchingShape(folder.name, f))
             continue;
         if (filterMode==2) // shapes only
             continue;
@@ -1163,7 +1164,8 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         const InventaireFolder &folder = m_folders[i];
         if (folder.parentFolder != folderName)
             continue;
-        if (!search.isEmpty() && !folder.name.toLower().contains(search.toLower()))
+        if (!search.isEmpty() && !folder.name.toLower().contains(search.toLower()) &&
+            !folderContainsMatchingShape(folder.name, search))
             continue;
         if (filterMode==2) continue; // shapes only
         Item it{0,i,ShapeModel::Type::Circle,folder.name,folder.usageCount,folder.lastUsed,createFolderCard(folder.name)};
@@ -1272,6 +1274,39 @@ bool Inventaire::folderIsEmpty(const QString& folderName) const
             return false;
 
     return true;
+}
+
+bool Inventaire::folderContainsMatchingShape(const QString &folderName, const QString &text) const
+{
+    const QString search = text.trimmed().toLower();
+    if (search.isEmpty())
+        return false;
+
+    // Check subfolders recursively
+    for (const InventaireFolder &folder : m_folders) {
+        if (folder.parentFolder == folderName) {
+            if (folder.name.toLower().contains(search))
+                return true;
+            if (folderContainsMatchingShape(folder.name, search))
+                return true;
+        }
+    }
+
+    // Custom shapes in this folder
+    for (const CustomShapeData &shape : m_customShapes)
+        if (shape.folder == folderName && shape.name.toLower().contains(search))
+            return true;
+
+    // Built-in shapes assigned to this folder
+    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
+        if (it.value() == folderName) {
+            QString name = baseShapeName(it.key(), currentLanguage);
+            if (name.toLower().contains(search))
+                return true;
+        }
+    }
+
+    return false;
 }
 
 void Inventaire::onItemClicked(QListWidgetItem *item)
