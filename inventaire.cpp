@@ -24,6 +24,7 @@
 #include <QGridLayout>
 #include <QFrame>
 #include <QLabel>
+#include <QListWidget>
 #include <QMenu>
 #include <QAction>
 #include <QInputDialog>
@@ -47,6 +48,14 @@ Inventaire::Inventaire(QWidget *parent)
     ui->setupUi(this);
 
     loadCustomShapes();
+
+    if (m_baseShapeOrder.isEmpty()) {
+        m_baseShapeOrder = {ShapeModel::Type::Circle,
+                            ShapeModel::Type::Rectangle,
+                            ShapeModel::Type::Triangle,
+                            ShapeModel::Type::Star,
+                            ShapeModel::Type::Heart};
+    }
 
     updateTranslations(currentLanguage);
 
@@ -138,67 +147,56 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     inFolderView = false;
     currentFolder.clear();
 
-    QWidget *scrollWidget = new QWidget();
-    QGridLayout *gridLayout = new QGridLayout(scrollWidget);
-    gridLayout->setSpacing(25);
-    gridLayout->setAlignment(Qt::AlignTop);
+    QListWidget *listWidget = new QListWidget();
+    listWidget->setViewMode(QListView::IconMode);
+    listWidget->setResizeMode(QListView::Adjust);
+    listWidget->setMovement(QListView::Snap);
+    listWidget->setSpacing(25);
+    listWidget->setDragDropMode(QAbstractItemView::InternalMove);
+    listWidget->setDefaultDropAction(Qt::MoveAction);
 
-    ui->scrollAreaInventaire->setWidget(scrollWidget);
+    ui->scrollAreaInventaire->setWidget(listWidget);
     ui->scrollAreaInventaire->setWidgetResizable(true);
 
-    int row = 0;
-    int col = 0;
     const QString f = filter.trimmed().toLower();
 
     for (const InventaireFolder &folder : m_folders) {
         if (!folder.parentFolder.isEmpty())
-            continue;  // ❌ n’afficher que les dossiers racines
-        if (!filter.isEmpty() && !folder.name.toLower().contains(filter.toLower()))
+            continue;
+        if (!filter.isEmpty() && !folder.name.toLower().contains(f))
             continue;
 
-        QFrame *card = createFolderCard(folder.name);  // à créer plus bas
-        gridLayout->addWidget(card, row, col);
-        if (++col >= 7) { col = 0; row++; }
+        QFrame *card = createFolderCard(folder.name);
+        QListWidgetItem *item = new QListWidgetItem(listWidget);
+        item->setSizeHint(card->size());
+        item->setData(Qt::UserRole, 0);
+        item->setData(Qt::UserRole + 1, folder.name);
+        item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        listWidget->addItem(item);
+        listWidget->setItemWidget(item, card);
     }
 
     // ---------------------------------------------------------------------
     // Built-in shapes
     // ---------------------------------------------------------------------
-    QList<QPair<QString, ShapeModel::Type>> shapeList;
-    if (currentLanguage == Language::French) {
-        shapeList = {
-            {"Cercle",    ShapeModel::Type::Circle},
-            {"Rectangle", ShapeModel::Type::Rectangle},
-            {"Triangle",  ShapeModel::Type::Triangle},
-            {"Étoile",    ShapeModel::Type::Star},
-            {"Cœur",      ShapeModel::Type::Heart}
-        };
-    } else {
-        shapeList = {
-            {"Circle",    ShapeModel::Type::Circle},
-            {"Rectangle", ShapeModel::Type::Rectangle},
-            {"Triangle",  ShapeModel::Type::Triangle},
-            {"Star",      ShapeModel::Type::Star},
-            {"Heart",     ShapeModel::Type::Heart}
-        };
-    }
-
-    for (const auto &shapeInfo : shapeList) {
-        if (!f.isEmpty() && !shapeInfo.first.toLower().contains(f))
-            continue; // name does not match filter
-
-        const QString folder = m_baseShapeFolders.value(shapeInfo.second);
+    for (ShapeModel::Type type : m_baseShapeOrder) {
+        QString name = baseShapeName(type, currentLanguage);
+        if (!f.isEmpty() && !name.toLower().contains(f))
+            continue;
+        const QString folder = m_baseShapeFolders.value(type);
         if (!folder.isEmpty() && !inFolderView)
             continue;
         if (inFolderView && folder != currentFolder)
             continue;
 
-        QFrame *frame = createBaseShapeCard(shapeInfo.second, shapeInfo.first);
-        gridLayout->addWidget(frame, row, col);
-        if (++col >= 7) {
-            col = 0;
-            ++row;
-        }
+        QFrame *frame = createBaseShapeCard(type, name);
+        QListWidgetItem *item = new QListWidgetItem(listWidget);
+        item->setSizeHint(frame->size());
+        item->setData(Qt::UserRole, 1);
+        item->setData(Qt::UserRole + 1, static_cast<int>(type));
+        item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        listWidget->addItem(item);
+        listWidget->setItemWidget(item, frame);
     }
 
     // ---------------------------------------------------------------------
@@ -208,26 +206,26 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
         const CustomShapeData &data = m_customShapes[i];
         if (!data.folder.isEmpty() && !inFolderView)
             continue;
-
         if (inFolderView && data.folder != currentFolder)
             continue;
-
-        if (!filter.isEmpty() && !data.name.toLower().contains(filter.toLower()))
+        if (!filter.isEmpty() && !data.name.toLower().contains(f))
             continue;
 
-        if (col >= 7) {
-            col = 0;
-            ++row;
-        }
-
         QFrame *customFrame = addCustomShapeToGrid(i);
-        gridLayout->addWidget(customFrame, row, col);
-        ++col;
+        QListWidgetItem *item = new QListWidgetItem(listWidget);
+        item->setSizeHint(customFrame->size());
+        item->setData(Qt::UserRole, 2);
+        item->setData(Qt::UserRole + 1, data.name);
+        item->setFlags(item->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        listWidget->addItem(item);
+        listWidget->setItemWidget(item, customFrame);
     }
     ui->buttonClearSearch->setVisible(!inFolderView);
     inFolderView = false;
     currentFolder.clear();
-    ui->buttonMenu->setVisible(true);   // remet la croix rouge
+    connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
+    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this, [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){ applyReorderFromList(listWidget); });
+    ui->buttonMenu->setVisible(true);
     update();
 }
 
@@ -515,6 +513,7 @@ void Inventaire::loadCustomShapes()
     m_customShapes.clear();
     m_baseShapeLayouts.clear();
     m_baseShapeFolders.clear();
+    m_baseShapeOrder.clear();
     m_folders.clear();
 
     QFile file(customShapesFilePath());
@@ -630,6 +629,11 @@ void Inventaire::loadCustomShapes()
         const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
         m_baseShapeFolders[type] = it.value().toString();
     }
+
+    const QJsonArray baseOrderArr = root.value("baseOrder").toArray();
+    for (const QJsonValue &v : baseOrderArr) {
+        m_baseShapeOrder.append(static_cast<ShapeModel::Type>(v.toInt()));
+    }
 }
 
 void Inventaire::saveCustomShapes() const
@@ -706,6 +710,9 @@ void Inventaire::saveCustomShapes() const
     for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
         baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
     }
+    QJsonArray baseOrderArr;
+    for (ShapeModel::Type t : m_baseShapeOrder)
+        baseOrderArr.append(static_cast<int>(t));
 
     QJsonArray foldersArr;
     for (const InventaireFolder &f : m_folders) {
@@ -719,6 +726,7 @@ void Inventaire::saveCustomShapes() const
     rootObj["shapes"]      = shapesArr;
     rootObj["baseLayouts"] = baseObj;
     rootObj["baseFolders"] = baseFoldersObj;
+    rootObj["baseOrder"]   = baseOrderArr;
     rootObj["folders"]     = foldersArr;
 
     QFile file(customShapesFilePath());
@@ -1105,53 +1113,46 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     inFolderView = true;
     currentFolder = folderName;
 
-    QWidget *scrollWidget = new QWidget();
-    QGridLayout *gridLayout = new QGridLayout(scrollWidget);
-    gridLayout->setSpacing(25);
-    gridLayout->setAlignment(Qt::AlignTop);
+    QListWidget *listWidget = new QListWidget();
+    listWidget->setViewMode(QListView::IconMode);
+    listWidget->setResizeMode(QListView::Adjust);
+    listWidget->setMovement(QListView::Snap);
+    listWidget->setSpacing(25);
+    listWidget->setDragDropMode(QAbstractItemView::InternalMove);
+    listWidget->setDefaultDropAction(Qt::MoveAction);
 
-    ui->scrollAreaInventaire->setWidget(scrollWidget);
+    ui->scrollAreaInventaire->setWidget(listWidget);
     ui->scrollAreaInventaire->setWidgetResizable(true);
-
-    int row = 0, col = 0;
 
     for (const InventaireFolder &folder : m_folders) {
         if (folder.parentFolder != folderName)
             continue;
 
         QFrame *card = createFolderCard(folder.name);
-        gridLayout->addWidget(card, row, col);
-        if (++col >= 7) { col = 0; row++; }
+        QListWidgetItem *it = new QListWidgetItem(listWidget);
+        it->setSizeHint(card->size());
+        it->setData(Qt::UserRole, 0);
+        it->setData(Qt::UserRole + 1, folder.name);
+        it->setFlags(it->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        listWidget->addItem(it);
+        listWidget->setItemWidget(it, card);
     }
 
-    QList<QPair<QString, ShapeModel::Type>> shapeList;
-    if (currentLanguage == Language::French) {
-        shapeList = {
-            {"Cercle",    ShapeModel::Type::Circle},
-            {"Rectangle", ShapeModel::Type::Rectangle},
-            {"Triangle",  ShapeModel::Type::Triangle},
-            {"Étoile",    ShapeModel::Type::Star},
-            {"Cœur",      ShapeModel::Type::Heart}
-        };
-    } else {
-        shapeList = {
-            {"Circle",    ShapeModel::Type::Circle},
-            {"Rectangle", ShapeModel::Type::Rectangle},
-            {"Triangle",  ShapeModel::Type::Triangle},
-            {"Star",      ShapeModel::Type::Star},
-            {"Heart",     ShapeModel::Type::Heart}
-        };
-    }
-
-    for (const auto &shapeInfo : shapeList) {
-        QString folder = m_baseShapeFolders.value(shapeInfo.second);
+    for (ShapeModel::Type type : m_baseShapeOrder) {
+        QString folder = m_baseShapeFolders.value(type);
         if (folder != folderName)
             continue;
-        if (!search.isEmpty() && !shapeInfo.first.toLower().contains(search))
+        QString name = baseShapeName(type, currentLanguage);
+        if (!search.isEmpty() && !name.toLower().contains(search.toLower()))
             continue;
-        if (col >= 7) { col = 0; row++; }
-        QFrame *frame = createBaseShapeCard(shapeInfo.second, shapeInfo.first);
-        gridLayout->addWidget(frame, row, col++);
+        QFrame *frame = createBaseShapeCard(type, name);
+        QListWidgetItem *it = new QListWidgetItem(listWidget);
+        it->setSizeHint(frame->size());
+        it->setData(Qt::UserRole, 1);
+        it->setData(Qt::UserRole + 1, static_cast<int>(type));
+        it->setFlags(it->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        listWidget->addItem(it);
+        listWidget->setItemWidget(it, frame);
     }
 
     for (int i = 0; i < m_customShapes.size(); ++i) {
@@ -1162,16 +1163,17 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         if (!inFolderView && !data.folder.isEmpty())
             continue;
 
-        if (!search.isEmpty() && !data.name.toLower().contains(search))
+        if (!search.isEmpty() && !data.name.toLower().contains(search.toLower()))
             continue;
 
-        if (col >= 7) {
-            col = 0;
-            row++;
-        }
-
         QFrame* customFrame = addCustomShapeToGrid(i);
-        gridLayout->addWidget(customFrame, row, col++);
+        QListWidgetItem *it = new QListWidgetItem(listWidget);
+        it->setSizeHint(customFrame->size());
+        it->setData(Qt::UserRole, 2);
+        it->setData(Qt::UserRole + 1, data.name);
+        it->setFlags(it->flags() | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+        listWidget->addItem(it);
+        listWidget->setItemWidget(it, customFrame);
     }
 
 
@@ -1198,8 +1200,14 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         }
     });
     // ajouter le bouton en haut à gauche du layout principal
-    gridLayout->addWidget(retourButton, row + 1, 0, Qt::AlignLeft);
-    ui->buttonMenu->setVisible(false);  // masque la croix rouge
+    QListWidgetItem *backItem = new QListWidgetItem(listWidget);
+    backItem->setSizeHint(retourButton->size());
+    backItem->setFlags(backItem->flags() & ~Qt::ItemIsDragEnabled & ~Qt::ItemIsDropEnabled);
+    listWidget->addItem(backItem);
+    listWidget->setItemWidget(backItem, retourButton);
+    connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
+    connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this, [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){ applyReorderFromList(listWidget); });
+    ui->buttonMenu->setVisible(false);
 
 }
 
@@ -1221,5 +1229,93 @@ bool Inventaire::folderIsEmpty(const QString& folderName) const
             return false;
 
     return true;
+}
+
+void Inventaire::applyReorderFromList(QListWidget *listWidget)
+{
+    if (!listWidget) return;
+
+    QString parent = inFolderView ? currentFolder : QString();
+
+    QStringList folderNames;
+    QList<ShapeModel::Type> baseTypes;
+    QStringList customNames;
+
+    for (int i = 0; i < listWidget->count(); ++i) {
+        QListWidgetItem *it = listWidget->item(i);
+        int t = it->data(Qt::UserRole).toInt();
+        if (t == 0) {
+            folderNames << it->data(Qt::UserRole + 1).toString();
+        } else if (t == 1) {
+            baseTypes << static_cast<ShapeModel::Type>(it->data(Qt::UserRole + 1).toInt());
+        } else if (t == 2) {
+            customNames << it->data(Qt::UserRole + 1).toString();
+        }
+    }
+
+    // --- Folders ---
+    QMap<QString, InventaireFolder> folderMap;
+    for (const InventaireFolder &f : m_folders)
+        folderMap[f.name] = f;
+    QList<int> folderIndices;
+    for (int i = 0; i < m_folders.size(); ++i) {
+        if (m_folders[i].parentFolder == parent)
+            folderIndices.append(i);
+    }
+    for (int i = 0; i < folderNames.size() && i < folderIndices.size(); ++i) {
+        m_folders[folderIndices[i]] = folderMap.value(folderNames[i]);
+    }
+
+    // --- Base shapes ---
+    QList<int> baseIndices;
+    for (int i = 0; i < m_baseShapeOrder.size(); ++i) {
+        if (m_baseShapeFolders.value(m_baseShapeOrder[i]) == parent)
+            baseIndices.append(i);
+    }
+    for (int i = 0; i < baseTypes.size() && i < baseIndices.size(); ++i) {
+        m_baseShapeOrder[baseIndices[i]] = baseTypes[i];
+    }
+
+    // --- Custom shapes ---
+    QMap<QString, CustomShapeData> customMap;
+    for (const CustomShapeData &c : m_customShapes)
+        customMap[c.name] = c;
+    QList<int> customIndices;
+    for (int i = 0; i < m_customShapes.size(); ++i) {
+        if (m_customShapes[i].folder == parent)
+            customIndices.append(i);
+    }
+    for (int i = 0; i < customNames.size() && i < customIndices.size(); ++i) {
+        m_customShapes[customIndices[i]] = customMap.value(customNames[i]);
+    }
+
+    saveCustomShapes();
+    if (inFolderView)
+        displayShapesInFolder(currentFolder, ui->searchBar->text());
+    else
+        displayShapes(ui->searchBar->text());
+}
+
+void Inventaire::onItemClicked(QListWidgetItem *item)
+{
+    if (!item) return;
+    int t = item->data(Qt::UserRole).toInt();
+    if (t == 0) {
+        QString name = item->data(Qt::UserRole + 1).toString();
+        displayShapesInFolder(name, ui->searchBar->text());
+    } else if (t == 1) {
+        ShapeModel::Type type = static_cast<ShapeModel::Type>(item->data(Qt::UserRole + 1).toInt());
+        emit shapeSelected(type, 150, 220);
+        goToMainWindow();
+    } else if (t == 2) {
+        QString name = item->data(Qt::UserRole + 1).toString();
+        for (const CustomShapeData &c : m_customShapes) {
+            if (c.name == name) {
+                emit customShapeSelected(c.polygons, c.name);
+                goToMainWindow();
+                break;
+            }
+        }
+    }
 }
 
