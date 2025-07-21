@@ -8,6 +8,7 @@
 #include <QFrame>
 #include <QString>
 #include <QStringList>
+#include <QListWidget>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -109,6 +110,7 @@ private slots:
     void onSearchTextChanged(const QString &text);
     void onClearSearchClicked();
     void onCreateFolderClicked();
+    void onItemClicked(QListWidgetItem *item);
 
 private:
     // ---------------------------------------------------------------------
@@ -124,6 +126,8 @@ private:
     // Build and return the QFrame representing the custom shape at index
     QFrame* addCustomShapeToGrid(int index);
 
+    void applyReorderFromList(QListWidget *listWidget);
+
     // ---------------------------------------------------------------------
     // Data members
     // ---------------------------------------------------------------------
@@ -133,6 +137,7 @@ private:
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     QMap<ShapeModel::Type, QString> m_baseShapeFolders;
+    QList<ShapeModel::Type> m_baseShapeOrder;
     Language currentLanguage {Language::French};
     QList<InventaireFolder> m_folders;
 
