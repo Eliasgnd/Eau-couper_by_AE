@@ -10,6 +10,7 @@
 #include "clavier.h"
 #include "trajetmotor.h"
 #include "Language.h"
+#include "LogoImporter.h"
 
 
 #include <QSpinBox>
@@ -17,6 +18,8 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPixmap>
+#include <QImage>
+#include <QPainterPath>
 #include <QDebug>
 #include <QScreen>
 #include <QGuiApplication>
@@ -29,6 +32,13 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QStandardPaths>
 
 
 
@@ -115,6 +125,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
+
+    connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::toggleAIPrompt);
+    connect(ui->lineEditAIPrompt, &QLineEdit::returnPressed, this, &MainWindow::generateAIImage);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -792,4 +805,88 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
     Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
     formeVisualization->setCurrentCustomShapeName(shapeName);
     return true;
+}
+
+void MainWindow::toggleAIPrompt()
+{
+    if (!ui->lineEditAIPrompt)
+        return;
+    bool vis = ui->lineEditAIPrompt->isVisible();
+    ui->lineEditAIPrompt->setVisible(!vis);
+    if (!vis)
+        ui->lineEditAIPrompt->setFocus();
+}
+
+void MainWindow::generateAIImage()
+{
+    if (!ui->lineEditAIPrompt)
+        return;
+    QString userPrompt = ui->lineEditAIPrompt->text().trimmed();
+    if (userPrompt.isEmpty())
+        return;
+    ui->lineEditAIPrompt->clear();
+    ui->lineEditAIPrompt->setVisible(false);
+
+    QString finalPrompt = userPrompt + ", black and white outline drawing, clean lines, no background, top-down view, suitable for waterjet cutting";
+
+    if (!m_netManager)
+        m_netManager = new QNetworkAccessManager(this);
+
+    QNetworkRequest req(QUrl("https://api.openai.com/v1/images/generations"));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    req.setRawHeader("Authorization", "Bearer YOUR_OPENAI_API_KEY");
+    QJsonObject body{{"prompt", finalPrompt}, {"n", 1}, {"size", "1024x1024"}};
+
+    QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "DALL-E request failed:" << reply->errorString();
+            reply->deleteLater();
+            return;
+        }
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QString url = doc["data"].toArray().first().toObject()["url"].toString();
+        reply->deleteLater();
+
+        QNetworkReply *imgReply = m_netManager->get(QNetworkRequest(QUrl(url)));
+        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply]() {
+            if (imgReply->error() != QNetworkReply::NoError) {
+                qWarning() << "Image download failed:" << imgReply->errorString();
+                imgReply->deleteLater();
+                return;
+            }
+
+            QImage img;
+            img.loadFromData(imgReply->readAll());
+            imgReply->deleteLater();
+
+            if (img.isNull()) {
+                qWarning() << "Downloaded image invalid";
+                return;
+            }
+
+            QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
+            img.save(tempFile);
+
+            LogoImporter importer;
+            QPainterPath outline = importer.importLogo(tempFile, false, 128);
+            if (outline.isEmpty()) {
+                qWarning() << "Import of generated logo failed";
+                return;
+            }
+
+            QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
+
+            this->hide();
+            custom *cw = new custom(currentLanguage);
+            connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
+            connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
+
+            CustomDrawArea *area = cw->getDrawArea();
+            for (const QPainterPath &sp : subs)
+                area->addImportedLogoSubpath(sp);
+
+            cw->showFullScreen();
+        });
+    });
 }

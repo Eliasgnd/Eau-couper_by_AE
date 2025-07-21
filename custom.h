@@ -48,6 +48,9 @@ private slots:
 signals:
     void applyCustomShapeSignal(QList<QPolygonF> shapes); // Signal pour appliquer une forme
     void resetDrawingSignal(); // Signal pour réinitialiser le dessin
+
+public:
+    CustomDrawArea* getDrawArea() const { return drawArea; }
 };
 
 #endif // CUSTOM_H
