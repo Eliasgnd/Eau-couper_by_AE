@@ -184,7 +184,27 @@ QPushButton:pressed {
     <string>✖</string>
    </property>
   </widget>
- </widget>
+  <widget class="QComboBox" name="comboSort">
+   <property name="geometry">
+    <rect>
+     <x>880</x>
+     <y>10</y>
+     <width>161</width>
+     <height>41</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QComboBox" name="comboFilter">
+   <property name="geometry">
+    <rect>
+     <x>1050</x>
+     <y>10</y>
+     <width>161</width>
+     <height>41</height>
+    </rect>
+   </property>
+  </widget>
+</widget>
  <resources>
   <include location="resources.qrc"/>
  </resources>
