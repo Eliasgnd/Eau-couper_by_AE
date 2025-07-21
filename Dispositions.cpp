@@ -19,6 +19,7 @@
 #include <QTransform>
 #include <QSizePolicy>
 #include <QDateTime>
+
 #include <algorithm>
 #include "inventaire.h"
 
@@ -58,6 +59,7 @@ Dispositions::Dispositions(const QString &shapeName,
         ui->comboSort->addItem("Utilisation fr\303\251quente");
         ui->comboSort->addItem("R\303\251cent \342\206\222 Ancien");
         ui->comboSort->addItem("Ancien \342\206\222 R\303\251cent");
+
         connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this, &Dispositions::onSortChanged);
     }
@@ -235,6 +237,7 @@ void Dispositions::displayLayouts(const QString &filter)
     int sortMode = ui->comboSort ? ui->comboSort->currentIndex() : 0;
 
     struct Item { int index; QString name; int usage; QDateTime last; };
+
     QList<Item> items;
 
     const QString baseName = m_lang == Language::French ? "Forme seule" : "Shape only";
@@ -264,6 +267,7 @@ void Dispositions::displayLayouts(const QString &filter)
         ui->gridLayout->addWidget(shapeFrame, index / 4, index % 4);
         ++index;
     }
+
 
     for (const Item &it : items) {
         QFrame *frame = createLayoutFrame(it.index);
