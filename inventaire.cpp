@@ -25,6 +25,7 @@
 #include <QFrame>
 #include <QLabel>
 #include <QListWidget>
+#include "draggablelistwidget.h"
 #include <QMenu>
 #include <QAction>
 #include <QInputDialog>
@@ -147,13 +148,11 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     inFolderView = false;
     currentFolder.clear();
 
-    QListWidget *listWidget = new QListWidget();
+    DraggableListWidget *listWidget = new DraggableListWidget();
     listWidget->setViewMode(QListView::IconMode);
     listWidget->setResizeMode(QListView::Adjust);
     listWidget->setMovement(QListView::Snap);
     listWidget->setSpacing(25);
-    listWidget->setDragDropMode(QAbstractItemView::InternalMove);
-    listWidget->setDefaultDropAction(Qt::MoveAction);
 
     ui->scrollAreaInventaire->setWidget(listWidget);
     ui->scrollAreaInventaire->setWidgetResizable(true);
@@ -225,6 +224,8 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     currentFolder.clear();
     connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
     connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this, [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){ applyReorderFromList(listWidget); });
+    connect(listWidget, &DraggableListWidget::dragStarted, this, [this](){ m_dragInProgress = true; });
+    connect(listWidget, &DraggableListWidget::dragFinished, this, [this](){ m_dragInProgress = false; });
     ui->buttonMenu->setVisible(true);
     update();
 }
@@ -434,7 +435,10 @@ bool Inventaire::eventFilter(QObject *obj, QEvent *event)
             m_longPress = false;
         } else if (event->type() == QEvent::MouseButtonRelease) {
             if (frame == m_lastPressedFrame) {
-                m_longPress = m_pressTimer.elapsed() > LONG_PRESS_THRESHOLD;
+                if (m_dragInProgress)
+                    m_longPress = false;
+                else
+                    m_longPress = m_pressTimer.elapsed() > LONG_PRESS_THRESHOLD;
                 m_lastPressedFrame = nullptr;
             }
         }
@@ -1096,13 +1100,11 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     inFolderView = true;
     currentFolder = folderName;
 
-    QListWidget *listWidget = new QListWidget();
+    DraggableListWidget *listWidget = new DraggableListWidget();
     listWidget->setViewMode(QListView::IconMode);
     listWidget->setResizeMode(QListView::Adjust);
     listWidget->setMovement(QListView::Snap);
     listWidget->setSpacing(25);
-    listWidget->setDragDropMode(QAbstractItemView::InternalMove);
-    listWidget->setDefaultDropAction(Qt::MoveAction);
 
     ui->scrollAreaInventaire->setWidget(listWidget);
     ui->scrollAreaInventaire->setWidgetResizable(true);
@@ -1190,6 +1192,8 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     listWidget->setItemWidget(backItem, retourButton);
     connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
     connect(listWidget->model(), &QAbstractItemModel::rowsMoved, this, [this, listWidget](const QModelIndex&, int, int, const QModelIndex&, int){ applyReorderFromList(listWidget); });
+    connect(listWidget, &DraggableListWidget::dragStarted, this, [this](){ m_dragInProgress = true; });
+    connect(listWidget, &DraggableListWidget::dragFinished, this, [this](){ m_dragInProgress = false; });
     ui->buttonMenu->setVisible(false);
 
 }
@@ -1281,6 +1285,8 @@ void Inventaire::applyReorderFromList(QListWidget *listWidget)
 
 void Inventaire::onItemClicked(QListWidgetItem *item)
 {
+    if (m_dragInProgress)
+        return;
     if (m_longPress) {
         m_longPress = false;
         return; // ignore click after a long press
