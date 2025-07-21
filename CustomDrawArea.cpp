@@ -23,6 +23,8 @@
 #include <QPinchGesture>
 #include <utility>
 #include <QTransform>
+#include <QSvgRenderer>
+
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
@@ -79,6 +81,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
 
     m_touchReader->start();          // ← on lance le thread UNE seule fois
     initializeLimitRect();
+
+    m_handleRenderer.load(QStringLiteral(":/icons/rotate.svg"));
 
 }
 
@@ -450,6 +454,46 @@ QPainterPath CustomDrawArea::generateRawPath(const QList<QPointF>& pts)
     return path;
 }
 
+
+static double distanceToSegment(const QPointF &p, const QPointF &a, const QPointF &b)
+{
+    QLineF line(a, b);
+    double len2 = line.length() * line.length();
+    if (len2 <= 0.000001)
+        return QLineF(p, a).length();
+    double t = ((p.x() - a.x()) * (b.x() - a.x()) +
+                (p.y() - a.y()) * (b.y() - a.y())) / len2;
+    if (t < 0.0)
+        t = 0.0;
+    else if (t > 1.0)
+        t = 1.0;
+    QPointF proj(a.x() + t * (b.x() - a.x()),
+                 a.y() + t * (b.y() - a.y()));
+    return QLineF(p, proj).length();
+}
+
+static double distanceToPath(const QPainterPath &path, const QPointF &p)
+{
+    if (path.isEmpty())
+        return std::numeric_limits<double>::max();
+    double best = std::numeric_limits<double>::max();
+    QPointF prev(path.elementAt(0).x, path.elementAt(0).y);
+    for (int i = 1; i < path.elementCount(); ++i) {
+        QPainterPath::Element el = path.elementAt(i);
+        if (el.isMoveTo()) {
+            prev = QPointF(el.x, el.y);
+            continue;
+        }
+        QPointF curr(el.x, el.y);
+        double d = distanceToSegment(p, prev, curr);
+        if (d < best)
+            best = d;
+        prev = curr;
+    }
+    return best;
+}
+
+
 QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, double alpha) const
 {
     if (points.isEmpty())
@@ -496,6 +540,37 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         return;
 
     QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
+    QPointF clickPos = (event->pos() - m_offset) / m_scale;
+
+    if (!m_selectedShapes.isEmpty()) {
+        int idx = m_selectedShapes.first();
+        if (idx >= 0 && idx < m_shapes.size()) {
+            QRectF bounds = m_shapes[idx].path.boundingRect();
+            QPointF center = bounds.center();
+            m_rotationCenter = center;
+
+            // Recalculer la position du handle avant de tester la distance
+            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
+            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                           std::sin(totalAngle) * m_rotationHandlePos.radius);
+            m_rotationHandle = center + offset;
+        }
+    }
+
+    // Maintenant tester la distance
+    if (!m_selectedShapes.isEmpty() &&
+        QLineF(clickPos, m_rotationHandle).length() < 10) {
+
+        m_rotating = true;
+
+        // idx est déjà connu ici
+        m_lastAngle = std::atan2(clickPos.y() - m_rotationCenter.y(),
+                                 clickPos.x() - m_rotationCenter.x());
+
+        event->accept();
+        return;
+    }
+
 
     if (m_pasteMode) {
         pasteCopiedShapes(pos);
@@ -526,23 +601,46 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 return;
             }
 
-            QPointF start = path.elementAt(0);
-            QPointF end = path.elementAt(path.elementCount() - 1);
-            double distance = QLineF(start, end).length();
+            QList<QPainterPath> subpaths = separateIntoSubpaths(path);
+            int target = -1;
+            double bestDist = tol;
 
-            //qDebug() << "Début-fin:" << start << "→" << end << " (distance:" << distance << ")";
+            for (int i = 0; i < subpaths.size(); ++i) {
+                QPainterPathStroker stroker;
+                stroker.setWidth(tol);
+                if (stroker.createStroke(subpaths[i]).contains(pos)) {
+                    target = i;
+                    break;
+                }
+                double d = distanceToPath(subpaths[i], pos);
+                if (d < bestDist) {
+                    bestDist = d;
+                    target = i;
+                }
 
-            if (distance > 2.0) {
-                path.lineTo(start);  // fermer avec ligne
-                //qDebug() << "✅ Ligne ajoutée entre extrémités.";
             }
 
-            path.closeSubpath();  // finalise fermeture
-            //qDebug() << "✔ Chemin fermé.";
+            if (target >= 0) {
+                QPainterPath sub = subpaths[target];
+                if (!sub.isEmpty()) {
+                    QPointF s = sub.elementAt(0);
+                    QPointF e = sub.elementAt(sub.elementCount() - 1);
+                    if (QLineF(s, e).length() > 2.0)
+                        sub.lineTo(s);
+                    sub.closeSubpath();
+                }
+                subpaths[target] = sub;
 
-            pushState();
-            updateCanvas();
-            update();
+                QPainterPath newPath;
+                for (const QPainterPath &sp : std::as_const(subpaths))
+                    newPath.addPath(sp);
+                path = newPath;
+
+                pushState();
+                updateCanvas();
+                update();
+            }
+
             m_closeMode = false;
             emit closeModeChanged(false);
             return; // important
@@ -567,6 +665,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 }
             }
 
+
             if (hitShape >= 0) {
                 m_lastSelectClick = pos;
                 if (m_selectedShapes.contains(hitShape))
@@ -583,12 +682,27 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     emit shapeSelection(false);
                 } else if (!m_connectSelectionMode) {
                     emit multiSelectionModeChanged(true);
+                // === Correction : vérifier que m_selectedShapes n'est pas vide ===
+                if (!m_selectedShapes.isEmpty()) {
+                    int idx = m_selectedShapes.first();
+                    if (idx >= 0 && idx < m_shapes.size()) {
+                        QRectF bounds = m_shapes[idx].path.boundingRect();
+                        QPointF center = bounds.center();
+                        m_rotationCenter = center;
+
+                        // Position handle au-dessus de la forme, sans rotation
+                        m_rotationHandle = QPointF(center.x(), bounds.top() - 20);
+
+                        QPointF delta = m_rotationHandle - center;
+                        m_rotationHandlePos.radius = std::hypot(delta.x(), delta.y());
+                        m_rotationHandlePos.angleOffset = std::atan2(delta.y(), delta.x()) - m_shapes[idx].rotationAngle;
+                    }
                 }
                 update();
             }
-
-            return;
         }
+        return;
+    }
 
     //qDebug() << "mousePressEvent: Pos" << pos;
 
@@ -852,10 +966,41 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
+    QPointF pos = (event->pos() - m_offset) / m_scale;
+
+    if (m_rotating && !m_selectedShapes.isEmpty()) {
+        qreal currentAngle = std::atan2(pos.y() - m_rotationCenter.y(), pos.x() - m_rotationCenter.x());
+        qreal deltaAngle = currentAngle - m_lastAngle;
+
+        QTransform rotation;
+        rotation.translate(m_rotationCenter.x(), m_rotationCenter.y());
+        rotation.rotateRadians(deltaAngle);
+        rotation.translate(-m_rotationCenter.x(), -m_rotationCenter.y());
+
+        int idx = m_selectedShapes.first();
+        if (idx >= 0 && idx < m_shapes.size()) {
+            m_shapes[idx].path = rotation.map(m_shapes[idx].path);
+            m_shapes[idx].rotationAngle += deltaAngle;
+
+            // Met à jour la position du handle
+            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
+            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                           std::sin(totalAngle) * m_rotationHandlePos.radius);
+            m_rotationHandle = m_rotationCenter + offset;
+
+            updateCanvas();
+            update();
+        }
+
+        m_lastAngle = currentAngle;
+        return;
+    }
+
+
     if (m_twoFingersOn)
         return;
 
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
+    pos = (event->pos() - m_offset) / m_scale;
 
     switch (m_drawMode)
     {
@@ -1094,6 +1239,15 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (m_rotating) {
+        m_rotating = false;
+        m_lastAngle = 0;  // Important : reset l'angle de référence
+        pushState();      // Pour l'annulation
+        event->accept();  // Stoppe la propagation
+        update();
+        return;
+    }
+
     QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
 
     event->accept();
@@ -1193,16 +1347,17 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
                 // Vérifier si la gomme intersecte réellement la forme
                 if (shape.path.intersects(eraserPath)) {
                     QPainterPath newPath = shape.path.subtracted(eraserPath);
-                    // Si la soustraction produit quelque chose et que son boundingRect est raisonnable, on garde le résultat.
-                    QRectF br = newPath.boundingRect();
-                    if (!newPath.isEmpty() && br.width() > 1 && br.height() > 1) {
-                        Shape ns;
-                        ns.path = newPath;
-                        ns.originalId = shape.originalId;  // Conserver l'ID du trait
-                        newShapes.append(ns);
-                    } else {
-                        // Sinon, conserver le shape original pour éviter qu'il disparaisse
-                        newShapes.append(shape);
+
+                    // Découper le résultat en sous-chemins pour conserver des segments indépendants
+                    QList<QPainterPath> subpaths = separateIntoSubpaths(newPath);
+                    for (const QPainterPath &sub : subpaths) {
+                        QRectF br = sub.boundingRect();
+                        if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
+                            Shape ns;
+                            ns.path = sub;
+                            ns.originalId = shape.originalId;  // Conserver l'ID du trait
+                            newShapes.append(ns);
+                        }
                     }
                 } else {
                     // Si la gomme n'intersecte pas, on conserve le shape tel quel
@@ -1237,6 +1392,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     }
     QWidget::mouseReleaseEvent(event);
     update();
+
 }
 
 void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
@@ -1333,13 +1489,123 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     // ─── Surbrillance des segments sélectionnés ───────────────────
     // ─── Surbrillance des formes sélectionnées ───────────────────
     if (!m_selectedShapes.isEmpty()) {
-        QPen selPen(Qt::cyan, 4, Qt::SolidLine);
-        painter.setPen(selPen);
-        // on dessine entièrement chaque shape sélectionnée
-        for (int idx : m_selectedShapes) {
-            painter.drawPath(m_shapes[idx].path);
+        int idx = m_selectedShapes.first();
+        if (idx >= 0 && idx < m_shapes.size()) {
+            QRectF bounds = m_shapes[idx].path.boundingRect();
+            QPointF center = bounds.center();
+            m_rotationCenter = center;
+
+            // Recalculer la position du handle à distance constante
+            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
+            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                           std::sin(totalAngle) * m_rotationHandlePos.radius);
+            m_rotationHandle = m_rotationCenter + offset;
+        }
+
+        // Dessiner les formes avec surlignage
+        QPen normalPen(Qt::black, 2);
+        normalPen.setCosmetic(true);
+
+        QPen selectedPen(Qt::cyan, 4);
+        selectedPen.setCosmetic(true);
+
+        for (int i = 0; i < m_shapes.size(); ++i) {
+            if (m_selectedShapes.contains(i)) {
+                painter.setPen(selectedPen);
+            } else {
+                painter.setPen(normalPen);
+            }
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(m_shapes[i].path);
+        }
+
+        // Afficher la poignée SVG si pas trop éloignée
+        const double maxDistance = 150.0;
+        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
+
+        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
+            const int iconSize = 24;  // taille du SVG en pixels
+
+            painter.save();
+            painter.translate(m_rotationHandle);
+            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
+            m_handleRenderer.render(&painter, svgRect);
+            painter.restore();
         }
     }
+
+    if (!m_selectedShapes.isEmpty()) {
+        int idx = m_selectedShapes.first();
+        if (idx >= 0 && idx < m_shapes.size()) {
+            QRectF bounds = m_shapes[idx].path.boundingRect();
+            QPointF center = bounds.center();
+            m_rotationCenter = center;
+
+            // Recalculer la position du handle à distance constante
+            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
+            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                           std::sin(totalAngle) * m_rotationHandlePos.radius);
+            m_rotationHandle = m_rotationCenter + offset;
+        }
+
+        // Dessiner les formes avec surlignage
+        QPen normalPen(Qt::black, 2);
+        normalPen.setCosmetic(true);
+
+        QPen selectedPen(Qt::cyan, 4);
+        selectedPen.setCosmetic(true);
+
+        for (int i = 0; i < m_shapes.size(); ++i) {
+            if (m_selectedShapes.contains(i)) {
+                painter.setPen(selectedPen);
+            } else {
+                painter.setPen(normalPen);
+            }
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(m_shapes[i].path);
+        }
+
+        // Afficher la poignée SVG si pas trop éloignée
+        const double maxDistance = 150.0;
+        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
+
+        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
+            const int iconSize = 24;  // taille du SVG en pixels
+
+            painter.save();
+            painter.translate(m_rotationHandle);
+            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
+            m_handleRenderer.render(&painter, svgRect);
+            painter.restore();
+        }
+    }
+
+
+
+
+
+    if (!m_selectedShapes.isEmpty()) {
+        int idx = m_selectedShapes.first(); // ← Important : ici la déclaration
+        if (idx >= 0 && idx < m_shapes.size()) {
+            QRectF bounds = m_shapes[idx].path.boundingRect();
+            QPointF center = bounds.center();
+            m_rotationCenter = center;
+
+            // Position initiale du handle avant rotation (au-dessus)
+            QPointF unrotatedHandle(center.x(), bounds.top() - 20);
+
+            // Appliquer une rotation autour du centre
+            QTransform handleRotation;
+            handleRotation.translate(center.x(), center.y());
+            handleRotation.rotateRadians(m_shapes[idx].rotationAngle);
+            handleRotation.translate(-center.x(), -center.y());
+
+            m_rotationHandle = handleRotation.map(unrotatedHandle);
+        }
+    }
+
+
+
     // -- connecteurs en trait noir continu --
     // Dessin des formes (incluant désormais tes connecteurs)
     QPen normalPen(Qt::black, 1);
@@ -1541,6 +1807,10 @@ void CustomDrawArea::startShapeSelection()
 {
     // Si on était en mode fermeture, on l'annule
     cancelCloseMode();
+
+    // Si on venait du mode déplacement, repasse en mode standard
+    if (m_drawMode == DrawMode::Deplacer)
+        m_drawMode = DrawMode::Freehand;
     m_selectMode = true;
     m_connectSelectionMode = true;
     m_selectedShapes.clear();

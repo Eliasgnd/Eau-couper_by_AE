@@ -1,6 +1,7 @@
 #ifndef CUSTOMDRAWAREA_H
 #define CUSTOMDRAWAREA_H
 
+#include "qsvgrenderer.h"
 #include "touchgesturereader.h"
 #include <QWidget>
 #include <QPointF>
@@ -41,11 +42,19 @@ public:
     struct Shape {
         QPainterPath path;
         int originalId;
+        qreal rotationAngle = 0.0;
 
         bool operator==(const Shape &other) const {
             return path == other.path && originalId == other.originalId;
         }
     };
+
+    struct HandlePosition {
+        qreal radius;
+        qreal angleOffset;  // angle relatif initial au centre
+    };
+    HandlePosition m_rotationHandlePos;
+
 
 
     explicit CustomDrawArea(QWidget *parent = nullptr); // Constructeur
@@ -226,6 +235,13 @@ private:
     qreal  m_minPointDistance = 2.0;
     // Seuil de distance moyen en dessous duquel on applique un lissage renforcé
     qreal  m_lowSpeedThreshold = 5.0;
+
+
+    QPointF m_rotationHandle;      // Position du handle
+    QPointF m_rotationCenter;      // Centre de rotation
+    bool m_rotating = false;       // Vrai si on est en train de tourner
+    qreal m_lastAngle = 0.0;       // Dernier angle mesuré
+    QSvgRenderer m_handleRenderer;
 
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
