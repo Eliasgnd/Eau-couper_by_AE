@@ -223,6 +223,12 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
 
     // sorting
     std::sort(items.begin(), items.end(), [sortMode](const Item &a, const Item &b){
+        // Folders always come first
+        if (a.type == 0 && b.type != 0)
+            return true;
+        if (a.type != 0 && b.type == 0)
+            return false;
+
         switch(sortMode){
         case 0: return a.name.toLower() < b.name.toLower();
         case 1: return a.name.toLower() > b.name.toLower();
@@ -1188,6 +1194,12 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     }
 
     std::sort(items.begin(), items.end(), [sortMode](const Item&a,const Item&b){
+        // Folders always come first
+        if (a.type == 0 && b.type != 0)
+            return true;
+        if (a.type != 0 && b.type == 0)
+            return false;
+
         switch(sortMode){
         case 0: return a.name.toLower()<b.name.toLower();
         case 1: return a.name.toLower()>b.name.toLower();
