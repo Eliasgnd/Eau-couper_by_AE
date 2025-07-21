@@ -427,33 +427,16 @@ void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QSt
 // -----------------------------------------------------------------------------
 bool Inventaire::eventFilter(QObject *obj, QEvent *event)
 {
-    if (event->type() == QEvent::MouseButtonPress) {
-        if (auto *frame = qobject_cast<QFrame*>(obj)) {
-            // Built-in shape ?
-            if (frame->property("shapeType").isValid()) {
-                const int val = frame->property("shapeType").toInt();
-                ShapeModel::Type type = static_cast<ShapeModel::Type>(val);
-                emit shapeSelected(type, frame->width(), frame->height());
-                goToMainWindow();
-                return true;
+    if (auto *frame = qobject_cast<QFrame*>(obj)) {
+        if (event->type() == QEvent::MouseButtonPress) {
+            m_lastPressedFrame = frame;
+            m_pressTimer.start();
+            m_longPress = false;
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            if (frame == m_lastPressedFrame) {
+                m_longPress = m_pressTimer.elapsed() > LONG_PRESS_THRESHOLD;
+                m_lastPressedFrame = nullptr;
             }
-            // Custom shape ?
-            if (frame->property("CustomShapeIndex").isValid()) {
-                const int index = frame->property("CustomShapeIndex").toInt();
-                if (index >= 0 && index < m_customShapes.size()) {
-                    const CustomShapeData &data = m_customShapes.at(index);
-                    qDebug() << "[EVENT] Sélection d'une forme custom:" << data.name;
-                    emit customShapeSelected(data.polygons, data.name);
-                    goToMainWindow();
-                }
-                return true;
-            }
-            if (frame->property("isFolder").toBool()) {
-                QString name = frame->property("folderName").toString();
-                displayShapesInFolder(name, ui->searchBar->text());
-                return true;
-            }
-
         }
     }
     return QWidget::eventFilter(obj, event);
@@ -1298,6 +1281,10 @@ void Inventaire::applyReorderFromList(QListWidget *listWidget)
 
 void Inventaire::onItemClicked(QListWidgetItem *item)
 {
+    if (m_longPress) {
+        m_longPress = false;
+        return; // ignore click after a long press
+    }
     if (!item) return;
     int t = item->data(Qt::UserRole).toInt();
     if (t == 0) {
