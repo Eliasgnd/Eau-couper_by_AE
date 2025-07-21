@@ -23,6 +23,7 @@ HEADERS += \
     skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
+    draggablelistwidget.h \
     Language.h
 
 SOURCES += \
@@ -32,7 +33,8 @@ SOURCES += \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
     skeletonizer.cpp \
-    touchgesturereader.cpp
+    touchgesturereader.cpp \
+    draggablelistwidget.cpp
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui
