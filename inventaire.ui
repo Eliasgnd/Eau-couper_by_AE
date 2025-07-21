@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <ui version="4.0">
  <class>Inventaire</class>
  <widget class="QWidget" name="Inventaire">
@@ -21,144 +22,170 @@
   </property>
   <property name="styleSheet">
    <string notr="true">QWidget {
-	
-	background-color: rgb(148, 148, 148);
+    background-color: rgb(148, 148, 148);
 }
-
 </string>
   </property>
+
   <layout class="QGridLayout" name="gridLayout_2">
+   <!-- Ligne 0 : barre d’outils -->
    <item row="0" column="2" colspan="5">
     <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <widget class="QPushButton" name="buttonNewFolder">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>50</height>
-        </size>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="icon">
-        <iconset resource="resources.qrc">
-         <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
-       </property>
-       <property name="iconSize">
-        <size>
-         <width>32</width>
-         <height>32</height>
-        </size>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>150</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QLabel" name="label">
-       <property name="lineWidth">
-        <number>1</number>
-       </property>
-       <property name="text">
-        <string>Rechercher</string>
-       </property>
-       <property name="textFormat">
-        <enum>Qt::TextFormat::AutoText</enum>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="searchBar">
-       <property name="minimumSize">
-        <size>
-         <width>600</width>
-         <height>40</height>
-        </size>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="buttonClearSearch">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>50</height>
-        </size>
-       </property>
-       <property name="text">
-        <string>✖</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>200</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="buttonMenu">
-       <property name="autoFillBackground">
-        <bool>false</bool>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">QPushButton {
-    background-color: #F44336;  /* Rouge primaire */
-    color: white; 
-    font-size: 14px;
-    border: 2px solid #D32F2F;  /* Bordure légèrement plus foncée */
-    border-radius: 5px;
-    padding: 6px 12px;
-    text-align: left;           /* texte à gauche */
-    padding-left: 8px;          /* espace avant le texte */
-    padding-right: 8px;         /* espace après l’icône */
+
+```
+ <!-- Bouton nouveau dossier -->
+ <item>
+  <widget class="QPushButton" name="buttonNewFolder">
+   <property name="minimumSize">
+    <size>
+     <width>0</width>
+     <height>50</height>
+    </size>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
+   </property>
+   <property name="iconSize">
+    <size>
+     <width>32</width>
+     <height>32</height>
+    </size>
+   </property>
+  </widget>
+ </item>
+
+ <!-- Espacement -->
+ <item>
+  <spacer name="horizontalSpacer_2">
+   <property name="orientation">
+    <enum>Qt::Orientation::Horizontal</enum>
+   </property>
+   <property name="sizeHint" stdset="0">
+    <size>
+     <width>150</width>
+     <height>20</height>
+    </size>
+   </property>
+  </spacer>
+ </item>
+
+ <!-- Label "Rechercher" -->
+ <item>
+  <widget class="QLabel" name="label">
+   <property name="lineWidth">
+    <number>1</number>
+   </property>
+   <property name="text">
+    <string>Rechercher</string>
+   </property>
+   <property name="textFormat">
+    <enum>Qt::TextFormat::AutoText</enum>
+   </property>
+  </widget>
+ </item>
+
+ <!-- Barre de recherche -->
+ <item>
+  <widget class="QLineEdit" name="searchBar">
+   <property name="minimumSize">
+    <size>
+     <width>600</width>
+     <height>40</height>
+    </size>
+   </property>
+  </widget>
+ </item>
+
+ <!-- Bouton effacer recherche -->
+ <item>
+  <widget class="QPushButton" name="buttonClearSearch">
+   <property name="minimumSize">
+    <size>
+     <width>0</width>
+     <height>50</height>
+    </size>
+   </property>
+   <property name="text">
+    <string>✖</string>
+   </property>
+  </widget>
+ </item>
+
+ <!-- Combo tri -->
+ <item>
+  <widget class="QComboBox" name="comboSort">
+   <property name="minimumSize">
+    <size>
+     <width>150</width>
+     <height>40</height>
+    </size>
+   </property>
+  </widget>
+ </item>
+
+ <!-- Combo filtre -->
+ <item>
+  <widget class="QComboBox" name="comboFilter">
+   <property name="minimumSize">
+    <size>
+     <width>150</width>
+     <height>40</height>
+    </size>
+   </property>
+  </widget>
+ </item>
+
+ <!-- Espacement -->
+ <item>
+  <spacer name="horizontalSpacer">
+   <property name="orientation">
+    <enum>Qt::Orientation::Horizontal</enum>
+   </property>
+   <property name="sizeHint" stdset="0">
+    <size>
+     <width>200</width>
+     <height>20</height>
+    </size>
+   </property>
+  </spacer>
+ </item>
+
+ <!-- Bouton menu -->
+ <item>
+  <widget class="QPushButton" name="buttonMenu">
+   <property name="autoFillBackground">
+    <bool>false</bool>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">QPushButton {
+background-color: #F44336;  /* Rouge primaire */
+color: white;
+font-size: 14px;
+border: 2px solid #D32F2F;
+border-radius: 5px;
+padding: 6px 12px;
+text-align: left;
+padding-left: 8px;
+padding-right: 8px;
+```
+
 }
 
-QPushButton:hover {
-    background-color: #E57373;  /* Rouge plus clair au survol */
-}
+QPushButton\:hover { background-color: #E57373; }
+QPushButton\:pressed { background-color: #C62828; } </string> </property> <property name="text"> <string/> </property> <property name="icon"> <iconset resource="resources.qrc"> <normaloff>:/icons/cross.svg</normaloff>:/icons/cross.svg</iconset> </property> <property name="iconSize"> <size> <width>40</width> <height>40</height> </size> </property> </widget> </item>
 
-QPushButton:pressed {
-    background-color: #C62828;  /* Rouge plus foncé lorsqu'on clique */
-}
-</string>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="icon">
-        <iconset resource="resources.qrc">
-         <normaloff>:/icons/cross.svg</normaloff>:/icons/cross.svg</iconset>
-       </property>
-       <property name="iconSize">
-        <size>
-         <width>40</width>
-         <height>40</height>
-        </size>
-       </property>
-      </widget>
-     </item>
-    </layout>
+```
+</layout>
+```
+
    </item>
+
+   <!-- Ligne 2 : zone de défilement pour l’inventaire -->
+
    <item row="2" column="2" colspan="8">
     <widget class="QScrollArea" name="scrollAreaInventaire">
      <property name="widgetResizable">
@@ -173,15 +200,21 @@ QPushButton:pressed {
         <height>735</height>
        </rect>
       </property>
-      <widget class="QWidget" name="containerWidget" native="true">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>10</y>
-         <width>1221</width>
-         <height>581</height>
-        </rect>
-       </property>
+
+```
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QWidget" name="containerWidget" native="true">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>10</y>
+       <width>1221</width>
+       <height>581</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="containerLayout">
+      <item>
        <widget class="QWidget" name="gridLayoutWidget">
         <property name="geometry">
          <rect>
@@ -193,75 +226,21 @@ QPushButton:pressed {
         </property>
         <layout class="QGridLayout" name="gridLayout"/>
        </widget>
-      </widget>
-     </widget>
+      </item>
+     </layout>
     </widget>
+   </item>
+  </layout>
 
-   </widget>
-  </widget>
-  <widget class="QLineEdit" name="searchBar">
-   <property name="geometry">
-    <rect>
-     <x>230</x>
-     <y>10</y>
-     <width>641</width>
-     <height>41</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QLabel" name="label">
-   <property name="geometry">
-    <rect>
-     <x>90</x>
-     <y>10</y>
-     <width>121</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="lineWidth">
-    <number>1</number>
-   </property>
-   <property name="text">
-    <string>Rechercher</string>
-   </property>
-   <property name="textFormat">
-    <enum>Qt::TextFormat::AutoText</enum>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="buttonClearSearch">
-   <property name="geometry">
-    <rect>
-     <x>824</x>
-     <y>10</y>
-     <width>51</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>✖</string>
-   </property>
-  </widget>
-  <widget class="QComboBox" name="comboSort">
-   <property name="geometry">
-    <rect>
-     <x>880</x>
-     <y>10</y>
-     <width>161</width>
-     <height>41</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QComboBox" name="comboFilter">
-   <property name="geometry">
-    <rect>
-     <x>1050</x>
-     <y>10</y>
-     <width>161</width>
-     <height>41</height>
-    </rect>
-   </property>
-  </widget>
+ </widget>
 </widget>
+```
+
+   </item>
+
+  </layout>
+ </widget>
+
  <resources>
   <include location="resources.qrc"/>
  </resources>
