@@ -65,9 +65,11 @@ void DraggableListWidget::startManualDrag()
 
     m_dragOffset = m_startPos - visualItemRect(m_placeholderItem).topLeft();
     m_dragWidget->setParent(viewport());
+    m_dragWidget->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_dragWidget->raise();
     m_dragWidget->move(m_startPos - m_dragOffset);
     m_dragWidget->show();
+    viewport()->setCursor(Qt::ClosedHandCursor);
 }
 
 void DraggableListWidget::updateDrag(const QPoint &pos)
@@ -98,6 +100,7 @@ void DraggableListWidget::finishDrag()
     m_placeholderItem = nullptr;
     m_dragWidget = nullptr;
     m_dragging = false;
+    viewport()->unsetCursor();
 
     emit dragFinished();
 }
