@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 #include <QListWidget>
+#include <QElapsedTimer>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -148,6 +149,12 @@ private:
 
     void displayShapesInFolder(const QString &folderName, const QString &filter);
     bool folderIsEmpty(const QString &folderName) const;
+
+    // Time management for distinguishing click vs long press
+    QElapsedTimer m_pressTimer;
+    QFrame *m_lastPressedFrame {nullptr};
+    bool m_longPress {false};
+    static const int LONG_PRESS_THRESHOLD = 500; // milliseconds
 };
 
 #endif // INVENTAIRE_H
