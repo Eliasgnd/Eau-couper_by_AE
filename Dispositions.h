@@ -40,6 +40,7 @@ private slots:
     void onMenuButtonClicked();
     void onSearchTextChanged(const QString &text);
     void onClearSearchClicked();
+    void onSortChanged(int index);
 
 private:
     Ui::Dispositions *ui;
