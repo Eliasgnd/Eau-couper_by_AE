@@ -12,11 +12,13 @@
 #include <QAction>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QTimer>
 #include <QEvent>
 #include <QPainterPath>
 #include <QTransform>
 #include <QSizePolicy>
+#include <algorithm>
 #include "inventaire.h"
 
 Dispositions::Dispositions(const QString &shapeName,
@@ -48,6 +50,13 @@ Dispositions::Dispositions(const QString &shapeName,
             this, &Dispositions::onSearchTextChanged);
     connect(ui->buttonClearSearch, &QPushButton::clicked,
             this, &Dispositions::onClearSearchClicked);
+
+    if (ui->comboSort) {
+        ui->comboSort->addItem("Nom (A \342\206\222 Z)");
+        ui->comboSort->addItem("Nom (Z \342\206\222 A)");
+        connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &Dispositions::onSortChanged);
+    }
 
 
     /* --------------------- grille --------------------- */
@@ -219,20 +228,35 @@ void Dispositions::displayLayouts(const QString &filter)
 
     const QString f = filter.trimmed().toLower();
 
-    int index = 0;
+    int sortMode = ui->comboSort ? ui->comboSort->currentIndex() : 0;
+
+    struct Item { int index; QString name; };
+    QList<Item> items;
 
     const QString baseName = m_lang == Language::French ? "Forme seule" : "Shape only";
-    if (f.isEmpty() || baseName.toLower().contains(f)) {
+    bool showBase = f.isEmpty() || baseName.toLower().contains(f);
+
+    for (int i = 0; i < m_layouts.size(); ++i) {
+        if (!f.isEmpty() && !m_layouts.at(i).name.toLower().contains(f))
+            continue;
+        items.append({i, m_layouts.at(i).name});
+    }
+
+    std::sort(items.begin(), items.end(), [sortMode](const Item &a, const Item &b){
+        if (sortMode == 0)
+            return a.name.toLower() < b.name.toLower();
+        return a.name.toLower() > b.name.toLower();
+    });
+
+    int index = 0;
+    if (showBase) {
         QFrame *shapeFrame = createBaseShapeFrame();
         ui->gridLayout->addWidget(shapeFrame, index / 4, index % 4);
         ++index;
     }
 
-    for (int i = 0; i < m_layouts.size(); ++i) {
-        if (!f.isEmpty() && !m_layouts.at(i).name.toLower().contains(f))
-            continue;
-
-        QFrame *frame = createLayoutFrame(i);
+    for (const Item &it : items) {
+        QFrame *frame = createLayoutFrame(it.index);
         ui->gridLayout->addWidget(frame, index / 4, index % 4);
         ++index;
     }
@@ -314,4 +338,9 @@ void Dispositions::onClearSearchClicked()
     if (ui->searchBar)
         ui->searchBar->clear();
     displayLayouts();
+}
+
+void Dispositions::onSortChanged(int)
+{
+    displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
 }
