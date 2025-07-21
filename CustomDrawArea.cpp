@@ -1,4 +1,5 @@
 #include "CustomDrawArea.h"
+#include "skeletonizer.h"
 #include <QPainter>
 #include <QMouseEvent>
 #include <QDebug>
@@ -117,6 +118,21 @@ QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &pat
     return subpaths;
 }
 
+// Calcule l’aire signée d’un sous‑chemin (≈ 0 si <3 points)
+static double signedArea(const QPainterPath &p)
+{
+    int n = p.elementCount();
+    if (n < 3) return 0.0;
+
+    double A = 0.0;
+    auto ex = [&](int i){ return p.elementAt(i).x; };
+    auto ey = [&](int i){ return p.elementAt(i).y; };
+
+    for (int i = 0; i < n-1; ++i)
+        A += ex(i) * ey(i+1) - ex(i+1) * ey(i);
+    A += ex(n-1) * ey(0) - ex(0) * ey(n-1);   // fermeture
+    return 0.5 * A;                            // signe ⇢ orientation
+}
 
 
 // Parcourt path, détecte chaque sous‐chemin démarré par moveTo(),
@@ -239,8 +255,8 @@ void CustomDrawArea::updateCanvas()
     QPainter painter(&newCanvas);
     painter.setRenderHint(QPainter::Antialiasing, m_smoothingEnabled);
 
-    // Stylo noir, épaisseur 2, pas de remplissage
-    QPen pen(Qt::black, 2);
+    // Stylo noir, épaisseur 1, pas de remplissage
+    QPen pen(Qt::black, 1);
     pen.setCosmetic(true);
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);  // <- IMPORTANT
@@ -344,13 +360,22 @@ CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_drawMode
 QList<QPolygonF> CustomDrawArea::getCustomShapes() const
 {
     QList<QPolygonF> list;
-    for (const Shape &shape : m_shapes) {
-        QPolygonF polygon;
-        for (int i = 0; i < shape.path.elementCount(); ++i) {
-            QPainterPath::Element e = shape.path.elementAt(i);
-            polygon << QPointF(e.x, e.y);
+
+    for (const Shape &shape : m_shapes)
+    {
+        /* 1. on sépare le QPainterPath en véritables sous‑chemins */
+        QList<QPainterPath> subs = separateIntoSubpaths(shape.path);
+
+        /* 2. chaque sous‑chemin devient son propre polygone       */
+        for (const QPainterPath &sp : subs)
+        {
+            QPolygonF poly;
+            for (int i = 0; i < sp.elementCount(); ++i)
+                poly << QPointF(sp.elementAt(i).x, sp.elementAt(i).y);
+
+            if (!poly.isEmpty())
+                list.append(poly);
         }
-        list.append(polygon);
     }
     return list;
 }
@@ -727,6 +752,97 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             updateCanvas();
             update();
         }
+        break;
+    }
+    // ────────────────────────────────────────────────────────────────
+    //  Mode ThinText  → squelette affiné + lissage Chaikin
+    // ────────────────────────────────────────────────────────────────
+    case DrawMode::ThinText:
+    {
+        bool ok = false;
+        QString text = QInputDialog::getText(this,
+                                             tr("Saisir un texte"),
+                                             tr("Texte :"),
+                                             QLineEdit::Normal,
+                                             m_currentText, &ok);
+        if (!ok || text.isEmpty())
+            break;
+
+        m_currentText = text;
+
+        QFont thinFont = m_textFont;
+        thinFont.setWeight(QFont::Thin);
+
+        // Construction du chemin complet à la position cliquée
+        QPainterPath textPath;
+        textPath.addText(pos, thinFont, text);
+
+        // Découpage en sous-chemins correspondant à chaque lettre
+        QList<QPainterPath> letterPaths;
+        if (textPath.elementCount() > 0) {
+            QPainterPath currentSubpath;
+            for (int i = 0; i < textPath.elementCount(); ++i) {
+                QPainterPath::Element e = textPath.elementAt(i);
+                if (e.isMoveTo()) {
+                    if (!currentSubpath.isEmpty()) {
+                        letterPaths.append(currentSubpath);
+                        currentSubpath = QPainterPath();
+                    }
+                    currentSubpath.moveTo(e.x, e.y);
+                } else {
+                    currentSubpath.lineTo(e.x, e.y);
+                }
+            }
+            if (!currentSubpath.isEmpty())
+                letterPaths.append(currentSubpath);
+        }
+
+        // Squelettisation et création d'une Shape pour chaque lettre
+        // ↓ à la place de ta boucle “for (const QPainterPath &letterPath …) ”
+        for (const QPainterPath &letterPath : letterPaths)
+        {
+            if (letterPath.isEmpty()) continue;
+            QRectF br = letterPath.boundingRect();
+
+            /* 1. bitmap */
+            const int oversample = 8;                 // ← 8 au lieu de 16
+            QSize imgSz = (br.size()*oversample).toSize() + QSize(8,8);
+            QImage img(imgSz, QImage::Format_Grayscale8);
+            img.fill(255);
+
+            QPainter p(&img);
+            p.setRenderHint(QPainter::Antialiasing,false);
+            p.setPen (Qt::NoPen);
+            p.setBrush(Qt::black);
+            p.translate(4 - br.left()*oversample,
+                        4 - br.top ()*oversample);
+            p.scale(oversample, oversample);
+            p.drawPath(letterPath);                  // trait plein (épais de 1px)
+
+            /* 2. thinning */
+            QImage skelImg = Skeletonizer::thin(img);
+
+            /* 3. vectorisation */
+            QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
+            QTransform tr;  tr.scale(1.0/oversample, 1.0/oversample);
+            skelPath = tr.map(skelPath);
+            skelPath.translate(br.left()-4.0/oversample,
+                               br.top() -4.0/oversample);
+
+            /* 4. lissage doux                               */
+            skelPath = Skeletonizer::smoothPath(skelPath,
+                                                /*chaikinPasses=*/1,
+                                                /*epsilon=*/0.05);
+
+            /* 5. sauvegarde                                 */
+            Shape s;  s.path = skelPath;
+            s.originalId = m_nextShapeId++;
+            m_shapes.append(s);
+        }
+
+        pushState();
+        updateCanvas();
+        update();
         break;
     }
     }  // Fin du switch
@@ -1116,6 +1232,8 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         break;
     case DrawMode::Text:  // Ajouté pour couvrir le mode Text, même si rien n'est fait ici
         break;
+    case DrawMode::ThinText:  // Ajouté pour le mode texte fin
+        break;
     }
     QWidget::mouseReleaseEvent(event);
     update();
@@ -1224,9 +1342,10 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     }
     // -- connecteurs en trait noir continu --
     // Dessin des formes (incluant désormais tes connecteurs)
-    QPen normalPen(Qt::black, 2);
+    QPen normalPen(Qt::black, 1);
     normalPen.setCosmetic(true);
     painter.setPen(normalPen);
+    painter.setBrush(Qt::NoBrush);
     for (const Shape &s : m_shapes) {
         if (s.path.isEmpty())
             continue;

@@ -1139,4 +1139,3 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     ui->buttonMenu->setVisible(false);  // masque la croix rouge
 
 }
-

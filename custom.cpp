@@ -175,6 +175,7 @@ custom::custom(Language lang, QWidget *parent)
     QAction *actionCercle = new QAction(tr("Cercle"), this);
     QAction *actionRectangle = new QAction(tr("Rectangle"), this);
     QAction *actionText = new QAction(tr("Texte"), this);
+    QAction *actionThinText = new QAction(tr("Texte fin"), this);
 
     // Ajout des actions au menu
     menuForme->addAction(actionAlaMain);
@@ -183,6 +184,7 @@ custom::custom(Language lang, QWidget *parent)
     menuForme->addAction(actionCercle);
     menuForme->addAction(actionRectangle);
     menuForme->addAction(actionText);
+    menuForme->addAction(actionThinText);
 
     ui->buttonForme->setMenu(menuForme);
     ui->buttonForme->setPopupMode(QToolButton::InstantPopup);
@@ -236,6 +238,11 @@ custom::custom(Language lang, QWidget *parent)
     connect(actionText, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Text);
         //qDebug() << "Mode Texte activé";
+        fontContainer->show();
+    });
+    // Mode Texte fin : afficher fontContainer
+    connect(actionThinText, &QAction::triggered, this, [=]() {
+        drawArea->setDrawMode(CustomDrawArea::DrawMode::ThinText);
         fontContainer->show();
     });
     // Pour les autres modes, cacher fontContainer

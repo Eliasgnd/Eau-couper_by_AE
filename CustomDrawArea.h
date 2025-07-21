@@ -32,7 +32,8 @@ public:
         Gomme,          // Gomme avec découpe en petits segments
         Deplacer,       // Déplacement d'une forme sélectionnée
         Pan,            // Déplacement de la vue globale (zoom/pan)
-        Text            // Ajout de texte
+        Text,           // Ajout de texte plein
+        ThinText        // Ajout de texte fin
     };
 
 

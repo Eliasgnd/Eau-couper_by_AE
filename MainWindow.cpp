@@ -242,7 +242,12 @@ MainWindow::MainWindow(QWidget *parent)
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
-            [](bool /*optimized*/) {});
+            [this](bool optimized) {
+                if (!optimized) {
+                    ui->optimizePlacementButton->setChecked(false);
+                    ui->optimizePlacementButton2->setChecked(false);
+                }
+            });
 
 
     // Pause ↔ Reprendre
