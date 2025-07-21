@@ -154,6 +154,7 @@ private:
     QElapsedTimer m_pressTimer;
     QFrame *m_lastPressedFrame {nullptr};
     bool m_longPress {false};
+    bool m_dragInProgress {false};
     static const int LONG_PRESS_THRESHOLD = 500; // milliseconds
 };
 
