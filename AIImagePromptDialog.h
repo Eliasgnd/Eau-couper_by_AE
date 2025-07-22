@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QPushButton>
+#include <QLabel>
 
 class AIImagePromptDialog : public QDialog
 {
@@ -18,15 +19,16 @@ public:
     QString getSize() const;
 
 private slots:
-    void onModelChanged(int index);
+    void updatePrice();  // ← DECLARÉ ICI
 
 private:
     void updateOptions();
 
-    QLineEdit  *m_promptEdit;
-    QComboBox  *m_modelCombo;
-    QComboBox  *m_qualityCombo;
-    QComboBox  *m_sizeCombo;
+    QLineEdit   *m_promptEdit;
+    QComboBox   *m_modelCombo;
+    QComboBox   *m_qualityCombo;
+    QComboBox   *m_sizeCombo;
+    QLabel      *m_priceLabel;      // ← DÉCLARÉ ICI
     QPushButton *m_generateButton;
     QPushButton *m_cancelButton;
 };

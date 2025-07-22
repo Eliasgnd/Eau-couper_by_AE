@@ -1,6 +1,7 @@
 #include "AIImagePromptDialog.h"
 #include <QVBoxLayout>
 #include <QDialogButtonBox>
+#include <QLabel>
 
 AIImagePromptDialog::AIImagePromptDialog(QWidget *parent)
     : QDialog(parent)
@@ -15,13 +16,20 @@ AIImagePromptDialog::AIImagePromptDialog(QWidget *parent)
 
     m_modelCombo = new QComboBox(this);
     m_modelCombo->addItems(QStringList() << "gpt-image-1" << "dall-e-3" << "dall-e-2");
+    layout->addWidget(new QLabel("Modèle :"));
     layout->addWidget(m_modelCombo);
 
     m_qualityCombo = new QComboBox(this);
+    layout->addWidget(new QLabel("Qualité :"));
     layout->addWidget(m_qualityCombo);
 
     m_sizeCombo = new QComboBox(this);
+    layout->addWidget(new QLabel("Taille :"));
     layout->addWidget(m_sizeCombo);
+
+    m_priceLabel = new QLabel(this);
+    layout->addWidget(new QLabel("Prix estimé :"));
+    layout->addWidget(m_priceLabel);
 
     QDialogButtonBox *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     m_generateButton = box->button(QDialogButtonBox::Ok);
@@ -32,14 +40,11 @@ AIImagePromptDialog::AIImagePromptDialog(QWidget *parent)
 
     connect(box, &QDialogButtonBox::accepted, this, &AIImagePromptDialog::accept);
     connect(box, &QDialogButtonBox::rejected, this, &AIImagePromptDialog::reject);
-    connect(m_modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::onModelChanged);
+    connect(m_modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::updateOptions);
+    connect(m_qualityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::updatePrice);
+    connect(m_sizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::updatePrice);
 
     m_modelCombo->setCurrentIndex(0);
-    updateOptions();
-}
-
-void AIImagePromptDialog::onModelChanged(int)
-{
     updateOptions();
 }
 
@@ -60,25 +65,33 @@ void AIImagePromptDialog::updateOptions()
         m_qualityCombo->addItem("standard");
         m_sizeCombo->addItems(QStringList() << "256x256" << "512x512" << "1024x1024");
     }
+    updatePrice();
 }
 
-QString AIImagePromptDialog::getPrompt() const
+void AIImagePromptDialog::updatePrice()
 {
-    return m_promptEdit->text().trimmed();
+    QString model = m_modelCombo->currentText();
+    QString quality = m_qualityCombo->currentText();
+    QString size = m_sizeCombo->currentText();
+
+    double price = 0.0;
+    if (model == "gpt-image-1") {
+        if (quality == "low") price = (size == "1024x1024") ? 0.011 : 0.016;
+        else if (quality == "medium") price = (size == "1024x1024") ? 0.042 : 0.063;
+        else if (quality == "high") price = (size == "1024x1024") ? 0.167 : 0.25;
+    } else if (model == "dall-e-3") {
+        if (quality == "standard") price = (size == "1024x1024") ? 0.04 : 0.08;
+        else if (quality == "hd") price = (size == "1024x1024") ? 0.08 : 0.12;
+    } else if (model == "dall-e-2") {
+        if (size == "256x256") price = 0.016;
+        else if (size == "512x512") price = 0.018;
+        else if (size == "1024x1024") price = 0.02;
+    }
+
+    m_priceLabel->setText(QString("$%1").arg(QString::number(price, 'f', 3)));
 }
 
-QString AIImagePromptDialog::getModel() const
-{
-    return m_modelCombo->currentText();
-}
-
-QString AIImagePromptDialog::getQuality() const
-{
-    return m_qualityCombo->currentText();
-}
-
-QString AIImagePromptDialog::getSize() const
-{
-    return m_sizeCombo->currentText();
-}
-
+QString AIImagePromptDialog::getPrompt() const { return m_promptEdit->text().trimmed(); }
+QString AIImagePromptDialog::getModel() const { return m_modelCombo->currentText(); }
+QString AIImagePromptDialog::getQuality() const { return m_qualityCombo->currentText(); }
+QString AIImagePromptDialog::getSize() const { return m_sizeCombo->currentText(); }
