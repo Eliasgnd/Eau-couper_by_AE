@@ -12,8 +12,6 @@
 #include "Language.h"
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
-#include "PageImagesGenerées.h"
-
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -130,7 +128,6 @@ MainWindow::MainWindow(QWidget *parent)
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
-    connect(ui->buttonShowImages, &QPushButton::clicked, this, &MainWindow::showImagesGenerées);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
 
@@ -368,14 +365,6 @@ void MainWindow::showCustom() {
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
     customWindow->showFullScreen();
-}
-
-void MainWindow::showImagesGenerées()
-{
-    if (!imagesPage)
-        imagesPage = new PageImagesGenerées();
-    this->hide();
-    imagesPage->showFullScreen();
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {

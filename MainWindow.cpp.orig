@@ -1,13 +1,24 @@
 #include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ShapeModel.h"
+#include "qmessagebox.h"
 #include "ui_mainwindow.h"
 #include "inventaire.h"
 #include "custom.h"
+#include "Dispositions.h"
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "trajetmotor.h"
+<<<<<<< HEAD
 #include "Language.h"
+#include "LogoImporter.h"
+#include "AIImagePromptDialog.h"
+=======
+#include "Language.h"
+#include "LogoImporter.h"
+#include "AIImagePromptDialog.h"
+#include "PageImagesGenerées.h"
+>>>>>>> ebe421b2d658aee9ce4c24cd69261a3ab501e342
 
 
 #include <QSpinBox>
@@ -15,6 +26,8 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPixmap>
+#include <QImage>
+#include <QPainterPath>
 #include <QDebug>
 #include <QScreen>
 #include <QGuiApplication>
@@ -24,6 +37,20 @@
 #include <QPoint>
 #include <QWidgetAction>
 #include <QToolButton>
+#include <QMessageBox>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QStandardPaths>
+#include <QDir>
+#include <QDateTime>
+#include <QRegularExpression>
+
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -42,6 +69,8 @@ MainWindow::MainWindow(QWidget *parent)
     // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
     QToolButton *settingsBtn = new QToolButton(this);
     settingsBtn->setText(tr("Paramètres"));
+    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
+    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
     settingsBtn->setMenu(languageMenu);                           // rattache le menu
 
@@ -56,6 +85,12 @@ MainWindow::MainWindow(QWidget *parent)
     border: 2px solid #008C9E;
     border-radius: 8px;
     }
+    QToolButton::menu-indicator {
+    image: url(:/icons/chevron-down-white.svg);  /* petit chevron blanc (ajoute-le au .qrc) */
+    subcontrol-position: right center;
+    subcontrol-origin: padding;
+    padding-left: 6px;                           /* espace entre texte et chevron */
+    }
     QToolButton:hover  { background-color: #26C6DA; }  /* plus clair au survol */
     QToolButton:pressed{ background-color: #008C9E; }  /* plus foncé au clic  */
     )");
@@ -69,12 +104,14 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Connection de l'inventaire à la forme
     QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
-                     ui->formeVisualizationWidget, &FormeVisualization::setModel);
+                     this, &MainWindow::onShapeSelectedFromInventaire);
+
 
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
     // Création du contrôleur de découpe avant toute connexion
     trajetMotor = new TrajetMotor(formeVisualization, this);
+    trajetMotor->setMainWindow(this);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
@@ -97,8 +134,18 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     // Naviguer entre les pages
+<<<<<<< HEAD
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
+
+    connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
+=======
+    connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
+    connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
+    connect(ui->buttonShowImages, &QPushButton::clicked, this, &MainWindow::showImagesGenerées);
+
+    connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
+>>>>>>> ebe421b2d658aee9ce4c24cd69261a3ab501e342
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -114,8 +161,44 @@ MainWindow::MainWindow(QWidget *parent)
     // Connection entre spinbox nombre de formes et FormeVisualization
     connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShapeCount);
     // Connection bouton optimisation
-    connect(ui->optimizePlacementButton, &QPushButton::clicked, formeVisualization, &FormeVisualization::optimizePlacement);
-    connect(ui->optimizePlacementButton2, &QPushButton::clicked, formeVisualization, &FormeVisualization::optimizePlacement2);
+
+
+   // activation et desactivation de l'optimisation
+
+    ui->optimizePlacementButton->setCheckable(true);
+    ui->optimizePlacementButton2->setCheckable(true);
+
+    connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [=]() {
+        if (ui->optimizePlacementButton->isChecked()) {
+            ui->optimizePlacementButton2->setChecked(false);
+            formeVisualization->optimizePlacement();
+        } else {
+            int largeur = ui->Largeur->value();
+            int longueur = ui->Longueur->value();
+            formeVisualization->updateDimensions(largeur, longueur);
+
+            // Optionnel : logique si on veut désactiver aussi
+        }
+    });
+
+    connect(ui->optimizePlacementButton2, &QPushButton::clicked, this, [=]() {
+        if (ui->optimizePlacementButton2->isChecked()) {
+            ui->optimizePlacementButton->setChecked(false);
+            formeVisualization->optimizePlacement2();
+        } else {
+            int largeur = ui->Largeur->value();
+            int longueur = ui->Longueur->value();
+            formeVisualization->updateDimensions(largeur, longueur);
+
+            // Optionnel
+        }
+    });
+
+
+
+
+
+
 
     //spinBox pour l'espacement
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
@@ -149,13 +232,52 @@ MainWindow::MainWindow(QWidget *parent)
         formeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
     });
 
+    connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->addShapeBottomRight();
+    });
+
+    connect(ui->ButtonDeleteShape, &QPushButton::clicked, this, [this]() {
+        formeVisualization->deleteSelectedShapes();
+    });
+
+    connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
+        auto saveLayout = [this]() {
+            bool ok;
+            QString name = QInputDialog::getText(this,
+                                                tr("Nom de la disposition"),
+                                                tr("Entrez un nom"),
+                                                QLineEdit::Normal,
+                                                "",
+                                                &ok);
+            if (!ok || name.isEmpty())
+                return;
+            LayoutData layout = formeVisualization->captureCurrentLayout(name);
+            if (formeVisualization->isCustomMode())
+                Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
+            else
+                Inventaire::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+        };
+
+        if (formeVisualization->isCustomMode() && formeVisualization->currentCustomShapeName().isEmpty()) {
+            QMessageBox::warning(this,
+                                 tr("Disposition"),
+                                 tr("Forme non sauvegardée — veuillez la sauvegarder d'abord."));
+            if (promptAndSaveCurrentCustomShape())
+                saveLayout();
+            return;
+        }
+
+        saveLayout();
+    });
+
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
-            [this](bool /*optimized*/) {
-                trajetMotor = new TrajetMotor(formeVisualization, this);
-                connect(trajetMotor, &TrajetMotor::decoupeProgress,
-                        this, &MainWindow::updateProgressBar);
+            [this](bool optimized) {
+                if (!optimized) {
+                    ui->optimizePlacementButton->setChecked(false);
+                    ui->optimizePlacementButton2->setChecked(false);
+                }
             });
 
 
@@ -180,11 +302,20 @@ MainWindow::MainWindow(QWidget *parent)
     connect(trajetMotor, &TrajetMotor::decoupeProgress,
             this, &MainWindow::updateProgressBar);
 
+    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
+        trajetMotor->stopCut();
+        formeVisualization->setDecoupeEnCours(false);
+        setSpinboxSliderEnabled(true);
+    });
+
+
+
     // Configuration de la barre de progression
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
+
 
     if (ui->timeRemainingLabel)
         ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
@@ -238,7 +369,7 @@ void MainWindow::changeToHeart() {
 
 void MainWindow::showInventaire() {
     this->hide();
-    Inventaire::getInstance()->show();
+    Inventaire::getInstance()->showFullScreen();
 }
 
 void MainWindow::showCustom() {
@@ -249,41 +380,122 @@ void MainWindow::showCustom() {
             this, &MainWindow::applyCustomShape);
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
-    customWindow->show();
+    customWindow->showFullScreen();
+}
+
+void MainWindow::showImagesGenerées()
+{
+    if (!imagesPage)
+        imagesPage = new PageImagesGenerées();
+    this->hide();
+    imagesPage->showFullScreen();
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
+
+
     //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
         formeVisualization->displayCustomShapes(shapes);
+        formeVisualization->setCurrentCustomShapeName("");
     } else {
         //qDebug() << "Erreur : formeVisualization est nullptr.";
     }
-    this->show();
+    // ---------- FIN de applyCustomShape ----------
+    this->showFullScreen();            // plein écran
 }
 
-void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons)
+/* =====================================================================
+ *  On sélectionne une forme custom depuis l'inventaire
+ * ===================================================================*/
+void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
+                                       const QString &name)
 {
-    if (formeVisualization) {
-        // Forcer le mode custom
-        formeVisualization->setCustomMode();
-
-        // Combiner les polygones pour obtenir le rectangle englobant
-        QPainterPath combinedPath;
-        for (const QPolygonF &poly : polygons) {
-            combinedPath.addPolygon(poly);
-        }
-        QRectF bounds = combinedPath.boundingRect();
-
-        // Calcul des dimensions pour la vue (mais on n'update plus les spin boxes)
-        int largeur = (bounds.width() > 0) ? qRound(bounds.width()) : 100;
-        int hauteur = (bounds.height() > 0) ? qRound(bounds.height()) : 100;
-
-        // Mise à jour du widget de visualisation uniquement
-        formeVisualization->updateDimensions(largeur, hauteur);
-        formeVisualization->displayCustomShapes(polygons);
+    /* 1) Empêcher la modification pendant une découpe ---------------- */
+    if (formeVisualization && formeVisualization->isDecoupeEnCours()) {
+        QMessageBox::warning(this,
+                             tr("Découpe en cours"),
+                             tr("Impossible de modifier la forme pendant la découpe."));
+        return;
     }
-    this->show();
+
+    /* 2) Passage en mode Custom -------------------------------------- */
+    if (!formeVisualization) {
+        this->showFullScreen();
+        return;
+    }
+    formeVisualization->setCustomMode();
+
+    /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : polygons)
+        combinedPath.addPolygon(poly);
+    QRectF bounds = combinedPath.boundingRect();
+
+    int largeur = ui->Largeur->value();
+    int hauteur = ui->Longueur->value();
+    if (largeur <= 0)
+        largeur = bounds.width()  > 0 ? qRound(bounds.width())  : 100;
+    if (hauteur <= 0)
+        hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
+
+    formeVisualization->updateDimensions(largeur, hauteur);
+    formeVisualization->displayCustomShapes(polygons);
+    formeVisualization->setCurrentCustomShapeName(name);
+
+    /* 4) Si des dispositions existent, ouvrir la fenêtre Dispositions */
+    QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
+    if (!layouts.isEmpty()) {
+        Dispositions *disp = new Dispositions(name, layouts,
+                                              polygons, currentLanguage);
+
+        connect(disp, &Dispositions::layoutSelected, this,
+                [this](const LayoutData &ld) {
+                    formeVisualization->applyLayout(ld);
+
+                    // verrouillage/déverrouillage propre des widgets
+                    const bool block = true;
+                    ui->Largeur->blockSignals(block);
+                    ui->Longueur->blockSignals(block);
+                    ui->shapeCountSpinBox->blockSignals(block);
+                    ui->spaceSpinBox->blockSignals(block);
+                    ui->Slider_largeur->blockSignals(block);
+                    ui->Slider_longueur->blockSignals(block);
+
+                    ui->Largeur->setValue(ld.largeur);
+                    ui->Longueur->setValue(ld.longueur);
+                    ui->Slider_largeur->setValue(ld.largeur);
+                    ui->Slider_longueur->setValue(ld.longueur);
+                    ui->shapeCountSpinBox->setValue(ld.items.size());
+                    ui->spaceSpinBox->setValue(ld.spacing);
+
+                    ui->Largeur->blockSignals(!block);
+                    ui->Longueur->blockSignals(!block);
+                    ui->shapeCountSpinBox->blockSignals(!block);
+                    ui->spaceSpinBox->blockSignals(!block);
+                    ui->Slider_largeur->blockSignals(!block);
+                    ui->Slider_longueur->blockSignals(!block);
+                });
+
+        /* signaux de fermeture/retour */
+        connect(disp, &Dispositions::shapeOnlySelected, this, [](){});
+        connect(disp, &Dispositions::closed, this, [this, disp]() {
+            this->showFullScreen();
+            disp->deleteLater();
+        });
+        connect(disp, &Dispositions::requestOpenInventaire, this,
+                [this, disp]() {
+                    disp->deleteLater();
+                    Inventaire::getInstance()->showFullScreen();
+                });
+
+        this->hide();
+        disp->showFullScreen();
+        return;
+    }
+
+    /* 5) Pas de dispositions : on se contente d’afficher la forme ----- */
+    this->showFullScreen();
 }
 
 void MainWindow::resetDrawing() {
@@ -347,9 +559,23 @@ void MainWindow::StartPixel()
         return;
     }
 
+    formeVisualization->resetAllShapeColors();
+
+    if (!formeVisualization->validateShapes()) {
+        QMessageBox::warning(this, tr("Formes invalides"),
+                             tr("Certaines formes dépassent la zone ou se chevauchent."));
+        return;
+    }
+
+    formeVisualization->setDecoupeEnCours(true);
+    formeVisualization->resetAllShapeColors();
+
     // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
     //qDebug() << "Demarrage Découpe";
+    setSpinboxSliderEnabled(false);
     trajetMotor->executeTrajet();
+    // Blocage des paramètres UI pendant la découpe
+
 }
 
 
@@ -358,8 +584,10 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     int percent = (total - remaining) * 100 / total;
 
     // Démarrage du chrono à la première mise à jour
-    if (!decoupeTimer.isValid() || remaining == total)
+    if (!decoupeTimer.isValid() || remaining == total) {
         decoupeTimer.start();
+        smoothedTotalMs = -1.0; // réinitialise l'estimation
+    }
 
     // Mise à jour de la barre
     ui->progressBar->setValue(percent);
@@ -367,9 +595,13 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     // Calcul de l'estimation du temps restant
     QString timeText;
     if (percent > 0 && remaining > 0) {
-        qint64 elapsedMs   = decoupeTimer.elapsed();
-        double totalMs     = static_cast<double>(elapsedMs) / (percent / 100.0);
-        qint64 remainingMs = static_cast<qint64>(totalMs - elapsedMs);
+        qint64 elapsedMs      = decoupeTimer.elapsed();
+        double instantTotalMs = static_cast<double>(elapsedMs) / (percent / 100.0);
+        if (smoothedTotalMs < 0)
+            smoothedTotalMs = instantTotalMs;
+        else
+            smoothedTotalMs = 0.9 * smoothedTotalMs + 0.1 * instantTotalMs;
+        qint64 remainingMs = static_cast<qint64>(smoothedTotalMs - elapsedMs);
         if (remainingMs < 0) remainingMs = 0;
         int seconds = remainingMs / 1000;
         int minutes = seconds / 60;
@@ -387,6 +619,7 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     // Remise à zéro à la fin
     if (remaining == 0) {
         decoupeTimer.invalidate();
+        smoothedTotalMs = -1.0;
     }
 }
 
@@ -482,5 +715,295 @@ void MainWindow::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
+void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
+{
+    selectedShapeType = type;
+    QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForBaseShape(type);
+    if (!layouts.isEmpty()) {
+        QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
+        QString name = Inventaire::baseShapeName(type, currentLanguage);
+        Dispositions *disp = new Dispositions(name, layouts, polys, currentLanguage, true, type);
 
+        connect(disp, &Dispositions::layoutSelected, this, [this, type](const LayoutData &ld){
+            QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
+            formeVisualization->setCustomMode();
+            formeVisualization->displayCustomShapes(shapePolys);
+            formeVisualization->setCurrentCustomShapeName(Inventaire::baseShapeName(type, Language::French));
+            formeVisualization->applyLayout(ld);
 
+            ui->Largeur->blockSignals(true);
+            ui->Longueur->blockSignals(true);
+            ui->shapeCountSpinBox->blockSignals(true);
+            ui->spaceSpinBox->blockSignals(true);
+            ui->Slider_largeur->blockSignals(true);
+            ui->Slider_longueur->blockSignals(true);
+
+            ui->Largeur->setValue(ld.largeur);
+            ui->Longueur->setValue(ld.longueur);
+            ui->Slider_largeur->setValue(ld.largeur);
+            ui->Slider_longueur->setValue(ld.longueur);
+            ui->shapeCountSpinBox->setValue(ld.items.size());
+            ui->spaceSpinBox->setValue(ld.spacing);
+
+            ui->Largeur->blockSignals(false);
+            ui->Longueur->blockSignals(false);
+            ui->shapeCountSpinBox->blockSignals(false);
+            ui->spaceSpinBox->blockSignals(false);
+            ui->Slider_largeur->blockSignals(false);
+            ui->Slider_longueur->blockSignals(false);
+        });
+
+        connect(disp, &Dispositions::shapeOnlySelected, this, [this, type]() {
+            selectedShapeType = type;
+            formeVisualization->setPredefinedMode();
+            formeVisualization->setModel(type);
+        });
+
+        connect(disp, &Dispositions::closed, this, [this, disp]() {
+            this->showFullScreen();
+            disp->deleteLater();
+        });
+
+        connect(disp, &Dispositions::requestOpenInventaire, this, [this, disp]() {
+            disp->deleteLater();
+            Inventaire::getInstance()->showFullScreen();
+        });
+
+        this->hide();
+        disp->showFullScreen();
+        return;
+    }
+
+    formeVisualization->setPredefinedMode();
+    formeVisualization->setModel(type);
+}
+
+void MainWindow::setSpinboxSliderEnabled(bool enabled)
+{
+    ui->Largeur->setEnabled(enabled);
+    ui->Longueur->setEnabled(enabled);
+    ui->Slider_largeur->setEnabled(enabled);
+    ui->Slider_longueur->setEnabled(enabled);
+    ui->shapeCountSpinBox->setEnabled(enabled);
+    ui->spaceSpinBox->setEnabled(enabled);
+    qDebug() << "[DEBUG] Appel de setSpinboxSliderEnabled(" << enabled << ")";
+}
+
+FormeVisualization* MainWindow::getFormeVisualization() const
+{
+    return formeVisualization;
+}
+
+bool MainWindow::promptAndSaveCurrentCustomShape()
+{
+    if (!formeVisualization)
+        return false;
+
+    QList<QPolygonF> shapes = formeVisualization->currentCustomShapes();
+    if (shapes.isEmpty())
+        return false;
+
+    bool ok = false;
+    QString shapeName;
+    do {
+        shapeName = QInputDialog::getText(this,
+                                          tr("Nom de la forme"),
+                                          tr("Entrez un nom pour votre forme :"),
+                                          QLineEdit::Normal,
+                                          "",
+                                          &ok);
+        if (!ok)
+            return false;
+        if (shapeName.isEmpty())
+            continue;
+        if (Inventaire::getInstance()->shapeNameExists(shapeName)) {
+            QMessageBox msg(QMessageBox::Warning,
+                            tr("Nom déjà utilisé"),
+                            tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
+                            QMessageBox::NoButton,
+                            this);
+            QTimer::singleShot(2300, &msg, &QMessageBox::accept);
+            msg.exec();
+            ok = false;
+        }
+    } while (!ok);
+
+    Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
+    formeVisualization->setCurrentCustomShapeName(shapeName);
+    return true;
+}
+
+void MainWindow::openAIImagePromptDialog()
+{
+    AIImagePromptDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        generateAIImage(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize());
+    }
+}
+
+void MainWindow::generateAIImage(const QString &userPrompt,
+                                 const QString &model,
+                                 const QString &quality,
+                                 const QString &size)
+{
+    if (userPrompt.isEmpty())
+        return;
+
+    QString startPrompt = "A simple black silhouette outline of a ";
+    QString styleSuffix = ", exterior contour only, no windows, no doors, no internal lines, white background only, minimal and abstract" ;
+    QString finalPrompt = startPrompt + userPrompt + styleSuffix;
+    qDebug() << "[AI] Prompt final :" << finalPrompt;
+
+    if (!m_netManager)
+        m_netManager = new QNetworkAccessManager(this);
+
+    ui->labelAIGenerationStatus->setText("🧠 Génération en cours...");
+    ui->progressBarAI->setVisible(true);
+    ui->progressBarAI->setMinimum(0);
+    ui->progressBarAI->setMaximum(0);
+
+    QString modelStr   = model;
+    QString qualityStr = quality;
+    QString sizeStr    = size;
+
+    // Affichage du prix estimé
+    double price = 0.0;
+    if (modelStr == "gpt-image-1") {
+        if (qualityStr == "low") price = (sizeStr == "1024x1024") ? 0.011 : 0.016;
+        else if (qualityStr == "medium") price = (sizeStr == "1024x1024") ? 0.042 : 0.063;
+        else if (qualityStr == "high") price = (sizeStr == "1024x1024") ? 0.167 : 0.25;
+    } else if (modelStr == "dall-e-3") {
+        if (qualityStr == "standard") price = (sizeStr == "1024x1024") ? 0.04 : 0.08;
+        else if (qualityStr == "hd") price = (sizeStr == "1024x1024") ? 0.08 : 0.12;
+    } else if (modelStr == "dall-e-2") {
+        if (sizeStr == "256x256") price = 0.016;
+        else if (sizeStr == "512x512") price = 0.018;
+        else if (sizeStr == "1024x1024") price = 0.02;
+    }
+    qDebug() << "[AI] Coût estimé de l'image : $" << price;
+
+    // Construction de la requête
+    QNetworkRequest req(QUrl("https://api.openai.com/v1/images/generations"));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QByteArray apiKey = qEnvironmentVariable("OPENAI_API_KEY").toUtf8();
+    if (apiKey.isEmpty()) {
+        QMessageBox::critical(this, "Erreur API", "La clé API OpenAI est absente.\nDéfinissez OPENAI_API_KEY.");
+        ui->labelAIGenerationStatus->setText("❌ Clé API manquante");
+        ui->progressBarAI->setVisible(false);
+        return;
+    }
+    req.setRawHeader("Authorization", "Bearer " + apiKey);
+
+    QJsonObject body{
+        {"model", modelStr},
+        {"prompt", finalPrompt},
+        {"n", 1},
+        {"size", sizeStr}
+    };
+
+    if (modelStr == "gpt-image-1" || modelStr == "dall-e-3") {
+        body["quality"] = qualityStr;
+    }
+
+    qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
+
+    QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
+<<<<<<< HEAD
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userPrompt]() {
+=======
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userPrompt]() {
+>>>>>>> ebe421b2d658aee9ce4c24cd69261a3ab501e342
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[AI] ❌ Erreur API :" << reply->errorString();
+            ui->labelAIGenerationStatus->setText("❌ Erreur API");
+            ui->progressBarAI->setVisible(false);
+            QTimer::singleShot(3000, this, [this]() {
+                ui->labelAIGenerationStatus->clear();
+            });
+            reply->deleteLater();
+            return;
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QString url = doc["data"].toArray().first().toObject()["url"].toString();
+        reply->deleteLater();
+
+        qDebug() << "[AI] ✅ Image URL :" << url;
+
+        QNetworkReply *imgReply = m_netManager->get(QNetworkRequest(QUrl(url)));
+        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply, userPrompt]() {
+            ui->progressBarAI->setVisible(false);
+
+            if (imgReply->error() != QNetworkReply::NoError) {
+                qWarning() << "[AI] ❌ Échec téléchargement image :" << imgReply->errorString();
+                ui->labelAIGenerationStatus->setText("❌ Erreur image");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
+                imgReply->deleteLater();
+                return;
+            }
+
+            QImage img;
+            img.loadFromData(imgReply->readAll());
+            imgReply->deleteLater();
+
+            if (img.isNull()) {
+                qWarning() << "[AI] ❌ Image invalide.";
+                ui->labelAIGenerationStatus->setText("❌ Image invalide");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
+                return;
+            }
+
+            QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
+            img.save(tempFile);
+            qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
+
+            // Archive image to images_generées/ next to executable
+            const QString imagesDirPath = qApp->applicationDirPath()
+                                          + QDir::separator() + "images_generées";
+            QDir imagesDir(imagesDirPath);
+            if (!imagesDir.exists()) {
+                QDir().mkpath(imagesDirPath);
+            }
+            QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
+            sanitized.remove(QRegularExpression("[\\p{Mn}]"));
+            sanitized.replace(QRegularExpression("[^A-Za-z0-9]+"), "_");
+            sanitized = sanitized.trimmed();
+            if (sanitized.isEmpty())
+                sanitized = "image";
+            const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm");
+            QString archiveFile = imagesDir.filePath(timestamp + '_' + sanitized + ".png");
+            img.save(archiveFile);
+            qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
+
+            LogoImporter importer;
+            QPainterPath outline = importer.importLogo(tempFile, false, 128);
+            if (outline.isEmpty()) {
+                qWarning() << "[AI] ❌ Import du contour échoué.";
+                ui->labelAIGenerationStatus->setText("❌ Import échoué");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
+                return;
+            }
+
+            QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
+
+            this->hide();
+            custom *cw = new custom(currentLanguage);
+            connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
+            connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
+
+            CustomDrawArea *area = cw->getDrawArea();
+            for (const QPainterPath &sp : subs)
+                area->addImportedLogoSubpath(sp);
+
+            ui->labelAIGenerationStatus->clear();
+            cw->showFullScreen();
+        });
+    });
+}
