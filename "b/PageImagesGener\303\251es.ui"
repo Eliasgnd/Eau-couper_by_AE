@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PageImagesGenerées</class>
+ <widget class="QWidget" name="PageImagesGenerées">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="headerLayout">
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeButton">
+       <property name="minimumSize">
+        <size>
+         <width>60</width>
+         <height>30</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QPushButton {background-color: #F44336; color: white; border-radius: 5px;} QPushButton:hover {background-color:#E57373;}</string>
+       </property>
+       <property name="text">
+        <string>Fermer</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>780</width>
+        <height>560</height>
+       </rect>
+      </property>
+      <layout class="QGridLayout" name="gridLayout"/>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
+ <connections/>
+</ui>

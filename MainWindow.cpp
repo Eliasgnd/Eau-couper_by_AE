@@ -12,6 +12,7 @@
 #include "Language.h"
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
+#include "PageImagesGenerées.h"
 
 
 #include <QSpinBox>
@@ -129,6 +130,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
+    connect(ui->buttonShowImages, &QPushButton::clicked, this, &MainWindow::showImagesGenerées);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
 
@@ -366,6 +368,14 @@ void MainWindow::showCustom() {
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
     customWindow->showFullScreen();
+}
+
+void MainWindow::showImagesGenerées()
+{
+    if (!imagesPage)
+        imagesPage = new PageImagesGenerées();
+    this->hide();
+    imagesPage->showFullScreen();
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
@@ -884,7 +894,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
     qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
 
     QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userPrompt]() {
         if (reply->error() != QNetworkReply::NoError) {
             qWarning() << "[AI] ❌ Erreur API :" << reply->errorString();
             ui->labelAIGenerationStatus->setText("❌ Erreur API");

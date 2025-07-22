@@ -14,6 +14,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QLineEdit>
+#include "PageImagesGenerées.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -42,6 +43,7 @@ private slots:
     void changeToHeart();
     void showInventaire();
     void showCustom();
+    void showImagesGenerées();
     void applyCustomShape(QList<QPolygonF>);
     void resetDrawing();
 
@@ -89,6 +91,7 @@ private:
     ShapeModel::Type selectedShapeType;
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
     TrajetMotor* trajetMotor;
+    PageImagesGenerées *imagesPage = nullptr;
     void setFormEditingEnabled(bool enabled);
     void StartPixel();
     QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
