@@ -483,8 +483,8 @@ QPushButton:pressed {
        </property>
       </widget>
      </item>
-     <item>
-      <widget class="QLineEdit" name="lineEditAIPrompt">
+    <item>
+     <widget class="QLineEdit" name="lineEditAIPrompt">
        <property name="minimumSize">
         <size>
          <width>0</width>
@@ -497,10 +497,17 @@ QPushButton:pressed {
        <property name="placeholderText">
         <string>Décrivez l'image...</string>
        </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="buttonShowImages">
+      <property name="text">
+       <string>Images générées</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
    <widget class="QSlider" name="Slider_longueur">
     <property name="geometry">
      <rect>
