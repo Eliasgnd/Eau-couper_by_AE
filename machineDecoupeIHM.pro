@@ -35,6 +35,7 @@ HEADERS += \
     trajetmotor.h \
     Language.h \
     AIImagePromptDialog.h
+    PageImagesGenerees.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -45,9 +46,10 @@ SOURCES += \
     skeletonizer.cpp \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp
+    PageImagesGenerees.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui
 
 # Qt Resource Collection
 RESOURCES += resources.qrc

@@ -12,6 +12,7 @@
 #include "Language.h"
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
+#include "PageImagesGenerees.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -130,6 +131,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
+    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -365,6 +367,13 @@ void MainWindow::showCustom() {
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
     customWindow->showFullScreen();
+}
+
+void MainWindow::showGeneratedImages()
+{
+    this->hide();
+    PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    page->showFullScreen();
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
