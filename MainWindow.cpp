@@ -11,6 +11,7 @@
 #include "trajetmotor.h"
 #include "Language.h"
 #include "LogoImporter.h"
+#include "AIImagePromptDialog.h"
 
 
 #include <QSpinBox>
@@ -126,8 +127,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
 
-    connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::toggleAIPrompt);
-    connect(ui->lineEditAIPrompt, &QLineEdit::returnPressed, this, &MainWindow::generateAIImage);
+    connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -807,27 +807,21 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
     return true;
 }
 
-void MainWindow::toggleAIPrompt()
+void MainWindow::openAIImagePromptDialog()
 {
-    if (!ui->lineEditAIPrompt)
-        return;
-    bool vis = ui->lineEditAIPrompt->isVisible();
-    ui->lineEditAIPrompt->setVisible(!vis);
-    if (!vis)
-        ui->lineEditAIPrompt->setFocus();
+    AIImagePromptDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        generateAIImage(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize());
+    }
 }
 
-void MainWindow::generateAIImage()
+void MainWindow::generateAIImage(const QString &userPrompt,
+                                 const QString &model,
+                                 const QString &quality,
+                                 const QString &size)
 {
-    if (!ui->lineEditAIPrompt)
-        return;
-
-    QString userPrompt = ui->lineEditAIPrompt->text().trimmed();
     if (userPrompt.isEmpty())
         return;
-
-    ui->lineEditAIPrompt->clear();
-    ui->lineEditAIPrompt->setVisible(false);
 
     QString finalPrompt = userPrompt + ", black and white outline drawing, clean lines, no background, top-down view, suitable for waterjet cutting";
     qDebug() << "[AI] Prompt final :" << finalPrompt;
@@ -840,24 +834,23 @@ void MainWindow::generateAIImage()
     ui->progressBarAI->setMinimum(0);
     ui->progressBarAI->setMaximum(0);
 
-    // Récupérer les options de l'utilisateur
-    QString model   = ui->modelComboBox->currentText();        // gpt-image-1, dall-e-3, dall-e-2
-    QString quality = ui->qualityComboBox->currentText();      // low, medium, high, hd...
-    QString size    = ui->sizeComboBox->currentText();         // 1024x1024, etc.
+    QString modelStr   = model;
+    QString qualityStr = quality;
+    QString sizeStr    = size;
 
     // Affichage du prix estimé
     double price = 0.0;
-    if (model == "gpt-image-1") {
-        if (quality == "low") price = (size == "1024x1024") ? 0.011 : 0.016;
-        else if (quality == "medium") price = (size == "1024x1024") ? 0.042 : 0.063;
-        else if (quality == "high") price = (size == "1024x1024") ? 0.167 : 0.25;
-    } else if (model == "dall-e-3") {
-        if (quality == "standard") price = (size == "1024x1024") ? 0.04 : 0.08;
-        else if (quality == "hd") price = (size == "1024x1024") ? 0.08 : 0.12;
-    } else if (model == "dall-e-2") {
-        if (size == "256x256") price = 0.016;
-        else if (size == "512x512") price = 0.018;
-        else if (size == "1024x1024") price = 0.02;
+    if (modelStr == "gpt-image-1") {
+        if (qualityStr == "low") price = (sizeStr == "1024x1024") ? 0.011 : 0.016;
+        else if (qualityStr == "medium") price = (sizeStr == "1024x1024") ? 0.042 : 0.063;
+        else if (qualityStr == "high") price = (sizeStr == "1024x1024") ? 0.167 : 0.25;
+    } else if (modelStr == "dall-e-3") {
+        if (qualityStr == "standard") price = (sizeStr == "1024x1024") ? 0.04 : 0.08;
+        else if (qualityStr == "hd") price = (sizeStr == "1024x1024") ? 0.08 : 0.12;
+    } else if (modelStr == "dall-e-2") {
+        if (sizeStr == "256x256") price = 0.016;
+        else if (sizeStr == "512x512") price = 0.018;
+        else if (sizeStr == "1024x1024") price = 0.02;
     }
     qDebug() << "[AI] Coût estimé de l'image : $" << price;
 
@@ -875,17 +868,17 @@ void MainWindow::generateAIImage()
     req.setRawHeader("Authorization", "Bearer " + apiKey);
 
     QJsonObject body{
-        {"model", model},
+        {"model", modelStr},
         {"prompt", finalPrompt},
         {"n", 1},
-        {"size", size}
+        {"size", sizeStr}
     };
 
-    if (model == "gpt-image-1" || model == "dall-e-3") {
-        body["quality"] = quality;
+    if (modelStr == "gpt-image-1" || modelStr == "dall-e-3") {
+        body["quality"] = qualityStr;
     }
 
-    qDebug() << "[AI] Envoi de la requête avec modèle:" << model << ", taille:" << size << ", qualité:" << quality;
+    qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
 
     QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
