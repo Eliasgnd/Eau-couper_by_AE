@@ -40,6 +40,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QStandardPaths>
+#include <QDir>
+#include <QDateTime>
+#include <QRegularExpression>
 
 
 
@@ -900,7 +903,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
         qDebug() << "[AI] ✅ Image URL :" << url;
 
         QNetworkReply *imgReply = m_netManager->get(QNetworkRequest(QUrl(url)));
-        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply]() {
+        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply, userPrompt]() {
             ui->progressBarAI->setVisible(false);
 
             if (imgReply->error() != QNetworkReply::NoError) {
@@ -929,6 +932,24 @@ void MainWindow::generateAIImage(const QString &userPrompt,
             QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
             img.save(tempFile);
             qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
+
+            // Archive image to images_generées/ next to executable
+            const QString imagesDirPath = qApp->applicationDirPath()
+                                          + QDir::separator() + "images_generées";
+            QDir imagesDir(imagesDirPath);
+            if (!imagesDir.exists()) {
+                QDir().mkpath(imagesDirPath);
+            }
+            QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
+            sanitized.remove(QRegularExpression("[\\p{Mn}]"));
+            sanitized.replace(QRegularExpression("[^A-Za-z0-9]+"), "_");
+            sanitized = sanitized.trimmed();
+            if (sanitized.isEmpty())
+                sanitized = "image";
+            const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm");
+            QString archiveFile = imagesDir.filePath(timestamp + '_' + sanitized + ".png");
+            img.save(archiveFile);
+            qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
 
             LogoImporter importer;
             QPainterPath outline = importer.importLogo(tempFile, false, 128);
