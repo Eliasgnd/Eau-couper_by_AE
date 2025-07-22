@@ -60,11 +60,6 @@ public:
     explicit CustomDrawArea(QWidget *parent = nullptr); // Constructeur
     ~CustomDrawArea(); // Destructeur
 
-    // Lissage du dessin
-    bool isSmoothingEnabled() const;
-    void setSmoothingEnabled(bool enabled);
-    void toggleSmoothing();
-
     // Gestion des modes de dessin
     void setDrawMode(DrawMode mode);
     DrawMode getDrawMode() const;
@@ -139,7 +134,6 @@ private:
 
     // États du dessin
     bool m_drawing;
-    bool m_smoothingEnabled;
     int m_smoothingLevel;
     bool m_lowPassFilterEnabled = true;
     DrawMode m_drawMode = DrawMode::Freehand;

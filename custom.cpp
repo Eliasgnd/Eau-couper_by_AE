@@ -137,24 +137,6 @@ custom::custom(Language lang, QWidget *parent)
             drawArea, &CustomDrawArea::startCloseMode);
 
 
-    ui->buttonLissage->setCheckable(true);      // bouton ON / OFF
-    ui->buttonLissage->setChecked(false);       // désactivé au lancement
-    ui->buttonLissage->setText("Lissage OFF");
-
-    // 1) Quand l’utilisateur clique ➜ on (dé)active le lissage
-    connect(ui->buttonLissage, &QPushButton::toggled,
-            drawArea,           &CustomDrawArea::setSmoothingEnabled);
-
-    // 2) Quand le code change l’état ➜ on met le texte à jour
-    connect(drawArea, &CustomDrawArea::smoothingChanged,
-            ui->buttonLissage, [=](bool on){
-                ui->buttonLissage->blockSignals(true);          // pas de boucle
-                ui->buttonLissage->setChecked(on);
-                ui->buttonLissage->setText(on ? "Lissage ON"
-                                              : "Lissage OFF");
-                ui->buttonLissage->blockSignals(false);
-            });
-
     // ----------------- Fonctions complémentaires -----------------
 
     // Bouton "Gomme" : active le mode gomme
@@ -169,9 +151,14 @@ custom::custom(Language lang, QWidget *parent)
     ui->smoothingSlider->setPageStep(1);
     ui->smoothingSlider->setTickInterval(1);
     ui->smoothingSlider->setTickPosition(QSlider::TicksBelow);
+    ui->labelSmoothingValue->setText("Puissance du lissage : 0%");
 
     // Ensuite seulement tu connectes :
     connect(ui->smoothingSlider, &QSlider::valueChanged, drawArea, &CustomDrawArea::setSmoothingLevel);
+    connect(ui->smoothingSlider, &QSlider::valueChanged, this, [=](int value){
+        int percent = static_cast<int>(std::round(100.0 * value / 10.0));
+        ui->labelSmoothingValue->setText(QString("Puissance du lissage : %1%").arg(percent));
+    });
 
 
     // --- Déclarations préliminaires pour le menu et le conteneur de police ---

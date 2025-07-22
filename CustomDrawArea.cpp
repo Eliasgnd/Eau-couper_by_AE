@@ -29,7 +29,6 @@
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
     m_drawing(false),
-    m_smoothingEnabled(false),
     m_smoothingLevel(1),
     m_drawMode(DrawMode::Freehand),
     m_drawingLineOrCircle(false),
@@ -257,7 +256,7 @@ void CustomDrawArea::updateCanvas()
     newCanvas.fill(Qt::transparent);
 
     QPainter painter(&newCanvas);
-    painter.setRenderHint(QPainter::Antialiasing, m_smoothingEnabled);
+    painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
 
     // Stylo noir, épaisseur 1, pas de remplissage
     QPen pen(Qt::black, 1);
@@ -308,23 +307,7 @@ QPainterPath CustomDrawArea::combineSegments(const QList<QPainterPath> &segments
     return combined;
 }
 
-bool CustomDrawArea::isSmoothingEnabled() const { return m_smoothingEnabled; }
 
-void CustomDrawArea::setSmoothingEnabled(bool enabled)
-{
-    if (m_smoothingEnabled == enabled)      // rien à faire
-        return;
-
-    m_smoothingEnabled = enabled;
-    m_freehandPoints.clear();
-    update();
-    emit smoothingChanged(enabled);         // ← NOUVEAU
-}
-
-void CustomDrawArea::toggleSmoothing()
-{
-    setSmoothingEnabled(!m_smoothingEnabled);
-}
 void CustomDrawArea::setSmoothingLevel(int level)
 {
     m_smoothingLevel = std::clamp(level, 0, 10);  // si tu limites le slider à 0-10
@@ -518,7 +501,7 @@ QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, 
 
 double CustomDrawArea::smoothingAlpha() const
 {
-    const double minAlpha = 0.05;
+    const double minAlpha = 0.125;
     const double maxAlpha = 1;
     const int maxLevel = 10;
 
@@ -735,7 +718,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         m_drawing = true;
         m_freehandPoints.clear();
         if (m_freehandPoints.isEmpty() ||
-            !m_smoothingEnabled ||
+            m_smoothingLevel == 0 ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -747,7 +730,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             m_freehandPoints.clear();
         }
         if (m_freehandPoints.isEmpty() ||
-            !m_smoothingEnabled ||
+            m_smoothingLevel == 0 ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -1019,7 +1002,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     case DrawMode::Freehand:
         if (!m_drawing) return;
         if (m_freehandPoints.isEmpty() ||
-            !m_smoothingEnabled ||
+            m_smoothingLevel == 0 ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
         {
             m_freehandPoints.append(pos);
@@ -1271,11 +1254,11 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         if (!m_drawing)
             return;
         if (m_freehandPoints.isEmpty() ||
-            !m_smoothingEnabled ||
+            m_smoothingLevel == 0 ||
             distance(m_freehandPoints.last(), pos) >= m_minPointDistance)
             m_freehandPoints.append(pos);
         QList<QPointF> finalPoints;
-        if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
+        if (m_smoothingLevel > 0 && m_freehandPoints.size() >= 2) {
             QList<QPointF> pts = m_freehandPoints;
             if (m_lowPassFilterEnabled)
                 pts = applyLowPassFilter(pts, smoothingAlpha());
@@ -1284,7 +1267,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         } else {
             finalPoints = m_freehandPoints;
         }
-        QPainterPath path = m_smoothingEnabled
+        QPainterPath path = (m_smoothingLevel > 0)
                             ? generateBezierPath(finalPoints)  // Chaikin + Bézier
                             : generateRawPath(finalPoints);    // segments bruts
         Shape s;
@@ -1479,7 +1462,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     Q_UNUSED(event);
     QPainter painter(this);
     painter.scale(m_zoomFactor, m_zoomFactor);    
-    painter.setRenderHint(QPainter::Antialiasing, m_smoothingEnabled);
+    painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
 
     painter.fillRect(rect(), Qt::white);
 
@@ -1681,7 +1664,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
         painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
 
         QPainterPath preview;
-        if (m_smoothingEnabled && m_freehandPoints.size() >= 2) {
+        if (m_smoothingLevel > 0 && m_freehandPoints.size() >= 2) {
             QList<QPointF> pts = m_freehandPoints;
             if (m_lowPassFilterEnabled)
                 pts = applyLowPassFilter(pts, smoothingAlpha());
