@@ -153,7 +153,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->optimizePlacementButton2, &QPushButton::clicked, this, [=]() {
         if (ui->optimizePlacementButton2->isChecked()) {
             ui->optimizePlacementButton->setChecked(false);
-            formeVisualization->optimizePlacementComplex();
+            formeVisualization->optimizePlacement2();
         } else {
             int largeur = ui->Largeur->value();
             int longueur = ui->Longueur->value();
