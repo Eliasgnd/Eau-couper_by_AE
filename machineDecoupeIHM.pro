@@ -5,8 +5,11 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
-INCLUDEPATH += C:/Users/elias/Desktop/opencv/build/include
-LIBS += -LC:/Users/elias/Desktop/opencv/build/x64/vc16/lib
+INCLUDEPATH += C:/opencv/build/include \
+               C:/opencv/build/include/opencv2
+
+LIBS += -LC:/opencv/build/x64/vc16/lib \
+
 
 CONFIG(debug, debug|release) {
     LIBS += -lopencv_world4120d
