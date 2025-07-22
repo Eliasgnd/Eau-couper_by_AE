@@ -251,6 +251,7 @@ void FormeVisualization::optimizePlacement() {
     m_cancelOptimization = false;
     emit optimizationStateChanged(true);
     scene->clear();
+    scene->clearSelection();
     progressBar->setVisible(true);
     progressBar->setValue(0);
 
@@ -367,6 +368,7 @@ void FormeVisualization::optimizePlacement() {
                     QPointF offset(x - bounds.x(), y - bounds.y());
                     item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
+                    item->setSelected(false);
 
                     // Enregistre la position corrigée pour les futurs tests de collision
                     candidate.translate(offset);
@@ -405,6 +407,7 @@ void FormeVisualization::optimizePlacement2() {
     m_optimizationRunning = true;
     m_cancelOptimization = false;
     scene->clear();
+    scene->clearSelection();
     graphicsView->update();
 
     progressBar->setVisible(true);
@@ -517,6 +520,7 @@ void FormeVisualization::optimizePlacement2() {
                 QPointF offset(x - bounds.x(), y - bounds.y());
                 item->moveBy(offset.x(), offset.y());
                 scene->addItem(item);
+                item->setSelected(false);
 
                 candidate.translate(offset);
                 placedPaths.append(candidate);
@@ -688,6 +692,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
+        item->setSelected(false);
 
     }
 
@@ -821,6 +826,7 @@ void FormeVisualization::addShapeBottomRight()
         newItem->setFlag(QGraphicsItem::ItemIsMovable, true);
         newItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(newItem);
+        newItem->setSelected(false);
         emit shapesPlacedCount(countPlacedShapes());
     }
 }
@@ -1070,8 +1076,10 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
         item->setRotation(li.rotation);
         item->setPos(li.x + offset.x(), li.y + offset.y());
         scene->addItem(item);
+        item->setSelected(false);
     }
 
+    scene->clearSelection();
     emit shapesPlacedCount(layout.items.size());
     graphicsView->viewport()->update();
 }
