@@ -376,6 +376,27 @@ void MainWindow::showGeneratedImages()
     page->showFullScreen();
 }
 
+void MainWindow::openImageInCustom(const QString &filePath)
+{
+    this->hide();
+    LogoImporter importer;
+    QPainterPath outline = importer.importLogo(filePath, false, 128);
+    if (outline.isEmpty())
+        return;
+
+    QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
+
+    custom *cw = new custom(currentLanguage);
+    connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
+    connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
+
+    CustomDrawArea *area = cw->getDrawArea();
+    for (const QPainterPath &sp : subs)
+        area->addImportedLogoSubpath(sp);
+
+    cw->showFullScreen();
+}
+
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
 
 

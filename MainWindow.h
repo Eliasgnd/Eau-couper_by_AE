@@ -29,6 +29,7 @@ public:
     ~MainWindow();
     static MainWindow* getInstance();
     FormeVisualization* getFormeVisualization() const;
+    void openImageInCustom(const QString &filePath);
 
 public slots:
     void updateProgressBar(int remaining, int total);

@@ -20,11 +20,13 @@ protected:
 
 private slots:
     void onCloseClicked();
+    void onSortChanged(int);
 
 private:
     void loadImages();
     Ui::PageImagesGenerees *ui;
     Language m_lang {Language::French};
+    bool m_newestFirst {true};
 };
 
 #endif // PAGEIMAGESGENEREES_H
