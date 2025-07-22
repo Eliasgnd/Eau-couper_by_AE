@@ -821,37 +821,101 @@ void MainWindow::generateAIImage()
 {
     if (!ui->lineEditAIPrompt)
         return;
+
     QString userPrompt = ui->lineEditAIPrompt->text().trimmed();
     if (userPrompt.isEmpty())
         return;
+
     ui->lineEditAIPrompt->clear();
     ui->lineEditAIPrompt->setVisible(false);
 
     QString finalPrompt = userPrompt + ", black and white outline drawing, clean lines, no background, top-down view, suitable for waterjet cutting";
+    qDebug() << "[AI] Prompt final :" << finalPrompt;
 
     if (!m_netManager)
         m_netManager = new QNetworkAccessManager(this);
 
+    ui->labelAIGenerationStatus->setText("🧠 Génération en cours...");
+    ui->progressBarAI->setVisible(true);
+    ui->progressBarAI->setMinimum(0);
+    ui->progressBarAI->setMaximum(0);
+
+    // Récupérer les options de l'utilisateur
+    QString model   = ui->modelComboBox->currentText();        // gpt-image-1, dall-e-3, dall-e-2
+    QString quality = ui->qualityComboBox->currentText();      // low, medium, high, hd...
+    QString size    = ui->sizeComboBox->currentText();         // 1024x1024, etc.
+
+    // Affichage du prix estimé
+    double price = 0.0;
+    if (model == "gpt-image-1") {
+        if (quality == "low") price = (size == "1024x1024") ? 0.011 : 0.016;
+        else if (quality == "medium") price = (size == "1024x1024") ? 0.042 : 0.063;
+        else if (quality == "high") price = (size == "1024x1024") ? 0.167 : 0.25;
+    } else if (model == "dall-e-3") {
+        if (quality == "standard") price = (size == "1024x1024") ? 0.04 : 0.08;
+        else if (quality == "hd") price = (size == "1024x1024") ? 0.08 : 0.12;
+    } else if (model == "dall-e-2") {
+        if (size == "256x256") price = 0.016;
+        else if (size == "512x512") price = 0.018;
+        else if (size == "1024x1024") price = 0.02;
+    }
+    qDebug() << "[AI] Coût estimé de l'image : $" << price;
+
+    // Construction de la requête
     QNetworkRequest req(QUrl("https://api.openai.com/v1/images/generations"));
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    req.setRawHeader("Authorization", "Bearer YOUR_OPENAI_API_KEY");
-    QJsonObject body{{"prompt", finalPrompt}, {"n", 1}, {"size", "1024x1024"}};
+
+    QByteArray apiKey = qEnvironmentVariable("OPENAI_API_KEY").toUtf8();
+    if (apiKey.isEmpty()) {
+        QMessageBox::critical(this, "Erreur API", "La clé API OpenAI est absente.\nDéfinissez OPENAI_API_KEY.");
+        ui->labelAIGenerationStatus->setText("❌ Clé API manquante");
+        ui->progressBarAI->setVisible(false);
+        return;
+    }
+    req.setRawHeader("Authorization", "Bearer " + apiKey);
+
+    QJsonObject body{
+        {"model", model},
+        {"prompt", finalPrompt},
+        {"n", 1},
+        {"size", size}
+    };
+
+    if (model == "gpt-image-1" || model == "dall-e-3") {
+        body["quality"] = quality;
+    }
+
+    qDebug() << "[AI] Envoi de la requête avec modèle:" << model << ", taille:" << size << ", qualité:" << quality;
 
     QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         if (reply->error() != QNetworkReply::NoError) {
-            qWarning() << "DALL-E request failed:" << reply->errorString();
+            qWarning() << "[AI] ❌ Erreur API :" << reply->errorString();
+            ui->labelAIGenerationStatus->setText("❌ Erreur API");
+            ui->progressBarAI->setVisible(false);
+            QTimer::singleShot(3000, this, [this]() {
+                ui->labelAIGenerationStatus->clear();
+            });
             reply->deleteLater();
             return;
         }
+
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
         QString url = doc["data"].toArray().first().toObject()["url"].toString();
         reply->deleteLater();
 
+        qDebug() << "[AI] ✅ Image URL :" << url;
+
         QNetworkReply *imgReply = m_netManager->get(QNetworkRequest(QUrl(url)));
         connect(imgReply, &QNetworkReply::finished, this, [this, imgReply]() {
+            ui->progressBarAI->setVisible(false);
+
             if (imgReply->error() != QNetworkReply::NoError) {
-                qWarning() << "Image download failed:" << imgReply->errorString();
+                qWarning() << "[AI] ❌ Échec téléchargement image :" << imgReply->errorString();
+                ui->labelAIGenerationStatus->setText("❌ Erreur image");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
                 imgReply->deleteLater();
                 return;
             }
@@ -861,17 +925,26 @@ void MainWindow::generateAIImage()
             imgReply->deleteLater();
 
             if (img.isNull()) {
-                qWarning() << "Downloaded image invalid";
+                qWarning() << "[AI] ❌ Image invalide.";
+                ui->labelAIGenerationStatus->setText("❌ Image invalide");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
                 return;
             }
 
             QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
             img.save(tempFile);
+            qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
 
             LogoImporter importer;
             QPainterPath outline = importer.importLogo(tempFile, false, 128);
             if (outline.isEmpty()) {
-                qWarning() << "Import of generated logo failed";
+                qWarning() << "[AI] ❌ Import du contour échoué.";
+                ui->labelAIGenerationStatus->setText("❌ Import échoué");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
                 return;
             }
 
@@ -886,6 +959,7 @@ void MainWindow::generateAIImage()
             for (const QPainterPath &sp : subs)
                 area->addImportedLogoSubpath(sp);
 
+            ui->labelAIGenerationStatus->clear();
             cw->showFullScreen();
         });
     });
