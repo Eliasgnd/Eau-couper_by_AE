@@ -41,7 +41,7 @@ void PageImagesGenerees::loadImages()
         delete child;
     }
 
-    const QString imagesDirPath = qApp->applicationDirPath() + QDir::separator() + QString::fromUtf8("images_g\xC3\xA9n\xC3\xA9r\xC3\xA9es");
+    const QString imagesDirPath = qApp->applicationDirPath() + QDir::separator() + QString::fromUtf8("images_generees");
     QDir dir(imagesDirPath);
     QStringList filters;
     filters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp";
