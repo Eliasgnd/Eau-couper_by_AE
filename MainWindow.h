@@ -7,6 +7,7 @@
 #include "CustomDrawArea.h"
 #include "trajetmotor.h"
 #include "Language.h"
+#include "PageImagesGenerees.h"
 #include <QMenu>
 #include <QAction>
 #include <QTranslator>
@@ -58,6 +59,7 @@ private slots:
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
     void openAIImagePromptDialog();
+    void showGeneratedImages();
     void generateAIImage(const QString &prompt,
                          const QString &model,
                          const QString &quality,
