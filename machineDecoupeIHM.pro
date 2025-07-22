@@ -34,8 +34,7 @@ HEADERS += \
     touchgesturereader.h \
     trajetmotor.h \
     Language.h \
-    AIImagePromptDialog.h \
-    PageImagesGenerées.h
+    AIImagePromptDialog.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -45,11 +44,10 @@ SOURCES += \
     pathplanner.cpp trajetmotor.cpp \
     skeletonizer.cpp \
     touchgesturereader.cpp \
-    AIImagePromptDialog.cpp \
-    PageImagesGenerées.cpp
+    AIImagePromptDialog.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerées.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui
 
 # Qt Resource Collection
 RESOURCES += resources.qrc
