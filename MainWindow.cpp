@@ -826,7 +826,9 @@ void MainWindow::generateAIImage(const QString &userPrompt,
     if (userPrompt.isEmpty())
         return;
 
-    QString finalPrompt = userPrompt + ", black and white outline drawing, clean lines, no background, top-down view, suitable for waterjet cutting";
+    QString startPrompt = "A simple black silhouette outline of a ";
+    QString styleSuffix = ", exterior contour only, no windows, no doors, no internal lines, white background only, minimal and abstract" ;
+    QString finalPrompt = startPrompt + userPrompt + styleSuffix;
     qDebug() << "[AI] Prompt final :" << finalPrompt;
 
     if (!m_netManager)
@@ -884,7 +886,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
     qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
 
     QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userPrompt]() {
         if (reply->error() != QNetworkReply::NoError) {
             qWarning() << "[AI] ❌ Erreur API :" << reply->errorString();
             ui->labelAIGenerationStatus->setText("❌ Erreur API");
