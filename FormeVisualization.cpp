@@ -306,7 +306,8 @@ void FormeVisualization::optimizePlacement() {
     int count = shapeCount;
     QList<int> angles = {0, 180, 90};
 
-    QList<QPainterPath> placedPaths;
+    struct PathInfo { QPainterPath path; QRectF bbox; };
+    QList<PathInfo> placedPaths;
     int shapesPlaced = 0;
     int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
     progressBar->setMinimum(0);
@@ -343,12 +344,13 @@ void FormeVisualization::optimizePlacement() {
                 if (!containerRect.contains(candidate.boundingRect()))
                     continue;
 
+                QRectF candBBox = candidate.boundingRect();
                 bool collision = false;
-                for (const QPainterPath &existing : placedPaths) {
-                    QPainterPath inter = candidate.intersected(existing);
+                for (const PathInfo &existing : placedPaths) {
+                    if (!existing.bbox.intersects(candBBox))
+                        continue;
+                    QPainterPath inter = candidate.intersected(existing.path);
                     QRectF br = inter.boundingRect();
-                    // Une collision est détectée uniquement si la zone
-                    // d'intersection excède la taille d'un pixel
                     if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                         collision = true;
                         break;
@@ -370,7 +372,7 @@ void FormeVisualization::optimizePlacement() {
 
                     // Enregistre la position corrigée pour les futurs tests de collision
                     candidate.translate(offset);
-                    placedPaths.append(candidate);
+                    placedPaths.append({candidate, candidate.boundingRect()});
                     shapesPlaced++;
                     break;
                 }
@@ -461,7 +463,8 @@ void FormeVisualization::optimizePlacement2() {
     prototypePath = normTransform.map(prototypePath);
     prototypePath.closeSubpath();
 
-    QList<QPainterPath> placedPaths;
+    struct PathInfo { QPainterPath path; QRectF bbox; };
+    QList<PathInfo> placedPaths;
     int shapesPlaced = 0;
     int count = shapeCount;
     const int step = 5;
@@ -494,12 +497,13 @@ void FormeVisualization::optimizePlacement2() {
             if (!containerRect.contains(candidate.boundingRect()))
                 continue;
 
+            QRectF candBBox = candidate.boundingRect();
             bool collision = false;
-            for (const QPainterPath &existing : placedPaths) {
-                QPainterPath inter = candidate.intersected(existing);
+            for (const PathInfo &existing : placedPaths) {
+                if (!existing.bbox.intersects(candBBox))
+                    continue;
+                QPainterPath inter = candidate.intersected(existing.path);
                 QRectF br = inter.boundingRect();
-                // Détecte un chevauchement seulement si l'intersection
-                // correspond à plus d'un pixel
                 if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                     collision = true;
                     break;
@@ -519,7 +523,7 @@ void FormeVisualization::optimizePlacement2() {
                 scene->addItem(item);
 
                 candidate.translate(offset);
-                placedPaths.append(candidate);
+                placedPaths.append({candidate, candidate.boundingRect()});
                 shapesPlaced++;
                 if (shapesPlaced >= count) {
                     finished = true;
