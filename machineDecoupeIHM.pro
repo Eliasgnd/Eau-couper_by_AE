@@ -33,7 +33,8 @@ HEADERS += \
     skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
-    Language.h
+    Language.h \
+    AIImagePromptDialog.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -42,7 +43,8 @@ SOURCES += \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
     skeletonizer.cpp \
-    touchgesturereader.cpp
+    touchgesturereader.cpp \
+    AIImagePromptDialog.cpp
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui

@@ -57,8 +57,11 @@ private slots:
     //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
-    void toggleAIPrompt();
-    void generateAIImage();
+    void openAIImagePromptDialog();
+    void generateAIImage(const QString &prompt,
+                         const QString &model,
+                         const QString &quality,
+                         const QString &size);
 
     void setLanguageFrench();
     void setLanguageEnglish();
