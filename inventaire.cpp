@@ -286,15 +286,18 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     view->setAlignment(Qt::AlignCenter);
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view->setAttribute(Qt::WA_TransparentForMouseEvents);
     view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
 
     auto *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
+    frame->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     auto *label = new QLabel(data.name);
     label->setAlignment(Qt::AlignCenter);
     label->setStyleSheet("color: black; font-size: 16px;");
+    label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     // ――― menu button (rename / delete) ―――
     auto *menuButton = new QPushButton("…");
@@ -948,10 +951,12 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
     auto *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
+    frame->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     auto *label = new QLabel(name);
     label->setAlignment(Qt::AlignCenter);
     label->setStyleSheet("color: black; font-size: 16px;");
+    label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     auto *menuButton = new QPushButton("…");
     menuButton->setFixedSize(25, 25);
@@ -1053,11 +1058,13 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
 
     iconLabel->setPixmap(icon);
     iconLabel->setAlignment(Qt::AlignCenter);
+    iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     // Nom du dossier
     QLabel *label = new QLabel(folderName);
     label->setAlignment(Qt::AlignCenter);
     label->setStyleSheet("color: black; font-size: 16px;");
+    label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     // Bouton "..." en haut à droite
     QPushButton *menuButton = new QPushButton("...");
@@ -1073,6 +1080,7 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
     QFrame *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
+    frame->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(frame);
    // mainLayout->setContentsMargins(5, 5, 5, 5);
