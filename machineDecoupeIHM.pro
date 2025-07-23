@@ -35,7 +35,7 @@ HEADERS += \
     touchgesturereader.h \
     trajetmotor.h \
     Language.h \
-    AIImagePromptDialog.h
+    AIImagePromptDialog.h\
     PageImagesGenerees.h \
     AIImageProcessDialog.h
 
