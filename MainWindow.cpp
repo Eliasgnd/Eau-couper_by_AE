@@ -8,6 +8,7 @@
 #include "Dispositions.h"
 #include "FormeVisualization.h"
 #include "clavier.h"
+#include "TestGpio.h"
 #include "trajetmotor.h"
 #include "Language.h"
 #include "LogoImporter.h"
@@ -130,6 +131,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
+    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::openTestGpio);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
@@ -368,6 +370,12 @@ void MainWindow::showCustom() {
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
     customWindow->showFullScreen();
+}
+
+void MainWindow::openTestGpio() {
+    this->hide();
+    TestGpio *test = new TestGpio();
+    test->showFullScreen();
 }
 
 void MainWindow::showGeneratedImages()

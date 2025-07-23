@@ -5,6 +5,7 @@
 #include "FormeVisualization.h"
 #include "ShapeModel.h"
 #include "CustomDrawArea.h"
+#include "TestGpio.h"
 #include "trajetmotor.h"
 #include "Language.h"
 #include "PageImagesGenerees.h"
@@ -46,6 +47,7 @@ private slots:
     void changeToHeart();
     void showInventaire();
     void showCustom();
+    void openTestGpio();
     void applyCustomShape(QList<QPolygonF>);
     void resetDrawing();
 

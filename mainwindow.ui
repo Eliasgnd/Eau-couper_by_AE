@@ -422,6 +422,7 @@ QPushButton:pressed {
        <property name="text">
         <string>Réception fichier            </string>
        </property>
+<<<<<<< HEAD
        <property name="icon">
         <iconset resource="resources.qrc">
          <normaloff>:/icons/download.svg</normaloff>:/icons/download.svg</iconset>
@@ -468,6 +469,16 @@ QPushButton:pressed {
     </item>
     <item>
      <widget class="QPushButton" name="buttonViewGeneratedImages">
+=======
+      <property name="icon">
+       <iconset resource="resources.qrc">
+        <normaloff>:/icons/download.svg</normaloff>:/icons/download.svg</iconset>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="buttonTestGpio">
+>>>>>>> broche_rspb
       <property name="minimumSize">
        <size>
         <width>0</width>
@@ -535,6 +546,14 @@ QPushButton:pressed {
        <property name="placeholderText">
         <string>Décrivez l'image...</string>
        </property>
+     </widget>
+    </item>
+       <string>Tester les GPIO</string>
+      </property>
+      <property name="icon">
+       <iconset resource="resources.qrc">
+        <normaloff>:/icons/link.svg</normaloff>:/icons/link.svg</iconset>
+      </property>
      </widget>
     </item>
    </layout>
@@ -1076,7 +1095,11 @@ QProgressBar::chunk {
       <x>1120</x>
       <y>30</y>
       <width>108</width>
+<<<<<<< HEAD
       <height>414</height>
+=======
+      <height>377</height>
+>>>>>>> broche_rspb
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_2">

@@ -1,28 +1,22 @@
 #include <QApplication>
 #include "MainWindow.h"
 #include "keyboardeventfilter.h"
+#include <iostream>
 
 int main(int argc, char *argv[])
 {
-    /*  On ne veut PAS désactiver la conversion touch → mouse,
-        sinon le dessin au doigt ne marche plus.        */
-    // QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, false);
-    // QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents, false);
-
-    /* Optionnel : si vraiment tu tiens à désactiver l’autre sens (mouse → touch) : */
+    // Initialisation Qt
     QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, false);
-
-    /*  IMPORTANT : on Laisse Qt synthétiser des événements souris
-        pour les touchs non consommés (valeur par défaut = true). */
-    // QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents, true);
-
     QApplication app(argc, argv);
 
+    // Filtrage des événements clavier
     KeyboardEventFilter filter(&app);
     app.installEventFilter(&filter);
 
+    // Création de la fenêtre principale
     MainWindow *window = MainWindow::getInstance();
     window->showFullScreen();
     filter.setFormeVisualization(window->getFormeVisualization());
+
     return app.exec();
 }

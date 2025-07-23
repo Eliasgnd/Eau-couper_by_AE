@@ -1,21 +1,29 @@
-QMAKE_MSC_VER = 1929  # Visual Studio 2022 (19.29+)
-
 QT += core gui widgets svg network bluetooth
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
-INCLUDEPATH += C:/opencv/build/include
-               C:/opencv/build/include/opencv2
-
-LIBS += -LC:/opencv/build/x64/vc16/lib
-
-
-CONFIG(debug, debug|release) {
-    LIBS += -lopencv_world4120d
-} else {
-    LIBS += -lopencv_world4120
+# ==== PLATEFORME LINUX / RASPBERRY PI ====
+unix {
+    CONFIG += link_pkgconfig
+    PKGCONFIG += opencv4 libgpiod
 }
+
+# ==== PLATEFORME WINDOWS ====
+win32 {
+    INCLUDEPATH += C:/opencv/build/include
+                   C:/opencv/build/include/opencv2
+
+    LIBS += -LC:/opencv/build/x64/vc16/lib
+
+    CONFIG(debug, debug|release) {
+        LIBS += -lopencv_world4120d
+    } else {
+        LIBS += -lopencv_world4120
+    }
+}
+
+# ==== FICHIERS ====
 
 HEADERS += \
     MainWindow.h FormeVisualization.h \
@@ -24,6 +32,7 @@ HEADERS += \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
+    raspberry.h TestGpio.h \
     skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
@@ -40,6 +49,7 @@ SOURCES += \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
+    raspberry.cpp TestGpio.cpp \
     skeletonizer.cpp \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp \
@@ -47,14 +57,12 @@ SOURCES += \
 
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui
 
-# Qt Resource Collection
 RESOURCES += resources.qrc
 
 TRANSLATIONS += \
     translations/machineDecoupeIHM_fr.ts \
     translations/machineDecoupeIHM_en.ts
 
-# Installation (déploiement)
 !isEmpty(target.path): INSTALLS += target
