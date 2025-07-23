@@ -34,7 +34,7 @@
      <item>
       <widget class="QGroupBox" name="groupBoxInputs">
        <property name="title">
-        <string>Entr&eacute;es</string>
+        <string>Entrée;es</string>
        </property>
        <layout class="QVBoxLayout" name="verticalLayoutInputs">
         <item>
