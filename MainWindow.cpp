@@ -10,13 +10,18 @@
 #include "clavier.h"
 #include "trajetmotor.h"
 #include "Language.h"
-
+#include "LogoImporter.h"
+#include "AIImagePromptDialog.h"
+#include "PageImagesGenerees.h"
+#include "AIImageProcessDialog.h"
 
 #include <QSpinBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPixmap>
+#include <QImage>
+#include <QPainterPath>
 #include <QDebug>
 #include <QScreen>
 #include <QGuiApplication>
@@ -29,6 +34,16 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QStandardPaths>
+#include <QDir>
+#include <QDateTime>
+#include <QRegularExpression>
 
 
 
@@ -115,6 +130,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
+
+    connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
+    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -350,6 +368,43 @@ void MainWindow::showCustom() {
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
     customWindow->showFullScreen();
+}
+
+void MainWindow::showGeneratedImages()
+{
+    this->hide();
+    PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    page->showFullScreen();
+}
+
+void MainWindow::openImageInCustom(const QString &filePath,
+                                   bool internalContours,
+                                   bool colorEdges)
+{
+    this->hide();
+    QPainterPath outline;
+    if (colorEdges) {
+        ImageEdgeImporter edgeImporter;
+        if (!edgeImporter.loadAndProcess(filePath, outline))
+            return;
+    } else {
+        LogoImporter importer;
+        outline = importer.importLogo(filePath, internalContours, 128);
+        if (outline.isEmpty())
+            return;
+    }
+
+    QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
+
+    custom *cw = new custom(currentLanguage);
+    connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
+    connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
+
+    CustomDrawArea *area = cw->getDrawArea();
+    for (const QPainterPath &sp : subs)
+        area->addImportedLogoSubpath(sp);
+
+    cw->showFullScreen();
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
@@ -792,4 +847,162 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
     Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
     formeVisualization->setCurrentCustomShapeName(shapeName);
     return true;
+}
+
+void MainWindow::openAIImagePromptDialog()
+{
+    AIImagePromptDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        generateAIImage(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
+    }
+}
+
+void MainWindow::generateAIImage(const QString &userPrompt,
+                                 const QString &model,
+                                 const QString &quality,
+                                 const QString &size,
+                                 bool colorPrompt)
+{
+    if (userPrompt.isEmpty())
+        return;
+
+    QString finalPrompt;
+    if (colorPrompt) {
+        finalPrompt =
+            "A minimal flat icon of a " + userPrompt +
+            ", centered, on a white background. Clean shapes, no outlines, no text, no decorations, no shadow, no background. Suitable for icon design or sticker. Simple, geometric, and immediately recognizable.";
+    } else {
+        QString startPrompt = "A single black outline drawing of a ";
+        QString styleSuffix =
+            ", only the outer edge, no internal lines, no doors, no windows, no shading, no textures, white background, vector style, icon-like, extremely minimal";
+        finalPrompt = startPrompt + userPrompt + styleSuffix;
+    }
+    qDebug() << "[AI] Prompt final :" << finalPrompt;
+
+    if (!m_netManager)
+        m_netManager = new QNetworkAccessManager(this);
+
+    ui->labelAIGenerationStatus->setText("🧠 Génération en cours...");
+    ui->progressBarAI->setVisible(true);
+    ui->progressBarAI->setMinimum(0);
+    ui->progressBarAI->setMaximum(0);
+
+    // ✅ Modèle forcé : DALL-E 3
+    QString modelStr   = "dall-e-3";
+    QString qualityStr = "standard";      // ou "hd" selon ce que tu veux forcer
+    QString sizeStr    = size;            // tu peux aussi fixer ici "1024x1024"
+
+    // ✅ Estimation du prix uniquement pour DALL-E 3
+    double price = 0.0;
+    if (qualityStr == "standard") price = (sizeStr == "1024x1024") ? 0.04 : 0.08;
+    else if (qualityStr == "hd")  price = (sizeStr == "1024x1024") ? 0.08 : 0.12;
+    qDebug() << "[AI] Coût estimé de l'image : $" << price;
+
+    QNetworkRequest req(QUrl("https://api.openai.com/v1/images/generations"));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QByteArray apiKey = qEnvironmentVariable("OPENAI_API_KEY").toUtf8();
+    if (apiKey.isEmpty()) {
+        QMessageBox::critical(this, "Erreur API", "La clé API OpenAI est absente.\nDéfinissez OPENAI_API_KEY.");
+        ui->labelAIGenerationStatus->setText("❌ Clé API manquante");
+        ui->progressBarAI->setVisible(false);
+        return;
+    }
+    req.setRawHeader("Authorization", "Bearer " + apiKey);
+
+    QJsonObject body{
+        {"model", modelStr},
+        {"prompt", finalPrompt},
+        {"n", 1},
+        {"size", sizeStr},
+        {"quality", qualityStr}  // ✅ toujours présent avec DALL-E 3
+    };
+
+    qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
+
+    QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userPrompt]() {
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[AI] ❌ Erreur API :" << reply->errorString();
+            ui->labelAIGenerationStatus->setText("❌ Erreur API");
+            ui->progressBarAI->setVisible(false);
+            QTimer::singleShot(3000, this, [this]() {
+                ui->labelAIGenerationStatus->clear();
+            });
+            reply->deleteLater();
+            return;
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+        QString url = doc["data"].toArray().first().toObject()["url"].toString();
+        reply->deleteLater();
+
+        qDebug() << "[AI] ✅ Image URL :" << url;
+
+        QNetworkReply *imgReply = m_netManager->get(QNetworkRequest(QUrl(url)));
+        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply, userPrompt]() {
+            ui->progressBarAI->setVisible(false);
+
+            if (imgReply->error() != QNetworkReply::NoError) {
+                qWarning() << "[AI] ❌ Échec téléchargement image :" << imgReply->errorString();
+                ui->labelAIGenerationStatus->setText("❌ Erreur image");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
+                imgReply->deleteLater();
+                return;
+            }
+
+            QImage img;
+            img.loadFromData(imgReply->readAll());
+            imgReply->deleteLater();
+
+            if (img.isNull()) {
+                qWarning() << "[AI] ❌ Image invalide.";
+                ui->labelAIGenerationStatus->setText("❌ Image invalide");
+                QTimer::singleShot(3000, this, [this]() {
+                    ui->labelAIGenerationStatus->clear();
+                });
+                return;
+            }
+
+            QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
+            img.save(tempFile);
+            qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
+
+            // Archive image to images_generées/ next to executable
+            const QString imagesDirPath = qApp->applicationDirPath()
+                                          + QDir::separator() + "images_generees";
+            QDir imagesDir(imagesDirPath);
+            if (!imagesDir.exists()) {
+                QDir().mkpath(imagesDirPath);
+            }
+            QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
+            sanitized.remove(QRegularExpression("[\\p{Mn}]"));
+            sanitized.replace(QRegularExpression("[^A-Za-z0-9]+"), "_");
+            sanitized = sanitized.trimmed();
+            if (sanitized.isEmpty())
+                sanitized = "image";
+            const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm");
+            QString archiveFile = imagesDir.filePath(timestamp + '_' + sanitized + ".png");
+            img.save(archiveFile);
+            qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
+
+            AIImageProcessDialog dlg(img);
+            if (dlg.exec() != QDialog::Accepted) {
+                ui->labelAIGenerationStatus->clear();
+                return;
+            }
+
+            bool internal = false;
+            bool color    = false;
+            if (dlg.selectedMethod() == AIImageProcessDialog::LogoWithInternal)
+                internal = true;
+            else if (dlg.selectedMethod() == AIImageProcessDialog::ColorEdges)
+                color = true;
+
+            ui->labelAIGenerationStatus->clear();
+            openImageInCustom(tempFile, internal, color);
+        });
+    });
 }

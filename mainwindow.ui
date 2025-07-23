@@ -31,7 +31,7 @@
       <x>0</x>
       <y>0</y>
       <width>223</width>
-      <height>512</height>
+      <height>574</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout">
@@ -428,8 +428,117 @@ QPushButton:pressed {
        </property>
       </widget>
      </item>
-    </layout>
-   </widget>
+     <item>
+      <widget class="QPushButton" name="buttonGenerateAI">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>40</height>
+        </size>
+       </property>
+       <property name="layoutDirection">
+        <enum>Qt::LayoutDirection::LeftToRight</enum>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+       </property>
+       <property name="text">
+        <string>Générer logo IA</string>
+       </property>
+       <property name="icon">
+        <iconset resource="resources.qrc">
+         <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
+       </property>
+      </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="buttonViewGeneratedImages">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>40</height>
+       </size>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LayoutDirection::LeftToRight</enum>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+      </property>
+      <property name="text">
+       <string>Images générées</string>
+      </property>
+      <property name="icon">
+       <iconset resource="resources.qrc">
+        <normaloff>:/icons/folderfull.svg</normaloff>:/icons/folderfull.svg</iconset>
+      </property>
+     </widget>
+    </item>
+    <item>
+      <widget class="QLabel" name="labelAIGenerationStatus">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QProgressBar" name="progressBarAI">
+       <property name="maximum">
+        <number>0</number>
+       </property>
+       <property name="value">
+        <number>-1</number>
+       </property>
+      </widget>
+     </item>
+    <item>
+     <widget class="QLineEdit" name="lineEditAIPrompt">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>30</height>
+        </size>
+       </property>
+       <property name="visible">
+        <bool>false</bool>
+       </property>
+       <property name="placeholderText">
+        <string>Décrivez l'image...</string>
+       </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
    <widget class="QSlider" name="Slider_longueur">
     <property name="geometry">
      <rect>
@@ -774,7 +883,7 @@ QSlider::handle:horizontal:hover {
     <property name="geometry">
      <rect>
       <x>230</x>
-      <y>560</y>
+      <y>650</y>
       <width>151</width>
       <height>100</height>
      </rect>
@@ -861,7 +970,7 @@ QPushButton:pressed {
     <property name="geometry">
      <rect>
       <x>0</x>
-      <y>520</y>
+      <y>610</y>
       <width>221</width>
       <height>41</height>
      </rect>
@@ -902,7 +1011,7 @@ QProgressBar::chunk {
     <property name="geometry">
      <rect>
       <x>0</x>
-      <y>565</y>
+      <y>655</y>
       <width>221</width>
       <height>21</height>
      </rect>
@@ -966,8 +1075,8 @@ QProgressBar::chunk {
      <rect>
       <x>1120</x>
       <y>30</y>
-      <width>69</width>
-      <height>371</height>
+      <width>108</width>
+      <height>414</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -1199,7 +1308,7 @@ QPushButton:pressed {
       </spacer>
      </item>
      <item>
-     <widget class="QPushButton" name="ButtonRotationRight">
+      <widget class="QPushButton" name="ButtonRotationRight">
        <property name="styleSheet">
         <string notr="true">QPushButton {
     background-color: #00BCD4;  /* Cyan primaire */
@@ -1222,16 +1331,16 @@ QPushButton:pressed {
        <property name="text">
         <string/>
        </property>
-      <property name="icon">
-       <iconset resource="resources.qrc">
-        <normaloff>:/icons/rotate-right.svg</normaloff>:/icons/rotate-right.svg</iconset>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QPushButton" name="ButtonAddShape">
-      <property name="styleSheet">
-       <string notr="true">QPushButton {
+       <property name="icon">
+        <iconset resource="resources.qrc">
+         <normaloff>:/icons/rotate-right.svg</normaloff>:/icons/rotate-right.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ButtonAddShape">
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
     background-color: #00BCD4;
     color: white;
     font-size: 14px;
@@ -1247,16 +1356,16 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #008C9E;
 }</string>
-      </property>
-     <property name="text">
-      <string>Ajouter</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="ButtonDeleteShape">
-     <property name="styleSheet">
-      <string notr="true">QPushButton {
+       </property>
+       <property name="text">
+        <string>Ajouter</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ButtonDeleteShape">
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
     background-color: #00BCD4;
     color: white;
     font-size: 14px;
@@ -1272,45 +1381,44 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #008C9E;
 }</string>
-    </property>
-    <property name="text">
-     <string>Supprimer</string>
-    </property>
+       </property>
+       <property name="text">
+        <string>Supprimer</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="ButtonSaveLayout">
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+       </property>
+       <property name="text">
+        <string>Sauver dispo</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
-  </item>
-  <item>
-   <widget class="QPushButton" name="ButtonSaveLayout">
-    <property name="styleSheet">
-     <string notr="true">QPushButton {
-    background-color: #00BCD4;
-    color: white;
-    font-size: 14px;
-    border: 2px solid #008C9E;
-    border-radius: 5px;
-    padding: 6px 12px;
-}
-
-QPushButton:hover {
-    background-color: #26C6DA;
-}
-
-QPushButton:pressed {
-    background-color: #008C9E;
-}</string>
-    </property>
-    <property name="text">
-     <string>Sauver dispo</string>
-    </property>
-   </widget>
-  </item>
-  </layout>
- </widget>
-
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>0</x>
-      <y>590</y>
+      <y>680</y>
       <width>220</width>
       <height>81</height>
      </rect>
@@ -1468,7 +1576,7 @@ QPushButton:hover {
      <x>0</x>
      <y>0</y>
      <width>1920</width>
-     <height>22</height>
+     <height>25</height>
     </rect>
    </property>
   </widget>

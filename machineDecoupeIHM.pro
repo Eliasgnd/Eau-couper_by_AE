@@ -20,25 +20,32 @@ CONFIG(debug, debug|release) {
 HEADERS += \
     MainWindow.h FormeVisualization.h \
     CustomDrawArea.h LogoImporter.h ImageEdgeImporter.h ShapeModel.h \
+    PageImagesGenerees.h \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
-    Language.h
+    Language.h \
+    AIImagePromptDialog.h\
+    PageImagesGenerees.h \
+    AIImageProcessDialog.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
+    PageImagesGenerees.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
     skeletonizer.cpp \
-    touchgesturereader.cpp
+    touchgesturereader.cpp \
+    AIImagePromptDialog.cpp \
+    AIImageProcessDialog.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui
 
 # Qt Resource Collection
 RESOURCES += resources.qrc

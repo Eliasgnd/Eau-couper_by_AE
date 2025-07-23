@@ -7,10 +7,14 @@
 #include "CustomDrawArea.h"
 #include "trajetmotor.h"
 #include "Language.h"
+#include "PageImagesGenerees.h"
 #include <QMenu>
 #include <QAction>
 #include <QTranslator>
 #include <QElapsedTimer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QLineEdit>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -25,6 +29,9 @@ public:
     ~MainWindow();
     static MainWindow* getInstance();
     FormeVisualization* getFormeVisualization() const;
+    void openImageInCustom(const QString &filePath,
+                           bool internalContours = false,
+                           bool colorEdges = false);
 
 public slots:
     void updateProgressBar(int remaining, int total);
@@ -53,6 +60,14 @@ private slots:
     void updateSpacing(int value);
     //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
+
+    void openAIImagePromptDialog();
+    void showGeneratedImages();
+    void generateAIImage(const QString &prompt,
+                         const QString &model,
+                         const QString &quality,
+                         const QString &size,
+                         bool colorPrompt);
 
     void setLanguageFrench();
     void setLanguageEnglish();
@@ -86,6 +101,7 @@ private:
     double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
     bool promptAndSaveCurrentCustomShape();
+    QNetworkAccessManager *m_netManager = nullptr;
 
 protected:
     void showEvent(QShowEvent *event) override;
