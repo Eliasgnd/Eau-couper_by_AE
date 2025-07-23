@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "keyboardeventfilter.h"
 #include "raspberry.h"
+#include <iostream>
 
 int main(int argc, char *argv[])
 {

@@ -1,6 +1,10 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include <map>
+#ifndef _WIN32
+#include <gpiod.h>
+#endif
 
 class Raspberry {
 public:
@@ -52,5 +56,8 @@ private:
     void setupPinInput(uint8_t pin);
     void writePin(uint8_t pin, bool value);
     bool readPin(uint8_t pin);
+    gpiod_chip *chip {nullptr};
+    std::map<uint8_t, gpiod_line*> outputLines;
+    std::map<uint8_t, gpiod_line*> inputLines;
 #endif
 };
