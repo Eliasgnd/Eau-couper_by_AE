@@ -48,6 +48,7 @@ private slots:
     void showInventaire();
     void showCustom();
     void openTestGpio();
+    void on_receptionFichierButton_clicked();
     void applyCustomShape(QList<QPolygonF>);
     void resetDrawing();
 
