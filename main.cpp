@@ -1,7 +1,6 @@
 #include <QApplication>
 #include "MainWindow.h"
 #include "keyboardeventfilter.h"
-#include "raspberry.h"
 #include <iostream>
 
 int main(int argc, char *argv[])
@@ -18,14 +17,6 @@ int main(int argc, char *argv[])
     MainWindow *window = MainWindow::getInstance();
     window->showFullScreen();
     filter.setFormeVisualization(window->getFormeVisualization());
-
-#ifndef _WIN32
-    // === Initialisation des GPIO via libgpiod ===
-    Raspberry gpio;
-    if (!gpio.init()) {
-        std::cerr << "Erreur d'initialisation des GPIO Raspberry.\n";
-    }
-#endif
 
     return app.exec();
 }
