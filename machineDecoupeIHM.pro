@@ -39,7 +39,8 @@ HEADERS += \
     Language.h \
     AIImagePromptDialog.h\
     PageImagesGenerees.h \
-    AIImageProcessDialog.h
+    AIImageProcessDialog.h \
+    BluetoothReceiverPage.h
 
 
 SOURCES += \
@@ -53,11 +54,13 @@ SOURCES += \
     skeletonizer.cpp \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp \
-    AIImageProcessDialog.cpp
+    AIImageProcessDialog.cpp \
+    BluetoothReceiverPage.cpp
 
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
+    BluetoothReceiverPage.ui
 
 RESOURCES += resources.qrc
 

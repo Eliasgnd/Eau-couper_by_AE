@@ -9,6 +9,7 @@
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "TestGpio.h"
+#include "BluetoothReceiverPage.h"
 #include "trajetmotor.h"
 #include "Language.h"
 #include "LogoImporter.h"
@@ -137,6 +138,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     // Small button with the download icon opens the GPIO test page
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::openTestGpio);
+    connect(ui->buttonFileReceiver, &QPushButton::clicked, this, &MainWindow::on_receptionFichierButton_clicked);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -384,6 +386,13 @@ void MainWindow::showGeneratedImages()
 {
     this->hide();
     PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    page->showFullScreen();
+}
+
+void MainWindow::on_receptionFichierButton_clicked()
+{
+    this->hide();
+    BluetoothReceiverPage *page = new BluetoothReceiverPage();
     page->showFullScreen();
 }
 
