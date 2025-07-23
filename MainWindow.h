@@ -66,7 +66,8 @@ private slots:
     void generateAIImage(const QString &prompt,
                          const QString &model,
                          const QString &quality,
-                         const QString &size);
+                         const QString &size,
+                         bool colorPrompt);
 
     void setLanguageFrench();
     void setLanguageEnglish();

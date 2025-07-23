@@ -853,21 +853,33 @@ void MainWindow::openAIImagePromptDialog()
 {
     AIImagePromptDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
-        generateAIImage(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize());
+        generateAIImage(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
     }
 }
 
 void MainWindow::generateAIImage(const QString &userPrompt,
                                  const QString &model,
                                  const QString &quality,
-                                 const QString &size)
+                                 const QString &size,
+                                 bool colorPrompt)
 {
     if (userPrompt.isEmpty())
         return;
 
-    QString startPrompt = "A single black outline drawing of a ";
-    QString styleSuffix = ", only the outer edge, no internal lines, no doors, no windows, no shading, no textures, white background, vector style, icon-like, extremely minimal";
-    QString finalPrompt = startPrompt + userPrompt + styleSuffix;
+    QString finalPrompt;
+    if (colorPrompt) {
+        finalPrompt =
+            "A single colorful drawing of a " + userPrompt +
+            ", centered on a plain white background, in a clean, simple, iconic style. "
+            "No shadow, no outline, no text, no extra objects, no background elements. "
+            "The shape should be easily recognizable even when traced with a black outline. "
+            "Only the object, fully visible, no borders";
+    } else {
+        QString startPrompt = "A single black outline drawing of a ";
+        QString styleSuffix =
+            ", only the outer edge, no internal lines, no doors, no windows, no shading, no textures, white background, vector style, icon-like, extremely minimal";
+        finalPrompt = startPrompt + userPrompt + styleSuffix;
+    }
     qDebug() << "[AI] Prompt final :" << finalPrompt;
 
     if (!m_netManager)
