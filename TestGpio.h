@@ -37,14 +37,17 @@ private:
     void setupUiPins();
 
     Ui::TestGpio *ui {nullptr};
-    QVector<int> pins;
+    QVector<int> outputPins;
+    QVector<int> inputPins {23,24,18};
     QMap<int, QLabel*> stateLabels;
     QMap<int, QCheckBox*> checkBoxes;
+    QMap<int, QLabel*> inputStateLabels;
     QTimer updateTimer;
 
 #ifndef _WIN32
     gpiod_chip *chip {nullptr};
-    QMap<int, gpiod_line*> lines;
+    QMap<int, gpiod_line*> outputLines;
+    QMap<int, gpiod_line*> inputLines;
 #endif
 };
 

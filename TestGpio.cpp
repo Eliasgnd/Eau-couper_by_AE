@@ -12,11 +12,19 @@ TestGpio::TestGpio(QWidget *parent)
     : QWidget(parent), ui(new Ui::TestGpio)
 {
     ui->setupUi(this);
-    pins.reserve(26);
-    for(int p=2;p<=27;++p)
-        pins.append(p);
+    outputPins.reserve(23);
+    for(int p=2;p<=27;++p){
+        if(inputPins.contains(p))
+            continue;
+        outputPins.append(p);
+    }
 
     setupUiPins();
+    for(int pin: inputPins){
+        QLabel *label = findChild<QLabel*>(QString("labelPin%1").arg(pin));
+        if(label)
+            inputStateLabels.insert(pin, label);
+    }
     initGpio();
 
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -47,12 +55,20 @@ void TestGpio::initGpio()
         qWarning() << "Impossible d'ouvrir gpiochip0";
         return;
     }
-    for(int pin: pins){
+    for(int pin: outputPins){
         gpiod_line *line = gpiod_chip_get_line(chip, pin);
         if(line && gpiod_line_request_output(line, "testgpio", 0)==0){
-            lines.insert(pin, line);
+            outputLines.insert(pin, line);
         } else {
-            qWarning() << "Erreur init GPIO" << pin;
+            qWarning() << "Erreur init GPIO sortie" << pin;
+        }
+    }
+    for(int pin: inputPins){
+        gpiod_line *line = gpiod_chip_get_line(chip, pin);
+        if(line && gpiod_line_request_input(line, "testgpio")==0){
+            inputLines.insert(pin, line);
+        } else {
+            qWarning() << "Erreur init GPIO entree" << pin;
         }
     }
 #endif
@@ -61,11 +77,15 @@ void TestGpio::initGpio()
 void TestGpio::releaseGpio()
 {
 #ifndef _WIN32
-    for(auto it=lines.begin(); it!=lines.end(); ++it){
+    for(auto it=outputLines.begin(); it!=outputLines.end(); ++it){
         gpiod_line_set_value(it.value(), 0);
         gpiod_line_release(it.value());
     }
-    lines.clear();
+    outputLines.clear();
+    for(auto it=inputLines.begin(); it!=inputLines.end(); ++it){
+        gpiod_line_release(it.value());
+    }
+    inputLines.clear();
     if(chip){
         gpiod_chip_close(chip);
         chip = nullptr;
@@ -77,7 +97,7 @@ void TestGpio::setupUiPins()
 {
     QGridLayout *grid = ui->gridLayoutPins;
     int row=0;
-    for(int pin: pins){
+    for(int pin: outputPins){
         QLabel *lblNum = new QLabel(QString::number(pin), this);
         QLabel *lblState = new QLabel("LOW", this);
         QCheckBox *cb = new QCheckBox(this);
@@ -99,8 +119,8 @@ void TestGpio::onPinToggled(bool checked)
     if(!cb) return;
     int pin = cb->property("gpio").toInt();
 #ifndef _WIN32
-    if(lines.contains(pin))
-        gpiod_line_set_value(lines.value(pin), checked?1:0);
+    if(outputLines.contains(pin))
+        gpiod_line_set_value(outputLines.value(pin), checked?1:0);
 #endif
     if(stateLabels.contains(pin))
         stateLabels.value(pin)->setText(checked?"HIGH":"LOW");
@@ -109,9 +129,9 @@ void TestGpio::onPinToggled(bool checked)
 void TestGpio::updatePinStates()
 {
 #ifndef _WIN32
-    for(int pin: pins){
-        if(!lines.contains(pin)) continue;
-        int val = gpiod_line_get_value(lines.value(pin));
+    for(int pin: outputPins){
+        if(!outputLines.contains(pin)) continue;
+        int val = gpiod_line_get_value(outputLines.value(pin));
         if(val<0) continue;
         QLabel *label = stateLabels.value(pin);
         QCheckBox *cb   = checkBoxes.value(pin);
@@ -122,6 +142,13 @@ void TestGpio::updatePinStates()
             cb->blockSignals(false);
         }
         if(label) label->setText(state?"HIGH":"LOW");
+    }
+    for(int pin: inputPins){
+        if(!inputLines.contains(pin)) continue;
+        int val = gpiod_line_get_value(inputLines.value(pin));
+        if(val<0) continue;
+        QLabel *lbl = inputStateLabels.value(pin);
+        if(lbl) lbl->setText(QString("GPIO %1: %2").arg(pin).arg(val?"HIGH":"LOW"));
     }
 #endif
 }
