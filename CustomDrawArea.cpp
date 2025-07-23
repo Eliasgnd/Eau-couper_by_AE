@@ -1608,7 +1608,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
     // -- connecteurs en trait noir continu --
     // Dessin des formes (incluant désormais tes connecteurs)
-    QPen normalPen(Qt::black, 1);
+    QPen normalPen(Qt::black, 2);
     normalPen.setCosmetic(true);
     painter.setPen(normalPen);
     painter.setBrush(Qt::NoBrush);

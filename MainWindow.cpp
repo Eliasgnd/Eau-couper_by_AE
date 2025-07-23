@@ -869,11 +869,8 @@ void MainWindow::generateAIImage(const QString &userPrompt,
     QString finalPrompt;
     if (colorPrompt) {
         finalPrompt =
-            "A single colorful drawing of a " + userPrompt +
-            ", centered on a plain white background, in a clean, simple, iconic style. "
-            "No shadow, no outline, no text, no extra objects, no background elements. "
-            "The shape should be easily recognizable even when traced with a black outline. "
-            "Only the object, fully visible, no borders";
+            "A minimal flat icon of a " + userPrompt +
+            ", centered, on a white background. Clean shapes, no outlines, no text, no decorations, no shadow, no background. Suitable for icon design or sticker. Simple, geometric, and immediately recognizable.";
     } else {
         QString startPrompt = "A single black outline drawing of a ";
         QString styleSuffix =
