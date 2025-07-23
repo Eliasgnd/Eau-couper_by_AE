@@ -31,6 +31,7 @@ HEADERS += \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
+    raspberry.h \
     skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
@@ -42,6 +43,7 @@ SOURCES += \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
+    raspberry.cpp \
     skeletonizer.cpp \
     touchgesturereader.cpp
 
