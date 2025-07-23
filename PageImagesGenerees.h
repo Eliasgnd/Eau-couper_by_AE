@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include "Language.h"
+#include "qfileinfo.h"
 
 namespace Ui {
 class PageImagesGenerees;
@@ -22,11 +23,16 @@ private slots:
     void onCloseClicked();
     void onSortChanged(int);
 
+    void clearImages();
 private:
     void loadImages();
     Ui::PageImagesGenerees *ui;
     Language m_lang {Language::French};
     bool m_newestFirst {true};
+    int m_pageSize = 30;
+    int m_currentPage = 0;
+    QFileInfoList m_allFiles;
+
 };
 
 #endif // PAGEIMAGESGENEREES_H

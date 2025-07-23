@@ -855,8 +855,8 @@ void MainWindow::generateAIImage(const QString &userPrompt,
     if (userPrompt.isEmpty())
         return;
 
-    QString startPrompt = "A simple black silhouette outline of a ";
-    QString styleSuffix = ", exterior contour only, no windows, no doors, no internal lines, white background only, minimal and abstract" ;
+    QString startPrompt = "A single black outline drawing of a ";
+    QString styleSuffix = ", only the outer edge, no internal lines, no doors, no windows, no shading, no textures, white background, vector style, icon-like, extremely minimal";
     QString finalPrompt = startPrompt + userPrompt + styleSuffix;
     qDebug() << "[AI] Prompt final :" << finalPrompt;
 
@@ -868,27 +868,17 @@ void MainWindow::generateAIImage(const QString &userPrompt,
     ui->progressBarAI->setMinimum(0);
     ui->progressBarAI->setMaximum(0);
 
-    QString modelStr   = model;
-    QString qualityStr = quality;
-    QString sizeStr    = size;
+    // ✅ Modèle forcé : DALL-E 3
+    QString modelStr   = "dall-e-3";
+    QString qualityStr = "standard";      // ou "hd" selon ce que tu veux forcer
+    QString sizeStr    = size;            // tu peux aussi fixer ici "1024x1024"
 
-    // Affichage du prix estimé
+    // ✅ Estimation du prix uniquement pour DALL-E 3
     double price = 0.0;
-    if (modelStr == "gpt-image-1") {
-        if (qualityStr == "low") price = (sizeStr == "1024x1024") ? 0.011 : 0.016;
-        else if (qualityStr == "medium") price = (sizeStr == "1024x1024") ? 0.042 : 0.063;
-        else if (qualityStr == "high") price = (sizeStr == "1024x1024") ? 0.167 : 0.25;
-    } else if (modelStr == "dall-e-3") {
-        if (qualityStr == "standard") price = (sizeStr == "1024x1024") ? 0.04 : 0.08;
-        else if (qualityStr == "hd") price = (sizeStr == "1024x1024") ? 0.08 : 0.12;
-    } else if (modelStr == "dall-e-2") {
-        if (sizeStr == "256x256") price = 0.016;
-        else if (sizeStr == "512x512") price = 0.018;
-        else if (sizeStr == "1024x1024") price = 0.02;
-    }
+    if (qualityStr == "standard") price = (sizeStr == "1024x1024") ? 0.04 : 0.08;
+    else if (qualityStr == "hd")  price = (sizeStr == "1024x1024") ? 0.08 : 0.12;
     qDebug() << "[AI] Coût estimé de l'image : $" << price;
 
-    // Construction de la requête
     QNetworkRequest req(QUrl("https://api.openai.com/v1/images/generations"));
     req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
@@ -905,12 +895,9 @@ void MainWindow::generateAIImage(const QString &userPrompt,
         {"model", modelStr},
         {"prompt", finalPrompt},
         {"n", 1},
-        {"size", sizeStr}
+        {"size", sizeStr},
+        {"quality", qualityStr}  // ✅ toujours présent avec DALL-E 3
     };
-
-    if (modelStr == "gpt-image-1" || modelStr == "dall-e-3") {
-        body["quality"] = qualityStr;
-    }
 
     qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
 
@@ -966,7 +953,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
 
             // Archive image to images_generées/ next to executable
             const QString imagesDirPath = qApp->applicationDirPath()
-                                          + QDir::separator() + "images_generées";
+                                          + QDir::separator() + "images_generees";
             QDir imagesDir(imagesDirPath);
             if (!imagesDir.exists()) {
                 QDir().mkpath(imagesDirPath);
