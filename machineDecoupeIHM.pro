@@ -36,7 +36,8 @@ HEADERS += \
     trajetmotor.h \
     Language.h \
     AIImagePromptDialog.h
-    PageImagesGenerees.h
+    PageImagesGenerees.h \
+    AIImageProcessDialog.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -47,8 +48,8 @@ SOURCES += \
     pathplanner.cpp trajetmotor.cpp \
     skeletonizer.cpp \
     touchgesturereader.cpp \
-    AIImagePromptDialog.cpp
-    PageImagesGenerees.cpp
+    AIImagePromptDialog.cpp \
+    AIImageProcessDialog.cpp
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui

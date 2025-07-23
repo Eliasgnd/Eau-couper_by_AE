@@ -13,6 +13,7 @@
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
 #include "PageImagesGenerees.h"
+#include "AIImageProcessDialog.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -376,13 +377,22 @@ void MainWindow::showGeneratedImages()
     page->showFullScreen();
 }
 
-void MainWindow::openImageInCustom(const QString &filePath)
+void MainWindow::openImageInCustom(const QString &filePath,
+                                   bool internalContours,
+                                   bool colorEdges)
 {
     this->hide();
-    LogoImporter importer;
-    QPainterPath outline = importer.importLogo(filePath, false, 128);
-    if (outline.isEmpty())
-        return;
+    QPainterPath outline;
+    if (colorEdges) {
+        ImageEdgeImporter edgeImporter;
+        if (!edgeImporter.loadAndProcess(filePath, outline))
+            return;
+    } else {
+        LogoImporter importer;
+        outline = importer.importLogo(filePath, internalContours, 128);
+        if (outline.isEmpty())
+            return;
+    }
 
     QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
 
@@ -969,30 +979,21 @@ void MainWindow::generateAIImage(const QString &userPrompt,
             img.save(archiveFile);
             qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
 
-            LogoImporter importer;
-            QPainterPath outline = importer.importLogo(tempFile, false, 128);
-            if (outline.isEmpty()) {
-                qWarning() << "[AI] ❌ Import du contour échoué.";
-                ui->labelAIGenerationStatus->setText("❌ Import échoué");
-                QTimer::singleShot(3000, this, [this]() {
-                    ui->labelAIGenerationStatus->clear();
-                });
+            AIImageProcessDialog dlg(img);
+            if (dlg.exec() != QDialog::Accepted) {
+                ui->labelAIGenerationStatus->clear();
                 return;
             }
 
-            QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
-
-            this->hide();
-            custom *cw = new custom(currentLanguage);
-            connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
-            connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
-
-            CustomDrawArea *area = cw->getDrawArea();
-            for (const QPainterPath &sp : subs)
-                area->addImportedLogoSubpath(sp);
+            bool internal = false;
+            bool color    = false;
+            if (dlg.selectedMethod() == AIImageProcessDialog::LogoWithInternal)
+                internal = true;
+            else if (dlg.selectedMethod() == AIImageProcessDialog::ColorEdges)
+                color = true;
 
             ui->labelAIGenerationStatus->clear();
-            cw->showFullScreen();
+            openImageInCustom(tempFile, internal, color);
         });
     });
 }
