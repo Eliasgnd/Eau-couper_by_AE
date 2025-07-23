@@ -32,6 +32,7 @@ HEADERS += \
     PageImagesGenerees.h \
     AIImageProcessDialog.h
 
+
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
@@ -43,6 +44,7 @@ SOURCES += \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp \
     AIImageProcessDialog.cpp
+
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui

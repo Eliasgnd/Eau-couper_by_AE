@@ -35,6 +35,8 @@ struct LayoutData {
     int longueur {0};
     int spacing  {0};
     QList<LayoutItem> items;
+    int usageCount {0};
+    QDateTime lastUsed;
 };
 
 // Custom shape definition (can contain multiple polygons) and its saved layouts
@@ -90,6 +92,10 @@ public:
     void renameBaseLayout(ShapeModel::Type type, int index, const QString &newName);
     void deleteBaseLayout(ShapeModel::Type type, int index);
     QList<LayoutData> getLayoutsForBaseShape(ShapeModel::Type type) const;
+
+    // Usage statistics
+    void incrementLayoutUsage(const QString &shapeName, int index);
+    void incrementBaseLayoutUsage(ShapeModel::Type type, int index);
 
     // Utility helpers
     bool shapeNameExists(const QString &name) const;
