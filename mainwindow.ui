@@ -502,13 +502,51 @@ QPushButton:pressed {
        <iconset resource="resources.qrc">
         <normaloff>:/icons/folderfull.svg</normaloff>:/icons/folderfull.svg</iconset>
       </property>
-     </widget>
-    </item>
-    <item>
-      <widget class="QLabel" name="labelAIGenerationStatus">
-       <property name="text">
-        <string/>
-       </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="buttonGpioControl">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>40</height>
+      </size>
+     </property>
+     <property name="layoutDirection">
+      <enum>Qt::LayoutDirection::LeftToRight</enum>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+     </property>
+     <property name="text">
+      <string>Contrôle GPIO</string>
+     </property>
+     <property name="icon">
+      <iconset resource="resources.qrc">
+       <normaloff>:/icons/on-off.svg</normaloff>:/icons/on-off.svg</iconset>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="labelAIGenerationStatus">
+     <property name="text">
+      <string/>
+     </property>
       </widget>
      </item>
      <item>

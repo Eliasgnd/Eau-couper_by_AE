@@ -63,6 +63,7 @@ private slots:
 
     void openAIImagePromptDialog();
     void showGeneratedImages();
+    void showGpioControl();
     void generateAIImage(const QString &prompt,
                          const QString &model,
                          const QString &quality,

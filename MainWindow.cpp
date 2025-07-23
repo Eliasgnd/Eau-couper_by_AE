@@ -13,6 +13,7 @@
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
 #include "PageImagesGenerees.h"
+#include "GpioControlPage.h"
 #include "AIImageProcessDialog.h"
 
 #include <QSpinBox>
@@ -133,6 +134,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
+    connect(ui->buttonGpioControl, &QPushButton::clicked, this, &MainWindow::showGpioControl);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -374,6 +376,13 @@ void MainWindow::showGeneratedImages()
 {
     this->hide();
     PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    page->showFullScreen();
+}
+
+void MainWindow::showGpioControl()
+{
+    this->hide();
+    GpioControlPage *page = new GpioControlPage();
     page->showFullScreen();
 }
 

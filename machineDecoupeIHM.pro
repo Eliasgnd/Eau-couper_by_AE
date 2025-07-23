@@ -9,6 +9,7 @@ INCLUDEPATH += C:/opencv/build/include
                C:/opencv/build/include/opencv2
 
 LIBS += -LC:/opencv/build/x64/vc16/lib
+unix:LIBS += -lgpiod
 
 
 CONFIG(debug, debug|release) {
@@ -30,6 +31,7 @@ HEADERS += \
     Language.h \
     AIImagePromptDialog.h\
     PageImagesGenerees.h \
+    GpioControlPage.h \
     AIImageProcessDialog.h
 
 
@@ -37,6 +39,7 @@ SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
     PageImagesGenerees.cpp \
+    GpioControlPage.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
@@ -47,7 +50,7 @@ SOURCES += \
 
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui GpioControlPage.ui
 
 # Qt Resource Collection
 RESOURCES += resources.qrc
