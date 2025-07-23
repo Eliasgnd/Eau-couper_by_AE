@@ -131,10 +131,12 @@ MainWindow::MainWindow(QWidget *parent)
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
-    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::openTestGpio);
+    // "Images générées" should open the gallery of generated images
+    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
-    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
+    // Small button with the download icon opens the GPIO test page
+    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::openTestGpio);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
