@@ -19,6 +19,11 @@ AIImagePromptDialog::AIImagePromptDialog(QWidget *parent)
     layout->addWidget(new QLabel("Modèle :"));
     layout->addWidget(m_modelCombo);
 
+    m_styleCombo = new QComboBox(this);
+    m_styleCombo->addItems(QStringList() << tr("Noir et blanc") << tr("Couleur"));
+    layout->addWidget(new QLabel(tr("Style :")));
+    layout->addWidget(m_styleCombo);
+
     m_qualityCombo = new QComboBox(this);
     layout->addWidget(new QLabel("Qualité :"));
     layout->addWidget(m_qualityCombo);
@@ -43,6 +48,8 @@ AIImagePromptDialog::AIImagePromptDialog(QWidget *parent)
     connect(m_modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::updateOptions);
     connect(m_qualityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::updatePrice);
     connect(m_sizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AIImagePromptDialog::updatePrice);
+
+    m_styleCombo->setCurrentIndex(0);
 
     m_modelCombo->setCurrentIndex(0);
     updateOptions();
@@ -80,3 +87,4 @@ QString AIImagePromptDialog::getPrompt() const { return m_promptEdit->text().tri
 QString AIImagePromptDialog::getModel() const { return m_modelCombo->currentText(); }
 QString AIImagePromptDialog::getQuality() const { return m_qualityCombo->currentText(); }
 QString AIImagePromptDialog::getSize() const { return m_sizeCombo->currentText(); }
+bool AIImagePromptDialog::isColor() const { return m_styleCombo->currentIndex() == 1; }

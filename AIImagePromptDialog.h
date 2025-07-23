@@ -17,6 +17,7 @@ public:
     QString getModel() const;
     QString getQuality() const;
     QString getSize() const;
+    bool    isColor() const;
 
 private slots:
     void updatePrice();  // ← DECLARÉ ICI
@@ -28,6 +29,7 @@ private:
     QComboBox   *m_modelCombo;
     QComboBox   *m_qualityCombo;
     QComboBox   *m_sizeCombo;
+    QComboBox   *m_styleCombo;
     QLabel      *m_priceLabel;      // ← DÉCLARÉ ICI
     QPushButton *m_generateButton;
     QPushButton *m_cancelButton;
