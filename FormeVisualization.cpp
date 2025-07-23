@@ -13,6 +13,8 @@
 #include <QPainterPathStroker>  // N'oubliez pas d'inclure ce header
 #include <QMessageBox>
 #include <QAbstractGraphicsShapeItem>
+#include <QRandomGenerator>
+#include <limits>
 #include "inventaire.h"
 
 FormeVisualization::FormeVisualization(QWidget *parent)
@@ -306,7 +308,8 @@ void FormeVisualization::optimizePlacement() {
     int count = shapeCount;
     QList<int> angles = {0, 180, 90};
 
-    QList<QPainterPath> placedPaths;
+    struct PathInfo { QPainterPath path; QRectF bbox; };
+    QList<PathInfo> placedPaths;
     int shapesPlaced = 0;
     int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
     progressBar->setMinimum(0);
@@ -343,12 +346,13 @@ void FormeVisualization::optimizePlacement() {
                 if (!containerRect.contains(candidate.boundingRect()))
                     continue;
 
+                QRectF candBBox = candidate.boundingRect();
                 bool collision = false;
-                for (const QPainterPath &existing : placedPaths) {
-                    QPainterPath inter = candidate.intersected(existing);
+                for (const PathInfo &existing : placedPaths) {
+                    if (!existing.bbox.intersects(candBBox))
+                        continue;
+                    QPainterPath inter = candidate.intersected(existing.path);
                     QRectF br = inter.boundingRect();
-                    // Une collision est détectée uniquement si la zone
-                    // d'intersection excède la taille d'un pixel
                     if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
                         collision = true;
                         break;
@@ -370,7 +374,7 @@ void FormeVisualization::optimizePlacement() {
 
                     // Enregistre la position corrigée pour les futurs tests de collision
                     candidate.translate(offset);
-                    placedPaths.append(candidate);
+                    placedPaths.append({candidate, candidate.boundingRect()});
                     shapesPlaced++;
                     break;
                 }
@@ -397,10 +401,10 @@ void FormeVisualization::optimizePlacement2() {
                                            QMessageBox::Ok,
                                            this);
         msg->setModal(false);
-        msg->show();        return;
+        msg->show();
+        return;
     }
 
-    // Remise à zéro de l'espacement
     setSpacing(0);
     m_optimizationRunning = true;
     m_cancelOptimization = false;
@@ -433,8 +437,6 @@ void FormeVisualization::optimizePlacement2() {
     } else {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
-            //qDebug() << "Erreur : Aucun prototype de forme disponible.";
-
             m_optimizationRunning = false;
             progressBar->setVisible(false);
             return;
@@ -449,19 +451,18 @@ void FormeVisualization::optimizePlacement2() {
         else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
             prototypePath.addPolygon(polyItem->polygon());
         else {
-            //qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
             return;
         }
     }
 
-    // Normalisation du prototype pour que son origine soit (0,0)
     QRectF bounds = prototypePath.boundingRect();
     QTransform normTransform;
     normTransform.translate(-bounds.x(), -bounds.y());
     prototypePath = normTransform.map(prototypePath);
     prototypePath.closeSubpath();
 
-    QList<QPainterPath> placedPaths;
+    struct PathInfo { QPainterPath path; QRectF bbox; };
+    QList<PathInfo> placedPaths;
     int shapesPlaced = 0;
     int count = shapeCount;
     const int step = 5;
@@ -486,54 +487,68 @@ void FormeVisualization::optimizePlacement2() {
                 return;
             }
 
-            QTransform candidateTransform;
-            candidateTransform.translate(x, y);
-            QPainterPath candidate = candidateTransform.map(prototypePath);
-            candidate.closeSubpath();
-
-            if (!containerRect.contains(candidate.boundingRect()))
-                continue;
-
-            bool collision = false;
-            for (const QPainterPath &existing : placedPaths) {
-                QPainterPath inter = candidate.intersected(existing);
-                QRectF br = inter.boundingRect();
-                // Détecte un chevauchement seulement si l'intersection
-                // correspond à plus d'un pixel
-                if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
-                    collision = true;
-                    break;
+            // Boucle sur les deux rotations : 0° et 180°
+            for (int angle : {0, 180}) {
+                QTransform rotationTransform;
+                if (angle != 0) {
+                    QPointF center = prototypePath.boundingRect().center();
+                    rotationTransform.translate(center.x(), center.y());
+                    rotationTransform.rotate(angle);
+                    rotationTransform.translate(-center.x(), -center.y());
                 }
-            }
 
-            if (!collision) {
-                QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
-                item->setPen(QPen(Qt::black, 1));
-                item->setBrush(Qt::NoBrush);
-                item->setFlag(QGraphicsItem::ItemIsMovable, true);
-                item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+                QTransform candidateTransform = QTransform().translate(x, y) * rotationTransform;
+                QPainterPath candidate = candidateTransform.map(prototypePath);
+                candidate.closeSubpath();
 
-                QRectF bounds = item->boundingRect();
-                QPointF offset(x - bounds.x(), y - bounds.y());
-                item->moveBy(offset.x(), offset.y());
-                scene->addItem(item);
+                if (!containerRect.contains(candidate.boundingRect()))
+                    continue;
 
-                candidate.translate(offset);
-                placedPaths.append(candidate);
-                shapesPlaced++;
-                if (shapesPlaced >= count) {
-                    finished = true;
-                    break;
+                QRectF candBBox = candidate.boundingRect();
+                bool collision = false;
+                for (const PathInfo &existing : placedPaths) {
+                    if (!existing.bbox.intersects(candBBox))
+                        continue;
+                    QPainterPath inter = candidate.intersected(existing.path);
+                    QRectF br = inter.boundingRect();
+                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
+                        collision = true;
+                        break;
+                    }
+                }
+
+                if (!collision) {
+                    QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
+                    item->setPen(QPen(Qt::black, 1));
+                    item->setBrush(Qt::NoBrush);
+                    item->setFlag(QGraphicsItem::ItemIsMovable, true);
+                    item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+
+                    QRectF bounds = item->boundingRect();
+                    QPointF offset(x - bounds.x(), y - bounds.y());
+                    item->moveBy(offset.x(), offset.y());
+                    scene->addItem(item);
+
+                    candidate.translate(offset);
+                    placedPaths.append({candidate, candidate.boundingRect()});
+                    shapesPlaced++;
+                    if (shapesPlaced >= count) {
+                        finished = true;
+                        break;
+                    }
+                    break; // Passe à la prochaine position (x, y) après placement réussi
                 }
             }
         }
     }
-    //qDebug() << "Formes optimisées placées:" << shapesPlaced;
 
     m_optimizationRunning = false;
     emit shapesPlacedCount(shapesPlaced);
     progressBar->setVisible(false);
 }
+
+
+
 
 void FormeVisualization::redraw()
 {
@@ -1099,4 +1114,17 @@ LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
         }
     }
     return layout;
+}
+
+double FormeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPaths,
+                                             int drawingWidth, int drawingHeight)
+{
+    QPainterPath united;
+    for (const QPainterPath &p : placedPaths)
+        united = united.united(p);
+
+    QRectF br = united.boundingRect();
+    double used = br.width() * br.height();
+    double total = static_cast<double>(drawingWidth) * drawingHeight;
+    return total - used;
 }

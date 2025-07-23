@@ -27,7 +27,7 @@ public:
     // Optimisations de placement
     void optimizePlacement();
     void optimizePlacement2();
-    void optimizePlacementComplex();        // (libnest2d)
+    void optimizePlacementComplex();        // algorithme guillotine/shelf
 
     double evaluateWasteArea(const QList<QPainterPath>& placedPaths,
                              int drawingWidth, int drawingHeight);
