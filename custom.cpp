@@ -114,6 +114,7 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->Reset, &QPushButton::clicked, this, [this]() {
         //qDebug() << "Signal resetDrawingSignal émis !";
         drawArea->clearDrawing();
+        drawArea->cancelSelection();
         emit resetDrawingSignal();
     });
 

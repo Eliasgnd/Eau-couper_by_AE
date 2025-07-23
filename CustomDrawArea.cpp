@@ -321,7 +321,7 @@ void CustomDrawArea::setSmoothingLevel(int level)
 
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
-    if (m_selectMode && m_connectSelectionMode) {
+    if (m_selectMode) {
         cancelSelection();
     }
     if (m_closeMode) {
