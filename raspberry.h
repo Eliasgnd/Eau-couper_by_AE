@@ -14,7 +14,7 @@ public:
     void testInputPins();
 
 private:
-    // Broches GPIO BCM (conversion des pins physiques)
+    // Broches GPIO BCM
     static constexpr uint8_t PIN_SCS     = 20;  // Chip Select (CS) - utilisé comme GPIO
     static constexpr uint8_t PIN_RESET   = 21;
     static constexpr uint8_t PIN_SLEEPn  = 26;
