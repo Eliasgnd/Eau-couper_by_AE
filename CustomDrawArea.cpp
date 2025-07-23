@@ -667,7 +667,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     m_selectedShapes.removeAll(hitShape);
                 else
                     m_selectedShapes.append(hitShape);
-
+                if (m_connectSelectionMode && m_selectedShapes.size() == 1)
+                    update();
                 if (m_connectSelectionMode && m_selectedShapes.size() == 2) {
                     connectNearestEndpoints(m_selectedShapes[0], m_selectedShapes[1]);
                     mergeShapesAndConnector(m_selectedShapes[0], m_selectedShapes[1]);
@@ -1461,7 +1462,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
     QPainter painter(this);
-    painter.scale(m_zoomFactor, m_zoomFactor);    
+    painter.scale(m_zoomFactor, m_zoomFactor);
     painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
 
     painter.fillRect(rect(), Qt::white);
@@ -1483,53 +1484,9 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
     // ─── Surbrillance des segments sélectionnés ───────────────────
     // ─── Surbrillance des formes sélectionnées ───────────────────
-    if (!m_selectedShapes.isEmpty()) {
-        int idx = m_selectedShapes.first();
-        if (idx >= 0 && idx < m_shapes.size()) {
-            QRectF bounds = m_shapes[idx].path.boundingRect();
-            QPointF center = bounds.center();
-            m_rotationCenter = center;
 
-            // Recalculer la position du handle à distance constante
-            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
-            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
-                           std::sin(totalAngle) * m_rotationHandlePos.radius);
-            m_rotationHandle = m_rotationCenter + offset;
-        }
 
-        // Dessiner les formes avec surlignage
-        QPen normalPen(Qt::black, 2);
-        normalPen.setCosmetic(true);
-
-        QPen selectedPen(Qt::cyan, 4);
-        selectedPen.setCosmetic(true);
-
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            if (m_selectedShapes.contains(i)) {
-                painter.setPen(selectedPen);
-            } else {
-                painter.setPen(normalPen);
-            }
-            painter.setBrush(Qt::NoBrush);
-            painter.drawPath(m_shapes[i].path);
-        }
-
-        // Afficher la poignée SVG si pas trop éloignée
-        const double maxDistance = 150.0;
-        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
-
-        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
-            const int iconSize = 24;  // taille du SVG en pixels
-
-            painter.save();
-            painter.translate(m_rotationHandle);
-            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
-            m_handleRenderer.render(&painter, svgRect);
-            painter.restore();
-        }
-    }
-
-    if (!m_selectedShapes.isEmpty()) {
+/*    if (!m_selectedShapes.isEmpty()) {
         int idx = m_selectedShapes.first();
         if (idx >= 0 && idx < m_shapes.size()) {
             QRectF bounds = m_shapes[idx].path.boundingRect();
@@ -1612,7 +1569,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
             continue;
         painter.drawPath(s.path);
     }
-
+*/
 
     QPen gridPen(QColor(220,220,220));
     gridPen.setStyle(Qt::DotLine);
@@ -1623,6 +1580,65 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
         painter.drawLine(QPointF(left, y), QPointF(right, y));
 
     painter.drawImage(0, 0, m_canvas);
+
+
+    if (!m_selectedShapes.isEmpty()) {
+        int idx = m_selectedShapes.first();
+        if (idx >= 0 && idx < m_shapes.size()) {
+            QRectF bounds = m_shapes[idx].path.boundingRect();
+            QPointF center = bounds.center();
+            m_rotationCenter = center;
+
+            // Recalculer la position du handle à distance constante
+            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
+            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                           std::sin(totalAngle) * m_rotationHandlePos.radius);
+            m_rotationHandle = m_rotationCenter + offset;
+        }
+
+        // Dessiner les formes avec surlignage
+        QPen normalPen(Qt::black, 2);
+        normalPen.setCosmetic(true);
+
+        QPen selectedPen(Qt::cyan, 4);
+        selectedPen.setCosmetic(true);
+
+        for (int i = 0; i < m_shapes.size(); ++i) {
+            const QPainterPath &path = m_shapes[i].path;   // ← path est déclaré ici
+
+            if (m_selectedShapes.contains(i)) {
+                /* 1) halo cyan épais */
+                QPen highlightPen(Qt::cyan, 6);    // épaisseur 6 px
+                highlightPen.setCosmetic(true);
+                painter.setPen(highlightPen);
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(path);            // ← on utilise path
+
+                /* 2) trait normal par-dessus */
+                painter.setPen(normalPen);         // noir (ou couleur de base)
+                painter.drawPath(path);
+            } else {
+                painter.setPen(normalPen);
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(path);
+            }
+        }
+
+
+        // Afficher la poignée SVG si pas trop éloignée
+        const double maxDistance = 150.0;
+        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
+
+        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
+            const int iconSize = 24;  // taille du SVG en pixels
+
+            painter.save();
+            painter.translate(m_rotationHandle);
+            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
+            m_handleRenderer.render(&painter, svgRect);
+            painter.restore();
+        }
+    }
 
     if (m_drawMode == DrawMode::Line && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
