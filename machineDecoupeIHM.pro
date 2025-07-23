@@ -6,7 +6,7 @@ TARGET  = machineDecoupeIHM
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
     CONFIG += link_pkgconfig
-    PKGCONFIG += opencv4
+    PKGCONFIG += opencv4 libgpiod
 }
 
 # ==== PLATEFORME WINDOWS ====
@@ -31,7 +31,7 @@ HEADERS += \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
-    raspberry.h \
+    raspberry.h TestGpio.h \
     skeletonizer.h \
     touchgesturereader.h \
     trajetmotor.h \
@@ -43,12 +43,12 @@ SOURCES += \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
-    raspberry.cpp \
+    raspberry.cpp TestGpio.cpp \
     skeletonizer.cpp \
     touchgesturereader.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui TestGpio.ui
 
 RESOURCES += resources.qrc
 
