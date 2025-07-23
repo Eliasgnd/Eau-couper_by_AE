@@ -31,7 +31,7 @@
       <x>0</x>
       <y>0</y>
       <width>223</width>
-      <height>574</height>
+      <height>668</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout">
@@ -429,6 +429,40 @@ QPushButton:pressed {
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="buttonViewGeneratedImages">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>40</height>
+        </size>
+       </property>
+       <property name="layoutDirection">
+        <enum>Qt::LayoutDirection::LeftToRight</enum>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    border: 2px solid #008C9E;
+    border-radius: 5px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    background-color: #26C6DA;
+}
+
+QPushButton:pressed {
+    background-color: #008C9E;
+}</string>
+       </property>
+       <property name="text">
+        <string>Test GPIO</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="buttonGenerateAI">
        <property name="minimumSize">
         <size>
@@ -465,20 +499,20 @@ QPushButton:pressed {
          <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
        </property>
       </widget>
-    </item>
-    <item>
-     <widget class="QPushButton" name="buttonViewGeneratedImages">
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>40</height>
-       </size>
-      </property>
-      <property name="layoutDirection">
-       <enum>Qt::LayoutDirection::LeftToRight</enum>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">QPushButton {
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonTestGpio">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>40</height>
+        </size>
+       </property>
+       <property name="layoutDirection">
+        <enum>Qt::LayoutDirection::LeftToRight</enum>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">QPushButton {
     background-color: #00BCD4;
     color: white;
     font-size: 14px;
@@ -494,55 +528,17 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #008C9E;
 }</string>
-      </property>
-      <property name="text">
-       <string>Test GPIO</string>
-      </property>
-      <property name="icon">
-       <iconset resource="resources.qrc">
-        <normaloff>:/icons/download.svg</normaloff>:/icons/download.svg</iconset>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QPushButton" name="buttonTestGpio">
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>40</height>
-       </size>
-      </property>
-      <property name="layoutDirection">
-       <enum>Qt::LayoutDirection::LeftToRight</enum>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">QPushButton {
-    background-color: #00BCD4;
-    color: white;
-    font-size: 14px;
-    border: 2px solid #008C9E;
-    border-radius: 5px;
-    padding: 6px 12px;
-}
-
-QPushButton:hover {
-    background-color: #26C6DA;
-}
-
-QPushButton:pressed {
-    background-color: #008C9E;
-}</string>
-      </property>
-      <property name="text">
-       <string>Images générées</string>
-      </property>
-      <property name="icon">
-       <iconset resource="resources.qrc">
-        <normaloff>:/icons/folderfull.svg</normaloff>:/icons/folderfull.svg</iconset>
-      </property>
-     </widget>
-    </item>
-    <item>
+       </property>
+       <property name="text">
+        <string>Images générées</string>
+       </property>
+       <property name="icon">
+        <iconset resource="resources.qrc">
+         <normaloff>:/icons/folderfull.svg</normaloff>:/icons/folderfull.svg</iconset>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QLabel" name="labelAIGenerationStatus">
        <property name="text">
         <string/>
@@ -559,8 +555,8 @@ QPushButton:pressed {
        </property>
       </widget>
      </item>
-    <item>
-     <widget class="QLineEdit" name="lineEditAIPrompt">
+     <item>
+      <widget class="QLineEdit" name="lineEditAIPrompt">
        <property name="minimumSize">
         <size>
          <width>0</width>
@@ -573,10 +569,10 @@ QPushButton:pressed {
        <property name="placeholderText">
         <string>Décrivez l'image...</string>
        </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
+      </widget>
+     </item>
+    </layout>
+   </widget>
    <widget class="QSlider" name="Slider_longueur">
     <property name="geometry">
      <rect>
