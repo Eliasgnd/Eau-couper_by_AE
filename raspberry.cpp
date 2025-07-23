@@ -84,31 +84,4 @@ bool Raspberry::readPin(uint8_t pin) {
     }
 }
 
-void Raspberry::testOutputPins() {
-    std::cout << "[Linux] Test GPIO sortie...\n";
-    for (int i = 0; i < 10; ++i) {
-        for (uint8_t pin : outputPins) {
-            writePin(pin, true);
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(6));
-        for (uint8_t pin : outputPins) {
-            writePin(pin, false);
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-    }
-    std::cout << "[Linux] Test GPIO sortie terminé.\n";
-}
-
-void Raspberry::testInputPins() {
-    std::cout << "[Linux] Test GPIO entrée...\n";
-    for (int i = 0; i < 10; ++i) {
-        for (uint8_t pin : inputPins) {
-            bool val = readPin(pin);
-            std::cout << "GPIO " << (int)pin << " = " << (val ? "HIGH" : "LOW") << "\n";
-        }
-        std::this_thread::sleep_for(std::chrono::seconds(6));
-    }
-    std::cout << "[Linux] Test GPIO entrée terminé.\n";
-}
-
 #endif

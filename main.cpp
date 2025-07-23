@@ -22,11 +22,7 @@ int main(int argc, char *argv[])
 #ifndef _WIN32
     // === Initialisation des GPIO via libgpiod ===
     Raspberry gpio;
-    if (gpio.init()) {
-        gpio.testOutputPins();  // Clignotement de toutes les sorties GPIO
-        gpio.testInputPins();   // Affichage de l'état des entrées GPIO
-        gpio.close();           // Libère proprement les GPIO
-    } else {
+    if (!gpio.init()) {
         std::cerr << "Erreur d'initialisation des GPIO Raspberry.\n";
     }
 #endif

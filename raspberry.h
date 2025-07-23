@@ -14,9 +14,6 @@ public:
     bool init();
     void close();
 
-    void testOutputPins();
-    void testInputPins();
-
 private:
     // Broches GPIO BCM
     static constexpr uint8_t PIN_SCS     = 20;  // Chip Select (CS) - utilisé comme GPIO
