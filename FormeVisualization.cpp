@@ -243,10 +243,10 @@ void FormeVisualization::optimizePlacement() {
                                            QMessageBox::Ok,
                                            this);
         msg->setModal(false);
-        msg->show();        return;
+        msg->show();
+        return;
     }
 
-    // Remise à zéro de l'espacement
     setSpacing(0);
 
     m_optimizationRunning = true;
@@ -280,8 +280,6 @@ void FormeVisualization::optimizePlacement() {
     } else {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
         if (shapesList.isEmpty()) {
-            //qDebug() << "Erreur : Aucun prototype de forme disponible.";
-
             m_optimizationRunning = false;
             progressBar->setVisible(false);
             return;
@@ -296,8 +294,8 @@ void FormeVisualization::optimizePlacement() {
         else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
             prototypePath.addPolygon(polyItem->polygon());
         else {
-            //qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
             progressBar->setVisible(false);
+            m_optimizationRunning = false;
             return;
         }
     }
@@ -305,9 +303,9 @@ void FormeVisualization::optimizePlacement() {
     QRectF protoRect = prototypePath.boundingRect();
     QPointF center = protoRect.center();
 
-    const int step = 5;
+    const int step = 2;
     int count = shapeCount;
-    QList<int> angles = {0, 180, 90};
+    QList<int> angles = {0, 180, 90, 270};
 
     struct PathInfo { QPainterPath path; QRectF bbox; };
     QList<PathInfo> placedPaths;
@@ -337,11 +335,6 @@ void FormeVisualization::optimizePlacement() {
                 trans.rotate(angle);
                 trans.translate(-center.x(), -center.y());
                 QPainterPath candidate = trans.map(prototypePath);
-
-                QRectF candRect = candidate.boundingRect();
-                QTransform adjust;
-                adjust.translate(x - candRect.x(), y - candRect.y());
-                candidate = adjust.map(candidate);
                 candidate.closeSubpath();
 
                 if (!containerRect.contains(candidate.boundingRect()))
@@ -352,9 +345,9 @@ void FormeVisualization::optimizePlacement() {
                 for (const PathInfo &existing : placedPaths) {
                     if (!existing.bbox.intersects(candBBox))
                         continue;
+
                     QPainterPath inter = candidate.intersected(existing.path);
-                    QRectF br = inter.boundingRect();
-                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
+                    if (!inter.isEmpty()) {
                         collision = true;
                         break;
                     }
@@ -367,16 +360,10 @@ void FormeVisualization::optimizePlacement() {
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
 
-                    // Ajuste la position en fonction du boundingRect réel de l'élément
-                    QRectF bounds = item->boundingRect();
-                    QPointF offset(x - bounds.x(), y - bounds.y());
-                    item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
                     item->setSelected(false);
 
-                    // Enregistre la position corrigée pour les futurs tests de collision
-                    candidate.translate(offset);
-                    placedPaths.append({candidate, candidate.boundingRect()});
+                    placedPaths.append({candidate, candBBox});
                     shapesPlaced++;
                     break;
                 }
@@ -386,13 +373,14 @@ void FormeVisualization::optimizePlacement() {
         }
     }
 
-    //qDebug() << "Formes placées:" << shapesPlaced;
-
     m_optimizationRunning = false;
     emit shapesPlacedCount(shapesPlaced);
     emit optimizationStateChanged(true);
     progressBar->setVisible(false);
 }
+
+
+
 
 void FormeVisualization::optimizePlacement2() {
     if (m_decoupeEnCours || m_optimizationRunning) {
