@@ -17,6 +17,13 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     ui->setupUi(this);
     ScreenUtils::placeOnSecondaryScreen(this);
 
+    ui->logTextEdit->setVisible(false);
+    ui->progressBar->setMinimum(0);
+    ui->progressBar->setMaximum(0);
+    ui->progressBar->setValue(-1);
+    ui->statusIcon->setStyleSheet("border-radius:6px; background: orange;");
+    ui->statusLabel->setText(QStringLiteral("🔄 Initialisation Bluetooth..."));
+
     m_targetDir = QDir::homePath() + "/BluetoothReceived";
     QDir().mkpath(m_targetDir);
 
@@ -66,6 +73,8 @@ BluetoothReceiverDialog::~BluetoothReceiverDialog()
     delete ui;
     if (m_statusTimer)
         m_statusTimer->stop();
+    if (m_flashTimer)
+        m_flashTimer->stop();
 
 }
 
@@ -126,7 +135,16 @@ void BluetoothReceiverDialog::onProcessOutput()
 {
     const QByteArray out = m_btProcess->readAllStandardOutput() + m_btProcess->readAllStandardError();
     if (!out.isEmpty()) {
-        ui->logTextEdit->appendPlainText(QString::fromLocal8Bit(out).trimmed());
+        const QString text = QString::fromLocal8Bit(out).trimmed();
+        ui->logTextEdit->appendPlainText(text);
+
+        if (text.contains("discoverable", Qt::CaseInsensitive) &&
+            (text.contains("succeeded", Qt::CaseInsensitive) || text.contains("yes", Qt::CaseInsensitive))) {
+            ui->progressBar->setRange(0, 100);
+            ui->progressBar->setValue(100);
+            ui->statusIcon->setStyleSheet("border-radius:6px; background: green;");
+            ui->statusLabel->setText(QStringLiteral("✅ Bluetooth prêt à recevoir"));
+        }
     }
 }
 
@@ -150,6 +168,8 @@ void BluetoothReceiverDialog::refreshFileList()
 
     // Liste tous les fichiers (par date décroissante)
     QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Time);
+
+    QStringList currentFiles;
     for (const QFileInfo &info : files) {
         QString ext = info.suffix().toLower();
 
@@ -159,12 +179,39 @@ void BluetoothReceiverDialog::refreshFileList()
             continue;
         }
 
+        currentFiles << info.fileName();
+
         // Ajoute à l'interface uniquement les fichiers valides
         auto *item = new QListWidgetItem(QIcon(":/icons/file.svg"),
                                          info.fileName(),
                                          ui->fileListWidget);
         item->setToolTip(info.absoluteFilePath());
     }
+
+    // Détection des nouveaux fichiers reçus
+    QStringList newFiles;
+    for (const QString &f : currentFiles) {
+        if (!m_prevFiles.contains(f))
+            newFiles << f;
+    }
+
+    if (!newFiles.isEmpty()) {
+        const QString &name = newFiles.first();
+        ui->statusLabel->setText(tr("📥 Fichier reçu : %1").arg(name));
+        ui->statusIcon->setStyleSheet("border-radius:6px; background: blue;");
+
+        if (!m_flashTimer) {
+            m_flashTimer = new QTimer(this);
+            m_flashTimer->setSingleShot(true);
+            connect(m_flashTimer, &QTimer::timeout, this, [this]() {
+                ui->statusLabel->setText(QStringLiteral("✅ Bluetooth prêt à recevoir"));
+                ui->statusIcon->setStyleSheet("border-radius:6px; background: green;");
+            });
+        }
+        m_flashTimer->start(3000);
+    }
+
+    m_prevFiles = currentFiles;
 }
 
 void BluetoothReceiverDialog::showError(const QString &msg)
