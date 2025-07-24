@@ -683,6 +683,17 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #008C9E;  /* Bleu plus foncé lorsqu'on clique */
 }
+
+QPushButton[deplacerMode=&quot;true&quot;] {
+    background-color: #a0c4ff;
+    border: 2px solid #5F7FFF;
+}
+QPushButton[deplacerMode=&quot;true&quot;]:hover {
+    background-color: #b5d5ff;
+}
+QPushButton[deplacerMode=&quot;true&quot;]:pressed {
+    background-color: #8fb1ff;
+}
 </string>
       </property>
       <property name="locale">

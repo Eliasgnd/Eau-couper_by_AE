@@ -321,16 +321,36 @@ void CustomDrawArea::setSmoothingLevel(int level)
 
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
-    if (m_selectMode && m_connectSelectionMode) {
+    qDebug() << "[DEBUG] setDrawMode() appelé, mode =" << static_cast<int>(mode);
+
+    qDebug() << "[setDrawMode] Demande de mode =" << static_cast<int>(mode)
+    << " | Mode courant =" << static_cast<int>(m_drawMode);
+
+    // Sinon, activation normale
+    if (m_selectMode)
         cancelSelection();
-    }
+
     if (m_closeMode) {
         m_closeMode = false;
         emit closeModeChanged(false);
     }
 
-    m_drawMode = mode;
+    if (mode == DrawMode::Deplacer && !m_deplacerMode) {
+        m_deplacerMode = true;
+        emit deplacerModeChanged(true);  // ← ce signal est ESSENTIEL
+        qDebug() << "[setDrawMode] Signal deplacerModeChanged(true) émis";
+    }
 
+
+    if (m_drawMode == DrawMode::Deplacer && mode != DrawMode::Deplacer) {
+        qDebug() << "[setDrawMode] 🔶 Désactivation mode DEPLACER";
+        cancelDeplacerMode();
+    }
+
+
+
+
+    m_drawMode = mode;
     m_drawing = false;
     m_drawingLineOrCircle = false;
     m_freehandPoints.clear();
@@ -339,13 +359,13 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     m_panningActive = false;
     m_gommeErasing = false;
 
-    // Exemple : Reset du niveau de lissage si tu veux un comportement par défaut par mode
-    if (m_drawMode != DrawMode::Freehand) {
-        setSmoothingLevel(0);  // désactive ou remet le lissage faible
-    }
+    if (m_drawMode != DrawMode::Freehand)
+        setSmoothingLevel(0);
 
     update();
 }
+
+
 
 
 CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_drawMode; }
@@ -1818,6 +1838,7 @@ void CustomDrawArea::startShapeSelection()
 {
     // Si on était en mode fermeture, on l'annule
     cancelCloseMode();
+    cancelDeplacerMode();
 
     // Si on venait du mode déplacement, repasse en mode standard
     if (m_drawMode == DrawMode::Deplacer)
@@ -2018,8 +2039,9 @@ void CustomDrawArea::closeCurrentShape()
 
 void CustomDrawArea::startCloseMode()
 {
-    cancelSelection();  // <- déjà présent, garde-le
-    m_selectedShapes.clear();  // <- à ajouter si pas déjà là
+    cancelSelection();
+    cancelDeplacerMode();
+    m_selectedShapes.clear();
     m_closeMode = true;
     emit closeModeChanged(true);
 }
@@ -2177,4 +2199,26 @@ void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
     m_selectedShapes.clear();
     emit multiSelectionModeChanged(false);
     cancelSelection();
+}
+
+
+void CustomDrawArea::startDeplacerMode()
+{
+    qDebug() << "[startDeplacerMode] Appelée";
+    cancelSelection();
+    cancelCloseMode();
+    setDrawMode(DrawMode::Deplacer);  // ← c'est ici que le mode est activé
+}
+
+
+
+void CustomDrawArea::cancelDeplacerMode()
+{
+    if (!m_deplacerMode) {
+        qDebug() << "[cancelDeplacerMode] Rien à faire (déjà désactivé)";
+        return;
+    }
+    qDebug() << "[cancelDeplacerMode] Désactivation du mode déplacer";
+    m_deplacerMode = false;
+    emit deplacerModeChanged(false);
 }

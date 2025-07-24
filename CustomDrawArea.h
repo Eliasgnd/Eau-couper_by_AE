@@ -102,6 +102,8 @@ public:
 
     static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 
+    bool isDeplacerMode() const { return m_deplacerMode; }
+
 public slots:
     void undoLastAction(); // Annule la dernière action
     void mergeShapesAndConnector(int idx1, int idx2);
@@ -109,6 +111,9 @@ public slots:
     void closeCurrentShape();
     void startCloseMode();
     void cancelCloseMode();
+    void startDeplacerMode();
+    void cancelDeplacerMode();
+
 
 protected:
     // Gestion des événements de la souris et du clavier
@@ -236,12 +241,15 @@ private:
     qreal m_lastAngle = 0.0;       // Dernier angle mesuré
     QSvgRenderer m_handleRenderer;
 
+    bool m_deplacerMode = false;
+
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
     void shapeSelection(bool enabled);
     void smoothingChanged(bool enabled);
     void multiSelectionModeChanged(bool enabled);
+    void deplacerModeChanged(bool enabled);
 
 private slots:
     void onPinchZoom(const QPointF &center, qreal scaleFactor);
