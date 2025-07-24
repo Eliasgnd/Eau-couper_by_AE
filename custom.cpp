@@ -117,6 +117,8 @@ custom::custom(Language lang, QWidget *parent)
         drawArea->cancelSelection();
         drawArea->cancelCloseMode();
         drawArea->cancelDeplacerMode();
+        drawArea->cancelGommeMode();
+        drawArea->cancelSupprimerMode();
         emit resetDrawingSignal();
     });
 
@@ -310,6 +312,44 @@ custom::custom(Language lang, QWidget *parent)
 
     qDebug() << "[DEBUG] Connexion faite avec deplacerModeChanged";
 
+    connect(ui->buttonSupprimer, &QPushButton::clicked, this, [this]() {
+        if (drawArea->isSupprimerMode()) {
+            drawArea->cancelSupprimerMode();
+        } else {
+            drawArea->startSupprimerMode();
+        }
+    });
+    connect(drawArea, &CustomDrawArea::supprimerModeChanged,
+            this, [this](bool enabled){
+                qDebug() << "[UI] Signal supprimerModeChanged reçu :" << enabled;
+
+                ui->buttonSupprimer->setProperty("supprimerMode", enabled);
+                qDebug() << "[UI] Property supprimerMode ="
+                         << ui->buttonSupprimer->property("supprimerMode").toBool();
+
+                ui->buttonSupprimer->setStyleSheet(ui->buttonSupprimer->styleSheet());
+                ui->buttonSupprimer->update();
+            });
+
+    connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
+        if (drawArea->isGommeMode()) {
+            drawArea->cancelGommeMode();
+        } else {
+            drawArea->startGommeMode();
+        }
+    });
+
+    connect(drawArea, &CustomDrawArea::gommeModeChanged,
+            this, [this](bool enabled){
+                qDebug() << "[UI] Signal gommeModeChanged reçu :" << enabled;
+
+                ui->buttonGomme->setProperty("gommeMode", enabled);
+                qDebug() << "[UI] Property gommeMode ="
+                         << ui->buttonGomme->property("gommeMode").toBool();
+
+                ui->buttonGomme->setStyleSheet(ui->buttonGomme->styleSheet());
+                ui->buttonGomme->update();
+            });
 
 
     connect(ui->buttonRetour, &QPushButton::clicked, drawArea, &CustomDrawArea::undoLastAction);

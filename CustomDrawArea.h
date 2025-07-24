@@ -103,6 +103,8 @@ public:
     static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 
     bool isDeplacerMode() const { return m_deplacerMode; }
+    bool isSupprimerMode() const { return m_supprimerMode; }
+    bool isGommeMode() const { return m_gommeMode; }
 
 public slots:
     void undoLastAction(); // Annule la dernière action
@@ -113,6 +115,10 @@ public slots:
     void cancelCloseMode();
     void startDeplacerMode();
     void cancelDeplacerMode();
+    void startSupprimerMode();
+    void cancelSupprimerMode();
+    void startGommeMode();
+    void cancelGommeMode();
 
 
 protected:
@@ -242,6 +248,8 @@ private:
     QSvgRenderer m_handleRenderer;
 
     bool m_deplacerMode = false;
+    bool m_supprimerMode = false;
+    bool m_gommeMode = false;
 
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
@@ -250,6 +258,8 @@ signals:
     void smoothingChanged(bool enabled);
     void multiSelectionModeChanged(bool enabled);
     void deplacerModeChanged(bool enabled);
+    void supprimerModeChanged(bool);
+    void gommeModeChanged(bool);
 
 private slots:
     void onPinchZoom(const QPointF &center, qreal scaleFactor);
