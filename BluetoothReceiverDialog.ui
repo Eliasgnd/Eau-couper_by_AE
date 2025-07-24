@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>BluetoothReceiverDialog</class>
+ <widget class="QWidget" name="BluetoothReceiverDialog">
+  <layout class="QVBoxLayout" name="verticalLayout" >
+   <item>
+    <widget class="QLabel" name="titleLabel">
+     <property name="text">
+      <string>Recevoir un fichier via Bluetooth</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">font-size:18px; font-weight:bold;</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="iconLabel">
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="pixmap">
+      <pixmap resource="resources.qrc">:/icons/bluetooth.svg</pixmap>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="infoLabel">
+     <property name="text">
+      <string>Transférez un fichier vers le Raspberry Pi depuis votre téléphone (Bluetooth doit être activé).</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QListWidget" name="fileListWidget"/>
+   </item>
+   <item>
+   <widget class="QPushButton" name="openFolderButton">
+    <property name="text">
+     <string>📂 Ouvrir le dossier</string>
+    </property>
+    <property name="icon">
+     <iconset resource="resources.qrc">
+      <normaloff>:/icons/folder.svg</normaloff>:/icons/folder.svg</iconset>
+    </property>
+   </widget>
+   </item>
+   <item>
+   <widget class="QPushButton" name="backButton">
+    <property name="text">
+     <string>Retour</string>
+    </property>
+    <property name="icon">
+     <iconset resource="resources.qrc">
+      <normaloff>:/icons/back-arrow.svg</normaloff>:/icons/back-arrow.svg</iconset>
+    </property>
+   </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
+</ui>
