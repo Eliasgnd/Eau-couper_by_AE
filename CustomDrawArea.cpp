@@ -1839,6 +1839,7 @@ void CustomDrawArea::startShapeSelection()
     // Si on était en mode fermeture, on l'annule
     cancelCloseMode();
     cancelDeplacerMode();
+    cancelSupprimerMode();
 
     // Si on venait du mode déplacement, repasse en mode standard
     if (m_drawMode == DrawMode::Deplacer)
@@ -1869,6 +1870,8 @@ void CustomDrawArea::toggleMultiSelectMode()
 {
     if (!m_selectMode) {
         cancelCloseMode();
+        cancelSupprimerMode();
+        cancelDeplacerMode();
         if (m_drawMode == DrawMode::Deplacer)
             m_drawMode = DrawMode::Freehand;
         m_selectMode = true;
@@ -2041,6 +2044,7 @@ void CustomDrawArea::startCloseMode()
 {
     cancelSelection();
     cancelDeplacerMode();
+    cancelSupprimerMode();
     m_selectedShapes.clear();
     m_closeMode = true;
     emit closeModeChanged(true);
@@ -2207,6 +2211,7 @@ void CustomDrawArea::startDeplacerMode()
     qDebug() << "[startDeplacerMode] Appelée";
     cancelSelection();
     cancelCloseMode();
+    cancelSupprimerMode();
     setDrawMode(DrawMode::Deplacer);  // ← c'est ici que le mode est activé
 }
 
@@ -2221,4 +2226,22 @@ void CustomDrawArea::cancelDeplacerMode()
     qDebug() << "[cancelDeplacerMode] Désactivation du mode déplacer";
     m_deplacerMode = false;
     emit deplacerModeChanged(false);
+}
+
+void CustomDrawArea::startSupprimerMode()
+{
+    cancelSelection();     // facultatif selon ton usage
+    cancelCloseMode();
+    cancelDeplacerMode();
+
+    m_supprimerMode = true;
+    emit supprimerModeChanged(true);
+}
+
+void CustomDrawArea::cancelSupprimerMode()
+{
+    if (!m_supprimerMode) return;
+
+    m_supprimerMode = false;
+    emit supprimerModeChanged(false);
 }

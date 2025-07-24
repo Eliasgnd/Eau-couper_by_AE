@@ -626,6 +626,17 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: #008C9E;  /* Bleu plus foncé lorsqu'on clique */
 }
+
+QPushButton[supprimerMode=&quot;true&quot;] {
+    background-color: #ffcdd2;  /* rouge clair */
+    border: 2px solid #d32f2f;
+}
+QPushButton[supprimerMode=&quot;true&quot;]:hover {
+    background-color: #ef9a9a;
+}
+QPushButton[supprimerMode=&quot;true&quot;]:pressed {
+    background-color: #c62828;
+}
 </string>
       </property>
       <property name="locale">
