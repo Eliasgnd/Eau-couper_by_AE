@@ -116,8 +116,22 @@ void BluetoothReceiverDialog::refreshFileList()
 {
     ui->fileListWidget->clear();
     QDir dir(m_targetDir);
-    const QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Time);
+
+    // Liste des extensions autorisées (en minuscules, sans le point)
+    QStringList allowedExtensions = {"png", "jpg", "jpeg", "bmp", "webp", "svg"};
+
+    // Liste tous les fichiers (par date décroissante)
+    QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Time);
     for (const QFileInfo &info : files) {
+        QString ext = info.suffix().toLower();
+
+        // Supprime les fichiers avec extension non autorisée
+        if (!allowedExtensions.contains(ext)) {
+            QFile::remove(info.absoluteFilePath());
+            continue;
+        }
+
+        // Ajoute à l'interface uniquement les fichiers valides
         auto *item = new QListWidgetItem(QIcon(":/icons/file.svg"),
                                          info.fileName(),
                                          ui->fileListWidget);
