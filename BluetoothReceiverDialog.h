@@ -30,6 +30,8 @@ private:
     Ui::BluetoothReceiverDialog *ui;
     QProcess *m_btProcess = nullptr;
     QString m_targetDir;
+    QTimer *m_statusTimer = nullptr;
+
 };
 
 #endif // BLUETOOTHRECEIVERDIALOG_H

@@ -32,6 +32,31 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     connect(timer, &QTimer::timeout, this, &BluetoothReceiverDialog::refreshFileList);
     timer->start(2000);
     refreshFileList();
+    // Timer de surveillance du service bluetoothd
+    m_statusTimer = new QTimer(this);
+    connect(m_statusTimer, &QTimer::timeout, this, [this]() {
+        QProcess checkProcess;
+        checkProcess.start("bash", QStringList() << "-c" << "systemctl is-active bluetooth");
+        checkProcess.waitForFinished();
+        QString output = checkProcess.readAllStandardOutput().trimmed();
+
+        if (output != "active") {
+            m_statusTimer->stop();  // Arrête les vérifications
+            if (m_btProcess && m_btProcess->state() != QProcess::NotRunning)
+                m_btProcess->kill();  // Stoppe proprement
+
+            QMessageBox::critical(this,
+                tr("Erreur Bluetooth"),
+                tr("❌ Le service Bluetooth est inactif.\n\nVeuillez redémarrer la machine."),
+                QMessageBox::Ok
+            );
+
+            this->close();  // Ferme le dialogue actuel
+            MainWindow::getInstance()->showFullScreen();  // Retourne à l'accueil
+        }
+    });
+    m_statusTimer->start(5000); // Vérifie toutes les 5 secondes
+
 }
 
 BluetoothReceiverDialog::~BluetoothReceiverDialog()
@@ -39,6 +64,9 @@ BluetoothReceiverDialog::~BluetoothReceiverDialog()
     if (m_btProcess && m_btProcess->state() != QProcess::NotRunning)
         m_btProcess->kill();
     delete ui;
+    if (m_statusTimer)
+        m_statusTimer->stop();
+
 }
 
 void BluetoothReceiverDialog::startBluetoothService()
