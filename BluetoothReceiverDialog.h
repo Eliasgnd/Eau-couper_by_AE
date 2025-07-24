@@ -3,6 +3,8 @@
 
 #include <QWidget>
 #include <QProcess>
+#include <QStringList>
+#include <QTimer>
 
 namespace Ui {
 class BluetoothReceiverDialog;
@@ -31,6 +33,8 @@ private:
     QProcess *m_btProcess = nullptr;
     QString m_targetDir;
     QTimer *m_statusTimer = nullptr;
+    QStringList m_prevFiles;
+    QTimer *m_flashTimer = nullptr;
 
 };
 
