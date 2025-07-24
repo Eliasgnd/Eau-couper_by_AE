@@ -105,6 +105,7 @@ public:
     bool isDeplacerMode() const { return m_deplacerMode; }
     bool isSupprimerMode() const { return m_supprimerMode; }
     bool isGommeMode() const { return m_gommeMode; }
+    bool isConnectMode() const { return m_connectSelectionMode; }
 
 public slots:
     void undoLastAction(); // Annule la dernière action
