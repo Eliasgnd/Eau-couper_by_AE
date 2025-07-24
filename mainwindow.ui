@@ -420,7 +420,7 @@ QPushButton:pressed {
 </string>
        </property>
        <property name="text">
-        <string>Réception fichier            </string>
+        <string>📥 Réception Fichier Bluetooth</string>
        </property>
        <property name="icon">
         <iconset resource="resources.qrc">

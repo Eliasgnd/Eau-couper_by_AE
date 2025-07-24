@@ -9,7 +9,7 @@
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "TestGpio.h"
-#include "BluetoothReceiverPage.h"
+#include "BluetoothReceiverDialog.h"
 #include "trajetmotor.h"
 #include "Language.h"
 #include "LogoImporter.h"
@@ -392,7 +392,7 @@ void MainWindow::showGeneratedImages()
 void MainWindow::on_receptionFichierButton_clicked()
 {
     this->hide();
-    BluetoothReceiverPage *page = new BluetoothReceiverPage();
+    BluetoothReceiverDialog *page = new BluetoothReceiverDialog();
     page->showFullScreen();
 }
 
