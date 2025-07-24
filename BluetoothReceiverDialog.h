@@ -11,6 +11,7 @@ class BluetoothReceiverDialog;
 class BluetoothReceiverDialog : public QWidget
 {
     Q_OBJECT
+
 public:
     explicit BluetoothReceiverDialog(QWidget *parent = nullptr);
     ~BluetoothReceiverDialog() override;
@@ -18,13 +19,16 @@ public:
 private slots:
     void openFolder();
     void refreshFileList();
+    void onProcessOutput();
+    void onProcessError(QProcess::ProcessError);
 
 private:
-    void startBlueman();
+    void startBluetoothService();
     void showError(const QString &message);
+    void closeEvent(QCloseEvent *event);
 
-    Ui::BluetoothReceiverDialog *ui {nullptr};
-    QProcess *m_bluemanProcess {nullptr};
+    Ui::BluetoothReceiverDialog *ui;
+    QProcess *m_btProcess = nullptr;
     QString m_targetDir;
 };
 
