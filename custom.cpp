@@ -115,6 +115,8 @@ custom::custom(Language lang, QWidget *parent)
         //qDebug() << "Signal resetDrawingSignal émis !";
         drawArea->clearDrawing();
         drawArea->cancelSelection();
+        drawArea->cancelCloseMode();
+        drawArea->cancelDeplacerMode();
         emit resetDrawingSignal();
     });
 
@@ -134,8 +136,11 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &custom::onCopyPasteClicked);
 
 
-    connect(ui->buttonCloseShape, &QPushButton::clicked,
-            drawArea, &CustomDrawArea::startCloseMode);
+    connect(ui->buttonCloseShape, &QPushButton::clicked, this, [this]() {
+        drawArea->cancelSelection();
+        drawArea->cancelDeplacerMode();
+        drawArea->startCloseMode();
+    });
 
 
     // ----------------- Fonctions complémentaires -----------------
@@ -280,9 +285,30 @@ custom::custom(Language lang, QWidget *parent)
         }
     });
     connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
-        drawArea->setDrawMode(CustomDrawArea::DrawMode::Deplacer);
-        //qDebug() << "Mode Déplacer activé";
+        drawArea->cancelSelection();
+        drawArea->cancelCloseMode();
+        drawArea->startDeplacerMode();
+        qDebug() << "✅ Propriété closeMode ="
+                 << ui->buttonDeplacer->property("deplacerMode").toBool();
+
     });
+    connect(drawArea, &CustomDrawArea::deplacerModeChanged,
+            this, [this](bool enabled){
+
+        qDebug() << "[UI] Signal deplacerModeChanged reçu :" << enabled;
+
+        ui->buttonDeplacer->setProperty("deplacerMode", enabled);
+        qDebug() << "[UI] Property appliquée à buttonDeplacer ="
+                 << ui->buttonDeplacer->property("closeMode").toBool();
+//        ui->buttonDeplacer->setText(enabled ? "DÉPLACER ✅" : "DÉPLACER");
+        ui->buttonDeplacer->setStyleSheet(ui->buttonDeplacer->styleSheet());
+
+        ui->buttonDeplacer->update();
+    });
+
+    qDebug() << "[DEBUG] Connexion faite avec deplacerModeChanged";
+
+
 
     connect(ui->buttonRetour, &QPushButton::clicked, drawArea, &CustomDrawArea::undoLastAction);
 
