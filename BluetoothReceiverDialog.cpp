@@ -18,14 +18,17 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     ScreenUtils::placeOnSecondaryScreen(this);
 
     ui->logTextEdit->setVisible(false);
-    ui->progressBar->setMinimum(0);
-    ui->progressBar->setMaximum(0);
-    ui->progressBar->setValue(-1);
     ui->statusIcon->setStyleSheet("border-radius:6px; background: orange;");
     ui->statusLabel->setText(QStringLiteral("🔄 Initialisation Bluetooth..."));
 
     m_targetDir = QDir::homePath() + "/BluetoothReceived";
     QDir().mkpath(m_targetDir);
+
+    QDir initDir(m_targetDir);
+    QFileInfoList existingFiles = initDir.entryInfoList(QDir::Files);
+    for (const QFileInfo &info : existingFiles) {
+        m_filesAlreadySignaled.insert(info.fileName());
+    }
 
     connect(ui->openFolderButton, &QPushButton::clicked, this, &BluetoothReceiverDialog::openFolder);
     connect(ui->backButton, &QPushButton::clicked, this, [this] {
@@ -38,7 +41,6 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     auto *timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &BluetoothReceiverDialog::refreshFileList);
     timer->start(2000);
-    refreshFileList();
     // Timer de surveillance du service bluetoothd
     m_statusTimer = new QTimer(this);
     connect(m_statusTimer, &QTimer::timeout, this, [this]() {
@@ -119,8 +121,9 @@ void BluetoothReceiverDialog::startBluetoothService()
     sudo /usr/bin/pkill obexd 2>/dev/null
 
     echo "[INFO] Lancement de obexd pour recevoir les fichiers..."
-    /usr/libexec/bluetooth/obexd --root=/home/AE/BluetoothReceived -n -l -a
+    /usr/libexec/bluetooth/obexd --root=/home/AE/BluetoothReceived -n -l -a &
 
+    echo "[READY] Bluetooth initialization complete"
     )";
 
 
@@ -133,17 +136,20 @@ void BluetoothReceiverDialog::startBluetoothService()
 
 void BluetoothReceiverDialog::onProcessOutput()
 {
-    const QByteArray out = m_btProcess->readAllStandardOutput() + m_btProcess->readAllStandardError();
-    if (!out.isEmpty()) {
-        const QString text = QString::fromLocal8Bit(out).trimmed();
-        ui->logTextEdit->appendPlainText(text);
+    QByteArray out = m_btProcess->readAllStandardOutput() + m_btProcess->readAllStandardError();
 
-        if (text.contains("discoverable", Qt::CaseInsensitive) &&
-            (text.contains("succeeded", Qt::CaseInsensitive) || text.contains("yes", Qt::CaseInsensitive))) {
-            ui->progressBar->setRange(0, 100);
-            ui->progressBar->setValue(100);
-            ui->statusIcon->setStyleSheet("border-radius:6px; background: green;");
-            ui->statusLabel->setText(QStringLiteral("✅ Bluetooth prêt à recevoir"));
+    if (!out.isEmpty()) {
+        QStringList lines = QString::fromLocal8Bit(out).split('\n', Qt::SkipEmptyParts);
+        qDebug() << "Bluetooth output:\n" << QString::fromLocal8Bit(out);
+
+        for (const QString &line : lines) {
+            QString trimmedLine = line.trimmed();
+            ui->logTextEdit->appendPlainText(trimmedLine);
+
+            if (trimmedLine.contains("[READY] Bluetooth initialization complete")) {
+                ui->statusIcon->setStyleSheet("border-radius:6px; background: green;");
+                ui->statusLabel->setText(QStringLiteral("✅ Bluetooth prêt à recevoir"));
+            }
         }
     }
 }
@@ -160,7 +166,6 @@ void BluetoothReceiverDialog::openFolder()
 
 void BluetoothReceiverDialog::refreshFileList()
 {
-    ui->fileListWidget->clear();
     QDir dir(m_targetDir);
 
     // Liste des extensions autorisées (en minuscules, sans le point)
@@ -170,33 +175,69 @@ void BluetoothReceiverDialog::refreshFileList()
     QFileInfoList files = dir.entryInfoList(QDir::Files, QDir::Time);
 
     QStringList currentFiles;
+    QDateTime now = QDateTime::currentDateTime();
+
+    QSet<QString> alreadyInWidget;
+    for (int i = 0; i < ui->fileListWidget->count(); ++i) {
+        alreadyInWidget.insert(ui->fileListWidget->item(i)->text());
+    }
+
     for (const QFileInfo &info : files) {
         QString ext = info.suffix().toLower();
 
-        // Supprime les fichiers avec extension non autorisée
         if (!allowedExtensions.contains(ext)) {
             QFile::remove(info.absoluteFilePath());
             continue;
         }
 
-        currentFiles << info.fileName();
+        QString name = info.fileName();
+        currentFiles << name;
 
-        // Ajoute à l'interface uniquement les fichiers valides
-        auto *item = new QListWidgetItem(QIcon(":/icons/file.svg"),
-                                         info.fileName(),
-                                         ui->fileListWidget);
-        item->setToolTip(info.absoluteFilePath());
+        // Vérifie si le fichier est stable depuis au moins 3 secondes
+        QDateTime lastModified = info.lastModified();
+        if (!m_pendingFiles.contains(name)) {
+            m_pendingFiles[name] = lastModified;
+            continue;  // Trop tôt, attend la prochaine itération
+        }
+
+        if (m_pendingFiles[name].secsTo(now) < 3) {
+            continue;  // Encore en cours d’écriture
+        }
+
+        // Il est stable : on peut le traiter
+        m_pendingFiles.remove(name);
+
+        if (!alreadyInWidget.contains(name)) {
+            auto *item = new QListWidgetItem(QIcon(":/icons/file.svg"),
+                                             name,
+                                             ui->fileListWidget);
+            item->setToolTip(info.absoluteFilePath());
+        }
     }
 
-    // Détection des nouveaux fichiers reçus
+    QStringList stableFiles;
+    for (int i = 0; i < ui->fileListWidget->count(); ++i) {
+        stableFiles << ui->fileListWidget->item(i)->text();
+    }
+
     QStringList newFiles;
-    for (const QString &f : currentFiles) {
-        if (!m_prevFiles.contains(f))
+    for (const QString &f : stableFiles) {
+        if (!m_filesAlreadySignaled.contains(f)) {
             newFiles << f;
+            m_filesAlreadySignaled.insert(f);
+        }
+    }
+
+    for (int i = ui->fileListWidget->count() - 1; i >= 0; --i) {
+        QListWidgetItem *item = ui->fileListWidget->item(i);
+        if (!currentFiles.contains(item->text())) {
+            delete ui->fileListWidget->takeItem(i);
+        }
     }
 
     if (!newFiles.isEmpty()) {
         const QString &name = newFiles.first();
+        m_isReceiving = true;
         ui->statusLabel->setText(tr("📥 Fichier reçu : %1").arg(name));
         ui->statusIcon->setStyleSheet("border-radius:6px; background: blue;");
 
@@ -204,6 +245,7 @@ void BluetoothReceiverDialog::refreshFileList()
             m_flashTimer = new QTimer(this);
             m_flashTimer->setSingleShot(true);
             connect(m_flashTimer, &QTimer::timeout, this, [this]() {
+                m_isReceiving = false;
                 ui->statusLabel->setText(QStringLiteral("✅ Bluetooth prêt à recevoir"));
                 ui->statusIcon->setStyleSheet("border-radius:6px; background: green;");
             });
@@ -211,7 +253,6 @@ void BluetoothReceiverDialog::refreshFileList()
         m_flashTimer->start(3000);
     }
 
-    m_prevFiles = currentFiles;
 }
 
 void BluetoothReceiverDialog::showError(const QString &msg)
@@ -221,6 +262,13 @@ void BluetoothReceiverDialog::showError(const QString &msg)
 
 void BluetoothReceiverDialog::closeEvent(QCloseEvent *event)
 {
+    if (m_isReceiving) {
+        QMessageBox::warning(this, tr("Réception en cours"),
+                             tr("⏳ Un fichier est en cours de réception.\nVeuillez patienter avant de quitter."));
+        event->ignore();
+        return;
+    }
+
     // Arrête les services proprement
     QProcess::startDetached("bash", QStringList() << "-c" << R"(
         echo 'discoverable off' | bluetoothctl
@@ -229,6 +277,7 @@ void BluetoothReceiverDialog::closeEvent(QCloseEvent *event)
         pkill obexd 2>/dev/null
     )");
 
-    QWidget::closeEvent(event); // appel au parent
+    QWidget::closeEvent(event);
 }
+
 

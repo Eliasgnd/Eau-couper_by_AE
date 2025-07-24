@@ -96,7 +96,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     // place la fenêtre sur le 2ᵉ écran
-    ScreenUtils::placeOnSecondaryScreen(this);
+    // ScreenUtils::placeOnSecondaryScreen(this);
 
     // Connection de l'inventaire à la forme
     QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
@@ -678,7 +678,7 @@ void MainWindow::showEvent(QShowEvent *event)
         //         << "géométrie =" << s->geometry()
         //         << "disponible =" << s->availableGeometry();
     }
-    if (screens.size() > 1) {
+    /*if (screens.size() > 1) {
         QScreen* second = screens.at(0);
         // Attribuer le QWindow natif à l'écran secondaire
         if (auto win = this->windowHandle()) {
@@ -686,7 +686,8 @@ void MainWindow::showEvent(QShowEvent *event)
         }
         // Passer en plein écran
         this->showFullScreen();
-    }
+    }*/
+    this->showFullScreen();
 
 }
 

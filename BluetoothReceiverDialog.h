@@ -5,6 +5,8 @@
 #include <QProcess>
 #include <QStringList>
 #include <QTimer>
+#include <QMap>
+#include <QSet>
 
 namespace Ui {
 class BluetoothReceiverDialog;
@@ -35,6 +37,9 @@ private:
     QTimer *m_statusTimer = nullptr;
     QStringList m_prevFiles;
     QTimer *m_flashTimer = nullptr;
+    bool m_isReceiving = false;
+    QMap<QString, QDateTime> m_pendingFiles;
+    QSet<QString> m_filesAlreadySignaled;
 
 };
 
