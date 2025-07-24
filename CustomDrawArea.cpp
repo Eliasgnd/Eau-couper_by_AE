@@ -1840,6 +1840,8 @@ void CustomDrawArea::startShapeSelection()
     cancelCloseMode();
     cancelDeplacerMode();
     cancelSupprimerMode();
+    cancelGommeMode();
+
 
     // Si on venait du mode déplacement, repasse en mode standard
     if (m_drawMode == DrawMode::Deplacer)
@@ -1872,6 +1874,7 @@ void CustomDrawArea::toggleMultiSelectMode()
         cancelCloseMode();
         cancelSupprimerMode();
         cancelDeplacerMode();
+        cancelGommeMode();
         if (m_drawMode == DrawMode::Deplacer)
             m_drawMode = DrawMode::Freehand;
         m_selectMode = true;
@@ -2045,6 +2048,7 @@ void CustomDrawArea::startCloseMode()
     cancelSelection();
     cancelDeplacerMode();
     cancelSupprimerMode();
+    cancelGommeMode();
     m_selectedShapes.clear();
     m_closeMode = true;
     emit closeModeChanged(true);
@@ -2212,6 +2216,7 @@ void CustomDrawArea::startDeplacerMode()
     cancelSelection();
     cancelCloseMode();
     cancelSupprimerMode();
+    cancelGommeMode();
     setDrawMode(DrawMode::Deplacer);  // ← c'est ici que le mode est activé
 }
 
@@ -2233,6 +2238,7 @@ void CustomDrawArea::startSupprimerMode()
     cancelSelection();     // facultatif selon ton usage
     cancelCloseMode();
     cancelDeplacerMode();
+    cancelGommeMode();
 
     m_supprimerMode = true;
     emit supprimerModeChanged(true);
@@ -2244,4 +2250,24 @@ void CustomDrawArea::cancelSupprimerMode()
 
     m_supprimerMode = false;
     emit supprimerModeChanged(false);
+}
+
+void CustomDrawArea::startGommeMode()
+{
+    cancelSelection();
+    cancelCloseMode();
+    cancelDeplacerMode();
+    cancelSupprimerMode();
+    cancelGommeMode();
+
+    m_gommeMode = true;
+    emit gommeModeChanged(true);
+}
+
+void CustomDrawArea::cancelGommeMode()
+{
+    if (!m_gommeMode) return;
+
+    m_gommeMode = false;
+    emit gommeModeChanged(false);
 }
