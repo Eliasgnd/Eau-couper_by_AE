@@ -916,8 +916,8 @@ QSlider::handle:horizontal:hover {
    <widget class="QPushButton" name="pushButton">
     <property name="geometry">
      <rect>
-      <x>230</x>
-      <y>420</y>
+      <x>1050</x>
+      <y>510</y>
       <width>221</width>
       <height>100</height>
      </rect>
@@ -1003,8 +1003,8 @@ QPushButton:pressed {
     </property>
     <property name="geometry">
      <rect>
-      <x>230</x>
-      <y>550</y>
+      <x>270</x>
+      <y>300</y>
       <width>221</width>
       <height>41</height>
      </rect>
@@ -1044,8 +1044,8 @@ QProgressBar::chunk {
    <widget class="QLabel" name="timeRemainingLabel">
     <property name="geometry">
      <rect>
-      <x>230</x>
-      <y>520</y>
+      <x>270</x>
+      <y>270</y>
       <width>221</width>
       <height>21</height>
      </rect>
@@ -1451,8 +1451,8 @@ QPushButton:pressed {
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
-      <x>230</x>
-      <y>590</y>
+      <x>270</x>
+      <y>340</y>
       <width>220</width>
       <height>81</height>
      </rect>
@@ -1610,7 +1610,7 @@ QPushButton:hover {
      <x>0</x>
      <y>0</y>
      <width>1920</width>
-     <height>25</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
