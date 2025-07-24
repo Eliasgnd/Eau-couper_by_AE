@@ -285,13 +285,15 @@ custom::custom(Language lang, QWidget *parent)
         }
     });
     connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
-        drawArea->cancelSelection();
-        drawArea->cancelCloseMode();
-        drawArea->startDeplacerMode();
-        qDebug() << "✅ Propriété closeMode ="
-                 << ui->buttonDeplacer->property("deplacerMode").toBool();
-
+        if (drawArea->isDeplacerMode()) {
+            // ✅ Si déjà activé → désactive
+            drawArea->cancelDeplacerMode();
+        } else {
+            // ✅ Sinon → active
+            drawArea->startDeplacerMode();
+        }
     });
+
     connect(drawArea, &CustomDrawArea::deplacerModeChanged,
             this, [this](bool enabled){
 

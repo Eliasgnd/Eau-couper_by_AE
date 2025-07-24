@@ -102,6 +102,8 @@ public:
 
     static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 
+    bool isDeplacerMode() const { return m_deplacerMode; }
+
 public slots:
     void undoLastAction(); // Annule la dernière action
     void mergeShapesAndConnector(int idx1, int idx2);
