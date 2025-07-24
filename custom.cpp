@@ -129,7 +129,14 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->buttonSave, &QPushButton::clicked, this, &custom::saveCustomShape);
 
     //Relier deux extrémités
-    connect(ui->buttonConnect, &QPushButton::clicked, drawArea, &::CustomDrawArea::startShapeSelection);
+    connect(ui->buttonConnect, &QPushButton::clicked, this, [this]() {
+        if (drawArea->isConnectMode()) {
+            drawArea->cancelSelection();  // ← désactive proprement le mode
+        } else {
+            drawArea->startShapeSelection();  // ← active le mode
+        }
+    });
+
 
     // Bouton de sélection multiple
     connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
@@ -438,15 +445,24 @@ custom::custom(Language lang, QWidget *parent)
         }
     });
 
-    // Suppose que votre bouton s’appelle buttonSnapGrid dans l’UI
     connect(ui->buttonSnapGrid, &QPushButton::clicked, this, [=]() {
         // Inverser l’état actuel
-        bool newState = !drawArea->isSnapToGridEnabled();
-        drawArea->setSnapToGridEnabled(newState);
+        bool enabled = !drawArea->isSnapToGridEnabled();
+        drawArea->setSnapToGridEnabled(enabled);
 
-        // (optionnel) changer le texte ou la couleur du bouton pour refléter l’état
-        ui->buttonSnapGrid->setText(newState ? "Snap Grille : ON" : "Snap Grille : OFF");
+        // Mise à jour visuelle
+        ui->buttonSnapGrid->setText(enabled ? "Aimanté ✅" : "Aimanté ❌");
+        ui->buttonSnapGrid->setProperty("snapMode", enabled);
+
+        qDebug() << "[SnapGrid] Activé =" << enabled;
+
+        // Mise à jour du style dynamique
+        ui->buttonSnapGrid->style()->unpolish(ui->buttonSnapGrid);
+        ui->buttonSnapGrid->style()->polish(ui->buttonSnapGrid);
+        ui->buttonSnapGrid->update();
     });
+
+
 
     // slider --> change spacing
     connect(ui->sliderGridSpacing, &QSlider::valueChanged,
