@@ -1,53 +1,182 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>Transfert d'image</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transfert d'images vers le Raspberry Pi</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --fg: #222;
+      --accent: #4caf50;
+      --accent-dark: #3e8f42;
+      --danger: #d32f2f;
+      --radius: 14px;
+      --shadow: 0 8px 18px rgba(0,0,0,.08);
+      --maxw: 480px;
+      font-size: 16px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#121212; --fg:#eee; --shadow:0 8px 18px rgba(0,0,0,.6);}    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--fg);font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+    .card{width:100%;max-width:var(--maxw);background:#fff;background:var(--bg);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px 32px;position:relative;}
+    h1{font-size:1.35rem;margin-bottom:12px;text-align:center;}
+    p.subtitle{opacity:.7;font-size:.9rem;text-align:center;margin-bottom:24px;}
+    #dropzone{border:2px dashed var(--accent);border-radius:var(--radius);padding:32px 16px;text-align:center;cursor:pointer;transition:.2s;background:rgba(76,175,80,.05);}
+    #dropzone.dragover{background:rgba(76,175,80,.12);}
+    #dropzone input{display:none;}
+    #preview{margin-top:18px;display:none;flex-direction:column;gap:12px;}
+    #preview img{max-width:100%;border-radius:10px;box-shadow:var(--shadow);} 
+    .file-name{font-size:.85rem;opacity:.8;word-break:break-all;}
+    button{margin-top:18px;width:100%;border:none;background:var(--accent);color:#fff;font-size:1rem;font-weight:600;padding:12px 18px;border-radius:var(--radius);cursor:pointer;transition:.15s;}
+    button:hover{background:var(--accent-dark);} 
+    button:disabled{opacity:.45;cursor:not-allowed;}
+    .progress-wrap{margin-top:16px;display:none;}
+    progress{width:100%;height:16px;appearance:none;border:none;border-radius:8px;overflow:hidden;background:#ddd;}
+    progress::-webkit-progress-bar{background:#ddd;}
+    progress::-webkit-progress-value{background:var(--accent);} 
+    progress::-moz-progress-bar{background:var(--accent);} 
+    .status{margin-top:10px;font-size:.9rem;min-height:1.2em;}
+    .status.success{color:var(--accent-dark);} 
+    .status.error{color:var(--danger);} 
+    .actions{margin-top:22px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+    .link-btn{background:none;border:none;color:var(--accent-dark);cursor:pointer;text-decoration:underline;font-size:.85rem;padding:0;}
+    footer{margin-top:28px;text-align:center;font-size:.7rem;opacity:.55;}
+  </style>
 </head>
 <body>
-    <h2>Sélectionnez une image</h2>
-    <form id="uploadForm">
-        <input type="file" name="image" id="imageInput" required><br><br>
-        <progress id="progressBar" value="0" max="100" style="width: 100%; display: none;"></progress><br>
-        <button type="submit">Envoyer</button>
-    </form>
-    <p id="status"></p>
+  <main class="card">
+    <h1>Envoyer une image</h1>
+    <p class="subtitle">Sélectionne ou glisse une photo depuis ton téléphone / ordinateur</p>
 
-    <script>
-        const form = document.getElementById('uploadForm');
-        const imageInput = document.getElementById('imageInput');
-        const progressBar = document.getElementById('progressBar');
-        const status = document.getElementById('status');
+    <div id="dropzone">
+      <input type="file" id="fileInput" accept="image/*" />
+      <span id="dzText">Clique ou dépose ton image ici</span>
+    </div>
 
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const file = imageInput.files[0];
-            if (!file) return;
+    <div id="preview">
+      <img id="thumb" alt="aperçu" />
+      <span class="file-name" id="fileName"></span>
+    </div>
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/upload');
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    progressBar.value = percent;
-                    progressBar.style.display = 'block';
-                }
-            };
-            xhr.onload = function() {
-                status.textContent = xhr.responseText;
-                progressBar.style.display = 'none';
-            };
-            xhr.onerror = function() {
-                status.textContent = 'Erreur lors de l’envoi.';
-                progressBar.style.display = 'none';
-            };
+    <button id="sendBtn" disabled>Envoyer</button>
 
-            const reader = new FileReader();
-            reader.onload = function() {
-                xhr.send(reader.result);
-            };
-            reader.readAsArrayBuffer(file);
-        });
-    </script>
+    <div class="progress-wrap" id="progressWrap">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <div class="status" id="statusText"></div>
+    </div>
+
+    <div class="actions">
+      <button class="link-btn" id="againBtn" style="display:none;">Envoyer une autre image</button>
+      <button class="link-btn" onclick="history.back()">Revenir en arrière</button>
+    </div>
+
+    <footer>© Transfert local – aucune donnée n'est envoyée sur Internet.</footer>
+  </main>
+
+  <script>
+  (function(){
+    const dz = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const thumb = document.getElementById('thumb');
+    const fileName = document.getElementById('fileName');
+    const sendBtn = document.getElementById('sendBtn');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+    const progressWrap = document.getElementById('progressWrap');
+    const againBtn = document.getElementById('againBtn');
+
+    let currentFile = null;
+
+    function resetUI(){
+      progressBar.value = 0;
+      progressWrap.style.display = 'none';
+      statusText.textContent = '';
+      statusText.className = 'status';
+      againBtn.style.display = 'none';
+    }
+
+    function setFile(file){
+      currentFile = file;
+      if(!file){
+        thumb.src = '';
+        document.getElementById('preview').style.display = 'none';
+        sendBtn.disabled = true;
+        return;
+      }
+      fileName.textContent = file.name + ' (' + Math.round(file.size/1024) + ' Ko)';
+      const url = URL.createObjectURL(file);
+      thumb.src = url;
+      document.getElementById('preview').style.display = 'flex';
+      sendBtn.disabled = false;
+      resetUI();
+    }
+
+    dz.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => setFile(e.target.files[0]));
+
+    dz.addEventListener('dragover', e => {
+      e.preventDefault();
+      dz.classList.add('dragover');
+    });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault();
+      dz.classList.remove('dragover');
+      if(e.dataTransfer.files && e.dataTransfer.files[0]){
+        setFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    sendBtn.addEventListener('click', () => {
+      if(!currentFile) return;
+      progressWrap.style.display = 'block';
+      statusText.textContent = 'Envoi en cours...';
+
+      const reader = new FileReader();
+      reader.onload = function(){
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload', true);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        // Optionnel : envoyer le nom original
+        xhr.setRequestHeader('X-Filename', encodeURIComponent(currentFile.name));
+
+        xhr.upload.onprogress = function(e){
+          if(e.lengthComputable){
+            const percent = Math.round((e.loaded / e.total) * 100);
+            progressBar.value = percent;
+            statusText.textContent = `Envoi ${percent}% (${e.loaded} / ${e.total} octets)`;
+          }
+        };
+
+        xhr.onload = function(){
+          if(xhr.status === 200){
+            progressBar.value = 100;
+            statusText.textContent = 'Image bien envoyée !';
+            statusText.classList.add('success');
+            againBtn.style.display = 'inline';
+          } else {
+            statusText.textContent = 'Erreur serveur (' + xhr.status + ')';
+            statusText.classList.add('error');
+          }
+        };
+
+        xhr.onerror = function(){
+          statusText.textContent = 'Erreur réseau';
+          statusText.classList.add('error');
+        };
+
+        xhr.send(reader.result);
+      };
+      reader.readAsArrayBuffer(currentFile);
+    });
+
+    againBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      setFile(null);
+    });
+  })();
+  </script>
 </body>
 </html>
