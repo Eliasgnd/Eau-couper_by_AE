@@ -1,4 +1,5 @@
 QT += core gui widgets svg network bluetooth
+QT += httpserver
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
@@ -40,7 +41,9 @@ HEADERS += \
     Language.h \
     AIImagePromptDialog.h\
     PageImagesGenerees.h \
-    AIImageProcessDialog.h
+    AIImageProcessDialog.h \
+    WifiTransferWidget.h \
+    qrcodegen.hpp
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -53,7 +56,9 @@ SOURCES += \
     skeletonizer.cpp \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp \
-    AIImageProcessDialog.cpp
+    AIImageProcessDialog.cpp \
+    WifiTransferWidget.cpp \
+    qrcodegen.cpp
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui
