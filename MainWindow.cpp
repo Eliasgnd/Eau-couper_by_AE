@@ -16,6 +16,7 @@
 #include "AIImagePromptDialog.h"
 #include "PageImagesGenerees.h"
 #include "AIImageProcessDialog.h"
+#include "WifiTransferWidget.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -139,6 +140,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Small button with the download icon opens the GPIO test page
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::openTestGpio);
     connect(ui->buttonFileReceiver, &QPushButton::clicked, this, &MainWindow::on_receptionFichierButton_clicked);
+    connect(ui->buttonWifiTransfer, &QPushButton::clicked, this, &MainWindow::openWifiTransfer);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -373,6 +375,7 @@ void MainWindow::showCustom() {
             this, &MainWindow::applyCustomShape);
     connect(customWindow, &custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
+
     customWindow->showFullScreen();
 }
 
@@ -380,6 +383,12 @@ void MainWindow::openTestGpio() {
     this->hide();
     TestGpio *test = new TestGpio();
     test->showFullScreen();
+}
+
+void MainWindow::openWifiTransfer() {
+    this->hide();
+    WifiTransferWidget *w = new WifiTransferWidget();
+    w->showFullScreen();
 }
 
 void MainWindow::showGeneratedImages()
