@@ -14,34 +14,110 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QDebug>
-#include <QLabel>
 #include <QProgressBar>
 #include <QListWidget>
-#include <QSystemTrayIcon>
 #include <QDesktopServices>
-#include <QFileInfo>
 #include <QUrl>
-#include <QIcon>
 #include <QImageReader>
 #include <QRegularExpression>
+#include <QFileInfo>
+#include <QIcon>
+
+// ---------------------- Helpers multipart ---------------------------
+struct MultipartPart {
+    QString     filename;
+    QString     contentType;
+    QByteArray  data;
+};
+
+static QList<MultipartPart> parseMultipartFormData(const QByteArray &body,
+                                                   const QByteArray &boundaryRaw)
+{
+    QList<MultipartPart> parts;
+    if (boundaryRaw.isEmpty())
+        return parts;
+
+    const QByteArray boundary = "--" + boundaryRaw;
+    int pos = 0;
+    while (true) {
+        // Cherche prochain boundary
+        int start = body.indexOf(boundary, pos);
+        if (start < 0) break;
+        start += boundary.size();
+        // Fin ?
+        if (body.mid(start, 2) == QByteArray("--"))
+            break;
+
+        // Skip CRLF après boundary
+        if (body.mid(start, 2) == QByteArray("\r\n"))
+            start += 2;
+
+        // Headers de la part
+        int headerEnd = body.indexOf("\r\n\r\n", start);
+        if (headerEnd < 0) break;
+        QByteArray partHeader = body.mid(start, headerEnd - start);
+        int dataStart = headerEnd + 4;
+
+        // Prochain boundary
+        int next = body.indexOf(boundary, dataStart);
+        if (next < 0) next = body.size();
+        // Enlever les \r\n juste avant boundary
+        int dataEnd = next;
+        if (dataEnd >= 2 && body.mid(dataEnd - 2, 2) == "\r\n")
+            dataEnd -= 2;
+
+        QByteArray partData = body.mid(dataStart, dataEnd - dataStart);
+
+        MultipartPart p;
+        // Content-Disposition: form-data; name="files[]"; filename="xxx.jpg"
+        QRegularExpression reFN("filename=\"([^\"]+)\"", QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatch m = reFN.match(QString::fromUtf8(partHeader));
+        if (m.hasMatch())
+            p.filename = m.captured(1);
+
+        // Content-Type: image/jpeg
+        QRegularExpression reCT("Content-Type:\\s*([^\\r\\n]+)", QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatch m2 = reCT.match(QString::fromUtf8(partHeader));
+        if (m2.hasMatch())
+            p.contentType = m2.captured(1).trimmed();
+
+        p.data = partData;
+        if (!p.filename.isEmpty() && !p.data.isEmpty())
+            parts.append(p);
+
+        pos = next;
+    }
+    return parts;
+}
+
+// --------------------------------------------------------------------
 
 WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     : QWidget(parent), m_tcpServer(new QTcpServer(this))
 {
     setWindowTitle(tr("Transfert Wi-Fi"));
+
     QVBoxLayout *layout = new QVBoxLayout(this);
-    m_qrLabel = new QLabel(this);
+
+    m_qrLabel     = new QLabel(this);
     m_qrLabel->setAlignment(Qt::AlignCenter);
+
     m_statusLabel = new QLabel(this);
     m_statusLabel->setAlignment(Qt::AlignCenter);
+
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
-    m_imageLabel = new QLabel(this);
+
+    m_imageLabel  = new QLabel(this);
     m_imageLabel->setAlignment(Qt::AlignCenter);
+
     m_historyList = new QListWidget(this);
-    m_trayIcon = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);
-    m_backButton = new QPushButton(tr("Retour"), this);
+
+    m_trayIcon    = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);
+
+    m_backButton  = new QPushButton(tr("Retour"), this);
+
     layout->addWidget(m_qrLabel);
     layout->addWidget(m_statusLabel);
     layout->addWidget(m_progressBar);
@@ -51,7 +127,7 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
 
     connect(m_historyList, &QListWidget::itemDoubleClicked, this,
             [this](QListWidgetItem *item) {
-                QString path = item->data(Qt::UserRole).toString();
+                const QString path = item->data(Qt::UserRole).toString();
                 QDesktopServices::openUrl(QUrl::fromLocalFile(path));
             });
 
@@ -61,7 +137,7 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
             mw->showFullScreen();
     });
 
-    QString url = startServer();
+    const QString url = startServer();
     if (!url.isEmpty()) {
         QImage qr = generateQr(url);
         m_qrLabel->setPixmap(QPixmap::fromImage(qr));
@@ -115,42 +191,48 @@ void WifiTransferWidget::stopServer() {
 void WifiTransferWidget::handleClient(QTcpSocket *client)
 {
     struct ClientContext {
-        QByteArray buffer;
-        QFile      file;
-        bool       headerParsed = false;
-        qint64     contentLength = -1;
-        qint64     received      = 0;
+        QByteArray header;
+        QByteArray body;
+        bool       headerParsed   = false;
+        qint64     contentLength  = -1;
+        qint64     receivedTotal  = 0;   // header + body lu jusqu'ici
+        QByteArray boundary;
+        bool       finished       = false;
     };
+
     auto ctx = new ClientContext;
 
-    // Limite de taille (20 Mo)
-    static const qint64 MAX_UPLOAD = 20 * 1024 * 1024;
-
-    // Helpers locaux
-    auto sanitize = [](QString name){
-        name = QFileInfo(name).fileName();
-        name.replace(QRegularExpression("[^A-Za-z0-9._-]"), "_");
-        if (name.isEmpty()) name = "fichier";
-        return name;
-    };
-    auto isAllowedExt = [](const QString &ext){
-        static const QStringList ok = {"jpg","jpeg","png","gif","bmp","webp"};
-        return ok.contains(ext.toLower());
-    };
+    // Nettoyage unique à la déconnexion
+    connect(client, &QTcpSocket::disconnected, client, [client, ctx]() {
+        client->deleteLater();   // objet Qt → deleteLater
+        delete ctx;              // notre struct simple
+    });
 
     connect(client, &QTcpSocket::readyRead, this, [=]() {
-        ctx->buffer += client->readAll();
+        const QByteArray chunk = client->readAll();
+        ctx->receivedTotal += chunk.size();
+        ctx->body += chunk;
 
+        // 1) Tant qu’on n’a pas tout l’entête, on attend
         if (!ctx->headerParsed) {
-            const int headerEnd = ctx->buffer.indexOf("\r\n\r\n");
-            if (headerEnd < 0) return; // attendre l'entête complet
+            const int headerEnd = ctx->body.indexOf("\r\n\r\n");
+            if (headerEnd < 0) {
+                // Protection taille
+                if (ctx->receivedTotal > MAX_UPLOAD_BYTES) {
+                    client->write("HTTP/1.1 413 Payload Too Large\r\n\r\n");
+                    client->disconnectFromHost();
+                }
+                return;
+            }
 
-            QByteArray headerBA = ctx->buffer.left(headerEnd);
-            QByteArray body     = ctx->buffer.mid(headerEnd + 4);
-            QString    header   = QString::fromUtf8(headerBA);
+            ctx->header = ctx->body.left(headerEnd);
+            ctx->body   = ctx->body.mid(headerEnd + 4);
+            ctx->headerParsed = true;
 
-            // -------- GET /upload --------
-            if (header.startsWith("GET /upload")) {
+            const QString headerStr = QString::fromUtf8(ctx->header);
+
+            // ----------- GET /upload -----------
+            if (headerStr.startsWith("GET /upload")) {
                 QFile f(":/html/upload.html");
                 QByteArray resp;
                 if (f.open(QIODevice::ReadOnly)) {
@@ -163,146 +245,147 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 client->write(resp);
                 client->flush();
                 client->disconnectFromHost();
-                return;
+                return; // PAS de delete ctx ici !
             }
 
-            // -------- POST /upload --------
-            if (header.startsWith("POST /upload")) {
+            // ----------- POST /upload -----------
+            if (headerStr.startsWith("POST /upload")) {
+
                 // Content-Length
                 QRegularExpression reLen("Content-Length:\\s*(\\d+)", QRegularExpression::CaseInsensitiveOption);
-                auto mLen = reLen.match(header);
+                auto mLen = reLen.match(headerStr);
                 if (mLen.hasMatch())
                     ctx->contentLength = mLen.captured(1).toLongLong();
 
-                if (ctx->contentLength <= 0 || ctx->contentLength > MAX_UPLOAD) {
-                    client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nFichier trop volumineux (max 20 Mo)");
+                if (ctx->contentLength <= 0 || ctx->contentLength > MAX_UPLOAD_BYTES) {
+                    client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nTaille invalide (>20Mo?)");
                     client->flush();
                     client->disconnectFromHost();
                     return;
                 }
 
-                // Nom original envoyé par le header X-Filename
-                QRegularExpression reName("X-Filename:\\s*(.+)", QRegularExpression::CaseInsensitiveOption);
-                auto mName = reName.match(header);
-                QString origName;
-                if (mName.hasMatch())
-                    origName = QUrl::fromPercentEncoding(mName.captured(1).trimmed().toUtf8());
-
-                QString safeName = sanitize(origName);
-                QString ext = QFileInfo(safeName).suffix();
-                if (!isAllowedExt(ext)) {
-                    client->write("HTTP/1.1 415 Unsupported Media Type\r\nContent-Type: text/plain\r\n\r\nExtension non autorisée");
+                // boundary multipart
+                QRegularExpression reBound("boundary=([^;\\r\\n]+)");
+                auto mBound = reBound.match(headerStr);
+                if (mBound.hasMatch())
+                    ctx->boundary = mBound.captured(1).toUtf8();
+                else {
+                    client->write("HTTP/1.1 400 Bad Request\r\n\r\nPas de boundary multipart");
                     client->flush();
                     client->disconnectFromHost();
                     return;
                 }
 
-                m_progressBar->setRange(0, static_cast<int>(context->contentLength));
-
-                QString dir = qApp->applicationDirPath() + "/images_generees";
-
-                QDir().mkpath(dir);
-                QString path = dir + '/'
-                               + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_")
-                               + safeName;
-
-                ctx->file.setFileName(path);
-                if (!ctx->file.open(QIODevice::WriteOnly)) {
-                    client->write("HTTP/1.1 500 Internal Server Error\r\n\r\nErreur écriture fichier");
-                    client->flush();
-                    client->disconnectFromHost();
-                    return;
+                // Init barre de progression
+                if (m_progressBar) {
+                    // QProgressBar travaille en int, on clamp si besoin. :contentReference[oaicite:1]{index=1}
+                    int maxVal = ctx->contentLength > INT_MAX ? INT_MAX : static_cast<int>(ctx->contentLength);
+                    m_progressBar->setRange(0, maxVal);
+                    m_progressBar->setValue(ctx->body.size());
                 }
-
-                context->file.write(body);
-                context->received = body.size();
-                context->headerParsed = true;
-                context->buffer.clear();
-                m_statusLabel->setText(tr("Réception : %1 / %2 octets")
-                                            .arg(context->received)
-                                            .arg(context->contentLength));
-                m_progressBar->setValue(static_cast<int>(context->received));
-
-
-                ctx->headerParsed = true;
-                ctx->buffer.clear();
+                if (m_statusLabel) {
+                    m_statusLabel->setStyleSheet("");
+                    m_statusLabel->setText(tr("Réception : %1 / %2 octets")
+                                           .arg(ctx->body.size()).arg(ctx->contentLength));
+                }
             }
             else {
-                client->write("HTTP/1.1 400 Bad Request\r\n\r\n");
+                // favicon.ico, OPTIONS, etc.
+                client->write("HTTP/1.1 404 Not Found\r\n\r\n");
                 client->flush();
                 client->disconnectFromHost();
                 return;
             }
-
         }
         else {
-            // Continuer à écrire les chunks
-            if (!ctx->buffer.isEmpty()) {
-                if (ctx->received + ctx->buffer.size() > MAX_UPLOAD) {
-                    ctx->file.close();
-                    client->write("HTTP/1.1 413 Payload Too Large\r\n\r\n");
-                    client->flush();
-                    client->disconnectFromHost();
-                    return;
-                }
-                ctx->file.write(ctx->buffer);
-                ctx->received += ctx->buffer.size();
-                ctx->buffer.clear();
-
-                if (m_statusLabel)
-                    m_statusLabel->setText(tr("Réception : %1 / %2 octets").arg(ctx->received).arg(ctx->contentLength));
+            // Mise à jour progression
+            if (m_progressBar) {
+                int val = ctx->receivedTotal > INT_MAX ? INT_MAX : static_cast<int>(ctx->receivedTotal);
+                m_progressBar->setValue(val);
+            }
+            if (m_statusLabel) {
+                m_statusLabel->setText(tr("Réception : %1 / %2 octets")
+                                       .arg(ctx->receivedTotal).arg(ctx->contentLength + ctx->header.size() + 4));
             }
         }
 
-        // Fin du transfert
-        if (ctx->headerParsed && ctx->received >= ctx->contentLength) {
-            ctx->file.close();
+        // 2) Si on a tout reçu (header + body)
+        const qint64 expected = ctx->contentLength + ctx->header.size() + 4; // 4 = "\r\n\r\n"
+        if (ctx->headerParsed && ctx->receivedTotal >= expected && !ctx->finished) {
+            ctx->finished = true;  // empêche double passage
 
-            // Vérif que c'est bien une image
-            QImageReader reader(ctx->file.fileName());
-            if (!reader.canRead()) {
-                QFile::remove(ctx->file.fileName());
-                client->write("HTTP/1.1 415 Unsupported Media Type\r\nContent-Type: text/plain\r\n\r\nFichier non reconnu comme image");
+            // ---- Parse multipart ----
+            QList<MultipartPart> parts = parseMultipartFormData(ctx->body, ctx->boundary);
+            if (parts.isEmpty()) {
+                client->write("HTTP/1.1 400 Bad Request\r\n\r\nAucune image valide");
                 client->flush();
                 client->disconnectFromHost();
                 return;
             }
 
-            if (m_statusLabel) {
-                m_statusLabel->setStyleSheet("color:#2e7d32;");
-                m_statusLabel->setText(tr("Réception terminée ✅"));
+            const QString saveDir = qApp->applicationDirPath() + "/images_generees";
+            QDir().mkpath(saveDir);
+
+            QStringList savedFiles;
+            for (const MultipartPart &p : parts) {
+                QString safe = sanitizeFileName(p.filename);
+                QString ext  = QFileInfo(safe).suffix();
+                if (!isAllowedExt(ext))
+                    continue;
+
+                QString path = saveDir + '/' +
+                               QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_") + safe;
+
+                QFile out(path);
+                if (!out.open(QIODevice::WriteOnly)) continue;
+                out.write(p.data);
+                out.close();
+
+                QImageReader reader(path);
+                if (!reader.canRead()) { QFile::remove(path); continue; }
+
+                savedFiles << path;
+
+                // UI: dernière miniature
+                if (!p.data.isEmpty()) {
+                    QPixmap px(path);
+                    if (!px.isNull())
+                        m_imageLabel->setPixmap(px.scaled(m_imageLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                }
+
+                QListWidgetItem *it = new QListWidgetItem(QFileInfo(path).fileName() +
+                                                          " - " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+                it->setData(Qt::UserRole, path);
+                m_historyList->addItem(it);
             }
 
-            m_statusLabel->setText(tr("Réception terminée ✅"));
-            m_statusLabel->setStyleSheet("color: green");
-            m_progressBar->setValue(static_cast<int>(context->contentLength));
+            if (savedFiles.isEmpty()) {
+                client->write("HTTP/1.1 415 Unsupported Media Type\r\n\r\nAucun fichier image accepté");
+                client->flush();
+                client->disconnectFromHost();
+                return;
+            }
 
-            QPixmap pix(context->file.fileName());
-            if (!pix.isNull())
-                m_imageLabel->setPixmap(pix.scaled(m_imageLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-
-            QListWidgetItem *it = new QListWidgetItem(QFileInfo(context->file.fileName()).fileName() +
-                                                     " - " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
-            it->setData(Qt::UserRole, context->file.fileName());
-            m_historyList->addItem(it);
+            // Succès UI
+            if (m_statusLabel) {
+                m_statusLabel->setStyleSheet("color:#2e7d32;");
+                m_statusLabel->setText(tr("Réception terminée ✅ (%1 fichier(s))").arg(savedFiles.size()));
+            }
+            if (m_progressBar)
+                m_progressBar->setValue(m_progressBar->maximum());
 
             QMessageBox::information(this, tr("Transfert Wi-Fi"),
-                                     tr("Image reçue : %1").arg(QFileInfo(context->file.fileName()).fileName()));
+                                     tr("%1 image(s) reçue(s)").arg(savedFiles.size()));
+
             if (QSystemTrayIcon::isSystemTrayAvailable() && !isActiveWindow()) {
                 m_trayIcon->show();
                 m_trayIcon->showMessage(tr("Transfert Wi-Fi"),
-                                        tr("Image reçue : %1").arg(QFileInfo(context->file.fileName()).fileName()));
+                                        tr("%1 image(s) reçue(s)").arg(savedFiles.size()));
             }
-
-            client->write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nImage enregistrée !");
+            client->write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nImages enregistrées !");
             client->flush();
             client->disconnectFromHost();
         }
-    });
-
-    connect(client, &QTcpSocket::disconnected, this, [=]() {
-        client->deleteLater();
-        delete ctx;
     });
 }
 
@@ -326,8 +409,8 @@ QImage WifiTransferWidget::generateQr(const QString &url) {
 }
 
 QString WifiTransferWidget::sanitizeFileName(const QString &name) const {
-    QString base = QFileInfo(name).fileName();               // enlève chemin
-    base.replace(QRegularExpression("[^A-Za-z0-9._-]"), "_"); // garde safe chars
+    QString base = QFileInfo(name).fileName();
+    base.replace(QRegularExpression("[^A-Za-z0-9._-]"), "_");
     if (base.isEmpty()) base = "fichier";
     return base;
 }
