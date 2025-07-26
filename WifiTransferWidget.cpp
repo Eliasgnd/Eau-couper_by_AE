@@ -22,6 +22,8 @@
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QIcon>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QClipboard>
 #include <QGuiApplication>  // requis pour accéder à QGuiApplication::clipboard()
 
@@ -135,16 +137,39 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
         }
     });
 
-    connect(ui->clearAllButton, &QPushButton::clicked, this, [this]{
-        if (QMessageBox::question(this, tr("Tout effacer"),
-                                  tr("Supprimer toutes les images reçues ?")) == QMessageBox::Yes)
-        {
-            for (int i = 0; i < ui->historyList->count(); ++i) {
-                QListWidgetItem *it = ui->historyList->item(i);
-                QFile::remove(it->data(Qt::UserRole).toString());
-            }
-            ui->historyList->clear();
+    connect(ui->renameButton, &QPushButton::clicked, this, [this]{
+        auto *it = ui->historyList->currentItem();
+        if (!it) return;
+        const QString oldPath = it->data(Qt::UserRole).toString();
+        QFileInfo info(oldPath);
+        bool ok = false;
+        QString base = info.completeBaseName();
+        QString newName = QInputDialog::getText(this, tr("Renommer"),
+                                                tr("Nouveau nom :"),
+                                                QLineEdit::Normal,
+                                                base,
+                                                &ok);
+        if (!ok || newName.isEmpty())
+            return;
+
+        newName = sanitizeFileName(newName);
+        QString newPath = info.dir().absoluteFilePath(newName + '.' + info.suffix());
+        if (QFile::exists(newPath)) {
+            QMessageBox::warning(this, tr("Renommer"),
+                                 tr("Le fichier %1 existe déjà.").arg(QFileInfo(newPath).fileName()));
+            return;
         }
+        if (!QFile::rename(oldPath, newPath)) {
+            QMessageBox::warning(this, tr("Renommer"),
+                                 tr("Impossible de renommer le fichier."));
+            return;
+        }
+
+        it->setData(Qt::UserRole, newPath);
+        QString text = it->text();
+        int    idx  = text.lastIndexOf('-');
+        QString date = idx > 0 ? text.mid(idx + 1).trimmed() : QString();
+        it->setText(QFileInfo(newPath).fileName() + (date.isEmpty() ? QString() : " - " + date));
     });
 
     // Retour
