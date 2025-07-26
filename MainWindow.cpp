@@ -9,6 +9,7 @@
 #include "FormeVisualization.h"
 #include "clavier.h"
 #include "TestGpio.h"
+#include "BluetoothReceiverDialog.h"
 #include "trajetmotor.h"
 #include "Language.h"
 #include "LogoImporter.h"
@@ -95,7 +96,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     // place la fenêtre sur le 2ᵉ écran
-    ScreenUtils::placeOnSecondaryScreen(this);
+    // ScreenUtils::placeOnSecondaryScreen(this);
 
     // Connection de l'inventaire à la forme
     QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
@@ -137,6 +138,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     // Small button with the download icon opens the GPIO test page
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::openTestGpio);
+    connect(ui->buttonFileReceiver, &QPushButton::clicked, this, &MainWindow::on_receptionFichierButton_clicked);
 
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
@@ -384,6 +386,13 @@ void MainWindow::showGeneratedImages()
 {
     this->hide();
     PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    page->showFullScreen();
+}
+
+void MainWindow::on_receptionFichierButton_clicked()
+{
+    this->hide();
+    BluetoothReceiverDialog *page = new BluetoothReceiverDialog();
     page->showFullScreen();
 }
 
@@ -669,7 +678,7 @@ void MainWindow::showEvent(QShowEvent *event)
         //         << "géométrie =" << s->geometry()
         //         << "disponible =" << s->availableGeometry();
     }
-    if (screens.size() > 1) {
+    /*if (screens.size() > 1) {
         QScreen* second = screens.at(0);
         // Attribuer le QWindow natif à l'écran secondaire
         if (auto win = this->windowHandle()) {
@@ -677,7 +686,8 @@ void MainWindow::showEvent(QShowEvent *event)
         }
         // Passer en plein écran
         this->showFullScreen();
-    }
+    }*/
+    this->showFullScreen();
 
 }
 
