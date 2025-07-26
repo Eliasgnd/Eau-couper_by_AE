@@ -1,8 +1,8 @@
 #include "WifiTransferWidget.h"
+#include "ui_WifiTransferWidget.h"
 #include "MainWindow.h"
 #include "qrcodegen.hpp"
 
-#include <QVBoxLayout>
 #include <QNetworkInterface>
 #include <QFile>
 #include <QDir>
@@ -93,45 +93,20 @@ static QList<MultipartPart> parseMultipartFormData(const QByteArray &body,
 // --------------------------------------------------------------------
 
 WifiTransferWidget::WifiTransferWidget(QWidget *parent)
-    : QWidget(parent), m_tcpServer(new QTcpServer(this))
+    : QWidget(parent), ui(new Ui::WifiTransferWidget), m_tcpServer(new QTcpServer(this))
 {
+    ui->setupUi(this);
     setWindowTitle(tr("Transfert Wi-Fi"));
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    m_trayIcon = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);
 
-    m_qrLabel     = new QLabel(this);
-    m_qrLabel->setAlignment(Qt::AlignCenter);
-
-    m_statusLabel = new QLabel(this);
-    m_statusLabel->setAlignment(Qt::AlignCenter);
-
-    m_progressBar = new QProgressBar(this);
-    m_progressBar->setRange(0, 100);
-    m_progressBar->setValue(0);
-
-    m_imageLabel  = new QLabel(this);
-    m_imageLabel->setAlignment(Qt::AlignCenter);
-
-    m_historyList = new QListWidget(this);
-
-    m_trayIcon    = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);
-
-    m_backButton  = new QPushButton(tr("Retour"), this);
-
-    layout->addWidget(m_qrLabel);
-    layout->addWidget(m_statusLabel);
-    layout->addWidget(m_progressBar);
-    layout->addWidget(m_imageLabel);
-    layout->addWidget(m_historyList);
-    layout->addWidget(m_backButton);
-
-    connect(m_historyList, &QListWidget::itemDoubleClicked, this,
+    connect(ui->historyList, &QListWidget::itemDoubleClicked, this,
             [this](QListWidgetItem *item) {
                 const QString path = item->data(Qt::UserRole).toString();
                 QDesktopServices::openUrl(QUrl::fromLocalFile(path));
             });
 
-    connect(m_backButton, &QPushButton::clicked, this, [this]() {
+    connect(ui->backButton, &QPushButton::clicked, this, [this]() {
         close();
         if (auto mw = MainWindow::getInstance())
             mw->showFullScreen();
@@ -140,15 +115,16 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     const QString url = startServer();
     if (!url.isEmpty()) {
         QImage qr = generateQr(url);
-        m_qrLabel->setPixmap(QPixmap::fromImage(qr));
-        m_statusLabel->setText(tr("En attente de connexion..."));
+        ui->qrLabel->setPixmap(QPixmap::fromImage(qr));
+        ui->statusLabel->setText(tr("En attente de connexion..."));
     } else {
-        m_qrLabel->setText(tr("Impossible de démarrer le serveur"));
+        ui->qrLabel->setText(tr("Impossible de démarrer le serveur"));
     }
 }
 
 WifiTransferWidget::~WifiTransferWidget() {
     stopServer();
+    delete ui;
 }
 
 void WifiTransferWidget::closeEvent(QCloseEvent *event) {
@@ -277,16 +253,15 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 }
 
                 // Init barre de progression
-                if (m_progressBar) {
-                    // QProgressBar travaille en int, on clamp si besoin. :contentReference[oaicite:1]{index=1}
+                if (ui->progressBar) {
                     int maxVal = ctx->contentLength > INT_MAX ? INT_MAX : static_cast<int>(ctx->contentLength);
-                    m_progressBar->setRange(0, maxVal);
-                    m_progressBar->setValue(ctx->body.size());
+                    ui->progressBar->setRange(0, maxVal);
+                    ui->progressBar->setValue(ctx->body.size());
                 }
-                if (m_statusLabel) {
-                    m_statusLabel->setStyleSheet("");
-                    m_statusLabel->setText(tr("Réception : %1 / %2 octets")
-                                           .arg(ctx->body.size()).arg(ctx->contentLength));
+                if (ui->statusLabel) {
+                    ui->statusLabel->setStyleSheet("");
+                    ui->statusLabel->setText(tr("Réception : %1 / %2 octets")
+                                            .arg(ctx->body.size()).arg(ctx->contentLength));
                 }
             }
             else {
@@ -299,13 +274,13 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
         }
         else {
             // Mise à jour progression
-            if (m_progressBar) {
+            if (ui->progressBar) {
                 int val = ctx->receivedTotal > INT_MAX ? INT_MAX : static_cast<int>(ctx->receivedTotal);
-                m_progressBar->setValue(val);
+                ui->progressBar->setValue(val);
             }
-            if (m_statusLabel) {
-                m_statusLabel->setText(tr("Réception : %1 / %2 octets")
-                                       .arg(ctx->receivedTotal).arg(ctx->contentLength + ctx->header.size() + 4));
+            if (ui->statusLabel) {
+                ui->statusLabel->setText(tr("Réception : %1 / %2 octets")
+                                        .arg(ctx->receivedTotal).arg(ctx->contentLength + ctx->header.size() + 4));
             }
         }
 
@@ -350,13 +325,13 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 if (!p.data.isEmpty()) {
                     QPixmap px(path);
                     if (!px.isNull())
-                        m_imageLabel->setPixmap(px.scaled(m_imageLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                        ui->imageLabel->setPixmap(px.scaled(ui->imageLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
                 }
 
                 QListWidgetItem *it = new QListWidgetItem(QFileInfo(path).fileName() +
                                                           " - " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
                 it->setData(Qt::UserRole, path);
-                m_historyList->addItem(it);
+                ui->historyList->addItem(it);
             }
 
             if (savedFiles.isEmpty()) {
@@ -367,12 +342,12 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
             }
 
             // Succès UI
-            if (m_statusLabel) {
-                m_statusLabel->setStyleSheet("color:#2e7d32;");
-                m_statusLabel->setText(tr("Réception terminée ✅ (%1 fichier(s))").arg(savedFiles.size()));
+            if (ui->statusLabel) {
+                ui->statusLabel->setStyleSheet("color:#2e7d32;");
+                ui->statusLabel->setText(tr("Réception terminée ✅ (%1 fichier(s))").arg(savedFiles.size()));
             }
-            if (m_progressBar)
-                m_progressBar->setValue(m_progressBar->maximum());
+            if (ui->progressBar)
+                ui->progressBar->setValue(ui->progressBar->maximum());
 
             QMessageBox::information(this, tr("Transfert Wi-Fi"),
                                      tr("%1 image(s) reçue(s)").arg(savedFiles.size()));
