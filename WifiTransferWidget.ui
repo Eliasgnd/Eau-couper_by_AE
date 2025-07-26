@@ -207,11 +207,11 @@ QGroupBox{font-weight:bold;}
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="clearAllButton">
-          <property name="text">
-           <string>Tout effacer</string>
-          </property>
-         </widget>
+        <widget class="QPushButton" name="renameButton">
+         <property name="text">
+          <string>Renommer</string>
+         </property>
+        </widget>
         </item>
        </layout>
       </item>
