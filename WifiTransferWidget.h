@@ -4,12 +4,12 @@
 #include <QWidget>
 #include <QTcpServer>
 #include <QTcpSocket>
-#include <QLabel>
-#include <QPushButton>
-#include <QProgressBar>
-#include <QListWidget>
 #include <QSystemTrayIcon>
 #include <QImage>
+
+QT_BEGIN_NAMESPACE
+namespace Ui { class WifiTransferWidget; }
+QT_END_NAMESPACE
 
 class WifiTransferWidget : public QWidget {
     Q_OBJECT
@@ -30,13 +30,8 @@ private:
     bool    isAllowedExt(const QString &ext) const;
 
     // UI
+    Ui::WifiTransferWidget *ui {nullptr};
     QTcpServer      *m_tcpServer     = nullptr;
-    QLabel          *m_qrLabel       = nullptr;
-    QPushButton     *m_backButton    = nullptr;
-    QLabel          *m_statusLabel   = nullptr;
-    QProgressBar    *m_progressBar   = nullptr;
-    QLabel          *m_imageLabel    = nullptr;
-    QListWidget     *m_historyList   = nullptr;
     QSystemTrayIcon *m_trayIcon      = nullptr;
 
     static constexpr qint64 MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 Mo

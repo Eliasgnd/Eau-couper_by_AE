@@ -61,7 +61,8 @@ SOURCES += \
     qrcodegen.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
+    WifiTransferWidget.ui
 
 RESOURCES += ressources.qrc
 
