@@ -15,14 +15,37 @@
   </property>
   <property name="styleSheet">
    <string>
-QPushButton{
-    font-size:13pt;
-    padding:6px 14px;
-    min-height:34px;
-    border-radius:10px;
-}
-QPushButton:pressed{transform:scale(0.98);}
-QGroupBox{font-weight:bold;}
+  /* Style commun à tous les QPushButton */
+  QPushButton{
+      font-size:13pt;
+      padding:6px 14px;
+      min-height:34px;
+      border-radius:10px;
+      background:#4a4a4a;
+      color:white;
+      border:1px solid #3a3a3a;
+  }
+  QPushButton:hover{ background:#5b5b5b; }
+  QPushButton:disabled{ background:#777; color:#bbb; }
+
+  /* Boutons du bas */
+  #openSelectedButton{
+      background:#43a047;           /* vert */
+      border-color:#2e7d32;
+  }
+  #openSelectedButton:hover{ background:#388e3c; }
+
+  #deleteSelectedButton{
+      background:#e53935;           /* rouge */
+      border-color:#b71c1c;
+  }
+  #deleteSelectedButton:hover{ background:#d32f2f; }
+
+  #renameButton{
+      background:#1e88e5;           /* bleu */
+      border-color:#0d47a1;
+  }
+  #renameButton:hover{ background:#1976d2; }
    </string>
   </property>
   <layout class="QVBoxLayout" name="mainLayout">
@@ -41,13 +64,6 @@ QGroupBox{font-weight:bold;}
    <property name="bottomMargin">
     <number>8</number>
    </property>
-   <item>
-    <widget class="QPushButton" name="backButton">
-     <property name="text">
-      <string>Retour</string>
-     </property>
-    </widget>
-   </item>
    <item>
     <layout class="QHBoxLayout" name="topBar">
      <item>
@@ -207,15 +223,22 @@ QGroupBox{font-weight:bold;}
          </widget>
         </item>
         <item>
-        <widget class="QPushButton" name="renameButton">
-         <property name="text">
-          <string>Renommer</string>
-         </property>
-        </widget>
+         <widget class="QPushButton" name="renameButton">
+          <property name="text">
+           <string>Renommer</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>
      </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="backButton">
+     <property name="text">
+      <string>Retour</string>
+     </property>
     </widget>
    </item>
   </layout>
