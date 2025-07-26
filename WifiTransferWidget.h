@@ -7,6 +7,9 @@
 #include <QTcpSocket>
 #include <QLabel>
 #include <QPushButton>
+#include <QProgressBar>
+#include <QListWidget>
+#include <QSystemTrayIcon>
 
 class WifiTransferWidget : public QWidget {
     Q_OBJECT
@@ -27,6 +30,10 @@ private:
     QLabel *m_qrLabel = nullptr;
     QPushButton *m_backButton = nullptr;
     QLabel *m_statusLabel = nullptr;
+    QProgressBar *m_progressBar = nullptr;
+    QLabel *m_imageLabel = nullptr;
+    QListWidget *m_historyList = nullptr;
+    QSystemTrayIcon *m_trayIcon = nullptr;
 
     QString sanitizeFileName(const QString &name) const;
     bool   isAllowedExt(const QString &ext) const;

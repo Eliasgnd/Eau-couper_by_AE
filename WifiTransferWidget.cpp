@@ -15,6 +15,13 @@
 #include <QTcpSocket>
 #include <QDebug>
 #include <QLabel>
+#include <QProgressBar>
+#include <QListWidget>
+#include <QSystemTrayIcon>
+#include <QDesktopServices>
+#include <QFileInfo>
+#include <QUrl>
+#include <QIcon>
 #include <QImageReader>
 #include <QRegularExpression>
 
@@ -27,10 +34,26 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     m_qrLabel->setAlignment(Qt::AlignCenter);
     m_statusLabel = new QLabel(this);
     m_statusLabel->setAlignment(Qt::AlignCenter);
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setRange(0, 100);
+    m_progressBar->setValue(0);
+    m_imageLabel = new QLabel(this);
+    m_imageLabel->setAlignment(Qt::AlignCenter);
+    m_historyList = new QListWidget(this);
+    m_trayIcon = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);
     m_backButton = new QPushButton(tr("Retour"), this);
     layout->addWidget(m_qrLabel);
     layout->addWidget(m_statusLabel);
+    layout->addWidget(m_progressBar);
+    layout->addWidget(m_imageLabel);
+    layout->addWidget(m_historyList);
     layout->addWidget(m_backButton);
+
+    connect(m_historyList, &QListWidget::itemDoubleClicked, this,
+            [this](QListWidgetItem *item) {
+                QString path = item->data(Qt::UserRole).toString();
+                QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            });
 
     connect(m_backButton, &QPushButton::clicked, this, [this]() {
         close();
@@ -174,8 +197,10 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                     return;
                 }
 
-                // Prépare le fichier
-                QString dir  = qApp->applicationDirPath() + "/images_generees";
+                m_progressBar->setRange(0, static_cast<int>(context->contentLength));
+
+                QString dir = qApp->applicationDirPath() + "/images_generees";
+
                 QDir().mkpath(dir);
                 QString path = dir + '/'
                                + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_")
@@ -189,11 +214,15 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                     return;
                 }
 
-                // Écrit ce qu'on a déjà reçu
-                ctx->file.write(body);
-                ctx->received = body.size();
-                if (m_statusLabel)
-                    m_statusLabel->setText(tr("Réception : %1 / %2 octets").arg(ctx->received).arg(ctx->contentLength));
+                context->file.write(body);
+                context->received = body.size();
+                context->headerParsed = true;
+                context->buffer.clear();
+                m_statusLabel->setText(tr("Réception : %1 / %2 octets")
+                                            .arg(context->received)
+                                            .arg(context->contentLength));
+                m_progressBar->setValue(static_cast<int>(context->received));
+
 
                 ctx->headerParsed = true;
                 ctx->buffer.clear();
@@ -204,6 +233,7 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 client->disconnectFromHost();
                 return;
             }
+
         }
         else {
             // Continuer à écrire les chunks
@@ -241,6 +271,27 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
             if (m_statusLabel) {
                 m_statusLabel->setStyleSheet("color:#2e7d32;");
                 m_statusLabel->setText(tr("Réception terminée ✅"));
+            }
+
+            m_statusLabel->setText(tr("Réception terminée ✅"));
+            m_statusLabel->setStyleSheet("color: green");
+            m_progressBar->setValue(static_cast<int>(context->contentLength));
+
+            QPixmap pix(context->file.fileName());
+            if (!pix.isNull())
+                m_imageLabel->setPixmap(pix.scaled(m_imageLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+
+            QListWidgetItem *it = new QListWidgetItem(QFileInfo(context->file.fileName()).fileName() +
+                                                     " - " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
+            it->setData(Qt::UserRole, context->file.fileName());
+            m_historyList->addItem(it);
+
+            QMessageBox::information(this, tr("Transfert Wi-Fi"),
+                                     tr("Image reçue : %1").arg(QFileInfo(context->file.fileName()).fileName()));
+            if (QSystemTrayIcon::isSystemTrayAvailable() && !isActiveWindow()) {
+                m_trayIcon->show();
+                m_trayIcon->showMessage(tr("Transfert Wi-Fi"),
+                                        tr("Image reçue : %1").arg(QFileInfo(context->file.fileName()).fileName()));
             }
 
             client->write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nImage enregistrée !");
