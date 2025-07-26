@@ -35,4 +35,7 @@
         <file alias="folderfull.svg">icons/folderfull.svg</file>
         <file alias="plus.svg">icons/plus.svg</file>
     </qresource>
+    <qresource prefix="/">
+        <file>html/upload.html</file>
+    </qresource>
 </RCC>

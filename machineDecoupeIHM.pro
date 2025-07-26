@@ -63,7 +63,7 @@ SOURCES += \
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui
 
-RESOURCES += resources.qrc
+RESOURCES += ressources.qrc
 
 TRANSLATIONS += \
     translations/machineDecoupeIHM_fr.ts \

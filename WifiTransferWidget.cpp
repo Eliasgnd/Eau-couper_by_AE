@@ -15,6 +15,8 @@
 #include <QTcpSocket>
 #include <QDebug>
 #include <QLabel>
+#include <QImageReader>
+#include <QRegularExpression>
 
 WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     : QWidget(parent), m_tcpServer(new QTcpServer(this))
@@ -87,81 +89,159 @@ void WifiTransferWidget::stopServer() {
         m_tcpServer->close();
 }
 
-void WifiTransferWidget::handleClient(QTcpSocket *client) {
+void WifiTransferWidget::handleClient(QTcpSocket *client)
+{
     struct ClientContext {
         QByteArray buffer;
-        QFile file;
-        bool headerParsed = false;
-        qint64 contentLength = -1;
-        qint64 received = 0;
+        QFile      file;
+        bool       headerParsed = false;
+        qint64     contentLength = -1;
+        qint64     received      = 0;
     };
-    ClientContext *context = new ClientContext;
+    auto ctx = new ClientContext;
+
+    // Limite de taille (20 Mo)
+    static const qint64 MAX_UPLOAD = 20 * 1024 * 1024;
+
+    // Helpers locaux
+    auto sanitize = [](QString name){
+        name = QFileInfo(name).fileName();
+        name.replace(QRegularExpression("[^A-Za-z0-9._-]"), "_");
+        if (name.isEmpty()) name = "fichier";
+        return name;
+    };
+    auto isAllowedExt = [](const QString &ext){
+        static const QStringList ok = {"jpg","jpeg","png","gif","bmp","webp"};
+        return ok.contains(ext.toLower());
+    };
 
     connect(client, &QTcpSocket::readyRead, this, [=]() {
-        QByteArray chunk = client->readAll();
-        context->buffer += chunk;
+        ctx->buffer += client->readAll();
 
-        if (!context->headerParsed) {
-            int headerEnd = context->buffer.indexOf("\r\n\r\n");
-            if (headerEnd < 0) return;
+        if (!ctx->headerParsed) {
+            const int headerEnd = ctx->buffer.indexOf("\r\n\r\n");
+            if (headerEnd < 0) return; // attendre l'entête complet
 
-            QByteArray header = context->buffer.left(headerEnd);
-            QByteArray body = context->buffer.mid(headerEnd + 4);
+            QByteArray headerBA = ctx->buffer.left(headerEnd);
+            QByteArray body     = ctx->buffer.mid(headerEnd + 4);
+            QString    header   = QString::fromUtf8(headerBA);
 
+            // -------- GET /upload --------
             if (header.startsWith("GET /upload")) {
-                QString filePath = QDir::currentPath() + "/html/upload.html";
-                QFile file(filePath);
-
+                QFile f(":/html/upload.html");
                 QByteArray resp;
-                if (file.open(QIODevice::ReadOnly))
-                    resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " +
-                           QByteArray::number(file.size()) + "\r\n\r\n" + file.readAll();
-                else
+                if (f.open(QIODevice::ReadOnly)) {
+                    QByteArray html = f.readAll();
+                    resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: " +
+                           QByteArray::number(html.size()) + "\r\n\r\n" + html;
+                } else {
                     resp = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nupload.html introuvable";
-
+                }
                 client->write(resp);
                 client->flush();
                 client->disconnectFromHost();
                 return;
             }
 
+            // -------- POST /upload --------
             if (header.startsWith("POST /upload")) {
-                // extraire longueur
-                QRegularExpression re("Content-Length: (\\d+)", QRegularExpression::CaseInsensitiveOption);
-                auto match = re.match(QString::fromUtf8(header));
-                if (match.hasMatch()) context->contentLength = match.captured(1).toLongLong();
+                // Content-Length
+                QRegularExpression reLen("Content-Length:\\s*(\\d+)", QRegularExpression::CaseInsensitiveOption);
+                auto mLen = reLen.match(header);
+                if (mLen.hasMatch())
+                    ctx->contentLength = mLen.captured(1).toLongLong();
 
-                QString dir = qApp->applicationDirPath() + "/images_generees";
-                QDir().mkpath(dir);
-                QString path = dir + "/" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".jpg";
-                context->file.setFileName(path);
-                if (!context->file.open(QIODevice::WriteOnly)) {
-                    client->write("HTTP/1.1 500\r\n\r\nErreur écriture fichier");
+                if (ctx->contentLength <= 0 || ctx->contentLength > MAX_UPLOAD) {
+                    client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nFichier trop volumineux (max 20 Mo)");
                     client->flush();
                     client->disconnectFromHost();
                     return;
                 }
 
-                context->file.write(body);
-                context->received = body.size();
-                context->headerParsed = true;
-                context->buffer.clear();
+                // Nom original envoyé par le header X-Filename
+                QRegularExpression reName("X-Filename:\\s*(.+)", QRegularExpression::CaseInsensitiveOption);
+                auto mName = reName.match(header);
+                QString origName;
+                if (mName.hasMatch())
+                    origName = QUrl::fromPercentEncoding(mName.captured(1).trimmed().toUtf8());
 
-            } else {
-                client->write("HTTP/1.1 400\r\n\r\nBad Request");
+                QString safeName = sanitize(origName);
+                QString ext = QFileInfo(safeName).suffix();
+                if (!isAllowedExt(ext)) {
+                    client->write("HTTP/1.1 415 Unsupported Media Type\r\nContent-Type: text/plain\r\n\r\nExtension non autorisée");
+                    client->flush();
+                    client->disconnectFromHost();
+                    return;
+                }
+
+                // Prépare le fichier
+                QString dir  = qApp->applicationDirPath() + "/images_generees";
+                QDir().mkpath(dir);
+                QString path = dir + '/'
+                               + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_")
+                               + safeName;
+
+                ctx->file.setFileName(path);
+                if (!ctx->file.open(QIODevice::WriteOnly)) {
+                    client->write("HTTP/1.1 500 Internal Server Error\r\n\r\nErreur écriture fichier");
+                    client->flush();
+                    client->disconnectFromHost();
+                    return;
+                }
+
+                // Écrit ce qu'on a déjà reçu
+                ctx->file.write(body);
+                ctx->received = body.size();
+                if (m_statusLabel)
+                    m_statusLabel->setText(tr("Réception : %1 / %2 octets").arg(ctx->received).arg(ctx->contentLength));
+
+                ctx->headerParsed = true;
+                ctx->buffer.clear();
+            }
+            else {
+                client->write("HTTP/1.1 400 Bad Request\r\n\r\n");
                 client->flush();
                 client->disconnectFromHost();
                 return;
             }
-        } else {
-            context->file.write(context->buffer);
-            context->received += context->buffer.size();
-            context->buffer.clear();
+        }
+        else {
+            // Continuer à écrire les chunks
+            if (!ctx->buffer.isEmpty()) {
+                if (ctx->received + ctx->buffer.size() > MAX_UPLOAD) {
+                    ctx->file.close();
+                    client->write("HTTP/1.1 413 Payload Too Large\r\n\r\n");
+                    client->flush();
+                    client->disconnectFromHost();
+                    return;
+                }
+                ctx->file.write(ctx->buffer);
+                ctx->received += ctx->buffer.size();
+                ctx->buffer.clear();
+
+                if (m_statusLabel)
+                    m_statusLabel->setText(tr("Réception : %1 / %2 octets").arg(ctx->received).arg(ctx->contentLength));
+            }
         }
 
-        if (context->headerParsed && context->received >= context->contentLength) {
-            context->file.close();
-            qDebug() << "[OK] Image reçue :" << context->file.fileName();
+        // Fin du transfert
+        if (ctx->headerParsed && ctx->received >= ctx->contentLength) {
+            ctx->file.close();
+
+            // Vérif que c'est bien une image
+            QImageReader reader(ctx->file.fileName());
+            if (!reader.canRead()) {
+                QFile::remove(ctx->file.fileName());
+                client->write("HTTP/1.1 415 Unsupported Media Type\r\nContent-Type: text/plain\r\n\r\nFichier non reconnu comme image");
+                client->flush();
+                client->disconnectFromHost();
+                return;
+            }
+
+            if (m_statusLabel) {
+                m_statusLabel->setStyleSheet("color:#2e7d32;");
+                m_statusLabel->setText(tr("Réception terminée ✅"));
+            }
 
             client->write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nImage enregistrée !");
             client->flush();
@@ -171,7 +251,7 @@ void WifiTransferWidget::handleClient(QTcpSocket *client) {
 
     connect(client, &QTcpSocket::disconnected, this, [=]() {
         client->deleteLater();
-        delete context;
+        delete ctx;
     });
 }
 
@@ -192,4 +272,16 @@ QImage WifiTransferWidget::generateQr(const QString &url) {
         }
     }
     return img;
+}
+
+QString WifiTransferWidget::sanitizeFileName(const QString &name) const {
+    QString base = QFileInfo(name).fileName();               // enlève chemin
+    base.replace(QRegularExpression("[^A-Za-z0-9._-]"), "_"); // garde safe chars
+    if (base.isEmpty()) base = "fichier";
+    return base;
+}
+
+bool WifiTransferWidget::isAllowedExt(const QString &ext) const {
+    static const QStringList ok = {"jpg","jpeg","png","gif","bmp","webp"};
+    return ok.contains(ext.toLower());
 }
