@@ -1,11 +1,53 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>Upload d'images</title></head>
+<head>
+    <meta charset="UTF-8">
+    <title>Transfert d'image</title>
+</head>
 <body>
-  <h1>Envoyer des photos</h1>
-  <form action="/upload" method="post" enctype="multipart/form-data">
-    <input type="file" name="photos" multiple accept="image/*">
-    <button type="submit">Envoyer</button>
-  </form>
+    <h2>Sélectionnez une image</h2>
+    <form id="uploadForm">
+        <input type="file" name="image" id="imageInput" required><br><br>
+        <progress id="progressBar" value="0" max="100" style="width: 100%; display: none;"></progress><br>
+        <button type="submit">Envoyer</button>
+    </form>
+    <p id="status"></p>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const imageInput = document.getElementById('imageInput');
+        const progressBar = document.getElementById('progressBar');
+        const status = document.getElementById('status');
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload');
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressBar.value = percent;
+                    progressBar.style.display = 'block';
+                }
+            };
+            xhr.onload = function() {
+                status.textContent = xhr.responseText;
+                progressBar.style.display = 'none';
+            };
+            xhr.onerror = function() {
+                status.textContent = 'Erreur lors de l’envoi.';
+                progressBar.style.display = 'none';
+            };
+
+            const reader = new FileReader();
+            reader.onload = function() {
+                xhr.send(reader.result);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
 </body>
 </html>

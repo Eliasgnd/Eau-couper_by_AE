@@ -1,8 +1,10 @@
+// WifiTransferWidget.h
 #ifndef WIFITRANSFERWIDGET_H
 #define WIFITRANSFERWIDGET_H
 
 #include <QWidget>
-#include <QHttpServer>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QLabel>
 #include <QPushButton>
 
@@ -19,10 +21,13 @@ private:
     QString startServer();
     void stopServer();
     QImage generateQr(const QString &url);
+    void handleClient(QTcpSocket *client);
 
-    QHttpServer m_server;
+    QTcpServer *m_tcpServer = nullptr;
     QLabel *m_qrLabel = nullptr;
     QPushButton *m_backButton = nullptr;
+    QLabel *m_statusLabel = nullptr;
+
 };
 
 #endif // WIFITRANSFERWIDGET_H
