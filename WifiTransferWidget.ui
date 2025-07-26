@@ -2,49 +2,220 @@
 <ui version="4.0">
  <class>WifiTransferWidget</class>
  <widget class="QWidget" name="WifiTransferWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>900</width>
+    <height>620</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Transfert Wi-Fi</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
+  <property name="styleSheet">
+   <string>
+QPushButton{
+    font-size:13pt;
+    padding:6px 14px;
+    min-height:34px;
+    border-radius:10px;
+}
+QPushButton:pressed{transform:scale(0.98);}
+QGroupBox{font-weight:bold;}
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>6</number>
+   </property>
+   <property name="leftMargin">
+    <number>8</number>
+   </property>
+   <property name="topMargin">
+    <number>8</number>
+   </property>
+   <property name="rightMargin">
+    <number>8</number>
+   </property>
+   <property name="bottomMargin">
+    <number>8</number>
+   </property>
    <item>
-    <widget class="QLabel" name="qrLabel">
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
+    <widget class="QPushButton" name="backButton">
+     <property name="text">
+      <string>Retour</string>
      </property>
     </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="topBar">
+     <item>
+      <widget class="QLabel" name="titleLabel">
+       <property name="minimumSize">
+        <size>
+         <width>600</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;h2 style=&quot; margin-top:16px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:x-large; font-weight:700;&quot;&gt;Transfert d'images en Wi‑Fi&lt;/span&gt;&lt;/h2&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Scannez le QR code avec votre téléphone pour envoyer des photos.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QLabel" name="statusLabel">
+     <property name="text">
+      <string/>
+     </property>
      <property name="alignment">
-      <set>Qt::AlignCenter</set>
+      <set>Qt::AlignmentFlag::AlignCenter</set>
      </property>
     </widget>
    </item>
    <item>
+    <layout class="QHBoxLayout" name="qrLayout">
+     <item>
+      <spacer name="horizontalSpacer_2">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="qrLabel">
+       <property name="minimumSize">
+        <size>
+         <width>120</width>
+         <height>120</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>180</width>
+         <height>180</height>
+        </size>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="urlLabel">
+       <property name="minimumSize">
+        <size>
+         <width>200</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>URL : http://0.0.0.0:8080/upload</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+       <property name="textInteractionFlags">
+        <set>Qt::TextInteractionFlag::TextSelectableByMouse</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="QProgressBar" name="progressBar">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
      <property name="minimum">
       <number>0</number>
      </property>
      <property name="maximum">
       <number>100</number>
      </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QLabel" name="imageLabel">
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
+     <property name="value">
+      <number>0</number>
+     </property>
+     <property name="textVisible">
+      <bool>true</bool>
      </property>
     </widget>
    </item>
    <item>
-    <widget class="QListWidget" name="historyList"/>
-   </item>
-   <item>
-    <widget class="QPushButton" name="backButton">
-     <property name="text">
-      <string>Retour</string>
+    <widget class="QGroupBox" name="historyGroup">
+     <property name="title">
+      <string>Historique des fichiers reçus</string>
      </property>
+     <layout class="QVBoxLayout" name="historyLayout">
+      <item>
+       <widget class="QListWidget" name="historyList"/>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="historyButtonsLayout">
+        <item>
+         <widget class="QPushButton" name="openSelectedButton">
+          <property name="text">
+           <string>Ouvrir</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="deleteSelectedButton">
+          <property name="text">
+           <string>Supprimer</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearAllButton">
+          <property name="text">
+           <string>Tout effacer</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
     </widget>
    </item>
   </layout>

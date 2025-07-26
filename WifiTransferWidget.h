@@ -29,10 +29,9 @@ private:
     QString sanitizeFileName(const QString &name) const;
     bool    isAllowedExt(const QString &ext) const;
 
-    // UI
     Ui::WifiTransferWidget *ui {nullptr};
-    QTcpServer      *m_tcpServer     = nullptr;
-    QSystemTrayIcon *m_trayIcon      = nullptr;
+    QTcpServer             *m_tcpServer     = nullptr;
+    QSystemTrayIcon        *m_trayIcon      = nullptr;
 
     static constexpr qint64 MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 Mo
 };

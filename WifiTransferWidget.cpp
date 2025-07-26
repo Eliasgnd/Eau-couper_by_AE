@@ -22,6 +22,8 @@
 #include <QRegularExpression>
 #include <QFileInfo>
 #include <QIcon>
+#include <QClipboard>
+#include <QGuiApplication>  // requis pour accéder à QGuiApplication::clipboard()
 
 // ---------------------- Helpers multipart ---------------------------
 struct MultipartPart {
@@ -93,32 +95,84 @@ static QList<MultipartPart> parseMultipartFormData(const QByteArray &body,
 // --------------------------------------------------------------------
 
 WifiTransferWidget::WifiTransferWidget(QWidget *parent)
-    : QWidget(parent), ui(new Ui::WifiTransferWidget), m_tcpServer(new QTcpServer(this))
+    : QWidget(parent)
+    , ui(new Ui::WifiTransferWidget)
+    , m_tcpServer(new QTcpServer(this))
 {
     ui->setupUi(this);
-    setWindowTitle(tr("Transfert Wi-Fi"));
+    setWindowTitle(tr("Transfert Wi‑Fi"));
 
     m_trayIcon = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);
 
+    // État initial
+    ui->statusLabel->clear();
+    ui->progressBar->setVisible(false);
+    ui->progressBar->setValue(0);
+
+    // Historique : double‑clic
     connect(ui->historyList, &QListWidget::itemDoubleClicked, this,
-            [this](QListWidgetItem *item) {
-                const QString path = item->data(Qt::UserRole).toString();
-                QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            [this](QListWidgetItem *item){
+                QDesktopServices::openUrl(QUrl::fromLocalFile(item->data(Qt::UserRole).toString()));
             });
 
-    connect(ui->backButton, &QPushButton::clicked, this, [this]() {
+    // Boutons historique
+    connect(ui->openSelectedButton, &QPushButton::clicked, this, [this]{
+        auto *it = ui->historyList->currentItem();
+        if (!it) return;
+        QDesktopServices::openUrl(QUrl::fromLocalFile(it->data(Qt::UserRole).toString()));
+    });
+
+    connect(ui->deleteSelectedButton, &QPushButton::clicked, this, [this]{
+        auto *it = ui->historyList->currentItem();
+        if (!it) return;
+        const QString path = it->data(Qt::UserRole).toString();
+        if (QMessageBox::question(this, tr("Supprimer"),
+                                  tr("Supprimer %1 ?").arg(QFileInfo(path).fileName()))
+            == QMessageBox::Yes)
+        {
+            QFile::remove(path);
+            delete it;
+        }
+    });
+
+    connect(ui->clearAllButton, &QPushButton::clicked, this, [this]{
+        if (QMessageBox::question(this, tr("Tout effacer"),
+                                  tr("Supprimer toutes les images reçues ?")) == QMessageBox::Yes)
+        {
+            for (int i = 0; i < ui->historyList->count(); ++i) {
+                QListWidgetItem *it = ui->historyList->item(i);
+                QFile::remove(it->data(Qt::UserRole).toString());
+            }
+            ui->historyList->clear();
+        }
+    });
+
+    // Retour
+    connect(ui->backButton, &QPushButton::clicked, this, [this]{
         close();
         if (auto mw = MainWindow::getInstance())
             mw->showFullScreen();
     });
 
+    // Charger l'historique existant (au cas où)
+    const QString dir = qApp->applicationDirPath() + "/images_generees";
+    QDir().mkpath(dir);
+    for (const QFileInfo &fi : QDir(dir).entryInfoList(QStringList() << "*.jpg" << "*.jpeg" << "*.png" << "*.gif" << "*.bmp" << "*.webp",
+                                                       QDir::Files, QDir::Time)) {
+        auto *it = new QListWidgetItem(fi.fileName() + "  -  " + fi.lastModified().toString("yyyy-MM-dd HH:mm:ss"));
+        it->setData(Qt::UserRole, fi.absoluteFilePath());
+        ui->historyList->addItem(it);
+    }
+
+    // Démarrer serveur
     const QString url = startServer();
     if (!url.isEmpty()) {
-        QImage qr = generateQr(url);
-        ui->qrLabel->setPixmap(QPixmap::fromImage(qr));
+        ui->qrLabel->setPixmap(QPixmap::fromImage(generateQr(url)));
+        ui->urlLabel->setText(tr("URL : %1").arg(url));
         ui->statusLabel->setText(tr("En attente de connexion..."));
     } else {
         ui->qrLabel->setText(tr("Impossible de démarrer le serveur"));
+        ui->urlLabel->clear();
     }
 }
 
@@ -320,13 +374,6 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 if (!reader.canRead()) { QFile::remove(path); continue; }
 
                 savedFiles << path;
-
-                // UI: dernière miniature
-                if (!p.data.isEmpty()) {
-                    QPixmap px(path);
-                    if (!px.isNull())
-                        ui->imageLabel->setPixmap(px.scaled(ui->imageLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-                }
 
                 QListWidgetItem *it = new QListWidgetItem(QFileInfo(path).fileName() +
                                                           " - " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
