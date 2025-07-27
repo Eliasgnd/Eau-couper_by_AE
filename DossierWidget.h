@@ -1,20 +1,20 @@
-#ifndef PAGEIMAGESGENEREES_H
-#define PAGEIMAGESGENEREES_H
+#ifndef DOSSIERWIDGET_H
+#define DOSSIERWIDGET_H
 
 #include <QWidget>
 #include "Language.h"
 #include "qfileinfo.h"
 
 namespace Ui {
-class PageImagesGenerees;
+class DossierWidget;
 }
 
-class PageImagesGenerees : public QWidget
+class DossierWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit PageImagesGenerees(Language lang = Language::French, QWidget *parent = nullptr);
-    ~PageImagesGenerees();
+    explicit DossierWidget(Language lang = Language::French, QWidget *parent = nullptr);
+    ~DossierWidget();
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -26,7 +26,7 @@ private slots:
     void clearImages();
 private:
     void loadImages();
-    Ui::PageImagesGenerees *ui;
+    Ui::DossierWidget *ui;
     Language m_lang {Language::French};
     bool m_newestFirst {true};
     int m_pageSize = 30;
@@ -35,4 +35,4 @@ private:
 
 };
 
-#endif // PAGEIMAGESGENEREES_H
+#endif // DOSSIERWIDGET_H

@@ -1,5 +1,5 @@
-#include "PageImagesGenerees.h"
-#include "ui_PageImagesGenerees.h"
+#include "DossierWidget.h"
+#include "ui_DossierWidget.h"
 #include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ImagePaths.h"
@@ -20,19 +20,19 @@
 #include <QtGlobal>
 #include <QImageReader>
 
-PageImagesGenerees::PageImagesGenerees(Language lang, QWidget *parent)
-    : QWidget(parent), ui(new Ui::PageImagesGenerees), m_lang(lang)
+DossierWidget::DossierWidget(Language lang, QWidget *parent)
+    : QWidget(parent), ui(new Ui::DossierWidget), m_lang(lang)
 {
     ui->setupUi(this);
     ScreenUtils::placeOnSecondaryScreen(this);
 
-    connect(ui->buttonClose, &QPushButton::clicked, this, &PageImagesGenerees::onCloseClicked);
+    connect(ui->buttonClose, &QPushButton::clicked, this, &DossierWidget::onCloseClicked);
 
     if (ui->comboSort) {
         ui->comboSort->addItem(tr("Récent → Ancien"));
         ui->comboSort->addItem(tr("Ancien → Récent"));
         connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, &PageImagesGenerees::onSortChanged);
+                this, &DossierWidget::onSortChanged);
     }
 
     loadImages();
@@ -45,18 +45,18 @@ PageImagesGenerees::PageImagesGenerees(Language lang, QWidget *parent)
 
 }
 
-PageImagesGenerees::~PageImagesGenerees()
+DossierWidget::~DossierWidget()
 {
     delete ui;
 }
 
-void PageImagesGenerees::onCloseClicked()
+void DossierWidget::onCloseClicked()
 {
     this->close();
     MainWindow::getInstance()->showFullScreen();
 }
 
-void PageImagesGenerees::loadImages()
+void DossierWidget::loadImages()
 {
     // Chargement initial de tous les fichiers si nécessaire
     if (m_allFiles.isEmpty()) {
@@ -153,7 +153,7 @@ void PageImagesGenerees::loadImages()
     m_currentPage++;
 }
 
-void PageImagesGenerees::changeEvent(QEvent *event)
+void DossierWidget::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
@@ -167,13 +167,13 @@ void PageImagesGenerees::changeEvent(QEvent *event)
     QWidget::changeEvent(event);
 }
 
-void PageImagesGenerees::onSortChanged(int index)
+void DossierWidget::onSortChanged(int index)
 {
     m_newestFirst = (index == 0);
     loadImages();
 }
 
-void PageImagesGenerees::clearImages()
+void DossierWidget::clearImages()
 {
     QLayoutItem *child;
     while ((child = ui->gridLayout->takeAt(0)) != nullptr) {
