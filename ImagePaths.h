@@ -5,7 +5,7 @@
 
 namespace ImagePaths {
     inline QString rootDir() {
-        QString dir = qApp->applicationDirPath() + "/images_generees";
+        QString dir = qApp->applicationDirPath() + "/images_Eau-Couper_by_AE";
         QDir().mkpath(dir);
         return dir;
     }
