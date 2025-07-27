@@ -33,16 +33,10 @@
         <file alias="magnet.svg">icons/magnet.svg</file>
         <file alias="folder.svg">icons/folder.svg</file>
         <file alias="folderfull.svg">icons/folderfull.svg</file>
-<<<<<<< HEAD
         <file alias="plus.svg">icons/plus.svg</file>
         <file alias="bluetooth.svg">icons/bluetooth.svg</file>
-    </qresource>
-</RCC>
-=======
-        <file alias="plus.svg">icons/plus.svg</file>
     </qresource>
     <qresource prefix="/">
         <file>html/upload.html</file>
     </qresource>
 </RCC>
->>>>>>> wifi
