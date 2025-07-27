@@ -44,6 +44,7 @@ HEADERS += \
     AIImageProcessDialog.h\
     BluetoothReceiverDialog.h\
     WifiTransferWidget.h \
+    WifiConfigDialog.h \
     qrcodegen.hpp
 
 SOURCES += \
@@ -60,13 +61,15 @@ SOURCES += \
     AIImageProcessDialog.cpp \
     BluetoothReceiverDialog.cpp\
     WifiTransferWidget.cpp \
+    WifiConfigDialog.cpp \
     qrcodegen.cpp
 
 FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
     WifiTransferWidget.ui
+    WifiConfigDialog.ui
 
-RESOURCES += ressources.qrc
+RESOURCES += ressources.qrc resources.qrc
 
 TRANSLATIONS += \
     translations/machineDecoupeIHM_fr.ts \
