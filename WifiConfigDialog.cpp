@@ -48,13 +48,17 @@ void WifiConfigDialog::scanNetworks()
 void WifiConfigDialog::connectSelected()
 {
     const QString ssid = ui->networkComboBox->currentText();
-    const QString password = ui->passwordEdit->text();
-    if (ssid.isEmpty())
-        return;
+    const QString password = ui->passwordEdit->text();  // ✅ ligne ajoutée
 
-    QString cmd = QString("nmcli dev wifi connect '%1'").arg(ssid.replace("'", "\\'"));
-    if (!password.isEmpty())
-        cmd += QString(" password '%1'").arg(password.replace("'", "\\'"));
+    QString sanitizedSsid = ssid;
+    sanitizedSsid.replace("'", "\\'");
+
+    QString cmd = QString("nmcli dev wifi connect '%1'").arg(sanitizedSsid);
+    if (!password.isEmpty()) {
+        QString sanitizedPwd = password;
+        sanitizedPwd.replace("'", "\\'");
+        cmd += QString(" password '%1'").arg(sanitizedPwd);
+    }
 
     QProcess proc;
     proc.start("bash", QStringList() << "-c" << cmd);

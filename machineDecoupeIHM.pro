@@ -65,6 +65,7 @@ SOURCES += \
     qrcodegen.cpp
 
 FORMS += \
+    WifiConfigDialog.ui \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
     WifiTransferWidget.ui
     WifiConfigDialog.ui

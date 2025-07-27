@@ -2,6 +2,14 @@
 <ui version="4.0">
  <class>WifiConfigDialog</class>
  <widget class="QWidget" name="WifiConfigDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>420</width>
+    <height>402</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Configuration Wi-Fi</string>
   </property>
@@ -19,7 +27,7 @@
    <item>
     <widget class="QLineEdit" name="passwordEdit">
      <property name="echoMode">
-      <enum>QLineEdit::Password</enum>
+      <enum>QLineEdit::EchoMode::Password</enum>
      </property>
      <property name="placeholderText">
       <string>Mot de passe</string>
