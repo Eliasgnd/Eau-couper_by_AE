@@ -2,6 +2,7 @@
 #include "ui_WifiTransferWidget.h"
 #include "MainWindow.h"
 #include "qrcodegen.hpp"
+#include "ImagePaths.h"
 
 #include <QNetworkInterface>
 #include <QFile>
@@ -180,8 +181,7 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     });
 
     // Charger l'historique existant (au cas où)
-    const QString dir = qApp->applicationDirPath() + "/images_generees";
-    QDir().mkpath(dir);
+    const QString dir = ImagePaths::wifiDir();
     for (const QFileInfo &fi : QDir(dir).entryInfoList(QStringList() << "*.jpg" << "*.jpeg" << "*.png" << "*.gif" << "*.bmp" << "*.webp",
                                                        QDir::Files, QDir::Time)) {
         auto *it = new QListWidgetItem(fi.fileName() + "  -  " + fi.lastModified().toString("yyyy-MM-dd HH:mm:ss"));
@@ -377,8 +377,7 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 return;
             }
 
-            const QString saveDir = qApp->applicationDirPath() + "/images_generees";
-            QDir().mkpath(saveDir);
+            const QString saveDir = ImagePaths::wifiDir();
 
             QStringList savedFiles;
             for (const MultipartPart &p : parts) {

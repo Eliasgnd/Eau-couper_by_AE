@@ -17,6 +17,7 @@
 #include "PageImagesGenerees.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
+#include "ImagePaths.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -999,13 +1000,9 @@ void MainWindow::generateAIImage(const QString &userPrompt,
             img.save(tempFile);
             qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
 
-            // Archive image to images_generées/ next to executable
-            const QString imagesDirPath = qApp->applicationDirPath()
-                                          + QDir::separator() + "images_generees";
+            // Archive image in global IA directory
+            const QString imagesDirPath = ImagePaths::iaDir();
             QDir imagesDir(imagesDirPath);
-            if (!imagesDir.exists()) {
-                QDir().mkpath(imagesDirPath);
-            }
             QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
             sanitized.remove(QRegularExpression("[\\p{Mn}]"));
             sanitized.replace(QRegularExpression("[^A-Za-z0-9]+"), "_");
