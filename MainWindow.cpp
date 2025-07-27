@@ -996,11 +996,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
                 return;
             }
 
-            QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
-            img.save(tempFile);
-            qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
-
-            // Archive image in global IA directory
+            // Archive image in global IA directory and use that path for further processing
             const QString imagesDirPath = ImagePaths::iaDir();
             QDir imagesDir(imagesDirPath);
             QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
@@ -1011,8 +1007,10 @@ void MainWindow::generateAIImage(const QString &userPrompt,
                 sanitized = "image";
             const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm");
             QString archiveFile = imagesDir.filePath(timestamp + '_' + sanitized + ".png");
-            img.save(archiveFile);
-            qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
+            if (!img.save(archiveFile))
+                qWarning() << "[AI] ❌ Impossible d'enregistrer l'image IA";
+            else
+                qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
 
             AIImageProcessDialog dlg(img);
             if (dlg.exec() != QDialog::Accepted) {
@@ -1028,7 +1026,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
                 color = true;
 
             ui->labelAIGenerationStatus->clear();
-            openImageInCustom(tempFile, internal, color);
+            openImageInCustom(archiveFile, internal, color);
         });
     });
 }
