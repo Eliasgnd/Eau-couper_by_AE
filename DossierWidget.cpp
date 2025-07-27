@@ -1,48 +1,109 @@
 #include "DossierWidget.h"
 #include "ui_DossierWidget.h"
+
 #include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ImagePaths.h"
 
 #include <QDir>
 #include <QDirIterator>
+#include <QScrollBar>
 #include <QLabel>
 #include <QPixmap>
 #include <QGridLayout>
 #include <QApplication>
 #include <QComboBox>
-#include <QScreen>
+#include <QLineEdit>
 #include <QToolButton>
 #include <QMenu>
 #include <QDialog>
 #include <QVBoxLayout>
-#include <QScrollBar>
-#include <QtGlobal>
+#include <QSlider>
+#include <QInputDialog>
+#include <QMessageBox>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QScreen>
 #include <QImageReader>
+#include <QtGlobal>
 
 DossierWidget::DossierWidget(Language lang, QWidget *parent)
-    : QWidget(parent), ui(new Ui::DossierWidget), m_lang(lang)
+    : QWidget(parent)
+    , ui(new Ui::DossierWidget)
+    , m_lang(lang)
 {
     ui->setupUi(this);
     ScreenUtils::placeOnSecondaryScreen(this);
 
-    connect(ui->buttonClose, &QPushButton::clicked, this, &DossierWidget::onCloseClicked);
+    // ===== BARRE OUTILS (ajout dynamique) =====
+    // On insère une barre juste après ton bouton "Close" (ou tout en haut si tu veux)
+    // Layout parent (main vertical)
+    auto *mainLay = qobject_cast<QVBoxLayout*>(layout());
+    if (mainLay) {
+        QWidget *toolBar = new QWidget(this);
+        QHBoxLayout *toolLay = new QHBoxLayout(toolBar);
+        toolLay->setContentsMargins(0,0,0,0);
+        toolLay->setSpacing(8);
 
-    if (ui->comboSort) {
-        ui->comboSort->addItem(tr("Récent → Ancien"));
-        ui->comboSort->addItem(tr("Ancien → Récent"));
-        connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, &DossierWidget::onSortChanged);
+        // Filtre source
+        m_sourceFilter = new QComboBox(toolBar);
+        m_sourceFilter->addItem(tr("Toutes les sources")); // 0
+        m_sourceFilter->addItem(tr("IA"));                 // 1
+        m_sourceFilter->addItem(tr("Wi‑Fi"));              // 2
+        m_sourceFilter->addItem(tr("Bluetooth"));          // 3
+        m_sourceFilter->addItem(tr("Autres"));             // 4
+        toolLay->addWidget(m_sourceFilter);
+        connect(m_sourceFilter, &QComboBox::currentIndexChanged,
+                this, &DossierWidget::onFilterChanged);
+
+        // Recherche
+        m_searchEdit = new QLineEdit(toolBar);
+        m_searchEdit->setPlaceholderText(tr("Rechercher..."));
+        toolLay->addWidget(m_searchEdit, 1);
+        connect(m_searchEdit, &QLineEdit::textChanged,
+                this, &DossierWidget::onSearchChanged);
+
+        // Tri (ui->comboSort existe déjà)
+        if (ui->comboSort) {
+            ui->comboSort->clear();
+            ui->comboSort->addItem(tr("Récent → Ancien"));
+            ui->comboSort->addItem(tr("Ancien → Récent"));
+            connect(ui->comboSort, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+                    this, &DossierWidget::onSortChanged);
+            toolLay->addWidget(ui->comboSort);
+        }
+
+        // Zoom slider
+        m_zoomSlider = new QSlider(Qt::Horizontal, toolBar);
+        m_zoomSlider->setRange(80, 260); // taille miniatures
+        m_zoomSlider->setValue(m_thumbSize);
+        m_zoomSlider->setToolTip(tr("Taille des vignettes"));
+        m_zoomSlider->setFixedWidth(160);
+        toolLay->addWidget(m_zoomSlider);
+        connect(m_zoomSlider, &QSlider::valueChanged,
+                this, &DossierWidget::onZoomChanged);
+
+        // Injecte la barre tout de suite après le bouton close
+        int idx = mainLay->indexOf(ui->buttonClose);
+        if (idx < 0) idx = 0;
+        mainLay->insertWidget(idx+1, toolBar);
     }
 
-    loadImages();
+    // ===== Connexions de base =====
+    connect(ui->buttonClose, &QPushButton::clicked, this, &DossierWidget::onCloseClicked);
 
-    connect(ui->scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value){
-        if (value == ui->scrollArea->verticalScrollBar()->maximum()) {
-            loadImages(); // Charger la page suivante
-        }
-    });
+    // Scroll infini
+    connect(ui->scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this,
+            [this](int value){
+                if (!m_loading &&
+                    value >= ui->scrollArea->verticalScrollBar()->maximum() - 5) {
+                    loadNextPage();
+                }
+            });
 
+    // ===== CHARGEMENT INITIAL =====
+    rebuildFileList();   // scan + filtre + tri
+    loadNextPage();      // première page
 }
 
 DossierWidget::~DossierWidget()
@@ -50,100 +111,125 @@ DossierWidget::~DossierWidget()
     delete ui;
 }
 
+/*---------------------------- UI -----------------------------*/
 void DossierWidget::onCloseClicked()
 {
-    this->close();
-    MainWindow::getInstance()->showFullScreen();
+    close();
+    if (auto mw = MainWindow::getInstance())
+        mw->showFullScreen();
 }
 
-void DossierWidget::loadImages()
+void DossierWidget::onSortChanged(int idx)
 {
-    // Chargement initial de tous les fichiers si nécessaire
-    if (m_allFiles.isEmpty()) {
-        const QString imagesDirPath = ImagePaths::rootDir();
-        QStringList filters;
-        filters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp";
-        QDirIterator it(imagesDirPath, filters, QDir::Files, QDirIterator::Subdirectories);
-        while (it.hasNext())
-            m_allFiles << QFileInfo(it.next());
+    m_newestFirst = (idx == 0);
+    rebuildFileList();
+    loadNextPage();
+}
 
-        std::sort(m_allFiles.begin(), m_allFiles.end(), [this](const QFileInfo &a, const QFileInfo &b){
-            return m_newestFirst ? a.lastModified() > b.lastModified() : a.lastModified() < b.lastModified();
-        });
+void DossierWidget::onFilterChanged(int idx)
+{
+    m_filterIndex = idx;
+    rebuildFileList();
+    loadNextPage();
+}
+
+void DossierWidget::onSearchChanged(const QString &txt)
+{
+    m_searchText = txt;
+    rebuildFileList();
+    loadNextPage();
+}
+
+void DossierWidget::onZoomChanged(int value)
+{
+    m_thumbSize = value;
+    // Re-bâtir juste l'affichage (pas de re-scan)
+    clearGrid();
+    m_currentPage = 0;
+    loadNextPage();
+}
+
+/*---------------------------- DATA -----------------------------*/
+void DossierWidget::rebuildFileList()
+{
+    // 1) Scanner (si pas déjà scanné ou si tri/filtre impose un re-scan)
+    // ici on rescannera toujours pour simpli. Tu peux garder un cache et check m_allFiles.empty() pour optimiser.
+    m_allFiles.clear();
+
+    const QString root = ImagePaths::rootDir();
+    QStringList filters{ "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp" };
+    QDirIterator it(root, filters, QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext())
+        m_allFiles << QFileInfo(it.next());
+
+    // 2) Filtre source + recherche
+    m_filteredFiles.clear();
+    m_filteredFiles.reserve(m_allFiles.size());
+
+    for (const QFileInfo &fi : m_allFiles) {
+        // filtre source
+        QString src = detectSource(fi.absoluteFilePath());
+        bool ok = true;
+        switch (m_filterIndex) {
+        case 1: ok = (src == "IA"); break;
+        case 2: ok = (src == "Wi‑Fi"); break;
+        case 3: ok = (src == "Bluetooth"); break;
+        case 4: ok = (src == "Autres"); break;
+        default: break; // Tous
+        }
+        if (!ok) continue;
+
+        // recherche
+        if (!m_searchText.isEmpty() &&
+            !fi.fileName().contains(m_searchText, Qt::CaseInsensitive))
+            continue;
+
+        m_filteredFiles << fi;
     }
 
-    int row = ui->gridLayout->rowCount();
-    int col = 0;
-    const int columns = 4;
+    // 3) Tri
+    std::sort(m_filteredFiles.begin(), m_filteredFiles.end(),
+              [this](const QFileInfo &a, const QFileInfo &b){
+                  return m_newestFirst
+                             ? a.lastModified() > b.lastModified()
+                             : a.lastModified() < b.lastModified();
+              });
+
+    // 4) Reset pagination & affichage
+    clearGrid();
+    m_currentPage = 0;
+}
+
+void DossierWidget::clearGrid()
+{
+    QLayoutItem *child;
+    while ((child = ui->gridLayout->takeAt(0)) != nullptr) {
+        if (child->widget()) child->widget()->deleteLater();
+        delete child;
+    }
+    ui->scrollArea->verticalScrollBar()->setValue(0);
+}
+
+void DossierWidget::loadNextPage()
+{
+    if (m_loading) return;
+    m_loading = true;
 
     int start = m_currentPage * m_pageSize;
-    int end = qMin(start + m_pageSize, m_allFiles.size());
+    if (start >= m_filteredFiles.size()) {
+        m_loading = false;
+        return;
+    }
+    int end = qMin(start + m_pageSize, m_filteredFiles.size());
+
+    // Position courante dans le grid
+    int row = ui->gridLayout->rowCount();
+    int col = 0;
+    const int columns = 4; // tu peux rendre dynamique selon la largeur
 
     for (int i = start; i < end; ++i) {
-        const QFileInfo &info = m_allFiles[i];
-        QWidget *frame = new QWidget;
-        frame->setFixedSize(170, 220);
-        frame->setStyleSheet("background:white; border:1px solid gray; border-radius:5px;");
-
-        auto *btnMenu = new QToolButton;
-        btnMenu->setText("\u22ee");
-        btnMenu->setStyleSheet("border:none; font-size:18px;");
-
-        QMenu *menu = new QMenu(btnMenu);
-        QAction *actView = menu->addAction(tr("Afficher"));
-        QAction *actReuse = menu->addAction(tr("Réutiliser"));
-        QAction *actDelete = menu->addAction(tr("Supprimer"));
-        btnMenu->setMenu(menu);
-        btnMenu->setPopupMode(QToolButton::InstantPopup);
-
-        QLabel *lbl = new QLabel;
-        lbl->setFixedSize(150, 150);
-        lbl->setAlignment(Qt::AlignCenter);
-        lbl->setStyleSheet("background:white;");
-        QImageReader reader(info.filePath());
-        reader.setScaledSize(lbl->size());
-        QPixmap pix = QPixmap::fromImage(reader.read());
-        lbl->setPixmap(pix);
-
-        QLabel *name = new QLabel(info.fileName());
-        name->setAlignment(Qt::AlignCenter);
-        name->setWordWrap(true);
-
-        QHBoxLayout *top = new QHBoxLayout;
-        top->addStretch();
-        top->addWidget(btnMenu);
-
-        QVBoxLayout *v = new QVBoxLayout(frame);
-        v->setContentsMargins(5, 5, 5, 5);
-        v->addLayout(top);
-        v->addWidget(lbl);
-        v->addWidget(name);
-
-        connect(actDelete, &QAction::triggered, this, [this, info]() {
-            QFile::remove(info.filePath());
-            m_allFiles.clear();
-            clearImages();
-            m_currentPage = 0;
-            loadImages();
-        });
-
-        connect(actReuse, &QAction::triggered, this, [info, this]() {
-            this->close();
-            MainWindow::getInstance()->openImageInCustom(info.filePath());
-        });
-
-        connect(actView, &QAction::triggered, this, [info, this]() {
-            QDialog dlg(this);
-            QVBoxLayout layout(&dlg);
-            QLabel lblBig;
-            QPixmap pix(info.filePath());
-            QSize maxSize = qApp->primaryScreen()->availableGeometry().size() * 0.9;
-            lblBig.setPixmap(pix.scaled(maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            layout.addWidget(&lblBig);
-            dlg.exec();
-        });
-
-        ui->gridLayout->addWidget(frame, row, col);
+        QWidget *card = buildCard(m_filteredFiles[i]);
+        ui->gridLayout->addWidget(card, row, col);
         if (++col >= columns) {
             col = 0;
             ++row;
@@ -151,34 +237,169 @@ void DossierWidget::loadImages()
     }
 
     m_currentPage++;
+    m_loading = false;
 }
 
+/*---------------------------- CARTE (vignette) -----------------------------*/
+QWidget* DossierWidget::buildCard(const QFileInfo &info)
+{
+    QWidget *frame = new QWidget;
+    frame->setFixedSize(m_thumbSize + 40, m_thumbSize + 70);
+    frame->setStyleSheet("background:white; border:1px solid #bdbdbd; border-radius:6px;");
+
+    // menu
+    auto *btnMenu = new QToolButton(frame);
+    btnMenu->setText("⋮");
+    btnMenu->setStyleSheet("border:none; font-size:18px;");
+    btnMenu->setCursor(Qt::PointingHandCursor);
+
+    QMenu *menu = new QMenu(btnMenu);
+    QAction *actView   = menu->addAction(tr("Afficher"));
+    QAction *actReuse  = menu->addAction(tr("Réutiliser"));
+    QAction *actRename = menu->addAction(tr("Renommer"));
+    QAction *actDelete = menu->addAction(tr("Supprimer"));
+    QAction *actOpenFs = menu->addAction(tr("Ouvrir dans le dossier"));
+
+    btnMenu->setMenu(menu);
+    btnMenu->setPopupMode(QToolButton::InstantPopup);
+
+    // vignette
+    QLabel *thumb = new QLabel(frame);
+    thumb->setFixedSize(m_thumbSize, m_thumbSize);
+    thumb->setAlignment(Qt::AlignCenter);
+    thumb->setStyleSheet("background:#fafafa;");
+
+    QImageReader reader(info.filePath());
+    reader.setScaledSize(QSize(m_thumbSize, m_thumbSize));
+    QPixmap pix = QPixmap::fromImage(reader.read());
+    thumb->setPixmap(pix);
+
+    // nom
+    QLabel *name = new QLabel(info.fileName(), frame);
+    name->setAlignment(Qt::AlignCenter);
+    name->setWordWrap(true);
+    name->setStyleSheet("font-size:9pt;");
+
+    // source tag
+    QString src = detectSource(info.absoluteFilePath());
+    QLabel *tag = new QLabel(src, frame);
+    tag->setAlignment(Qt::AlignCenter);
+    tag->setStyleSheet("background:#eeeeee; border-radius:8px; padding:2px 6px; font-size:8pt;");
+
+    // Layouts
+    QHBoxLayout *top = new QHBoxLayout;
+    top->setContentsMargins(0,0,0,0);
+    top->addWidget(tag);
+    top->addStretch();
+    top->addWidget(btnMenu);
+
+    QVBoxLayout *v = new QVBoxLayout(frame);
+    v->setContentsMargins(6,6,6,6);
+    v->setSpacing(4);
+    v->addLayout(top);
+    v->addWidget(thumb);
+    v->addWidget(name);
+
+    // Connections actions
+    connect(actDelete, &QAction::triggered, this, [this, info](){ deleteFile(info); });
+    connect(actRename, &QAction::triggered, this, [this, info](){ renameFile(info); });
+    connect(actReuse , &QAction::triggered, this, [this, info](){ reuseFile(info); });
+    connect(actView  , &QAction::triggered, this, [this, info](){ viewFile(info); });
+    connect(actOpenFs, &QAction::triggered, this, [this, info](){ openInExplorer(info); });
+
+    return frame;
+}
+
+/*---------------------------- ACTIONS -----------------------------*/
+void DossierWidget::renameFile(const QFileInfo &fi)
+{
+    bool ok = false;
+    QString newName = QInputDialog::getText(this, tr("Renommer"),
+                                            tr("Nouveau nom (sans chemin) :"),
+                                            QLineEdit::Normal, fi.fileName(), &ok);
+    if (!ok || newName.isEmpty()) return;
+
+    QString newPath = fi.absoluteDir().absoluteFilePath(newName);
+    if (QFile::exists(newPath)) {
+        QMessageBox::warning(this, tr("Erreur"), tr("Un fichier portant ce nom existe déjà."));
+        return;
+    }
+    if (QFile::rename(fi.filePath(), newPath)) {
+        rebuildFileList();
+        loadNextPage();
+    }
+}
+
+void DossierWidget::deleteFile(const QFileInfo &fi)
+{
+    if (QMessageBox::question(this, tr("Supprimer"),
+                              tr("Supprimer %1 ?").arg(fi.fileName()))
+        != QMessageBox::Yes)
+        return;
+
+    QFile::remove(fi.filePath());
+    rebuildFileList();
+    loadNextPage();
+}
+
+void DossierWidget::viewFile(const QFileInfo &fi)
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(fi.fileName());
+    QVBoxLayout layout(&dlg);
+    QLabel lblBig;
+    QPixmap pix(fi.filePath());
+    QSize maxSize = qApp->primaryScreen()->availableGeometry().size() * 0.9;
+    lblBig.setPixmap(pix.scaled(maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    layout.addWidget(&lblBig);
+    dlg.exec();
+}
+
+void DossierWidget::reuseFile(const QFileInfo &fi)
+{
+    close();
+    if (auto mw = MainWindow::getInstance())
+        mw->openImageInCustom(fi.filePath());
+}
+
+void DossierWidget::openInExplorer(const QFileInfo &fi)
+{
+    QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absoluteFilePath()));
+}
+
+/*---------------------------- UTIL -----------------------------*/
+QString DossierWidget::detectSource(const QString &absPath) const
+{
+    const QString p = absPath.toLower();
+    if (p.contains("/ai/") || p.contains("\\ai\\"))          return "IA";
+    if (p.contains("/wifi/") || p.contains("\\wifi\\"))      return "Wi‑Fi";
+    if (p.contains("/bluetooth/") || p.contains("\\bluetooth\\")) return "Bluetooth";
+    return "Autres";
+}
+
+/*---------------------------- QT events -----------------------------*/
 void DossierWidget::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
+        // remettre les textes des combos
         if (ui->comboSort) {
             ui->comboSort->clear();
             ui->comboSort->addItem(tr("Récent → Ancien"));
             ui->comboSort->addItem(tr("Ancien → Récent"));
         }
-        loadImages();
+        if (m_sourceFilter) {
+            m_sourceFilter->clear();
+            m_sourceFilter->addItem(tr("Toutes les sources"));
+            m_sourceFilter->addItem(tr("IA"));
+            m_sourceFilter->addItem(tr("Wi‑Fi"));
+            m_sourceFilter->addItem(tr("Bluetooth"));
+            m_sourceFilter->addItem(tr("Autres"));
+        }
+        if (m_searchEdit)
+            m_searchEdit->setPlaceholderText(tr("Rechercher..."));
+        rebuildFileList();
+        loadNextPage();
     }
     QWidget::changeEvent(event);
-}
-
-void DossierWidget::onSortChanged(int index)
-{
-    m_newestFirst = (index == 0);
-    loadImages();
-}
-
-void DossierWidget::clearImages()
-{
-    QLayoutItem *child;
-    while ((child = ui->gridLayout->takeAt(0)) != nullptr) {
-        if (child->widget())
-            delete child->widget();
-        delete child;
-    }
 }
