@@ -44,7 +44,8 @@ HEADERS += \
     AIImageProcessDialog.h\
     BluetoothReceiverDialog.h\
     WifiTransferWidget.h \
-    qrcodegen.hpp
+    qrcodegen.hpp \
+    ImagePaths.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \

@@ -2,8 +2,10 @@
 #include "ui_PageImagesGenerees.h"
 #include "MainWindow.h"
 #include "ScreenUtils.h"
+#include "ImagePaths.h"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QLabel>
 #include <QPixmap>
 #include <QGridLayout>
@@ -58,11 +60,12 @@ void PageImagesGenerees::loadImages()
 {
     // Chargement initial de tous les fichiers si nécessaire
     if (m_allFiles.isEmpty()) {
-        const QString imagesDirPath = qApp->applicationDirPath() + QDir::separator() + QString::fromUtf8("images_generees");
-        QDir dir(imagesDirPath);
+        const QString imagesDirPath = ImagePaths::rootDir();
         QStringList filters;
         filters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp";
-        m_allFiles = dir.entryInfoList(filters, QDir::Files);
+        QDirIterator it(imagesDirPath, filters, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext())
+            m_allFiles << QFileInfo(it.next());
 
         std::sort(m_allFiles.begin(), m_allFiles.end(), [this](const QFileInfo &a, const QFileInfo &b){
             return m_newestFirst ? a.lastModified() > b.lastModified() : a.lastModified() < b.lastModified();
