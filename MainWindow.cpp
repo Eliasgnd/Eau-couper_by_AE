@@ -14,7 +14,7 @@
 #include "Language.h"
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
-#include "PageImagesGenerees.h"
+#include "DossierWidget.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
 #include "ImagePaths.h"
@@ -135,7 +135,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
     // "Images générées" should open the gallery of generated images
-    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
+    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showDossier);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     // Small button with the download icon opens the GPIO test page
@@ -392,10 +392,10 @@ void MainWindow::openWifiTransfer() {
     w->showFullScreen();
 }
 
-void MainWindow::showGeneratedImages()
+void MainWindow::showDossier()
 {
     this->hide();
-    PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    DossierWidget *page = new DossierWidget(currentLanguage);
     page->showFullScreen();
 }
 
