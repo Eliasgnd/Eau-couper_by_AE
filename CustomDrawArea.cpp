@@ -700,9 +700,10 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 }
             }
 
-
             if (hitShape >= 0) {
                 m_lastSelectClick = pos;
+                bool wasFirst = !m_selectedShapes.isEmpty() &&
+                                m_selectedShapes.first() == hitShape;
                 if (m_selectedShapes.contains(hitShape))
                     m_selectedShapes.removeAll(hitShape);
                 else
@@ -718,12 +719,14 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     emit shapeSelection(false);
                 } else if (!m_connectSelectionMode) {
                     emit multiSelectionModeChanged(true);
-                    updateRotationHandle();
+                    if (wasFirst || m_selectedShapes.size() == 1)
+                        updateRotationHandle();
                 }
                 update();
             }
         return;
-        }
+    }
+
 
     //qDebug() << "mousePressEvent: Pos" << pos;
 
