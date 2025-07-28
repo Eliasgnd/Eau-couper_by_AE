@@ -1636,7 +1636,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
-        m_rotationCenter = center;
+        if (!m_rotating)
+            m_rotationCenter = center;
 
         // Recalculer la position du handle à distance constante
         qreal totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
