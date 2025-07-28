@@ -722,9 +722,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 }
                 update();
             }
-        }
         return;
-    }
+        }
 
     //qDebug() << "mousePressEvent: Pos" << pos;
 
