@@ -307,6 +307,26 @@ QPainterPath CustomDrawArea::combineSegments(const QList<QPainterPath> &segments
     return combined;
 }
 
+void CustomDrawArea::updateRotationHandle()
+{
+    if (m_selectedShapes.isEmpty())
+        return;
+
+    int idx = m_selectedShapes.first();
+    if (idx < 0 || idx >= m_shapes.size())
+        return;
+
+    QRectF bounds = m_shapes[idx].path.boundingRect();
+    QPointF center = bounds.center();
+    m_rotationCenter = center;
+
+    m_rotationHandle = QPointF(center.x(), bounds.top() - 20);
+    QPointF delta = m_rotationHandle - center;
+    m_rotationHandlePos.radius = std::hypot(delta.x(), delta.y());
+    m_rotationHandlePos.angleOffset = std::atan2(delta.y(), delta.x()) -
+                                      m_shapes[idx].rotationAngle;
+}
+
 
 void CustomDrawArea::setSmoothingLevel(int level)
 {
@@ -698,21 +718,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                     emit shapeSelection(false);
                 } else if (!m_connectSelectionMode) {
                     emit multiSelectionModeChanged(true);
-                // === Correction : vérifier que m_selectedShapes n'est pas vide ===
-                if (!m_selectedShapes.isEmpty()) {
-                    int idx = m_selectedShapes.first();
-                    if (idx >= 0 && idx < m_shapes.size()) {
-                        QRectF bounds = m_shapes[idx].path.boundingRect();
-                        QPointF center = bounds.center();
-                        m_rotationCenter = center;
-
-                        // Position handle au-dessus de la forme, sans rotation
-                        m_rotationHandle = QPointF(center.x(), bounds.top() - 20);
-
-                        QPointF delta = m_rotationHandle - center;
-                        m_rotationHandlePos.radius = std::hypot(delta.x(), delta.y());
-                        m_rotationHandlePos.angleOffset = std::atan2(delta.y(), delta.x()) - m_shapes[idx].rotationAngle;
-                    }
+                    updateRotationHandle();
                 }
                 update();
             }
@@ -1849,6 +1855,7 @@ void CustomDrawArea::startShapeSelection()
     m_selectMode = true;
     m_connectSelectionMode = true;
     m_selectedShapes.clear();
+    updateRotationHandle();
     emit shapeSelection(true);
     update();
 }
@@ -1864,6 +1871,7 @@ void CustomDrawArea::cancelSelection()
         else
             emit multiSelectionModeChanged(false);
         m_connectSelectionMode = false;
+        updateRotationHandle();
         update();
     }
 }
@@ -1880,6 +1888,7 @@ void CustomDrawArea::toggleMultiSelectMode()
         m_selectMode = true;
         m_connectSelectionMode = false;
         m_selectedShapes.clear();
+        updateRotationHandle();
         emit multiSelectionModeChanged(true);
     } else if (!m_connectSelectionMode) {
         cancelSelection();
@@ -1900,6 +1909,7 @@ void CustomDrawArea::deleteSelectedShapes()
             m_shapes.removeAt(idx);
     }
     m_selectedShapes.clear();
+    updateRotationHandle();
     updateCanvas();
     update();
     emit multiSelectionModeChanged(false);

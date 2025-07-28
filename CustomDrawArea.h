@@ -203,6 +203,9 @@ private:
     // Fusion de plusieurs QPainterPath en un seul
     QPainterPath combineSegments(const QList<QPainterPath> &segments);
 
+    // Recalculates the rotation handle when the selection changes
+    void updateRotationHandle();
+
     bool   m_selectMode      = false;        // vrai si une sélection est active
     bool   m_connectSelectionMode = false;   // sélection utilisée pour la fonction "Relier"
     QVector<int> m_selectedShapes;            // indices des formes sélectionnées
