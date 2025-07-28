@@ -982,7 +982,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
-    QPointF pos = (event->pos() - m_offset) / m_scale;
+    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
 
     if (m_rotating && !m_selectedShapes.isEmpty()) {
         qreal currentAngle = std::atan2(pos.y() - m_rotationCenter.y(), pos.x() - m_rotationCenter.x());
@@ -1016,7 +1016,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     if (m_twoFingersOn)
         return;
 
-    pos = (event->pos() - m_offset) / m_scale;
+//    pos = (event->pos() - m_offset) / m_scale;    <--- Pose problème pour SnapGrid
 
     switch (m_drawMode)
     {
@@ -2155,15 +2155,19 @@ void CustomDrawArea::setTwoFingersOn(bool active)
     }
 }
 
-QPointF CustomDrawArea::snapIfNeeded(const QPointF &p) const
-{
-    if (!m_snapToGrid) return p;
+QPointF CustomDrawArea::snapIfNeeded(const QPointF &p) const {
+    if (!m_snapToGrid) {
+        qDebug() << "[snapIfNeeded] Snap désactivé.";
+        return p;
+    }
 
+    qDebug() << "[snapIfNeeded] Snap activé pour" << p;
     auto roundTo = [this](qreal v){
         return std::round(v / m_gridSpacing) * m_gridSpacing;
     };
     return { roundTo(p.x()), roundTo(p.y()) };
 }
+
 
 void CustomDrawArea::setGridSpacing(int px)
 {

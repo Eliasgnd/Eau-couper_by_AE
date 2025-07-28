@@ -160,16 +160,23 @@ custom::custom(Language lang, QWidget *parent)
         //qDebug() << "Mode Gomme sélectionné";
     });
 
+    // Configuration du slider de lissage
     ui->smoothingSlider->setMinimum(0);
     ui->smoothingSlider->setMaximum(10);
     ui->smoothingSlider->setSingleStep(1);
     ui->smoothingSlider->setPageStep(1);
     ui->smoothingSlider->setTickInterval(1);
     ui->smoothingSlider->setTickPosition(QSlider::TicksBelow);
+    ui->smoothingSlider->setValue(0);  // ← important : on force la valeur visible
+
+    // Appliquer immédiatement le niveau de lissage réel
+    drawArea->setSmoothingLevel(0);    // ← synchronise le modèle avec la vue
     ui->labelSmoothingValue->setText("Puissance du lissage : 0%");
 
-    // Ensuite seulement tu connectes :
-    connect(ui->smoothingSlider, &QSlider::valueChanged, drawArea, &CustomDrawArea::setSmoothingLevel);
+    // Ensuite seulement tu connectes les signaux
+    connect(ui->smoothingSlider, &QSlider::valueChanged,
+            drawArea, &CustomDrawArea::setSmoothingLevel);
+
     connect(ui->smoothingSlider, &QSlider::valueChanged, this, [=](int value){
         int percent = static_cast<int>(std::round(100.0 * value / 10.0));
         ui->labelSmoothingValue->setText(QString("Puissance du lissage : %1%").arg(percent));
