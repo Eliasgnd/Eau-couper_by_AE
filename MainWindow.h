@@ -49,6 +49,7 @@ private slots:
     void showCustom();
     void openTestGpio();
     void on_receptionFichierButton_clicked();
+    void openWifiTransfer();
     void applyCustomShape(QList<QPolygonF>);
     void resetDrawing();
 

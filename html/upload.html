@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transfert d'images</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --fg:#222; --accent:#4caf50; --accent-dark:#3e8f42;
+      --danger:#d32f2f; --radius:14px; --shadow:0 8px 18px rgba(0,0,0,.08);
+      --maxw:520px; font-size:16px;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{--bg:#121212;--fg:#eee;--shadow:0 8px 18px rgba(0,0,0,.6);}
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;
+      min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    }
+    .card{
+      width:100%;max-width:var(--maxw);background:var(--bg);
+      border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px 32px;
+    }
+    h1{text-align:center;margin-bottom:12px;font-size:1.3rem;}
+    p.subtitle{text-align:center;opacity:.7;margin-bottom:24px;font-size:.9rem;}
+    #dropzone{
+      border:2px dashed var(--accent);border-radius:var(--radius);
+      padding:32px 16px;text-align:center;cursor:pointer;transition:.2s;
+      background:rgba(76,175,80,.05);
+    }
+    #dropzone.dragover{background:rgba(76,175,80,.12);}
+    #dropzone input{display:none;}
+    #preview{margin-top:18px;display:flex;flex-direction:column;gap:16px;}
+    .file-box{
+      border:1px solid #ccc;padding:10px;border-radius:8px;box-shadow:var(--shadow);
+    }
+    .file-name{font-size:.9rem;margin-bottom:6px;word-break:break-all;}
+    .file-thumb{max-width:100%;border-radius:8px;box-shadow:var(--shadow);}
+    .overall{
+      margin-top:18px;display:none;flex-direction:column;gap:6px;
+    }
+    progress{
+      width:100%;height:16px;appearance:none;border:none;border-radius:8px;
+      overflow:hidden;background:#ddd;
+    }
+    progress::-webkit-progress-bar{background:#ddd;}
+    progress::-webkit-progress-value{background:var(--accent);}
+    progress::-moz-progress-bar{background:var(--accent);}
+    .status{font-size:.85rem;min-height:1.1em;}
+    .status.success{color:var(--accent-dark);}
+    .status.error{color:var(--danger);}
+    button{
+      margin-top:18px;width:100%;padding:12px;border:none;border-radius:var(--radius);
+      background:var(--accent);color:#fff;font-size:1rem;cursor:pointer;transition:.15s;
+    }
+    button:hover{background:var(--accent-dark);}
+    .actions{margin-top:16px;text-align:center;}
+    .link-btn{
+      background:none;border:none;color:var(--accent-dark);
+      cursor:pointer;text-decoration:underline;font-size:.85rem;padding:0;
+    }
+    footer{text-align:center;margin-top:28px;font-size:.7rem;opacity:.55;}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Envoyer des images</h1>
+    <p class="subtitle">Sélectionne ou glisse plusieurs photos</p>
+
+    <div id="dropzone">
+      <input type="file" id="fileInput" accept="image/*" multiple />
+      <span id="dzText">Clique ou dépose tes images ici</span>
+    </div>
+
+    <div id="preview"></div>
+
+    <button id="sendBtn" disabled>Envoyer</button>
+
+    <div class="overall" id="overallWrap">
+      <progress id="overallBar" value="0" max="100"></progress>
+      <div class="status" id="overallStatus"></div>
+    </div>
+
+    <div class="actions">
+      <button class="link-btn" id="againBtn" style="display:none;">Envoyer d'autres images</button>
+    </div>
+
+    <footer>© Transfert local – aucune donnée n'est envoyée sur Internet.</footer>
+  </main>
+
+  <script>
+  (function(){
+    const dz = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const sendBtn = document.getElementById('sendBtn');
+    const againBtn = document.getElementById('againBtn');
+    const overallWrap = document.getElementById('overallWrap');
+    const overallBar = document.getElementById('overallBar');
+    const overallStatus = document.getElementById('overallStatus');
+
+    let files = [];
+
+    function resetUI(){
+      preview.innerHTML = '';
+      files = [];
+      sendBtn.disabled = true;
+      overallWrap.style.display = 'none';
+      overallBar.value = 0;
+      overallStatus.textContent = '';
+      overallStatus.className = 'status';
+      againBtn.style.display = 'none';
+    }
+
+    function addFile(file){
+      const box = document.createElement('div');
+      box.className = 'file-box';
+
+      const name = document.createElement('div');
+      name.className = 'file-name';
+      name.textContent = file.name + ' (' + Math.round(file.size/1024) + ' Ko)';
+
+      const img = document.createElement('img');
+      img.className = 'file-thumb';
+      img.src = URL.createObjectURL(file);
+
+      box.appendChild(name);
+      box.appendChild(img);
+      preview.appendChild(box);
+    }
+
+    function handleFiles(list){
+      resetUI();
+      for(const f of list){
+        if(f.type.startsWith('image/')) {
+          files.push(f);
+          addFile(f);
+        }
+      }
+      if(files.length) sendBtn.disabled = false;
+    }
+
+    // Dropzone events
+    dz.addEventListener('click', () => fileInput.click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('dragover');
+      if(e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+    // Send
+    sendBtn.addEventListener('click', () => {
+      if(!files.length) return;
+
+      overallWrap.style.display = 'flex';
+      overallStatus.textContent = 'Envoi en cours...';
+
+      const form = new FormData();
+      files.forEach((f, i) => form.append('files[]', f, f.name));
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/upload', true); // multipart/form-data automatique
+
+      xhr.upload.onprogress = e => {
+        if(e.lengthComputable){
+          const percent = Math.round((e.loaded / e.total) * 100);
+          overallBar.value = percent;
+          overallStatus.textContent = `Envoi ${percent}% (${e.loaded} / ${e.total} octets)`;
+        }
+      };
+
+      xhr.onload = () => {
+        if(xhr.status === 200){
+          overallBar.value = 100;
+          overallStatus.textContent = 'Images bien envoyées ✅';
+          overallStatus.classList.add('success');
+          againBtn.style.display = 'inline';
+        }else{
+          overallStatus.textContent = 'Erreur serveur (' + xhr.status + ')';
+          overallStatus.classList.add('error');
+        }
+      };
+
+      xhr.onerror = () => {
+        overallStatus.textContent = 'Erreur réseau';
+        overallStatus.classList.add('error');
+      };
+
+      xhr.send(form);
+    });
+
+    againBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      resetUI();
+    });
+  })();
+  </script>
+</body>
+</html>
