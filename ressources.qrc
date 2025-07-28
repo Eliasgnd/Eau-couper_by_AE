@@ -38,5 +38,6 @@
         <file>icons/star.svg</file>
         <file>icons/stop.svg</file>
         <file>icons/triangle.svg</file>
+        <file>icons/add_folder.svg</file>
     </qresource>
 </RCC>

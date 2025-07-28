@@ -292,7 +292,8 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
     auto *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
-    frame->setAttribute(Qt::WA_TransparentForMouseEvents);
+    //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
+
 
     auto *label = new QLabel(data.name);
     label->setAlignment(Qt::AlignCenter);
@@ -985,7 +986,7 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
     auto *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
-    frame->setAttribute(Qt::WA_TransparentForMouseEvents);
+    //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
 
     auto *label = new QLabel(name);
     label->setAlignment(Qt::AlignCenter);
@@ -1114,7 +1115,8 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
     QFrame *frame = new QFrame();
     frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
     frame->setFixedSize(150, 220);
-    frame->setAttribute(Qt::WA_TransparentForMouseEvents);
+    //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
+
 
     QVBoxLayout *mainLayout = new QVBoxLayout(frame);
    // mainLayout->setContentsMargins(5, 5, 5, 5);

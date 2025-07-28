@@ -63,6 +63,7 @@ SOURCES += \
     qrcodegen.cpp
 
 FORMS += \
+    BluetoothReceiverDialog.ui \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
     WifiTransferWidget.ui
 
