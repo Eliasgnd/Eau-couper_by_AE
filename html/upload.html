@@ -33,10 +33,38 @@
     #dropzone input{display:none;}
     #preview{margin-top:18px;display:flex;flex-direction:column;gap:16px;}
     .file-box{
+      position:relative;
       border:1px solid #ccc;padding:10px;border-radius:8px;box-shadow:var(--shadow);
     }
     .file-name{font-size:.9rem;margin-bottom:6px;word-break:break-all;}
     .file-thumb{max-width:100%;border-radius:8px;box-shadow:var(--shadow);}
+    .remove-btn{
+      position:absolute;
+      top:6px;
+      right:6px;
+      width:24px;
+      height:24px;
+      border:none;
+      border-radius:50%;
+      background:var(--danger);
+      color:#fff;
+      font-size:1rem;
+      line-height:24px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .remove-btn:hover{background:#b71c1c;}
+    .clear-all-btn{
+      margin-top:8px;
+      background:none;
+      border:none;
+      color:var(--danger);
+      font-size:0.85rem;
+      text-decoration:underline;
+      cursor:pointer;
+    }
     .overall{
       margin-top:18px;display:none;flex-direction:column;gap:6px;
     }
@@ -66,7 +94,10 @@
 <body>
   <main class="card">
     <h1>Envoyer des images</h1>
-    <p class="subtitle">Sélectionne ou glisse plusieurs photos</p>
+    <p class="subtitle">
+      Sélectionne ou glisse plusieurs photos<br>
+      <strong>Limites :</strong> 20 Mo <em>par image</em>, 200 Mo <em>au total</em>
+    </p>
 
     <div id="dropzone">
       <input type="file" id="fileInput" accept="image/*" multiple />
@@ -74,6 +105,8 @@
     </div>
 
     <div id="preview"></div>
+    <button class="clear-all-btn" id="clearAllBtn" style="display:none;">Tout supprimer</button>
+    <div id="totalSize" style="margin-top:12px; font-size:0.85rem; opacity:0.85;"></div>
 
     <button id="sendBtn" disabled>Envoyer</button>
 
@@ -86,7 +119,10 @@
       <button class="link-btn" id="againBtn" style="display:none;">Envoyer d'autres images</button>
     </div>
 
-    <footer>© Transfert local – aucune donnée n'est envoyée sur Internet.</footer>
+    <footer>
+      © Transfert local – aucune donnée n'est envoyée sur Internet.<br>
+      Limite : 20 Mo par image, 200 Mo maximum en une fois.
+    </footer>
   </main>
 
   <script>
@@ -99,11 +135,14 @@
     const overallWrap = document.getElementById('overallWrap');
     const overallBar = document.getElementById('overallBar');
     const overallStatus = document.getElementById('overallStatus');
+    const totalSizeDisplay = document.getElementById('totalSize');
+    const clearAllBtn = document.getElementById('clearAllBtn');
 
     let files = [];
 
     function resetUI(){
       preview.innerHTML = '';
+      totalSizeDisplay.textContent = '';
       files = [];
       sendBtn.disabled = true;
       overallWrap.style.display = 'none';
@@ -111,6 +150,7 @@
       overallStatus.textContent = '';
       overallStatus.className = 'status';
       againBtn.style.display = 'none';
+      clearAllBtn.style.display = 'none';
     }
 
     function addFile(file){
@@ -119,12 +159,31 @@
 
       const name = document.createElement('div');
       name.className = 'file-name';
-      name.textContent = file.name + ' (' + Math.round(file.size/1024) + ' Ko)';
+      let sizeText = file.size < 1024 * 1024
+        ? (file.size / 1024).toFixed(1) + ' Ko'
+        : (file.size / (1024 * 1024)).toFixed(2) + ' Mo';
+      name.textContent = `${file.name} (${sizeText})`;
 
       const img = document.createElement('img');
       img.className = 'file-thumb';
       img.src = URL.createObjectURL(file);
 
+      const remove = document.createElement('button');
+      remove.className = 'remove-btn';
+      remove.textContent = '×';
+
+      remove.addEventListener('click', () => {
+        const idx = files.indexOf(file);
+        if (idx !== -1) {
+          files.splice(idx, 1);
+          preview.removeChild(box);
+          URL.revokeObjectURL(img.src);
+          if (!files.length) sendBtn.disabled = true;
+          updateTotalSize();
+        }
+      });
+
+      box.appendChild(remove);
       box.appendChild(name);
       box.appendChild(img);
       preview.appendChild(box);
@@ -132,16 +191,48 @@
 
     function handleFiles(list){
       resetUI();
+      const MAX_MB = 20;
+      const MAX_BYTES = MAX_MB * 1024 * 1024;
+      let hasValidFile = false;
+
       for(const f of list){
         if(f.type.startsWith('image/')) {
+          if (f.size > MAX_BYTES) {
+            const sizeMo = (f.size / (1024 * 1024)).toFixed(2);
+            showError(`❌ L’image "${f.name}" fait ${sizeMo} Mo — elle dépasse la limite de ${MAX_MB} Mo et a été ignorée.`);
+            continue;
+          }
           files.push(f);
           addFile(f);
+          hasValidFile = true;
         }
       }
-      if(files.length) sendBtn.disabled = false;
+
+      sendBtn.disabled = !hasValidFile;
+      if (files.length) clearAllBtn.style.display = 'inline';
+      updateTotalSize();
     }
 
-    // Dropzone events
+    function updateTotalSize() {
+      const MAX_TOTAL_BYTES = 200 * 1024 * 1024;
+      const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
+      let display = totalBytes < 1024 * 1024
+        ? (totalBytes / 1024).toFixed(1) + ' Ko'
+        : (totalBytes / (1024 * 1024)).toFixed(2) + ' Mo';
+      totalSizeDisplay.textContent = `Taille totale sélectionnée : ${display}`;
+      const boxes = preview.querySelectorAll('.file-box');
+      boxes.forEach(box => box.style.opacity = totalBytes > MAX_TOTAL_BYTES ? 0.4 : 1);
+      if (totalBytes > MAX_TOTAL_BYTES) {
+        showError(`❌ La taille totale dépasse 200 Mo. Supprime une ou plusieurs images.`);
+        sendBtn.disabled = true;
+      }
+    }
+
+    clearAllBtn.addEventListener('click', () => {
+      resetUI();
+      fileInput.value = '';
+    });
+
     dz.addEventListener('click', () => fileInput.click());
     dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
@@ -151,24 +242,26 @@
     });
     fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
-    // Send
     sendBtn.addEventListener('click', () => {
       if(!files.length) return;
-
       overallWrap.style.display = 'flex';
       overallStatus.textContent = 'Envoi en cours...';
-
       const form = new FormData();
       files.forEach((f, i) => form.append('files[]', f, f.name));
-
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/upload', true); // multipart/form-data automatique
+      xhr.open('POST', '/upload', true);
 
       xhr.upload.onprogress = e => {
-        if(e.lengthComputable){
+        if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
           overallBar.value = percent;
-          overallStatus.textContent = `Envoi ${percent}% (${e.loaded} / ${e.total} octets)`;
+          const loadedDisplay = e.total < 1024 * 1024
+            ? (e.loaded / 1024).toFixed(1) + ' Ko'
+            : (e.loaded / (1024 * 1024)).toFixed(2) + ' Mo';
+          const totalDisplay = e.total < 1024 * 1024
+            ? (e.total / 1024).toFixed(1) + ' Ko'
+            : (e.total / (1024 * 1024)).toFixed(2) + ' Mo';
+          overallStatus.textContent = `Envoi ${percent}% (${loadedDisplay} / ${totalDisplay})`;
         }
       };
 
@@ -178,8 +271,8 @@
           overallStatus.textContent = 'Images bien envoyées ✅';
           overallStatus.classList.add('success');
           againBtn.style.display = 'inline';
-        }else{
-          overallStatus.textContent = 'Erreur serveur (' + xhr.status + ')';
+        } else {
+          overallStatus.textContent = 'Erreur serveur : taille maximale dépassée (200 Mo ?)';
           overallStatus.classList.add('error');
         }
       };
@@ -195,6 +288,29 @@
     againBtn.addEventListener('click', () => {
       fileInput.value = '';
       resetUI();
+    });
+
+    function showError(message){
+      const oldErrors = preview.querySelectorAll('.error-box');
+      oldErrors.forEach(el => el.remove());
+      const div = document.createElement('div');
+      div.className = 'error-box';
+      div.style.background = '#ffd2d2';
+      div.style.color = '#900';
+      div.style.padding = '10px';
+      div.style.marginTop = '12px';
+      div.style.border = '1px solid #f99';
+      div.style.borderRadius = '8px';
+      div.style.fontSize = '0.85rem';
+      div.textContent = message;
+      preview.appendChild(div);
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+      if (!sendBtn.disabled) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     });
   })();
   </script>

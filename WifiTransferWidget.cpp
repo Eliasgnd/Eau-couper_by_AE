@@ -312,7 +312,8 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 if (mLen.hasMatch())
                     ctx->contentLength = mLen.captured(1).toLongLong();
 
-                if (ctx->contentLength <= 0 || ctx->contentLength > MAX_UPLOAD_BYTES) {
+                const qint64 maxTotalUpload = 200 * 1024 * 1024; // 200 Mo max total
+                if (ctx->contentLength <= 0 || ctx->contentLength > maxTotalUpload) {
                     client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nTaille invalide (>20Mo?)");
                     client->flush();
                     client->disconnectFromHost();
@@ -370,6 +371,16 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
 
             // ---- Parse multipart ----
             QList<MultipartPart> parts = parseMultipartFormData(ctx->body, ctx->boundary);
+            const qint64 maxPerFile = 20 * 1024 * 1024;  // 20 Mo
+            for (const MultipartPart &p : parts) {
+                if (p.data.size() > maxPerFile) {
+                    client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nUn fichier dépasse la limite de 20 Mo.");
+                    client->flush();
+                    client->disconnectFromHost();
+                    return;
+                }
+            }
+
             if (parts.isEmpty()) {
                 client->write("HTTP/1.1 400 Bad Request\r\n\r\nAucune image valide");
                 client->flush();
@@ -387,8 +398,28 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 if (!isAllowedExt(ext))
                     continue;
 
-                QString path = saveDir + '/' +
-                               QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_") + safe;
+                QString baseName = QFileInfo(safe).completeBaseName();
+                QString suffix   = QFileInfo(safe).suffix();
+                QString path     = saveDir + '/' + safe;
+
+                if (QFile::exists(path)) {
+                    QMessageBox::StandardButton reply = QMessageBox::question(
+                        this,
+                        tr("Fichier déjà présent"),
+                        tr("Le fichier \"%1\" existe déjà.\nSouhaitez-vous l'écraser ?").arg(safe),
+                        QMessageBox::Yes | QMessageBox::No,
+                        QMessageBox::No
+                    );
+
+                    if (reply == QMessageBox::No) {
+                        int counter = 1;
+                        QString newName;
+                        do {
+                            newName = QString("%1 (%2).%3").arg(baseName).arg(counter++).arg(suffix);
+                            path = saveDir + '/' + newName;
+                        } while (QFile::exists(path));
+                    }
+                }
 
                 QFile out(path);
                 if (!out.open(QIODevice::WriteOnly)) continue;
