@@ -1010,6 +1010,13 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     if (m_rotating && !m_selectedShapes.isEmpty()) {
         qreal currentAngle = std::atan2(pos.y() - m_rotationCenter.y(), pos.x() - m_rotationCenter.x());
         qreal deltaAngle = currentAngle - m_lastAngle;
+        // Normalise l'angle pour éviter des sauts de ±2π lorsque la souris
+        // traverse l'axe horizontal, ce qui provoquait des translations
+        // parasites de la forme lors d'une rotation.
+        while (deltaAngle > M_PI)
+            deltaAngle -= 2 * M_PI;
+        while (deltaAngle < -M_PI)
+            deltaAngle += 2 * M_PI;
 
         QTransform rotation;
         rotation.translate(m_rotationCenter.x(), m_rotationCenter.y());
