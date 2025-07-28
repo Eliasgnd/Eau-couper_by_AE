@@ -597,7 +597,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
-        m_rotationCenter = center;
+        if (!m_rotating)
+            m_rotationCenter = center;
 
         // Recalculer la position du handle avant de tester la distance
         qreal totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
@@ -1584,7 +1585,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
-        m_rotationCenter = center;
+        if (!m_rotating)
+            m_rotationCenter = center;
 
         // Position initiale du handle avant rotation (au-dessus)
         QPointF unrotatedHandle(center.x(), bounds.top() - 20);
