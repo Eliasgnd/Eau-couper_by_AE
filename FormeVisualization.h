@@ -113,6 +113,9 @@ private:
     bool m_optimizationRunning = false;
     bool m_cancelOptimization = false;
 
+    QPointF m_rotationPivot;
+    bool m_rotationPivotValid {false};
+
 
 
 };

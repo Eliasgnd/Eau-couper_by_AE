@@ -596,7 +596,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
-        m_rotationCenter = center;
+        if (!m_rotating)
+            m_rotationCenter = center;
 
         // Recalculer la position du handle avant de tester la distance
         qreal totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
@@ -604,6 +605,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                        std::sin(totalAngle) * m_rotationHandlePos.radius);
         m_rotationHandle = center + offset;
     }
+
 
     // Maintenant tester la distance
     if (!m_selectedShapes.isEmpty() &&
@@ -1008,6 +1010,13 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     if (m_rotating && !m_selectedShapes.isEmpty()) {
         qreal currentAngle = std::atan2(pos.y() - m_rotationCenter.y(), pos.x() - m_rotationCenter.x());
         qreal deltaAngle = currentAngle - m_lastAngle;
+        // Normalise l'angle pour éviter des sauts de ±2π lorsque la souris
+        // traverse l'axe horizontal, ce qui provoquait des translations
+        // parasites de la forme lors d'une rotation.
+        while (deltaAngle > M_PI)
+            deltaAngle -= 2 * M_PI;
+        while (deltaAngle < -M_PI)
+            deltaAngle += 2 * M_PI;
 
         QTransform rotation;
         rotation.translate(m_rotationCenter.x(), m_rotationCenter.y());
@@ -1035,7 +1044,6 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         m_lastAngle = currentAngle;
         return;
     }
-
 
     if (m_twoFingersOn)
         return;
@@ -1580,6 +1588,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
 
 
+<<<<<<< HEAD
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
@@ -1596,6 +1605,25 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         m_rotationHandle = handleRotation.map(unrotatedHandle);
     }
+=======
+    if (!m_selectedShapes.isEmpty()) {
+        QRectF bounds = selectedShapesBounds();
+        QPointF center = bounds.center();
+        if (!m_rotating)
+            m_rotationCenter = center;
+
+        // Position initiale du handle avant rotation (au-dessus)
+        QPointF unrotatedHandle(center.x(), bounds.top() - 20);
+
+        // Appliquer la rotation cumulée du groupe
+        QTransform handleRotation;
+        handleRotation.translate(center.x(), center.y());
+        handleRotation.rotateRadians(m_groupRotationAngle);
+        handleRotation.translate(-center.x(), -center.y());
+
+        m_rotationHandle = handleRotation.map(unrotatedHandle);
+    }
+>>>>>>> rotate_shape
 
 
 
@@ -1626,7 +1654,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
-        m_rotationCenter = center;
+        if (!m_rotating)
+            m_rotationCenter = center;
 
         // Recalculer la position du handle à distance constante
         qreal totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
