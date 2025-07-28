@@ -1,14 +1,13 @@
-QT += core gui widgets svg network bluetooth
-QT += httpserver
+QT += core gui widgets svg network bluetooth httpserver
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
-
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
     CONFIG += link_pkgconfig
-    PKGCONFIG += opencv4 libgpiod
+    PKGCONFIG += opencv4 libgpiod Qt6HttpServer
 }
 
 # ==== PLATEFORME WINDOWS ====
@@ -39,10 +38,10 @@ HEADERS += \
     touchgesturereader.h \
     trajetmotor.h \
     Language.h \
-    AIImagePromptDialog.h\
+    AIImagePromptDialog.h \
     PageImagesGenerees.h \
-    AIImageProcessDialog.h\
-    BluetoothReceiverDialog.h\
+    AIImageProcessDialog.h \
+    BluetoothReceiverDialog.h \
     WifiTransferWidget.h \
     qrcodegen.hpp
 
@@ -58,7 +57,7 @@ SOURCES += \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp \
     AIImageProcessDialog.cpp \
-    BluetoothReceiverDialog.cpp\
+    BluetoothReceiverDialog.cpp \
     WifiTransferWidget.cpp \
     qrcodegen.cpp
 
@@ -67,7 +66,7 @@ FORMS += \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
     WifiTransferWidget.ui
 
-RESOURCES += ressources.qrc
+RESOURCES += resources.qrc
 
 TRANSLATIONS += \
     translations/machineDecoupeIHM_fr.ts \
