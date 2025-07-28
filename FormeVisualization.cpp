@@ -745,8 +745,31 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
         msg->show();
         return;
     }
-    for (QGraphicsItem *item : scene->selectedItems()) {
-        item->setTransformOriginPoint(item->boundingRect().center());   // ← NOUVEAU
+    const auto selected = scene->selectedItems();
+    if (selected.isEmpty())
+        return;
+
+    // Calculate a common center for all selected items
+    QPointF commonCenter;
+    if (selected.size() == 1) {
+        commonCenter = selected.first()->sceneBoundingRect().center();
+    } else {
+        QRectF unitedRect;
+        bool first = true;
+        for (QGraphicsItem *item : selected) {
+            if (first) {
+                unitedRect = item->sceneBoundingRect();
+                first = false;
+            } else {
+                unitedRect = unitedRect.united(item->sceneBoundingRect());
+            }
+        }
+        commonCenter = unitedRect.center();
+    }
+
+    for (QGraphicsItem *item : selected) {
+        // Transform origin point must be specified in item coordinates
+        item->setTransformOriginPoint(item->mapFromScene(commonCenter));
         item->setRotation(item->rotation() + angleDelta);
     }
 }
