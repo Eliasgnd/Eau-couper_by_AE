@@ -485,7 +485,9 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->tailleGomme, &QSlider::valueChanged,
             this, [=](int v){
                 drawArea->setEraserRadius(static_cast<qreal>(v));
+
     });
+
 
 
 }

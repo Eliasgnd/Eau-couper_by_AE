@@ -15,6 +15,7 @@
 #include <QFont>
 #include <QGestureEvent>
 #include <QPinchGesture>
+#include <QRectF>
 #include <QGestureEvent>
 #include <QPinchGesture>
 
@@ -203,6 +204,12 @@ private:
     // Fusion de plusieurs QPainterPath en un seul
     QPainterPath combineSegments(const QList<QPainterPath> &segments);
 
+    // Calcule le rectangle englobant de toutes les formes sélectionnées
+    QRectF selectedShapesBounds() const;
+
+    // Recalculates the rotation handle when the selection changes
+    void updateRotationHandle();
+
     bool   m_selectMode      = false;        // vrai si une sélection est active
     bool   m_connectSelectionMode = false;   // sélection utilisée pour la fonction "Relier"
     QVector<int> m_selectedShapes;            // indices des formes sélectionnées
@@ -246,6 +253,7 @@ private:
     QPointF m_rotationCenter;      // Centre de rotation
     bool m_rotating = false;       // Vrai si on est en train de tourner
     qreal m_lastAngle = 0.0;       // Dernier angle mesuré
+    qreal m_groupRotationAngle = 0.0; // Rotation cumulée du groupe sélectionné
     QSvgRenderer m_handleRenderer;
 
     bool m_deplacerMode = false;
