@@ -69,7 +69,7 @@
         <x>0</x>
         <y>0</y>
         <width>780</width>
-        <height>542</height>
+        <height>560</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout"/>
@@ -78,6 +78,8 @@
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
  <connections/>
 </ui>

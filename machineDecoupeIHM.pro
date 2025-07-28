@@ -29,7 +29,7 @@ win32 {
 HEADERS += \
     MainWindow.h FormeVisualization.h \
     CustomDrawArea.h LogoImporter.h ImageEdgeImporter.h ShapeModel.h \
-    PageImagesGenerees.h \
+    DossierWidget.h \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
@@ -38,17 +38,18 @@ HEADERS += \
     touchgesturereader.h \
     trajetmotor.h \
     Language.h \
-    AIImagePromptDialog.h \
-    PageImagesGenerees.h \
-    AIImageProcessDialog.h \
-    BluetoothReceiverDialog.h \
+    AIImagePromptDialog.h\
+    DossierWidget.h \
+    AIImageProcessDialog.h\
+    BluetoothReceiverDialog.h\
     WifiTransferWidget.h \
-    qrcodegen.hpp
+    qrcodegen.hpp \
+    ImagePaths.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
-    PageImagesGenerees.cpp \
+    DossierWidget.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
@@ -63,7 +64,7 @@ SOURCES += \
 
 FORMS += \
     BluetoothReceiverDialog.ui \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui DossierWidget.ui TestGpio.ui \
     WifiTransferWidget.ui
 
 RESOURCES += resources.qrc \
