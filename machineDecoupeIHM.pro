@@ -71,9 +71,7 @@ FORMS += \
     WifiTransferWidget.ui \
     WifiConfigDialog.ui
 
-RESOURCES += resources.qrc \
-    resources.qrc \
-    resources.qrc
+RESOURCES += resources.qrc
 
 TRANSLATIONS += \
     translations/machineDecoupeIHM_fr.ts \
