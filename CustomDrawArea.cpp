@@ -590,6 +590,17 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     qDebug() << "[setDrawMode] Demande de mode =" << static_cast<int>(mode)
     << " | Mode courant =" << static_cast<int>(m_drawMode);
 
+    // Garde-fou : toute valeur hors enum ramène au mode libre
+    const int minMode = static_cast<int>(DrawMode::Freehand);
+    const int maxMode = static_cast<int>(DrawMode::ThinText);
+    int requested = static_cast<int>(mode);
+    if (requested < minMode || requested > maxMode) {
+        qWarning() << "[setDrawMode] Mode invalide:" << requested
+                   << "-> retour Freehand";
+        revertToFreehand();
+        return;
+    }
+
     // Sinon, activation normale
     if (m_selectMode)
         cancelSelection();
@@ -2049,7 +2060,7 @@ void CustomDrawArea::startShapeSelection()
 
     // Si on venait du mode déplacement, repasse en mode standard
     if (m_drawMode == DrawMode::Deplacer)
-        m_drawMode = DrawMode::Freehand;
+        revertToFreehand();
     m_selectMode = true;
     m_connectSelectionMode = true;
     m_selectedShapes.clear();
@@ -2082,7 +2093,7 @@ void CustomDrawArea::toggleMultiSelectMode()
         cancelDeplacerMode();
         cancelGommeMode();
         if (m_drawMode == DrawMode::Deplacer)
-            m_drawMode = DrawMode::Freehand;
+            revertToFreehand();
         m_selectMode = true;
         m_connectSelectionMode = false;
         m_selectedShapes.clear();
@@ -2268,6 +2279,9 @@ void CustomDrawArea::cancelCloseMode()
         return;
     m_closeMode = false;
     emit closeModeChanged(false);
+
+    // Sortie du mode fermeture : retour au mode standard
+    revertToFreehand();
 }
 
 void CustomDrawArea::onPinchZoom(const QPointF &center, qreal scaleFactor)
@@ -2443,6 +2457,10 @@ void CustomDrawArea::cancelDeplacerMode()
     qDebug() << "[cancelDeplacerMode] Désactivation du mode déplacer";
     m_deplacerMode = false;
     emit deplacerModeChanged(false);
+
+    // Lorsque l'utilisateur quitte ce mode, on repasse systématiquement en
+    // dessin libre pour éviter toute incohérence de l'état interne
+    revertToFreehand();
 }
 
 void CustomDrawArea::startSupprimerMode()
@@ -2462,6 +2480,9 @@ void CustomDrawArea::cancelSupprimerMode()
 
     m_supprimerMode = false;
     emit supprimerModeChanged(false);
+
+    // Retour immédiat au mode par défaut
+    revertToFreehand();
 }
 
 void CustomDrawArea::startGommeMode()
@@ -2482,4 +2503,24 @@ void CustomDrawArea::cancelGommeMode()
 
     m_gommeMode = false;
     emit gommeModeChanged(false);
+
+    // Récupère automatiquement le mode de dessin libre
+    revertToFreehand();
+}
+
+// ---------------------------------------------------------------------------
+//  Helper: force le retour au mode Freehand
+// ---------------------------------------------------------------------------
+void CustomDrawArea::revertToFreehand()
+{
+    m_drawMode = DrawMode::Freehand;
+    m_drawing = false;
+    m_drawingLineOrCircle = false;
+    m_freehandPoints.clear();
+    m_selectedShapeIndex = -1;
+    m_shapeMoving = false;
+    m_panningActive = false;
+    m_gommeErasing = false;
+
+    update();
 }
