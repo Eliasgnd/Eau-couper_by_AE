@@ -123,6 +123,24 @@
            </widget>
           </item>
 
+          <!-- État/Mémo du mot de passe + Oublier -->
+          <item>
+           <layout class="QHBoxLayout" name="pwdStateRow">
+            <item><widget class="QLabel" name="savedPwdLabel">
+              <property name="text"><string/></property>
+              <property name="visible"><bool>false</bool></property>
+            </widget></item>
+            <item><spacer name="pwdStateSpacer">
+              <property name="orientation"><enum>Qt::Horizontal</enum></property>
+              <property name="sizeHint"><size><width>40</width><height>20</height></size></property>
+            </spacer></item>
+            <item><widget class="QPushButton" name="forgetButton">
+              <property name="text"><string>Oublier ce réseau</string></property>
+              <property name="visible"><bool>false</bool></property>
+            </widget></item>
+           </layout>
+          </item>
+
           <!-- Options -->
           <item>
            <layout class="QHBoxLayout" name="optionsRow">
@@ -145,6 +163,13 @@
             <item><widget class="QPushButton" name="connectButton">
               <property name="text"><string>Se connecter</string></property>
             </widget></item>
+
+            <!-- Nouveau : Se déconnecter -->
+            <item><widget class="QPushButton" name="disconnectButton">
+              <property name="text"><string>Se déconnecter</string></property>
+              <property name="visible"><bool>false</bool></property>
+            </widget></item>
+
             <item><spacer name="btnSpacer">
               <property name="orientation"><enum>Qt::Horizontal</enum></property>
               <property name="sizeHint">

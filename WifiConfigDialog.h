@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QTimer>
 #include <QString>
+#include <QCloseEvent>
 
 namespace Ui { class WifiConfigDialog; }
 
@@ -24,6 +25,11 @@ private slots:
     void showDiagnostics();              // Affiche & copie les infos de diagnostic
     void onAutoScanToggled(bool on);     // Active/désactive l’auto-scan
 
+    // État des identifiants / actions
+    void updateCredentialStateForCurrentSsid();  // Met à jour l'UI selon SSID/sécurité/secret
+    void forgetCurrentNetwork();                 // Supprime le profil NM (« oublier »)
+    void disconnectFromSelected();               // Déconnecte du réseau sélectionné
+
 private:
     struct NmResult {
         int exitCode = -1;
@@ -40,6 +46,16 @@ private:
     void setBusy(bool busy);                     // Spinner + disable UI
     void updateStatusLabel(const QString &msg, bool ok);
     void applyAutoConnectPolicy(const QString &connectionName, bool autoconnect);
+
+    // Persistance / profils
+    QString findConnectionNameForSsid(const QString &ssid);
+    void persistPsk(const QString &connectionName, const QString &password);
+    bool isPasswordSavedForConnection(const QString &connectionName);
+    QString getSecurityForSsid(const QString &ssid, const QString &dev);
+    QString activeWifiConnectionNameForDevice(const QString &dev);
+
+    // Détection fiable du SSID actuellement utilisé (via IN-USE)
+    QString currentSsidFromScan(const QString &dev);
 
     // Parsing utilitaires
     static QString parseCurrentSsid(const QString &devStatusOut, const QString &devName);
