@@ -1240,11 +1240,11 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                     // Si les deux points sont à l'intérieur, on ne garde rien (segment effacé)
                 } // Fin de la boucle sur les segments
 
-                // Pour chaque segment restant, créer une nouvelle Shape en gardant l'identifiant d'origine
+                // Pour chaque segment restant, créer une nouvelle Shape
                 for (const QPainterPath &seg : localSegments) {
                     Shape ns;
                     ns.path = seg;
-                    ns.originalId = shapeId;
+                    ns.originalId = m_nextShapeId++; // nouveau fragment
                     newShapes.append(ns);
                 }
             } // Fin de parcours de m_shapes
@@ -1276,7 +1276,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                         // Sinon, on sauvegarde le mergedPath courant et on démarre un nouveau chemin
                         Shape ns;
                         ns.path = mergedPath;
-                        ns.originalId = id; // conserver l'identifiant d'origine
+                        ns.originalId = m_nextShapeId++; // id unique
                         mergedShapes.append(ns);
                         mergedPath = segs[i];
                     }
@@ -1284,7 +1284,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                 // Ajouter le dernier mergedPath
                     Shape ns;
                     ns.path = mergedPath;
-                    ns.originalId = id; // conserver l'identifiant d'origine
+                    ns.originalId = m_nextShapeId++; // id unique
                     mergedShapes.append(ns);
                 }
 
@@ -1446,7 +1446,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
                         if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
                             Shape ns;
                             ns.path = sub;
-                            ns.originalId = shape.originalId; // garder l'id d'origine
+                            ns.originalId = m_nextShapeId++; // nouvel id
                             newShapes.append(ns);
                         }
                     }
