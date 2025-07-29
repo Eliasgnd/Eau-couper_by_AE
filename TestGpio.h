@@ -30,6 +30,8 @@ private slots:
     void onPinToggled(bool checked);
     void updatePinStates();
     void goToMainWindow();
+    void on_btnSimulateFault_clicked();
+    void on_btnSimulateStall_clicked();
 
 private:
     void init_gpio();
@@ -43,6 +45,8 @@ private:
     QMap<int, QCheckBox*> checkBoxes;
     QMap<int, QLabel*> inputStateLabels;
     QTimer updateTimer;
+    bool faultActive {false};
+    bool stallActive {false};
 
 #ifndef _WIN32
     gpiod_chip *chip {nullptr};

@@ -40,21 +40,35 @@
         <item>
          <widget class="QLabel" name="labelPin23">
           <property name="text">
-           <string>GPIO 23: LOW</string>
+           <string>STALLn (GPIO 23): LOW</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLabel" name="labelPin24">
           <property name="text">
-           <string>GPIO 24: LOW</string>
+           <string>FAULTn (GPIO 24): LOW</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLabel" name="labelPin18">
           <property name="text">
-           <string>GPIO 18: LOW</string>
+           <string>BEMF (GPIO 18): LOW</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnSimulateFault">
+          <property name="text">
+           <string>Simulate FAULTn</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btnSimulateStall">
+          <property name="text">
+           <string>Simulate STALLn</string>
           </property>
          </widget>
         </item>

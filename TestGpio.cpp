@@ -2,6 +2,7 @@
 #include "ui_TestGpio.h"
 #include "MainWindow.h"
 #include "ScreenUtils.h"
+#include "raspberry.h"
 #include <QCheckBox>
 #include <QLabel>
 #include <QGridLayout>
@@ -26,6 +27,8 @@ TestGpio::TestGpio(QWidget *parent)
     updateTimer.start(500);
 
     connect(ui->buttonMenu, &QPushButton::clicked, this, &TestGpio::goToMainWindow);
+    connect(ui->btnSimulateFault, &QPushButton::clicked, this, &TestGpio::on_btnSimulateFault_clicked);
+    connect(ui->btnSimulateStall, &QPushButton::clicked, this, &TestGpio::on_btnSimulateStall_clicked);
 }
 
 TestGpio::~TestGpio()
@@ -141,9 +144,33 @@ void TestGpio::updatePinStates()
         int val = gpiod_line_get_value(inputLines.value(pin));
         if(val<0) continue;
         QLabel *lbl = inputStateLabels.value(pin);
-        if(lbl) lbl->setText(QString("GPIO %1: %2").arg(pin).arg(val?"HIGH":"LOW"));
+        static QMap<int, QString> names = {
+            {Raspberry::STALLN_PIN, "STALLn"},
+            {Raspberry::FAULTN_PIN, "FAULTn"},
+            {Raspberry::BEMF_PIN, "BEMF"}
+        };
+        if(lbl) lbl->setText(QString("%1 (GPIO %2): %3")
+                              .arg(names.value(pin))
+                              .arg(pin)
+                              .arg(val ? "HIGH" : "LOW"));
     }
 #endif
+}
+
+void TestGpio::on_btnSimulateFault_clicked()
+{
+    faultActive = !faultActive;
+    raspberry.writePin(Raspberry::FAULTN_PIN, faultActive ? 0 : 1);
+    ui->btnSimulateFault->setText(faultActive ? "Restore FAULTn" : "Simulate FAULTn");
+    updatePinStates();
+}
+
+void TestGpio::on_btnSimulateStall_clicked()
+{
+    stallActive = !stallActive;
+    raspberry.writePin(Raspberry::STALLN_PIN, stallActive ? 0 : 1);
+    ui->btnSimulateStall->setText(stallActive ? "Restore STALLn" : "Simulate STALLn");
+    updatePinStates();
 }
 
 void TestGpio::goToMainWindow()
