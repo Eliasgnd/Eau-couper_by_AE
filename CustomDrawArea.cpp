@@ -405,6 +405,154 @@ QList<int> CustomDrawArea::collectConnectedFragments(int startIndex) const
     return result;
 }
 
+void CustomDrawArea::applyEraserAt(const QPointF &center)
+{
+    QList<Shape> newShapes;
+    const auto mergeSegments = [](QList<QLineF> segs) {
+        QList<QPainterPath> merged;
+        const qreal tol = 0.5;
+        while (!segs.isEmpty()) {
+            QLineF cur = segs.takeFirst();
+            QList<QPointF> chain{cur.p1(), cur.p2()};
+            bool progress = true;
+            while (progress) {
+                progress = false;
+                for (int i = 0; i < segs.size(); ++i) {
+                    QLineF s = segs[i];
+                    if (QLineF(chain.last(), s.p1()).length() <= tol) {
+                        chain.append(s.p2()); segs.removeAt(i); progress = true; break;
+                    }
+                    if (QLineF(chain.last(), s.p2()).length() <= tol) {
+                        chain.append(s.p1()); segs.removeAt(i); progress = true; break;
+                    }
+                    if (QLineF(chain.first(), s.p2()).length() <= tol) {
+                        chain.prepend(s.p1()); segs.removeAt(i); progress = true; break;
+                    }
+                    if (QLineF(chain.first(), s.p1()).length() <= tol) {
+                        chain.prepend(s.p2()); segs.removeAt(i); progress = true; break;
+                    }
+                }
+            }
+            QPainterPath path;
+            path.moveTo(chain.first());
+            for (int i = 1; i < chain.size(); ++i)
+                path.lineTo(chain[i]);
+            merged.append(path);
+        }
+        return merged;
+    };
+    const double epsilon = 0.001;
+
+    for (const Shape &shape : qAsConst(m_shapes)) {
+        if (shape.path.isEmpty()) {
+            continue;
+        }
+        QPainterPath original = shape.path;
+        int count = original.elementCount();
+        if (count < 2) {
+            newShapes.append(shape);
+            continue;
+        }
+
+        bool hasCloseSubpath = false;
+        if (count > 1) {
+            QPainterPath::Element first = original.elementAt(0);
+            QPainterPath::Element last  = original.elementAt(count - 1);
+            if (std::abs(first.x - last.x) < epsilon &&
+                std::abs(first.y - last.y) < epsilon)
+                hasCloseSubpath = true;
+        }
+
+        int lastIndex = hasCloseSubpath ? count : (count - 1);
+        QList<QLineF> localSegments;
+        bool shapeChanged = false;
+
+        for (int j = 0; j < lastIndex; ++j) {
+            int nextIndex = (j + 1) % count;
+            QPainterPath::Element e1 = original.elementAt(j);
+            QPainterPath::Element e2 = original.elementAt(nextIndex);
+            QPointF p1(e1.x, e1.y), p2(e2.x, e2.y);
+
+            bool p1Inside = (QLineF(p1, center).length() <= m_gommeRadius + epsilon);
+            bool p2Inside = (QLineF(p2, center).length() <= m_gommeRadius + epsilon);
+
+            QPointF d = p2 - p1;
+            double A = d.x() * d.x() + d.y() * d.y();
+            double B = 2 * ((p1.x() - center.x()) * d.x() + (p1.y() - center.y()) * d.y());
+            double C = (p1.x() - center.x()) * (p1.x() - center.x()) +
+                       (p1.y() - center.y()) * (p1.y() - center.y()) -
+                       m_gommeRadius * m_gommeRadius;
+            double discriminant = B * B - 4 * A * C;
+
+            QVector<double> tValues;
+            if (A != 0 && discriminant >= 0) {
+                double sqrtDisc = std::sqrt(discriminant);
+                double t1 = (-B - sqrtDisc) / (2 * A);
+                double t2 = (-B + sqrtDisc) / (2 * A);
+                if (t1 >= 0 && t1 <= 1)
+                    tValues.push_back(t1);
+                if (t2 >= 0 && t2 <= 1)
+                    tValues.push_back(t2);
+                std::sort(tValues.begin(), tValues.end());
+            }
+
+            auto addSeg = [&](const QPointF &a, const QPointF &b) {
+                if (QLineF(a, b).length() > 0.0)
+                    localSegments.append(QLineF(a, b));
+            };
+
+            if (!p1Inside && !p2Inside) {
+                if (tValues.size() >= 2) {
+                    shapeChanged = true;
+                    double tA = tValues[0], tB = tValues[1];
+                    QPointF ipA = p1 + d * tA;
+                    QPointF ipB = p1 + d * tB;
+                    if ((ipA - p1).manhattanLength() > 0.1)
+                        addSeg(p1, ipA);
+                    if ((p2 - ipB).manhattanLength() > 0.1)
+                        addSeg(ipB, p2);
+                } else if (tValues.size() == 1) {
+                    shapeChanged = true;
+                } else {
+                    addSeg(p1, p2);
+                }
+            } else if (!p1Inside && p2Inside) {
+                if (!tValues.isEmpty()) {
+                    shapeChanged = true;
+                    double t = tValues.first();
+                    QPointF ip = p1 + d * t;
+                    if ((ip - p1).manhattanLength() > 0.1)
+                        addSeg(p1, ip);
+                }
+            } else if (p1Inside && !p2Inside) {
+                if (!tValues.isEmpty()) {
+                    shapeChanged = true;
+                    double t = tValues.last();
+                    QPointF ip = p1 + d * t;
+                    if ((p2 - ip).manhattanLength() > 0.1)
+                        addSeg(ip, p2);
+                }
+            }
+        }
+
+        if (!shapeChanged) {
+            newShapes.append(shape);
+        } else {
+            auto mergedPaths = mergeSegments(localSegments);
+            for (const QPainterPath &mp : mergedPaths) {
+                Shape ns; ns.path = mp; ns.originalId = m_nextShapeId++;
+                newShapes.append(ns);
+            }
+        }
+    }
+
+    if (newShapes != m_shapes) {
+        m_shapes = newShapes;
+        updateCanvas();
+    }
+    update();
+}
+
 void CustomDrawArea::updateRotationHandle()
 {
     if (m_selectedShapes.isEmpty())
@@ -853,6 +1001,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     case DrawMode::Gomme:
         m_gommeErasing = true;
         m_gommeCenter = pos;
+        m_gommeMoved = false;        // reset movement flag
         //qDebug() << "Gomme: début à" << m_gommeCenter;
         break;
     case DrawMode::Deplacer:
@@ -1116,6 +1265,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     case DrawMode::Gomme:
     {
         if (m_gommeErasing) {
+            m_gommeMoved = true;               // au moins un déplacement
             m_gommeCenter = pos; // Mise à jour de la position de la gomme
             update();
             m_gommeCenter = pos;
@@ -1419,37 +1569,10 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     case DrawMode::Gomme:
     {
         if (m_gommeErasing) {
-            // Créer un chemin représentant la zone de la gomme
-            QPainterPath eraserPath;
-            eraserPath.addEllipse(m_gommeCenter, m_gommeRadius, m_gommeRadius);
-
-            QList<Shape> newShapes;
-            // Pour chaque forme existante
-            for (const Shape &shape : std::as_const(m_shapes)) {
-                // Vérifier si la gomme intersecte réellement la forme
-                if (shape.path.intersects(eraserPath)) {
-                    QPainterPath newPath = shape.path.subtracted(eraserPath).simplified();
-
-                    // Découper le résultat en sous-chemins pour conserver des segments indépendants
-                    QList<QPainterPath> subpaths = separateIntoSubpaths(newPath);
-                    for (const QPainterPath &sub : subpaths) {
-                        QRectF br = sub.boundingRect();
-                        if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
-                            Shape ns;
-                            ns.path = reopenIfClosed(sub);
-                            ns.originalId = m_nextShapeId++; // nouvel id
-                            newShapes.append(ns);
-                        }
-                    }
-                } else {
-                    // Si la gomme n'intersecte pas, on conserve le shape tel quel
-                    newShapes.append(shape);
-                }
-            }
-            m_shapes = newShapes;
-            updateCanvas();
-            update();
+            if (!m_gommeMoved)
+                applyEraserAt(m_gommeCenter);  // click sans déplacement
             m_gommeErasing = false;
+            m_gommeMoved = false;
             pushState();
         }
         break;
