@@ -14,6 +14,16 @@ public:
     bool init();
     void close();
 
+    bool init_gpio();
+    bool init_spi(const char *device = "/dev/spidev0.0", uint32_t speed = 1000000);
+    void selectDriver(int n);
+    void setOutputPins(bool high);
+    struct Status { bool stall; bool fault; bool bemf; };
+    Status readStatus();
+#ifndef _WIN32
+    uint16_t transfer(uint16_t word);
+#endif
+
 private:
     // Broches GPIO BCM
     static constexpr uint8_t PIN_SCS     = 20;  // Chip Select (CS) - utilisé comme GPIO
@@ -49,12 +59,12 @@ private:
     };
 
 #ifndef _WIN32
-    void setupPinOutput(uint8_t pin);
-    void setupPinInput(uint8_t pin);
     void writePin(uint8_t pin, bool value);
     bool readPin(uint8_t pin);
     gpiod_chip *chip {nullptr};
     std::map<uint8_t, gpiod_line*> outputLines;
     std::map<uint8_t, gpiod_line*> inputLines;
+    int spiFd {-1};
+    uint32_t spiSpeed {1000000};
 #endif
 };
