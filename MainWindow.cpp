@@ -58,6 +58,11 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     //qDebug() << "Titre du bouton Play =" << ui->Play->text();
 
+    // --- AJOUT : facteurs de stretch des 3 colonnes du layout principal ---
+    // Étirements des colonnes (pas dans le .ui pour éviter l'erreur uic)
+    ui->mainHorizontalLayout->setStretch(0, 0); // colonne gauche (fixe)
+    ui->mainHorizontalLayout->setStretch(1, 1); // colonne droite (expansive)
+
     // 1) Crée le menu langue et ses actions (attributs)
     languageMenu  = new QMenu(tr("Langue"), this);
     actionFrench  = languageMenu->addAction(tr("Français"));
