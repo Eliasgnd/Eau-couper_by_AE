@@ -44,7 +44,9 @@ HEADERS += \
     BluetoothReceiverDialog.h\
     WifiTransferWidget.h \
     qrcodegen.hpp \
-    ImagePaths.h
+    ImagePaths.h \
+    WifiConfigDialog.h
+
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
@@ -60,12 +62,14 @@ SOURCES += \
     AIImageProcessDialog.cpp \
     BluetoothReceiverDialog.cpp \
     WifiTransferWidget.cpp \
+    WifiConfigDialog.cpp \
     qrcodegen.cpp
 
 FORMS += \
     BluetoothReceiverDialog.ui \
     mainwindow.ui custom.ui inventaire.ui Dispositions.ui DossierWidget.ui TestGpio.ui \
-    WifiTransferWidget.ui
+    WifiTransferWidget.ui \
+    WifiConfigDialog.ui
 
 RESOURCES += resources.qrc \
     resources.qrc \

@@ -15,9 +15,10 @@
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
 #include "DossierWidget.h"
+#include "ImagePaths.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
-#include "ImagePaths.h"
+#include "WifiConfigDialog.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -64,13 +65,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(actionFrench ,  &QAction::triggered, this, &MainWindow::setLanguageFrench);
     connect(actionEnglish,  &QAction::triggered, this, &MainWindow::setLanguageEnglish);
 
+    // Menu principal Paramètres
+    settingsMenu = new QMenu(tr("Paramètres"), this);
+    actionWifiConfig = settingsMenu->addAction(tr("Configurer le Wi-Fi"));
+    settingsMenu->addMenu(languageMenu);
+    connect(actionWifiConfig, &QAction::triggered, this, &MainWindow::openWifiConfig);
+
     // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
     QToolButton *settingsBtn = new QToolButton(this);
     settingsBtn->setText(tr("Paramètres"));
     settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
     settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
-    settingsBtn->setMenu(languageMenu);                           // rattache le menu
+    settingsBtn->setMenu(settingsMenu);                           // rattache le menu
 
     // 3) StyleSheet cohérent avec le reste de ton UI
     settingsBtn->setStyleSheet(R"(
@@ -390,6 +397,12 @@ void MainWindow::openWifiTransfer() {
     this->hide();
     WifiTransferWidget *w = new WifiTransferWidget();
     w->showFullScreen();
+}
+
+void MainWindow::openWifiConfig() {
+    this->hide();
+    WifiConfigDialog *dlg = new WifiConfigDialog();
+    dlg->showFullScreen();
 }
 
 void MainWindow::showDossier()
@@ -741,6 +754,7 @@ void MainWindow::retranslateDynamicUi()
     if (languageMenu) languageMenu->setTitle(tr("Langue"));
     if (actionFrench)  actionFrench ->setText(tr("Français"));
     if (actionEnglish) actionEnglish->setText(tr("Anglais"));
+    if (actionWifiConfig) actionWifiConfig->setText(tr("Configurer le Wi-Fi"));
 
     if (ui->shapeCountLabel) {
         // Tu peux sauvegarder l'ancien nombre s'il est dynamique :

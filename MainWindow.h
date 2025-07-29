@@ -50,6 +50,7 @@ private slots:
     void openTestGpio();
     void on_receptionFichierButton_clicked();
     void openWifiTransfer();
+    void openWifiConfig();
     void applyCustomShape(QList<QPolygonF>);
     void resetDrawing();
 
@@ -89,6 +90,7 @@ private:
     QMenu *languageMenu = nullptr;
     QAction *actionFrench = nullptr;
     QAction *actionEnglish = nullptr;
+    QAction *actionWifiConfig = nullptr;
 
     void onShapeSelectedFromInventaire(ShapeModel::Type type);
 
