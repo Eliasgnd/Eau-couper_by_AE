@@ -58,7 +58,7 @@ void TestGpio::init_gpio()
     }
     for(int pin: inputPins){
         gpiod_line *line = gpiod_chip_get_line(chip, pin);
-        if(line && gpiod_line_request_input_flags(line, "testgpio", GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_UP)==0){
+        if(line && gpiod_line_request_input_flags(line, "testgpio", GPIOD_LINE_REQUEST_FLAG_BIAS_DISABLED)==0){
             inputLines.insert(pin, line);
         } else {
             qWarning() << "Erreur init GPIO entree" << pin;
