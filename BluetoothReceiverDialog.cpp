@@ -2,6 +2,7 @@
 #include "ui_BluetoothReceiverDialog.h"
 #include "ScreenUtils.h"
 #include "MainWindow.h"
+#include "ImagePaths.h"
 
 #include <QDir>
 #include <QFileInfoList>
@@ -21,8 +22,7 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     ui->statusIcon->setStyleSheet("border-radius:6px; background: orange;");
     ui->statusLabel->setText(QStringLiteral("🔄 Initialisation Bluetooth..."));
 
-    m_targetDir = QDir::homePath() + "/BluetoothReceived";
-    QDir().mkpath(m_targetDir);
+    m_targetDir = ImagePaths::bluetoothDir();
 
     QDir initDir(m_targetDir);
     QFileInfoList existingFiles = initDir.entryInfoList(QDir::Files);
@@ -88,7 +88,7 @@ void BluetoothReceiverDialog::startBluetoothService()
     connect(m_btProcess, &QProcess::readyReadStandardError, this, &BluetoothReceiverDialog::onProcessOutput);
     connect(m_btProcess, &QProcess::errorOccurred, this, &BluetoothReceiverDialog::onProcessError);
 
-    const QString script = R"(
+    const QString script = QString(R"(
 
     echo "[INFO] Déverrouillage de l'interface Bluetooth..."
     sudo /usr/sbin/rfkill unblock bluetooth
@@ -114,17 +114,17 @@ void BluetoothReceiverDialog::startBluetoothService()
     ) | bluetoothctl
 
     echo "[INFO] Préparation du dossier de réception..."
-    mkdir -p /home/AE/BluetoothReceived
-    chmod 777 /home/AE/BluetoothReceived
+    mkdir -p %1
+    chmod 777 %1
 
     echo "[INFO] Fermeture des anciens obexd..."
     sudo /usr/bin/pkill obexd 2>/dev/null
 
     echo "[INFO] Lancement de obexd pour recevoir les fichiers..."
-    /usr/libexec/bluetooth/obexd --root=/home/AE/BluetoothReceived -n -l -a &
+    /usr/libexec/bluetooth/obexd --root=%1 -n -l -a &
 
     echo "[READY] Bluetooth initialization complete"
-    )";
+    )").arg(m_targetDir);
 
 
     m_btProcess->start("bash", QStringList() << "-c" << script);

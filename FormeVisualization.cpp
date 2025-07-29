@@ -730,6 +730,7 @@ void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
     for (QGraphicsItem *item : scene->selectedItems()) {
         item->moveBy(dx, dy);
     }
+    m_rotationPivotValid = false;
 }
 
 
@@ -745,10 +746,33 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
         msg->show();
         return;
     }
-    for (QGraphicsItem *item : scene->selectedItems()) {
-        item->setTransformOriginPoint(item->boundingRect().center());   // ← NOUVEAU
-        item->setRotation(item->rotation() + angleDelta);
+    const auto selected = scene->selectedItems();
+    if (selected.isEmpty())
+        return;
+
+    if (!m_rotationPivotValid) {
+        if (selected.size() == 1) {
+            m_rotationPivot = selected.first()->sceneBoundingRect().center();
+        } else {
+            QRectF unitedRect;
+            bool first = true;
+            for (QGraphicsItem *item : selected) {
+                if (first) {
+                    unitedRect = item->sceneBoundingRect();
+                    first = false;
+                } else {
+                    unitedRect = unitedRect.united(item->sceneBoundingRect());
+                }
+            }
+            m_rotationPivot = unitedRect.center();
+        }
+        for (QGraphicsItem *item : selected)
+            item->setTransformOriginPoint(item->mapFromScene(m_rotationPivot));
+        m_rotationPivotValid = true;
     }
+
+    for (QGraphicsItem *item : selected)
+        item->setRotation(item->rotation() + angleDelta);
 }
 
 void FormeVisualization::deleteSelectedShapes()
@@ -1034,6 +1058,7 @@ bool FormeVisualization::validateShapes()
 
 void FormeVisualization::handleSelectionChanged()
 {
+    m_rotationPivotValid = false;
     for (QGraphicsItem *item : scene->selectedItems()) {
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
             shape->setPen(QPen(Qt::black, 1));

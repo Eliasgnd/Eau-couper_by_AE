@@ -1,14 +1,13 @@
-QT += core gui widgets svg network bluetooth
-QT += httpserver
+QT += core gui widgets svg network bluetooth httpserver
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
-
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
     CONFIG += link_pkgconfig
-    PKGCONFIG += opencv4 libgpiod
+    PKGCONFIG += opencv4 libgpiod Qt6HttpServer
 }
 
 # ==== PLATEFORME WINDOWS ====
@@ -30,7 +29,7 @@ win32 {
 HEADERS += \
     MainWindow.h FormeVisualization.h \
     CustomDrawArea.h LogoImporter.h ImageEdgeImporter.h ShapeModel.h \
-    PageImagesGenerees.h \
+    DossierWidget.h \
     ScreenUtils.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
@@ -40,16 +39,17 @@ HEADERS += \
     trajetmotor.h \
     Language.h \
     AIImagePromptDialog.h\
-    PageImagesGenerees.h \
+    DossierWidget.h \
     AIImageProcessDialog.h\
     BluetoothReceiverDialog.h\
     WifiTransferWidget.h \
-    qrcodegen.hpp
+    qrcodegen.hpp \
+    ImagePaths.h
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
-    PageImagesGenerees.cpp \
+    DossierWidget.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
@@ -58,15 +58,18 @@ SOURCES += \
     touchgesturereader.cpp \
     AIImagePromptDialog.cpp \
     AIImageProcessDialog.cpp \
-    BluetoothReceiverDialog.cpp\
+    BluetoothReceiverDialog.cpp \
     WifiTransferWidget.cpp \
     qrcodegen.cpp
 
 FORMS += \
-    mainwindow.ui custom.ui inventaire.ui Dispositions.ui PageImagesGenerees.ui TestGpio.ui \
+    BluetoothReceiverDialog.ui \
+    mainwindow.ui custom.ui inventaire.ui Dispositions.ui DossierWidget.ui TestGpio.ui \
     WifiTransferWidget.ui
 
-RESOURCES += ressources.qrc
+RESOURCES += resources.qrc \
+    resources.qrc \
+    resources.qrc
 
 TRANSLATIONS += \
     translations/machineDecoupeIHM_fr.ts \

@@ -2,6 +2,7 @@
 #include "ui_WifiTransferWidget.h"
 #include "MainWindow.h"
 #include "qrcodegen.hpp"
+#include "ImagePaths.h"
 
 #include <QNetworkInterface>
 #include <QFile>
@@ -180,8 +181,7 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     });
 
     // Charger l'historique existant (au cas où)
-    const QString dir = qApp->applicationDirPath() + "/images_generees";
-    QDir().mkpath(dir);
+    const QString dir = ImagePaths::wifiDir();
     for (const QFileInfo &fi : QDir(dir).entryInfoList(QStringList() << "*.jpg" << "*.jpeg" << "*.png" << "*.gif" << "*.bmp" << "*.webp",
                                                        QDir::Files, QDir::Time)) {
         auto *it = new QListWidgetItem(fi.fileName() + "  -  " + fi.lastModified().toString("yyyy-MM-dd HH:mm:ss"));
@@ -312,7 +312,8 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 if (mLen.hasMatch())
                     ctx->contentLength = mLen.captured(1).toLongLong();
 
-                if (ctx->contentLength <= 0 || ctx->contentLength > MAX_UPLOAD_BYTES) {
+                const qint64 maxTotalUpload = 200 * 1024 * 1024; // 200 Mo max total
+                if (ctx->contentLength <= 0 || ctx->contentLength > maxTotalUpload) {
                     client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nTaille invalide (>20Mo?)");
                     client->flush();
                     client->disconnectFromHost();
@@ -370,6 +371,16 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
 
             // ---- Parse multipart ----
             QList<MultipartPart> parts = parseMultipartFormData(ctx->body, ctx->boundary);
+            const qint64 maxPerFile = 20 * 1024 * 1024;  // 20 Mo
+            for (const MultipartPart &p : parts) {
+                if (p.data.size() > maxPerFile) {
+                    client->write("HTTP/1.1 413 Payload Too Large\r\nContent-Type: text/plain\r\n\r\nUn fichier dépasse la limite de 20 Mo.");
+                    client->flush();
+                    client->disconnectFromHost();
+                    return;
+                }
+            }
+
             if (parts.isEmpty()) {
                 client->write("HTTP/1.1 400 Bad Request\r\n\r\nAucune image valide");
                 client->flush();
@@ -377,8 +388,7 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 return;
             }
 
-            const QString saveDir = qApp->applicationDirPath() + "/images_generees";
-            QDir().mkpath(saveDir);
+            const QString saveDir = ImagePaths::wifiDir();
 
             QStringList savedFiles;
             for (const MultipartPart &p : parts) {
@@ -387,8 +397,28 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
                 if (!isAllowedExt(ext))
                     continue;
 
-                QString path = saveDir + '/' +
-                               QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_") + safe;
+                QString baseName = QFileInfo(safe).completeBaseName();
+                QString suffix   = QFileInfo(safe).suffix();
+                QString path     = saveDir + '/' + safe;
+
+                if (QFile::exists(path)) {
+                    QMessageBox::StandardButton reply = QMessageBox::question(
+                        this,
+                        tr("Fichier déjà présent"),
+                        tr("Le fichier \"%1\" existe déjà.\nSouhaitez-vous l'écraser ?").arg(safe),
+                        QMessageBox::Yes | QMessageBox::No,
+                        QMessageBox::No
+                    );
+
+                    if (reply == QMessageBox::No) {
+                        int counter = 1;
+                        QString newName;
+                        do {
+                            newName = QString("%1 (%2).%3").arg(baseName).arg(counter++).arg(suffix);
+                            path = saveDir + '/' + newName;
+                        } while (QFile::exists(path));
+                    }
+                }
 
                 QFile out(path);
                 if (!out.open(QIODevice::WriteOnly)) continue;

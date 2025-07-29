@@ -14,9 +14,10 @@
 #include "Language.h"
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
-#include "PageImagesGenerees.h"
+#include "DossierWidget.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
+#include "ImagePaths.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -134,7 +135,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
     // "Images générées" should open the gallery of generated images
-    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showGeneratedImages);
+    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showDossier);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     // Small button with the download icon opens the GPIO test page
@@ -391,10 +392,10 @@ void MainWindow::openWifiTransfer() {
     w->showFullScreen();
 }
 
-void MainWindow::showGeneratedImages()
+void MainWindow::showDossier()
 {
     this->hide();
-    PageImagesGenerees *page = new PageImagesGenerees(currentLanguage);
+    DossierWidget *page = new DossierWidget(currentLanguage);
     page->showFullScreen();
 }
 
@@ -995,17 +996,9 @@ void MainWindow::generateAIImage(const QString &userPrompt,
                 return;
             }
 
-            QString tempFile = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/dalle_image.png";
-            img.save(tempFile);
-            qDebug() << "[AI] 📸 Image enregistrée dans :" << tempFile;
-
-            // Archive image to images_generées/ next to executable
-            const QString imagesDirPath = qApp->applicationDirPath()
-                                          + QDir::separator() + "images_generees";
+            // Archive image in global IA directory and use that path for further processing
+            const QString imagesDirPath = ImagePaths::iaDir();
             QDir imagesDir(imagesDirPath);
-            if (!imagesDir.exists()) {
-                QDir().mkpath(imagesDirPath);
-            }
             QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
             sanitized.remove(QRegularExpression("[\\p{Mn}]"));
             sanitized.replace(QRegularExpression("[^A-Za-z0-9]+"), "_");
@@ -1014,8 +1007,10 @@ void MainWindow::generateAIImage(const QString &userPrompt,
                 sanitized = "image";
             const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm");
             QString archiveFile = imagesDir.filePath(timestamp + '_' + sanitized + ".png");
-            img.save(archiveFile);
-            qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
+            if (!img.save(archiveFile))
+                qWarning() << "[AI] ❌ Impossible d'enregistrer l'image IA";
+            else
+                qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
 
             AIImageProcessDialog dlg(img);
             if (dlg.exec() != QDialog::Accepted) {
@@ -1031,7 +1026,7 @@ void MainWindow::generateAIImage(const QString &userPrompt,
                 color = true;
 
             ui->labelAIGenerationStatus->clear();
-            openImageInCustom(tempFile, internal, color);
+            openImageInCustom(archiveFile, internal, color);
         });
     });
 }
