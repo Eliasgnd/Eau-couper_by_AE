@@ -264,6 +264,9 @@ private:
     bool m_supprimerMode = false;
     bool m_gommeMode = false;
 
+    // -- Helper to reset everything back to the default drawing mode
+    void revertToFreehand();
+
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
