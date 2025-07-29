@@ -732,7 +732,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             pushState();
             updateCanvas();
             update();
-            return; // rester en mode fermeture
+
+            // fermeture réussie → quitter le mode
+            m_closeMode = false;
+            emit closeModeChanged(false);
+            return;
         }
 
         // Aucun hit : on quitte le mode
@@ -1272,7 +1276,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                         // Sinon, on sauvegarde le mergedPath courant et on démarre un nouveau chemin
                         Shape ns;
                         ns.path = mergedPath;
-                        ns.originalId = m_nextShapeId++; // assign new unique id
+                        ns.originalId = id; // conserver l'identifiant d'origine
                         mergedShapes.append(ns);
                         mergedPath = segs[i];
                     }
@@ -1280,7 +1284,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                 // Ajouter le dernier mergedPath
                     Shape ns;
                     ns.path = mergedPath;
-                    ns.originalId = m_nextShapeId++; // assign new unique id
+                    ns.originalId = id; // conserver l'identifiant d'origine
                     mergedShapes.append(ns);
                 }
 
@@ -1442,7 +1446,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
                         if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
                             Shape ns;
                             ns.path = sub;
-                            ns.originalId = m_nextShapeId++; // assign new unique id
+                            ns.originalId = shape.originalId; // garder l'id d'origine
                             newShapes.append(ns);
                         }
                     }
