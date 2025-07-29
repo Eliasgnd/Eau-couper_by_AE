@@ -701,47 +701,20 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         }
 
         if (hit >= 0) {
-            QList<int> group = collectConnectedFragments(hit);
-
-            QPainterPath merged;
-            for (int idx : std::as_const(group))
-                merged.addPath(m_shapes[idx].path);
-
-            QList<QPainterPath> subpaths = separateIntoSubpaths(merged);
-            QPainterPath closed;
-            for (QPainterPath sp : subpaths) {
-                if (!sp.isEmpty()) {
-                    QPointF s = pathStart(sp);
-                    QPointF e = pathEnd(sp);
-                    if (QLineF(s, e).length() > 0.01)
-                        sp.lineTo(s);
-                    sp.closeSubpath();
-                }
-                closed.addPath(sp);
-            }
-
-            std::sort(group.begin(), group.end(), std::greater<int>());
-            for (int idx : group)
-                m_shapes.removeAt(idx);
-
-            Shape s;
-            s.path = closed;
-            s.originalId = m_nextShapeId++;
-            m_shapes.append(s);
-
             pushState();
-            updateCanvas();
-            update();
-
-            // fermeture réussie → quitter le mode
-            m_closeMode = false;
-            emit closeModeChanged(false);
-            return;
+            QPainterPath &p = m_shapes[hit].path;
+            if (p.elementCount() > 1) {
+                QPointF s = pathStart(p);
+                QPointF e = pathEnd(p);
+                if (QLineF(s, e).length() > 0.01)
+                    p.lineTo(s);         // simple visual closing
+            }
         }
 
-        // Aucun hit : on quitte le mode
         m_closeMode = false;
         emit closeModeChanged(false);
+        updateCanvas();
+        update();
         return;
     }
 
@@ -1138,7 +1111,6 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
             for (const Shape &shape : qAsConst(m_shapes)) {
                 if (shape.path.isEmpty())
                     continue;
-                int shapeId = shape.originalId; // Conserver l'identifiant d'origine
                 QPainterPath original = shape.path;
                 int count = original.elementCount();
                 if (count < 2) {
@@ -1249,48 +1221,8 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                 }
             } // Fin de parcours de m_shapes
 
-            QList<Shape> mergedShapes;
-            const double mergeThreshold = 5.0; // seuil en pixels pour considérer deux segments comme contigus
-
-            // Fusion des segments par originalId (optionnel)
-            QMap<int, QList<QPainterPath>> segmentsById;
-            for (const Shape &s : newShapes)
-                segmentsById[s.originalId].append(s.path);
-
-            for (auto it = segmentsById.constBegin(); it != segmentsById.constEnd(); ++it) {
-                int id = it.key();
-                QList<QPainterPath> segs = it.value();
-
-                // On suppose ici que les segments sont dans l'ordre (sinon, vous devrez trier)
-                QPainterPath mergedPath = segs.first();
-                for (int i = 1; i < segs.size(); ++i) {
-                    // On récupère le dernier point du mergedPath et le premier point du segment courant
-                    QPainterPath::Element lastEl = mergedPath.elementAt(mergedPath.elementCount() - 1);
-                    QPainterPath::Element firstEl = segs[i].elementAt(0);
-                    QPointF lastPoint(lastEl.x, lastEl.y);
-                    QPointF firstPoint(firstEl.x, firstEl.y);
-
-                    if (QLineF(lastPoint, firstPoint).length() < mergeThreshold)
-                        mergedPath.addPath(segs[i]); // Fusionner si les points se rejoignent
-                    else {
-                        // Sinon, on sauvegarde le mergedPath courant et on démarre un nouveau chemin
-                        Shape ns;
-                        ns.path = mergedPath;
-                        ns.originalId = m_nextShapeId++; // id unique
-                        mergedShapes.append(ns);
-                        mergedPath = segs[i];
-                    }
-                }
-                // Ajouter le dernier mergedPath
-                    Shape ns;
-                    ns.path = mergedPath;
-                    ns.originalId = m_nextShapeId++; // id unique
-                    mergedShapes.append(ns);
-                }
-
-            // Maintenant, n'assignez mergedShapes qu'en fusionnant les segments contigus
-            if (mergedShapes != m_shapes) {
-                m_shapes = mergedShapes;
+            if (newShapes != m_shapes) {
+                m_shapes = newShapes;
                 updateCanvas();
             }
             update();
