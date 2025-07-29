@@ -179,6 +179,28 @@ static QPointF pathEnd(const QPainterPath &p) {
     return {e.x, e.y};
 }
 
+// If 'p' forms a closed subpath, returns an equivalent open path
+static QPainterPath reopenIfClosed(const QPainterPath &p) {
+    if (p.elementCount() > 1) {
+        QPainterPath::Element first = p.elementAt(0);
+        QPainterPath::Element last  = p.elementAt(p.elementCount() - 1);
+        if (std::abs(first.x - last.x) < 0.001 &&
+            std::abs(first.y - last.y) < 0.001) {
+            QPainterPath open;
+            open.moveTo(first.x, first.y);
+            for (int i = 1; i < p.elementCount() - 1; ++i) {
+                auto e = p.elementAt(i);
+                if (e.isMoveTo())
+                    open.moveTo(e.x, e.y);
+                else
+                    open.lineTo(e.x, e.y);
+            }
+            return open;
+        }
+    }
+    return p;
+}
+
 static bool pathsTouch(const QPainterPath &a, const QPainterPath &b, qreal tol = 2.0) {
     QPointF a0 = pathStart(a);
     QPointF a1 = pathEnd(a);
@@ -1414,7 +1436,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
                         QRectF br = sub.boundingRect();
                         if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
                             Shape ns;
-                            ns.path = sub;
+                            ns.path = reopenIfClosed(sub);
                             ns.originalId = m_nextShapeId++; // nouvel id
                             newShapes.append(ns);
                         }
