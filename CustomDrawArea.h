@@ -16,8 +16,6 @@
 #include <QGestureEvent>
 #include <QPinchGesture>
 #include <QRectF>
-#include <QGestureEvent>
-#include <QPinchGesture>
 
 class CustomDrawArea : public QWidget
 {
@@ -175,10 +173,6 @@ private:
     QPointF m_offset = QPointF(0, 0);
     bool m_panningActive = false;
 
-    // Variables pour déplacement temporaire (aperçu si besoin)
-    QPointF m_tempDelta;
-    int m_tempMovingShapeIndex;
-    bool m_showTempMove = false;
 
     // Variables pour gestion unique des formes
     int m_nextShapeId = 1;
@@ -225,24 +219,14 @@ private:
     QPointF m_lastSelectClick;              // dernière position de sélection
 
 
-    // Déclaration de la fonction addNode
-    void addNode(const QPointF& position);
 
-    // Variables membres
-    QVector<QPointF> m_nodes;  // Pour stocker les positions des nœuds
-
-
-    QList<QPainterPath> m_paths;
 
     bool gestureEvent(QGestureEvent *event);
     bool pinchTriggered(QPinchGesture *gesture);
-    double m_zoomFactor = 1.0;
 
     TouchGestureReader* m_touchReader;
     bool m_twoFingersOn = false;
     QRectF m_limitRect;
-    QRectF calculateVisibleRect(const QPointF &offset) const;
-    TouchGestureReader* m_gestureReader = nullptr;
 
     bool   m_snapToGrid   = false;   // État du “snap”
     int    m_gridSpacing  = 20;      // Doit rester synchronisé avec celui du paintEvent

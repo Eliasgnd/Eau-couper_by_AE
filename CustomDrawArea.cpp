@@ -250,14 +250,6 @@ void CustomDrawArea::applyPanDelta(const QPointF &delta) {
 }
 
 
-QRectF CustomDrawArea::calculateVisibleRect(const QPointF &offset) const
-{
-    QSizeF widgetSize = size() * devicePixelRatioF();
-    QPointF topLeft = (QPointF(0, 0) - offset) / m_scale;
-    QPointF bottomRight = (QPointF(widgetSize.width(), widgetSize.height()) - offset) / m_scale;
-    return QRectF(topLeft, bottomRight);
-}
-
 
 
 QRectF CustomDrawArea::currentVisibleLogicalRect() const {
@@ -1284,177 +1276,9 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     case DrawMode::Gomme:
     {
         if (m_gommeErasing) {
-            m_gommeMoved = true;               // au moins un déplacement
-            m_gommeCenter = pos; // Mise à jour de la position de la gomme
-            update();
+            m_gommeMoved = true;
             m_gommeCenter = pos;
-            update();
-
-            if (!m_gommeErasing)
-                break; // On s'arrête ici : on ne touche pas aux formes
-
-            QList<Shape> newShapes;
-            bool hasChanged = false; // Drapeau pour détecter si des changements sont effectués
-            const auto mergeSegments = [](QList<QLineF> segs) {
-                QList<QPainterPath> merged;
-                const qreal tol = 0.5;
-                while (!segs.isEmpty()) {
-                    QLineF cur = segs.takeFirst();
-                    QList<QPointF> chain{cur.p1(), cur.p2()};
-                    bool progress = true;
-                    while (progress) {
-                        progress = false;
-                        for (int i = 0; i < segs.size(); ++i) {
-                            QLineF s = segs[i];
-                            if (QLineF(chain.last(), s.p1()).length() <= tol) {
-                                chain.append(s.p2()); segs.removeAt(i); progress = true; break;
-                            }
-                            if (QLineF(chain.last(), s.p2()).length() <= tol) {
-                                chain.append(s.p1()); segs.removeAt(i); progress = true; break;
-                            }
-                            if (QLineF(chain.first(), s.p2()).length() <= tol) {
-                                chain.prepend(s.p1()); segs.removeAt(i); progress = true; break;
-                            }
-                            if (QLineF(chain.first(), s.p1()).length() <= tol) {
-                                chain.prepend(s.p2()); segs.removeAt(i); progress = true; break;
-                            }
-                        }
-                    }
-                    QPainterPath path; // build open path
-                    path.moveTo(chain.first());
-                    for (int i = 1; i < chain.size(); ++i)
-                        path.lineTo(chain[i]);
-                    // do not close; keep fragment open
-                    merged.append(path);
-                }
-                return merged;
-            };
-            const double epsilon = 0.001; // tolérance pour déterminer l'intérieur
-            //const double maxSegmentSize = 5.0; // Limite de taille en pixels pour un segment
-
-            // Parcourir toutes les formes existantes
-            for (const Shape &shape : qAsConst(m_shapes)) {
-                if (shape.path.isEmpty())
-                    continue;
-                QPainterPath original = shape.path;
-                int count = original.elementCount();
-                if (count < 2) {
-                    newShapes.append(shape);
-                    continue;
-                }
-
-                // Détection d'un chemin fermé par comparaison du premier et du dernier point
-                bool hasCloseSubpath = false;
-                if (count > 1) {
-                    QPainterPath::Element first = original.elementAt(0);
-                    QPainterPath::Element last = original.elementAt(count - 1);
-                    if (std::abs(first.x - last.x) < epsilon &&
-                        std::abs(first.y - last.y) < epsilon)
-                        hasCloseSubpath = true;
-                }
-
-                int lastIndex = hasCloseSubpath ? count : (count - 1);
-                QList<QLineF> localSegments;
-                bool shapeChanged = false;
-
-                // Parcourir chaque segment (en traitant le segment de fermeture si nécessaire)
-                for (int j = 0; j < lastIndex; ++j) {
-                    int nextIndex = (j + 1) % count; // permet de traiter le segment [dernier -> premier] si fermé
-                    QPainterPath::Element e1 = original.elementAt(j);
-                    QPainterPath::Element e2 = original.elementAt(nextIndex);
-                    QPointF p1(e1.x, e1.y), p2(e2.x, e2.y);
-
-                    // On considère un point comme "à l'intérieur" si sa distance est <= rayon + epsilon
-                    bool p1Inside = (QLineF(p1, m_gommeCenter).length() <= m_gommeRadius + epsilon);
-                    bool p2Inside = (QLineF(p2, m_gommeCenter).length() <= m_gommeRadius + epsilon);
-
-                    // Ajouter un drapeau de changement si la gomme touche un segment
-                    if (p1Inside || p2Inside)
-                        hasChanged = shapeChanged = true;
-
-
-                    QPointF d = p2 - p1;
-                    double A = d.x() * d.x() + d.y() * d.y();
-                    double B = 2 * ((p1.x() - m_gommeCenter.x()) * d.x() + (p1.y() - m_gommeCenter.y()) * d.y());
-                    double C = (p1.x() - m_gommeCenter.x()) * (p1.x() - m_gommeCenter.x()) +
-                               (p1.y() - m_gommeCenter.y()) * (p1.y() - m_gommeCenter.y()) -
-                               m_gommeRadius * m_gommeRadius;
-                    double discriminant = B * B - 4 * A * C;
-
-                    QVector<double> tValues;
-                    if (A != 0 && discriminant >= 0) {
-                        double sqrtDisc = std::sqrt(discriminant);
-                        double t1 = (-B - sqrtDisc) / (2 * A);
-                        double t2 = (-B + sqrtDisc) / (2 * A);
-                        if (t1 >= 0 && t1 <= 1)
-                            tValues.push_back(t1);
-                        if (t2 >= 0 && t2 <= 1)
-                            tValues.push_back(t2);
-                        std::sort(tValues.begin(), tValues.end());
-                    }
-
-                    auto addSeg = [&](const QPointF &a, const QPointF &b) {
-                        if (QLineF(a, b).length() > 0.0)
-                            localSegments.append(QLineF(a, b));
-                    };
-
-                    // Si aucun des points n'est à l'intérieur et aucune intersection n'est détectée,
-                    // on conserve le segment entier
-                    if (!p1Inside && !p2Inside) {
-                        if (tValues.size() >= 2) {
-                            shapeChanged = hasChanged = true;
-                            double tA = tValues[0], tB = tValues[1];
-                            QPointF ipA = p1 + d * tA;
-                            QPointF ipB = p1 + d * tB;
-                            if ((ipA - p1).manhattanLength() > 0.1)
-                                addSeg(p1, ipA);
-                            if ((p2 - ipB).manhattanLength() > 0.1)
-                                addSeg(ipB, p2);
-                        } else if (tValues.size() == 1) {
-                            shapeChanged = hasChanged = true; // tangent
-                            // Cas tangent : on supprime entièrement le segment
-                        } else {
-                            addSeg(p1, p2);
-                        }
-                    }
-                    else if (!p1Inside && p2Inside) {
-                        if (!tValues.isEmpty()) {
-                            shapeChanged = hasChanged = true;
-                            double t = tValues.first();
-                            QPointF ip = p1 + d * t;
-                            if ((ip - p1).manhattanLength() > 0.1)
-                                addSeg(p1, ip);
-                        }
-                    }
-                    else if (p1Inside && !p2Inside) {
-                        if (!tValues.isEmpty()) {
-                            shapeChanged = hasChanged = true;
-                            double t = tValues.last();
-                            QPointF ip = p1 + d * t;
-                            if ((p2 - ip).manhattanLength() > 0.1)
-                                addSeg(ip, p2);
-                        }
-                    }
-                    // Si les deux points sont à l'intérieur, on ne garde rien (segment effacé)
-                } // Fin de la boucle sur les segments
-
-                if (!shapeChanged) {
-                    newShapes.append(shape);
-                } else {
-                    auto mergedPaths = mergeSegments(localSegments);
-                    for (const QPainterPath &mp : mergedPaths) {
-                        Shape ns; ns.path = mp; ns.originalId = m_nextShapeId++;
-                        newShapes.append(ns);
-                    }
-                }
-            } // Fin de parcours de m_shapes
-
-            if (newShapes != m_shapes) {
-                m_shapes = newShapes;
-                updateCanvas();
-            }
-            update();
-
+            applyEraserAt(m_gommeCenter);
         }
         break;
     }
@@ -1690,7 +1514,6 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
     QPainter painter(this);
-    painter.scale(m_zoomFactor, m_zoomFactor);
     painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
 
     painter.fillRect(rect(), Qt::white);
@@ -1764,34 +1587,13 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
 
 
-<<<<<<< HEAD
-    if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
-        QPointF center = bounds.center();
-        m_rotationCenter = center;
-
-        // Position initiale du handle avant rotation (au-dessus)
-        QPointF unrotatedHandle(center.x(), bounds.top() - 20);
-
-        // Appliquer la rotation cumulée du groupe
-        QTransform handleRotation;
-        handleRotation.translate(center.x(), center.y());
-        handleRotation.rotateRadians(m_groupRotationAngle);
-        handleRotation.translate(-center.x(), -center.y());
-
-        m_rotationHandle = handleRotation.map(unrotatedHandle);
-    }
-=======
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
         QPointF center = bounds.center();
         if (!m_rotating)
             m_rotationCenter = center;
 
-        // Position initiale du handle avant rotation (au-dessus)
         QPointF unrotatedHandle(center.x(), bounds.top() - 20);
-
-        // Appliquer la rotation cumulée du groupe
         QTransform handleRotation;
         handleRotation.translate(center.x(), center.y());
         handleRotation.rotateRadians(m_groupRotationAngle);
@@ -1799,22 +1601,6 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
         m_rotationHandle = handleRotation.map(unrotatedHandle);
     }
->>>>>>> rotate_shape
-
-
-
-    // -- connecteurs en trait noir continu --
-    // Dessin des formes (incluant désormais tes connecteurs)
-    QPen normalPen(Qt::black, 2);
-    normalPen.setCosmetic(true);
-    painter.setPen(normalPen);
-    painter.setBrush(Qt::NoBrush);
-    for (const Shape &s : m_shapes) {
-        if (s.path.isEmpty())
-            continue;
-        painter.drawPath(s.path);
-    }
-*/
 
     QPen gridPen(QColor(220,220,220));
     gridPen.setStyle(Qt::DotLine);
@@ -2229,13 +2015,6 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
 }
 
 
-
-// Ajoute le nœud à une structure de données
-void CustomDrawArea::addNode(const QPointF& position)
-{
-    // Si tu veux garder une liste de nœuds
-    m_nodes.append(position);
-}
 
 
 
