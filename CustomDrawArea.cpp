@@ -1272,17 +1272,17 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                         // Sinon, on sauvegarde le mergedPath courant et on démarre un nouveau chemin
                         Shape ns;
                         ns.path = mergedPath;
-                        ns.originalId = id;
+                        ns.originalId = m_nextShapeId++; // assign new unique id
                         mergedShapes.append(ns);
                         mergedPath = segs[i];
                     }
                 }
                 // Ajouter le dernier mergedPath
-                Shape ns;
-                ns.path = mergedPath;
-                ns.originalId = id;
-                mergedShapes.append(ns);
-            }
+                    Shape ns;
+                    ns.path = mergedPath;
+                    ns.originalId = m_nextShapeId++; // assign new unique id
+                    mergedShapes.append(ns);
+                }
 
             // Maintenant, n'assignez mergedShapes qu'en fusionnant les segments contigus
             if (mergedShapes != m_shapes) {
@@ -1442,7 +1442,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
                         if (!sub.isEmpty() && br.width() > 1 && br.height() > 1) {
                             Shape ns;
                             ns.path = sub;
-                            ns.originalId = shape.originalId;  // Conserver l'ID du trait
+                            ns.originalId = m_nextShapeId++; // assign new unique id
                             newShapes.append(ns);
                         }
                     }
