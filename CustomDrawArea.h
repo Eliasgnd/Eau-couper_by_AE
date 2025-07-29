@@ -206,6 +206,7 @@ private:
 
     // Calcule le rectangle englobant de toutes les formes sélectionnées
     QRectF selectedShapesBounds() const;
+    QList<int> collectConnectedFragments(int startIndex) const;
 
     // Recalculates the rotation handle when the selection changes
     void updateRotationHandle();
