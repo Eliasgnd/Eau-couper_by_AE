@@ -18,6 +18,7 @@
 #include <QDebug>
 #include <QMenu>
 #include <QToolButton>
+#include <QSignalBlocker>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QTimer>
@@ -179,6 +180,13 @@ custom::custom(Language lang, QWidget *parent)
 
     connect(ui->smoothingSlider, &QSlider::valueChanged, this, [=](int value){
         int percent = static_cast<int>(std::round(100.0 * value / 10.0));
+        ui->labelSmoothingValue->setText(QString("Puissance du lissage : %1%").arg(percent));
+    });
+
+    connect(drawArea, &CustomDrawArea::smoothingLevelChanged, this, [=](int level){
+        QSignalBlocker b(ui->smoothingSlider);
+        ui->smoothingSlider->setValue(level);
+        int percent = static_cast<int>(std::round(100.0 * level / 10.0));
         ui->labelSmoothingValue->setText(QString("Puissance du lissage : %1%").arg(percent));
     });
 

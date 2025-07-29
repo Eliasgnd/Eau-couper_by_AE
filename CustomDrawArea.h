@@ -148,6 +148,7 @@ private:
     // États du dessin
     bool m_drawing;
     int m_smoothingLevel;
+    int m_savedSmoothingLevel;   // sauvegarde du niveau pour le mode Freehand
     bool m_lowPassFilterEnabled = true;
     DrawMode m_drawMode = DrawMode::Freehand;
 
@@ -272,6 +273,7 @@ signals:
     void closeModeChanged(bool enabled);
     void shapeSelection(bool enabled);
     void smoothingChanged(bool enabled);
+    void smoothingLevelChanged(int level); // émis lorsque le niveau est modifié
     void multiSelectionModeChanged(bool enabled);
     void deplacerModeChanged(bool enabled);
     void supprimerModeChanged(bool);

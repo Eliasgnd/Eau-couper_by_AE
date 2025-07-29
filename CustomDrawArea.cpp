@@ -30,6 +30,7 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
     m_drawing(false),
     m_smoothingLevel(1),
+    m_savedSmoothingLevel(1),
     m_drawMode(DrawMode::Freehand),
     m_drawingLineOrCircle(false),
     m_gommeErasing(false),
@@ -580,6 +581,7 @@ void CustomDrawArea::setSmoothingLevel(int level)
 
     m_freehandPoints.clear();
     update();
+    emit smoothingLevelChanged(m_smoothingLevel);
 }
 
 
@@ -602,6 +604,7 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     }
 
     // Sinon, activation normale
+    DrawMode previousMode = m_drawMode;
     if (m_selectMode)
         cancelSelection();
 
@@ -634,7 +637,12 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     m_panningActive = false;
     m_gommeErasing = false;
 
-    if (m_drawMode != DrawMode::Freehand)
+    if (previousMode == DrawMode::Freehand && mode != DrawMode::Freehand)
+        m_savedSmoothingLevel = m_smoothingLevel;
+
+    if (m_drawMode == DrawMode::Freehand)
+        setSmoothingLevel(m_savedSmoothingLevel);
+    else
         setSmoothingLevel(0);
 
     update();
@@ -2521,6 +2529,8 @@ void CustomDrawArea::revertToFreehand()
     m_shapeMoving = false;
     m_panningActive = false;
     m_gommeErasing = false;
+
+    setSmoothingLevel(m_savedSmoothingLevel);
 
     update();
 }
