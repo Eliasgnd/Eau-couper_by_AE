@@ -162,6 +162,7 @@ private:
     bool m_gommeErasing = false;
     QPointF m_gommeCenter;
     qreal m_gommeRadius = 20.0;
+    bool m_gommeMoved = false;        // true if mouseMoveEvent was triggered
 
     // Déplacement d'une forme
     int m_selectedShapeIndex = -1;
@@ -197,6 +198,8 @@ private:
     // Gestion du canevas
     void initCanvas();
     void updateCanvas();
+
+    void applyEraserAt(const QPointF &center); // gomme une zone circulaire
 
     // Gestion des actions annulables
     void pushState();
