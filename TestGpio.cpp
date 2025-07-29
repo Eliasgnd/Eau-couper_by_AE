@@ -12,20 +12,13 @@ TestGpio::TestGpio(QWidget *parent)
     : QWidget(parent), ui(new Ui::TestGpio)
 {
     ui->setupUi(this);
-    outputPins.reserve(23);
-    for(int p=2;p<=27;++p){
-        if(inputPins.contains(p))
-            continue;
-        outputPins.append(p);
-    }
-
     setupUiPins();
     for(int pin: inputPins){
         QLabel *label = findChild<QLabel*>(QString("labelPin%1").arg(pin));
         if(label)
             inputStateLabels.insert(pin, label);
     }
-    initGpio();
+    init_gpio();
 
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -47,7 +40,7 @@ void TestGpio::closeEvent(QCloseEvent *event)
     QWidget::closeEvent(event);
 }
 
-void TestGpio::initGpio()
+void TestGpio::init_gpio()
 {
 #ifndef _WIN32
     chip = gpiod_chip_open_by_name("gpiochip0");
@@ -57,7 +50,7 @@ void TestGpio::initGpio()
     }
     for(int pin: outputPins){
         gpiod_line *line = gpiod_chip_get_line(chip, pin);
-        if(line && gpiod_line_request_output(line, "testgpio", 0)==0){
+        if(line && gpiod_line_request_output_flags(line, "testgpio", 0, 0)==0){
             outputLines.insert(pin, line);
         } else {
             qWarning() << "Erreur init GPIO sortie" << pin;
@@ -65,7 +58,7 @@ void TestGpio::initGpio()
     }
     for(int pin: inputPins){
         gpiod_line *line = gpiod_chip_get_line(chip, pin);
-        if(line && gpiod_line_request_input(line, "testgpio")==0){
+        if(line && gpiod_line_request_input_flags(line, "testgpio", GPIOD_LINE_REQUEST_FLAG_BIAS_PULL_UP)==0){
             inputLines.insert(pin, line);
         } else {
             qWarning() << "Erreur init GPIO entree" << pin;

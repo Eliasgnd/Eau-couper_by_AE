@@ -32,12 +32,12 @@ private slots:
     void goToMainWindow();
 
 private:
-    void initGpio();
+    void init_gpio();
     void releaseGpio();
     void setupUiPins();
 
     Ui::TestGpio *ui {nullptr};
-    QVector<int> outputPins;
+    QVector<int> outputPins {20,21,26,13,6,7,8,25,17,27};
     QVector<int> inputPins {23,24,18};
     QMap<int, QLabel*> stateLabels;
     QMap<int, QCheckBox*> checkBoxes;
