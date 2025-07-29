@@ -1129,10 +1129,11 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                             }
                         }
                     }
-                    QPainterPath path; path.moveTo(chain.first());
-                    for (int i = 1; i < chain.size(); ++i) path.lineTo(chain[i]);
-                    if (QLineF(chain.first(), chain.last()).length() <= tol)
-                        path.closeSubpath();
+                    QPainterPath path; // build open path
+                    path.moveTo(chain.first());
+                    for (int i = 1; i < chain.size(); ++i)
+                        path.lineTo(chain[i]);
+                    // do not close; keep fragment open
                     merged.append(path);
                 }
                 return merged;
