@@ -1433,7 +1433,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             for (const Shape &shape : std::as_const(m_shapes)) {
                 // Vérifier si la gomme intersecte réellement la forme
                 if (shape.path.intersects(eraserPath)) {
-                    QPainterPath newPath = shape.path.subtracted(eraserPath);
+                    QPainterPath newPath = shape.path.subtracted(eraserPath).simplified();
 
                     // Découper le résultat en sous-chemins pour conserver des segments indépendants
                     QList<QPainterPath> subpaths = separateIntoSubpaths(newPath);
