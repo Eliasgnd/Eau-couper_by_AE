@@ -1,10 +1,10 @@
-// raspberry.h
 #pragma once
 
 #include <vector>
 #include <cstdint>
 #include <map>
 #include <QObject>
+
 #ifndef _WIN32
 #  include <gpiod.h>
 #endif
@@ -29,8 +29,12 @@ public:
     struct Status { bool stall; bool fault; bool bemf; };
     Status readStatus();
 
+    // ✅ Pins rendues publiques
+    static constexpr uint8_t STALLN_PIN = 23;
+    static constexpr uint8_t FAULTN_PIN = 24;
+    static constexpr uint8_t BEMF_PIN   = 18;
+
 #ifndef _WIN32
-    // Transfert SPI full‑duplex 16 bits
     uint16_t transfer(uint16_t word);
 #endif
 
@@ -38,13 +42,7 @@ signals:
     void spiTransfered(quint16 tx, quint16 rx);
 
 private:
-    // Broches d'état (entrée)
-    static constexpr uint8_t STALLN_PIN = 23;
-    static constexpr uint8_t FAULTN_PIN = 24;
-    static constexpr uint8_t BEMF_PIN   = 18;
-
-    // Broches de contrôle GPIO
-    static constexpr uint8_t PIN_SCS    = 20;  // CS manuel
+    static constexpr uint8_t PIN_SCS    = 20;
     static constexpr uint8_t PIN_RESET  = 21;
     static constexpr uint8_t PIN_SLEEPn = 26;
     static constexpr uint8_t STEP_PIN   = 13;
@@ -55,12 +53,10 @@ private:
     static constexpr uint8_t BIN1_PIN   = 17;
     static constexpr uint8_t BIN2_PIN   = 27;
 
-    // Broches SPI (gérées par le contrôleur matériel)
-    static constexpr uint8_t SDATI_PIN  = 10; // MOSI
-    static constexpr uint8_t SDATAO_PIN = 9;  // MISO
-    static constexpr uint8_t SCLK_PIN   = 11; // SCLK
+    static constexpr uint8_t SDATI_PIN  = 10;
+    static constexpr uint8_t SDATAO_PIN = 9;
+    static constexpr uint8_t SCLK_PIN   = 11;
 
-    // Listes de broches pour init_gpio()
     std::vector<uint8_t> outputPins = {
         PIN_SCS, PIN_RESET, PIN_SLEEPn,
         STEP_PIN, DIR_PIN,
@@ -72,7 +68,6 @@ private:
     };
 
 #ifndef _WIN32
-    // Accès bas‑niveau GPIO via libgpiod
     void writePin(uint8_t pin, bool value);
     bool readPin(uint8_t pin);
 
@@ -80,7 +75,6 @@ private:
     std::map<uint8_t, gpiod_line*> outputLines;
     std::map<uint8_t, gpiod_line*> inputLines;
 
-    // SPI
     int spiFd{-1};
     uint32_t spiSpeed{1000000};
 #endif

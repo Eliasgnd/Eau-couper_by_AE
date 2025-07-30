@@ -1,6 +1,12 @@
 // raspberry.cpp
 #include "raspberry.h"
 #include <iostream>
+#include <fcntl.h>
+#include <unistd.h>  // ✅ Pour ::close()
+#include <sys/ioctl.h>
+#include <linux/spi/spidev.h>
+#include <thread>
+#include <chrono>
 
 // Constructeur et destructeur toujours définis
 Raspberry::Raspberry(QObject *parent)
@@ -44,7 +50,7 @@ void Raspberry::close() {
 
     // Fermeture SPI
     if (spiFd >= 0) {
-        ::close(spiFd);
+        ::close(spiFd);  // ✅ Problème résolu ici
         spiFd = -1;
     }
 
@@ -55,13 +61,6 @@ void Raspberry::close() {
 }
 
 #ifndef _WIN32
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
-#include <thread>
-#include <chrono>
 
 bool Raspberry::init_gpio() {
     // Configure GPIO output
