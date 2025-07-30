@@ -125,6 +125,7 @@ private:
     bool m_rotationPivotValid {false};
 
     // Bordure représentant visuellement la limite du plateau
+    // (placée au-dessus des formes pour rester visible)
     QGraphicsRectItem *m_sheetBorder {nullptr};
 
     // <<< AJOUT : taille plateau et ratio (w/h) pour l'Option B
