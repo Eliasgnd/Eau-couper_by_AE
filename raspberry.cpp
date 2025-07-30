@@ -11,7 +11,7 @@
 #include <thread>
 #include <chrono>
 
-Raspberry::Raspberry() {
+Raspberry::Raspberry(QObject *parent) : QObject(parent) {
     chip = gpiod_chip_open_by_name("gpiochip0");
     if (!chip) {
         std::cerr << "Erreur: impossible d'ouvrir gpiochip0\n";
@@ -152,6 +152,7 @@ uint16_t Raspberry::transfer(uint16_t word) {
     writePin(PIN_SCS, true);
     if (ret < 0)
         std::cerr << "Erreur transfert SPI" << std::endl;
+    emit spiTransfered(word, rx);
     return rx;
 }
 

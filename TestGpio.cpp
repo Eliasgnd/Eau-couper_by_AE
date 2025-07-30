@@ -21,6 +21,10 @@ TestGpio::TestGpio(QWidget *parent)
     }
     init_gpio();
 
+    Raspberry* rasp = new Raspberry(this);
+    connect(rasp, &Raspberry::spiTransfered,
+            this, &TestGpio::appendSpiLog);
+
     ScreenUtils::placeOnSecondaryScreen(this);
 
     connect(&updateTimer, &QTimer::timeout, this, &TestGpio::updatePinStates);
@@ -156,6 +160,13 @@ void TestGpio::updatePinStates()
 #endif
 }
 
+void TestGpio::appendSpiLog(quint16 tx, quint16 rx)
+{
+    ui->spiLog->appendPlainText(
+        QString("TX=0x%1  RX=0x%2")
+            .arg(tx, 4, 16, QChar('0'))
+            .arg(rx, 4, 16, QChar('0')));
+}
 
 
 void TestGpio::goToMainWindow()

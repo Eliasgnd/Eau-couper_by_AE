@@ -2,13 +2,15 @@
 #include <vector>
 #include <cstdint>
 #include <map>
+#include <QObject>
 #ifndef _WIN32
 #include <gpiod.h>
 #endif
 
-class Raspberry {
+class Raspberry : public QObject {
+    Q_OBJECT
 public:
-    Raspberry();
+    explicit Raspberry(QObject *parent = nullptr);
     ~Raspberry();
 
     bool init();
@@ -23,6 +25,11 @@ public:
 #ifndef _WIN32
     uint16_t transfer(uint16_t word);
 #endif
+
+signals:
+    void spiTransfered(quint16 tx, quint16 rx);
+
+public:
 
     // Broches d'entrée accessibles publiquement
     static constexpr uint8_t STALLN_PIN  = 23;

@@ -63,15 +63,22 @@
      </item>
     </layout>
    </item>
-   <item>
-    <widget class="QPushButton" name="buttonMenu">
-     <property name="text">
-      <string>Menu principal</string>
-     </property>
-    </widget>
-   </item>
-  </layout>
- </widget>
+    <item>
+     <widget class="QPushButton" name="buttonMenu">
+      <property name="text">
+       <string>Menu principal</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPlainTextEdit" name="spiLog">
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
  <resources/>
  <connections/>
 </ui>
