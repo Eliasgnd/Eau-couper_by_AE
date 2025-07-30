@@ -585,7 +585,7 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->sliderGridSpacing, &QSlider::valueChanged,
             this, [=](int value){
         drawArea->setGridSpacing(value);                         // met à jour la grille
-        ui->labelGridSpacing->setText(QString("%1 px").arg(value)); // feedback visuel
+        ui->labelGridSpacing->setText(tr("Taille de la grille : %1 px").arg(value));
     });
 
     // 1) valeur initiale dès le lancement

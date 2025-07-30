@@ -551,7 +551,7 @@ QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quo
           <item>
            <widget class="QLabel" name="labelGridSpacing">
             <property name="text">
-             <string>Pas de grille :</string>
+             <string>Taille de la grille : 20 px</string>
             </property>
            </widget>
           </item>
