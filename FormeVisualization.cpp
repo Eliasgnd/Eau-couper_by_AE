@@ -1,4 +1,6 @@
 #include "FormeVisualization.h"
+#include "AspectRatioWrapper.h"
+
 #include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
 #include <QGraphicsEllipseItem>
@@ -106,11 +108,12 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
     return path.united(strokePath);
 }
 
-void FormeVisualization::resizeEvent(QResizeEvent *event)
-{
-    QWidget::resizeEvent(event);
-    if (graphicsView && scene && width() > 0 && height() > 0)
+void FormeVisualization::resizeEvent(QResizeEvent* e) {
+    QWidget::resizeEvent(e);
+    if (graphicsView && scene) {
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        qDebug() << "[FV] w,h =" << width() << height();
+    }
 }
 
 bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)

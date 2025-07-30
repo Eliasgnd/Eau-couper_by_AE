@@ -19,6 +19,7 @@
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
+#include "AspectRatioWrapper.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -66,6 +67,27 @@ MainWindow::MainWindow(QWidget *parent)
     // Étirements des colonnes (pas dans le .ui pour éviter l'erreur uic)
     ui->mainHorizontalLayout->setStretch(0, 0); // colonne gauche (fixe)
     ui->mainHorizontalLayout->setStretch(1, 1); // colonne droite (expansive)
+
+    auto fv = ui->formeVisualizationWidget;   // FormeVisualization* issu du .ui
+    fv->setSheetSizeMm(QSizeF(600, 400));     // OK
+
+    // 1) Crée le wrapper SANS re‑parenter fv
+    auto wrapper = new AspectRatioWrapper(nullptr, 600.0/400.0, ui->centralwidget);
+    wrapper->setObjectName("formeRatioWrapper");
+    wrapper->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    // 2) Remplace fv par wrapper TANT QUE fv est encore dans le layout
+    ui->horizontalLayout->replaceWidget(fv, wrapper);
+
+    // 3) Maintenant, on adopte fv à l’intérieur du wrapper
+    wrapper->setChild(fv);
+
+    // 4) Mets à jour le ratio du wrapper si la taille de feuille change
+    connect(fv, &FormeVisualization::sheetSizeMmChanged,
+            wrapper, [wrapper](const QSizeF& mm) {
+                if (mm.width() > 0.0 && mm.height() > 0.0)
+                    wrapper->setAspect(mm.width() / mm.height());
+            });
 
     // 1) Crée le menu langue et ses actions (attributs)
     languageMenu  = new QMenu(tr("Langue"), this);

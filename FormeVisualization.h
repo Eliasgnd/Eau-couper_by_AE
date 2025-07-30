@@ -57,6 +57,11 @@ public:
     // <<< AJOUT : accès à la taille en mm
     QSizeF sheetSizeMm() const { return m_sheetMm; }
 
+    bool hasHeightForWidth() const override { return true; }
+    int  heightForWidth(int w) const override;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
+
 public slots:
     // --- API existante ---
     void displayCustomShapes(const QList<QPolygonF>& shapes);
@@ -88,13 +93,6 @@ protected:
     // --- API existante ---
     void resizeEvent(QResizeEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
-
-    // <<< AJOUT : informer le layout que la hauteur dépend de la largeur
-    // Ce widget impose toujours une hauteur dépendante de la largeur
-    bool hasHeightForWidth() const override { return true; }
-    int  heightForWidth(int w) const override;
-    QSize sizeHint() const override;
-    QSize minimumSizeHint() const override;
 
 private slots:
     QPainterPath bufferedPath(const QPainterPath &path, int spacing);

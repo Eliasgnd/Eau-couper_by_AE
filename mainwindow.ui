@@ -13,7 +13,7 @@
   <property name="maximumSize">
    <size>
     <width>16777215</width>
-    <height>965</height>
+    <height>16777215</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -565,7 +565,7 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
      </layout>
     </item>
     <item>
-    <layout class="QVBoxLayout" name="centerVBox" stretch="0,1,0,0">
+     <layout class="QVBoxLayout" name="centerVBox" stretch="0,1,0,0">
       <item>
        <layout class="QHBoxLayout" name="topBarLayout">
         <item>
@@ -607,9 +607,9 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
        </layout>
       </item>
       <item>
-      <layout class="QHBoxLayout" name="horizontalLayout" stretch="1">
-          <item>
-            <widget class="FormeVisualization" name="formeVisualizationWidget" native="true">
+       <layout class="QHBoxLayout" name="horizontalLayout" stretch="1">
+        <item>
+         <widget class="FormeVisualization" name="formeVisualizationWidget" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -628,6 +628,218 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <item>
+         <widget class="QGroupBox" name="groupBoxSettings">
+          <property name="title">
+           <string>Réglages</string>
+          </property>
+          <layout class="QGridLayout" name="settingsGrid">
+           <item row="1" column="1">
+            <widget class="QLabel" name="Taille_txt">
+             <property name="text">
+              <string>Dimensions : </string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="4">
+            <widget class="QSpinBox" name="Largeur">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
+             </property>
+             <property name="maximum">
+              <number>600</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QSpinBox" name="Hauteur">
+             <property name="maximumSize">
+              <size>
+               <width>60</width>
+               <height>50</height>
+              </size>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="2">
+            <widget class="QSpinBox" name="shapeCountSpinBox">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
+             </property>
+             <property name="maximum">
+              <number>1000000</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="3">
+            <widget class="QLabel" name="Pression_txt">
+             <property name="text">
+              <string>Pression : </string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QLabel" name="Vitesse_txt">
+             <property name="text">
+              <string>Vitesse : </string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QSpinBox" name="Longueur">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
+             </property>
+             <property name="maximum">
+              <number>600</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="3">
+            <widget class="QLabel" name="mm_txt">
+             <property name="text">
+              <string>mm</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="4">
+            <widget class="QSlider" name="Slider_largeur">
+             <property name="styleSheet">
+              <string notr="true">QSlider::groove:horizontal { height: 6px; background: #d6d6d6; border: 1px solid #bbb; border-radius: 3px; }
+QSlider::handle:horizontal { width: 20px; background: #00BCD4; border: 1px solid #008C9E; border-radius: 10px; margin: -5px 0; }
+QSlider::handle:horizontal:hover { background: #26C6DA; }</string>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>600</number>
+             </property>
+             <property name="singleStep">
+              <number>1</number>
+             </property>
+             <property name="pageStep">
+              <number>10</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="4">
+            <widget class="QSpinBox" name="spaceSpinBox">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
+             </property>
+             <property name="maximum">
+              <number>1000000</number>
+             </property>
+             <property name="value">
+              <number>0</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="5">
+            <widget class="QLabel" name="x_txt_2">
+             <property name="text">
+              <string>mm</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="4">
+            <widget class="QSpinBox" name="SpinBox_pression">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
+             </property>
+             <property name="minimum">
+              <number>1500</number>
+             </property>
+             <property name="maximum">
+              <number>3500</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QLabel" name="x_txt">
+             <property name="text">
+              <string>X</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1" colspan="5">
+            <widget class="QLabel" name="Reglages_txt">
+             <property name="text">
+              <string>Réglages : </string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="3">
+            <widget class="QLabel" name="Taille_txt_3">
+             <property name="text">
+              <string>Espacement : </string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="2">
+            <widget class="QSpinBox" name="SpinBox_vitesse">
+             <property name="styleSheet">
+              <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
+             </property>
+             <property name="maximum">
+              <number>200</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QLabel" name="Taille_txt_2">
+             <property name="text">
+              <string>Quantité : </string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="2">
+            <widget class="QSlider" name="Slider_longueur">
+             <property name="styleSheet">
+              <string notr="true">QSlider::groove:horizontal { height: 6px; background: #d6d6d6; border: 1px solid #bbb; border-radius: 3px; }
+QSlider::handle:horizontal { width: 20px; background: #00BCD4; border: 1px solid #008C9E; border-radius: 10px; margin: -5px 0; }
+QSlider::handle:horizontal:hover { background: #26C6DA; }</string>
+             </property>
+             <property name="maximum">
+              <number>400</number>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Orientation::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QLabel" name="Hauteur_txt">
+             <property name="text">
+              <string>Hauteur : </string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
         <item>
          <layout class="QGridLayout" name="gridLayout">
           <item row="5" column="0">
@@ -856,218 +1068,6 @@ QPushButton:pressed { background-color: #008C9E; }</string>
            </widget>
           </item>
          </layout>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="groupBoxSettings">
-          <property name="title">
-           <string>Réglages</string>
-          </property>
-          <layout class="QGridLayout" name="settingsGrid">
-           <item row="5" column="1">
-            <widget class="QLabel" name="Hauteur_txt">
-             <property name="text">
-              <string>Hauteur : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="2">
-            <widget class="QSpinBox" name="Hauteur">
-             <property name="maximumSize">
-              <size>
-               <width>60</width>
-               <height>50</height>
-              </size>
-             </property>
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
-             </property>
-             <property name="maximum">
-              <number>100</number>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="1">
-            <widget class="QLabel" name="Vitesse_txt">
-             <property name="text">
-              <string>Vitesse : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="5">
-            <widget class="QLabel" name="x_txt_2">
-             <property name="text">
-              <string>mm</string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="3">
-            <widget class="QLabel" name="mm_txt">
-             <property name="text">
-              <string>mm</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="2">
-            <widget class="QSlider" name="Slider_longueur">
-             <property name="styleSheet">
-              <string notr="true">QSlider::groove:horizontal { height: 6px; background: #d6d6d6; border: 1px solid #bbb; border-radius: 3px; }
-QSlider::handle:horizontal { width: 20px; background: #00BCD4; border: 1px solid #008C9E; border-radius: 10px; margin: -5px 0; }
-QSlider::handle:horizontal:hover { background: #26C6DA; }</string>
-             </property>
-             <property name="maximum">
-              <number>400</number>
-             </property>
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1" colspan="5">
-            <widget class="QLabel" name="Reglages_txt">
-             <property name="text">
-              <string>Réglages : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="3">
-            <widget class="QLabel" name="x_txt">
-             <property name="text">
-              <string>X</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="4">
-            <widget class="QSlider" name="Slider_largeur">
-             <property name="styleSheet">
-              <string notr="true">QSlider::groove:horizontal { height: 6px; background: #d6d6d6; border: 1px solid #bbb; border-radius: 3px; }
-QSlider::handle:horizontal { width: 20px; background: #00BCD4; border: 1px solid #008C9E; border-radius: 10px; margin: -5px 0; }
-QSlider::handle:horizontal:hover { background: #26C6DA; }</string>
-             </property>
-             <property name="minimum">
-              <number>0</number>
-             </property>
-             <property name="maximum">
-              <number>600</number>
-             </property>
-             <property name="singleStep">
-              <number>1</number>
-             </property>
-             <property name="pageStep">
-              <number>10</number>
-             </property>
-             <property name="value">
-              <number>0</number>
-             </property>
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="2">
-            <widget class="QSpinBox" name="SpinBox_vitesse">
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
-             </property>
-             <property name="maximum">
-              <number>200</number>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="4">
-            <widget class="QSpinBox" name="SpinBox_pression">
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
-             </property>
-             <property name="minimum">
-              <number>1500</number>
-             </property>
-             <property name="maximum">
-              <number>3500</number>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QLabel" name="Taille_txt">
-             <property name="text">
-              <string>Dimensions : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="1">
-            <widget class="QLabel" name="Taille_txt_2">
-             <property name="text">
-              <string>Quantité : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="4">
-            <widget class="QSpinBox" name="spaceSpinBox">
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
-             </property>
-             <property name="maximum">
-              <number>1000000</number>
-             </property>
-             <property name="value">
-              <number>0</number>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="2">
-            <widget class="QSpinBox" name="shapeCountSpinBox">
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
-             </property>
-             <property name="maximum">
-              <number>1000000</number>
-             </property>
-             <property name="value">
-              <number>0</number>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="3">
-            <widget class="QLabel" name="Taille_txt_3">
-             <property name="text">
-              <string>Espacement : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="3">
-            <widget class="QLabel" name="Pression_txt">
-             <property name="text">
-              <string>Pression : </string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="4">
-            <widget class="QSpinBox" name="Largeur">
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
-             </property>
-             <property name="maximum">
-              <number>600</number>
-             </property>
-             <property name="value">
-              <number>0</number>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QSpinBox" name="Longueur">
-             <property name="styleSheet">
-              <string notr="true">QSpinBox{ background-color: rgb(255,255,255); }</string>
-             </property>
-             <property name="maximum">
-              <number>600</number>
-             </property>
-             <property name="value">
-              <number>0</number>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </widget>
         </item>
        </layout>
       </item>
