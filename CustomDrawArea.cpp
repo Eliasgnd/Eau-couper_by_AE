@@ -31,12 +31,30 @@ Q_LOGGING_CATEGORY(lcSnap,     "ae.draw.snap")
 Q_LOGGING_CATEGORY(lcGesture,  "ae.draw.gesture")
 Q_LOGGING_CATEGORY(lcPerf,     "ae.draw.perf")
 
+static bool isPrimaryMode(CustomDrawArea::DrawMode mode)
+{
+    using DM = CustomDrawArea::DrawMode;
+    switch (mode) {
+    case DM::Freehand:
+    case DM::PointParPoint:
+    case DM::Line:
+    case DM::Rectangle:
+    case DM::Circle:
+    case DM::Text:
+    case DM::ThinText:
+        return true;
+    default:
+        return false;
+    }
+}
+
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
     m_drawing(false),
     m_smoothingLevel(1),
     m_savedSmoothingLevel(1),
     m_drawMode(DrawMode::Freehand),
+    m_lastPrimaryMode(DrawMode::Freehand),
     m_drawingLineOrCircle(false),
     m_gommeErasing(false),
     m_selectedShapeIndex(-1),
@@ -198,6 +216,11 @@ void CustomDrawArea::applyPanDelta(const QPointF &delta) {
     m_offset -= delta;
     clampOffsetToCanvas(); // nouvelle méthode utilisée ici
     update();
+
+    if (isPrimaryMode(mode))
+        m_lastPrimaryMode = mode;
+
+    emit drawModeChanged(m_drawMode);
 }
 
 void CustomDrawArea::clampOffsetToCanvas() {
@@ -491,7 +514,8 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
 
     if (m_drawMode == DrawMode::Deplacer && mode != DrawMode::Deplacer) {
         qDebug() << "[setDrawMode] 🔶 Désactivation mode DEPLACER";
-        cancelDeplacerMode();
+        m_deplacerMode = false;
+        emit deplacerModeChanged(false);
     }
 
 
@@ -1640,7 +1664,7 @@ void CustomDrawArea::startShapeSelection()
 
     // Si on venait du mode déplacement, repasse en mode standard
     if (m_drawMode == DrawMode::Deplacer)
-        revertToFreehand();
+        restoreLastPrimaryMode();
     m_selectMode = true;
     m_connectSelectionMode = true;
     m_selectedShapes.clear();
@@ -1673,7 +1697,7 @@ void CustomDrawArea::toggleMultiSelectMode()
         cancelDeplacerMode();
         cancelGommeMode();
         if (m_drawMode == DrawMode::Deplacer)
-            revertToFreehand();
+            restoreLastPrimaryMode();
         m_selectMode = true;
         m_connectSelectionMode = false;
         m_selectedShapes.clear();
@@ -1865,7 +1889,7 @@ void CustomDrawArea::cancelCloseMode()
     emit closeModeChanged(false);
 
     // Sortie du mode fermeture : retour au mode standard
-    revertToFreehand();
+    restoreLastPrimaryMode();
 }
 
 void CustomDrawArea::onPinchZoom(const QPointF &center, qreal scaleFactor)
@@ -2058,9 +2082,9 @@ void CustomDrawArea::cancelDeplacerMode()
     m_deplacerMode = false;
     emit deplacerModeChanged(false);
 
-    // Lorsque l'utilisateur quitte ce mode, on repasse systématiquement en
-    // dessin libre pour éviter toute incohérence de l'état interne
-    revertToFreehand();
+    // Lorsque l'utilisateur quitte ce mode, on rétablit le dernier mode
+    // principal utilisé pour éviter toute incohérence de l'état interne
+    restoreLastPrimaryMode();
 }
 
 void CustomDrawArea::startSupprimerMode()
@@ -2081,8 +2105,8 @@ void CustomDrawArea::cancelSupprimerMode()
     m_supprimerMode = false;
     emit supprimerModeChanged(false);
 
-    // Retour immédiat au mode par défaut
-    revertToFreehand();
+    // Retour immédiat au mode précédent
+    restoreLastPrimaryMode();
 }
 
 void CustomDrawArea::startGommeMode()
@@ -2104,8 +2128,8 @@ void CustomDrawArea::cancelGommeMode()
     m_gommeMode = false;
     emit gommeModeChanged(false);
 
-    // Récupère automatiquement le mode de dessin libre
-    revertToFreehand();
+    // Récupère automatiquement le mode de dessin précédent
+    restoreLastPrimaryMode();
 }
 
 // ---------------------------------------------------------------------------
@@ -2114,6 +2138,7 @@ void CustomDrawArea::cancelGommeMode()
 void CustomDrawArea::revertToFreehand()
 {
     m_drawMode = DrawMode::Freehand;
+    m_lastPrimaryMode = DrawMode::Freehand;
     m_drawing = false;
     m_drawingLineOrCircle = false;
     m_freehandPoints.clear();
@@ -2125,6 +2150,12 @@ void CustomDrawArea::revertToFreehand()
     setSmoothingLevel(m_savedSmoothingLevel);
 
     update();
+    emit drawModeChanged(m_drawMode);
+}
+
+void CustomDrawArea::restoreLastPrimaryMode()
+{
+    setDrawMode(m_lastPrimaryMode);
 }
 
 void CustomDrawArea::eraseAlong(const QPointF& from, const QPointF& to)
