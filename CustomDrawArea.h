@@ -18,6 +18,7 @@
 #include <QRectF>
 #include <QGestureEvent>
 #include <QPinchGesture>
+#include <QElapsedTimer>
 
 class CustomDrawArea : public QWidget
 {
@@ -135,7 +136,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     QRectF currentVisibleLogicalRect() const;
     void clampOffsetToCanvas();
-
+    QPointF clampToCanvas(const QPointF &p) const;
 
 
 private:
@@ -267,6 +268,23 @@ private:
 
     // -- Helper to reset everything back to the default drawing mode
     void revertToFreehand();
+
+    QPointF m_lastEraserPos;
+    void stampEraserAt(const QPointF& logicalCenter, qreal radius);
+    void stampEraserAlong(const QPointF& from, const QPointF& to, qreal radius);
+
+    // Nouveau
+    QVector<QPointF> m_eraserStroke;
+    bool m_deferredErase = false; // évite updateCanvas() à chaque micro-coupure
+
+    void applyEraserStroke(const QVector<QPointF> &stroke);
+
+    QElapsedTimer m_eraseTimer;
+    qint64        m_lastEraseCommitMs = 0;
+    QRect         m_dirty;               // zone à redessiner côté widget
+
+    void eraseAlong(const QPointF& from, const QPointF& to);
+    void commitEraseIfNeeded(bool force);
 
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom

@@ -42,12 +42,12 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_nextShapeId(1),
     m_currentText("Votre texte ici"),
     m_textFont("Arial", 16),
-    m_snapToGrid(false),
-    m_gridSpacing(20),
-    m_minPointDistance(2.0),
     m_copyAnchor(0,0),
     m_pasteMode(false),
-    m_lastSelectClick(0,0)
+    m_lastSelectClick(0,0),
+    m_snapToGrid(false),
+    m_gridSpacing(20),
+    m_minPointDistance(2.0)
 
 {
     setMouseTracking(true);
@@ -120,6 +120,20 @@ QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &pat
     }
 
     return subpaths;
+}
+
+// Approxime un QPainterPath en une liste de segments droits.
+// Utilise toSubpathPolygons() pour linéariser les courbes.
+static QVector<QLineF> pathToLines(const QPainterPath& path)
+{
+    QVector<QLineF> lines;
+    const auto polys = path.toSubpathPolygons(); // approximation des courbes
+    for (const QPolygonF& poly : polys) {
+        for (int i = 0; i + 1 < poly.size(); ++i) {
+            lines.push_back(QLineF(poly[i], poly[i+1]));
+        }
+    }
+    return lines;
 }
 
 // Calcule l’aire signée d’un sous‑chemin (≈ 0 si <3 points)
@@ -214,20 +228,30 @@ static bool pathsTouch(const QPainterPath &a, const QPainterPath &b, qreal tol =
 }
 
 
+static inline QRect logicalCircleToWidgetRect(const QPointF& c, qreal r,
+                                              qreal scale, const QPointF& offset)
+{
+    QRectF lr(c.x() - r - 2, c.y() - r - 2, (r + 2) * 2, (r + 2) * 2); // +2px marge AA
+    lr.translate(offset);
+    lr.setSize(lr.size() * scale);
+    return lr.toAlignedRect();
+}
 
 
 void CustomDrawArea::initCanvas()
 {
-    QSize physSize = size() * devicePixelRatioF();
+    const QSize physSize = size() * devicePixelRatioF();
+
+    // Couche "encre" rasterisée
     m_canvas = QImage(physSize, QImage::Format_ARGB32_Premultiplied);
     m_canvas.setDevicePixelRatio(devicePixelRatioF());
     m_canvas.fill(Qt::white);
 
-    m_eraserMask = QImage(physSize, QImage::Format_ARGB32_Premultiplied);
+    // Masque gomme (canal alpha uniquement)
+    m_eraserMask = QImage(physSize, QImage::Format_Alpha8);
     m_eraserMask.setDevicePixelRatio(devicePixelRatioF());
-    m_eraserMask.fill(Qt::transparent);
+    m_eraserMask.fill(0);  // 0 = pas d’effacement
 }
-
 
 QRectF m_limitRect;  // zone limite de déplacement, calculée au départ
 
@@ -299,36 +323,30 @@ void CustomDrawArea::clampOffsetToCanvas() {
 
 void CustomDrawArea::updateCanvas()
 {
-    QImage newCanvas(size() * devicePixelRatioF(), QImage::Format_ARGB32_Premultiplied);
+    const QSize physSize = size() * devicePixelRatioF();
+
+    QImage newCanvas(physSize, QImage::Format_ARGB32_Premultiplied);
     newCanvas.setDevicePixelRatio(devicePixelRatioF());
     newCanvas.fill(Qt::transparent);
 
-    QPainter painter(&newCanvas);
-    painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
+    // 1) Dessin vectoriel depuis m_shapes uniquement
+    QPainter p(&newCanvas);
+    p.setRenderHint(QPainter::Antialiasing, true);
 
-    // Stylo noir, épaisseur 1, pas de remplissage
-    QPen pen(Qt::black, 1);
+    QPen pen(Qt::black, 2);
     pen.setCosmetic(true);
-    painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);  // <- IMPORTANT
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
 
-    // Dessin des formes finales
-    for (const Shape &shape : m_shapes) {
-        painter.drawPath(shape.path);
-    }
-    painter.end();
+    for (const Shape &shape : m_shapes)
+        if (!shape.path.isEmpty())
+            p.drawPath(shape.path);
 
-    // Application de la gomme (mask)
-    QPainter maskPainter(&newCanvas);
-    maskPainter.setRenderHint(QPainter::Antialiasing, true);
-    maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
-    maskPainter.drawImage(0, 0, m_eraserMask);
-    maskPainter.end();
+    p.end();
 
     m_canvas = newCanvas;
-
-
-
 }
 
 void CustomDrawArea::pushState()
@@ -343,7 +361,7 @@ void CustomDrawArea::undoLastAction()
         m_shapes = m_undoStack.takeLast();
         updateCanvas();
         update();
-       // qDebug() << "undoLastAction: stack size =" << m_undoStack.size();
+        // qDebug() << "undoLastAction: stack size =" << m_undoStack.size();
     }
 }
 
@@ -409,7 +427,11 @@ QList<int> CustomDrawArea::collectConnectedFragments(int startIndex) const
 void CustomDrawArea::applyEraserAt(const QPointF &center)
 {
     QList<Shape> newShapes;
-    const auto mergeSegments = [](QList<QLineF> segs) {
+    const double epsilon = 0.001;
+    const qreal  r = m_gommeRadius;
+
+    // Chaînage des segments contigus pour reconstruire des polylignes
+    auto mergeSegments = [](QList<QLineF> segs) {
         QList<QPainterPath> merged;
         const qreal tol = 0.5;
         while (!segs.isEmpty()) {
@@ -419,7 +441,7 @@ void CustomDrawArea::applyEraserAt(const QPointF &center)
             while (progress) {
                 progress = false;
                 for (int i = 0; i < segs.size(); ++i) {
-                    QLineF s = segs[i];
+                    const QLineF s = segs[i];
                     if (QLineF(chain.last(), s.p1()).length() <= tol) {
                         chain.append(s.p2()); segs.removeAt(i); progress = true; break;
                     }
@@ -434,113 +456,85 @@ void CustomDrawArea::applyEraserAt(const QPointF &center)
                     }
                 }
             }
-            QPainterPath path;
-            path.moveTo(chain.first());
-            for (int i = 1; i < chain.size(); ++i)
-                path.lineTo(chain[i]);
-            merged.append(path);
+            QPainterPath p; p.moveTo(chain.first());
+            for (int i = 1; i < chain.size(); ++i) p.lineTo(chain[i]);
+            merged.append(p);
         }
         return merged;
     };
-    const double epsilon = 0.001;
 
     for (const Shape &shape : qAsConst(m_shapes)) {
-        if (shape.path.isEmpty()) {
-            continue;
-        }
-        QPainterPath original = shape.path;
-        int count = original.elementCount();
-        if (count < 2) {
-            newShapes.append(shape);
-            continue;
-        }
+        if (shape.path.isEmpty()) { newShapes.append(shape); continue; }
 
-        bool hasCloseSubpath = false;
-        if (count > 1) {
-            QPainterPath::Element first = original.elementAt(0);
-            QPainterPath::Element last  = original.elementAt(count - 1);
-            if (std::abs(first.x - last.x) < epsilon &&
-                std::abs(first.y - last.y) < epsilon)
-                hasCloseSubpath = true;
-        }
+        // 1) Linéarise le chemin (gère quadTo/cubicTo)
+        const QVector<QLineF> lines = pathToLines(shape.path);
+        if (lines.isEmpty()) { newShapes.append(shape); continue; }
 
-        int lastIndex = hasCloseSubpath ? count : (count - 1);
-        QList<QLineF> localSegments;
-        bool shapeChanged = false;
+        QList<QLineF> kept;
+        bool changed = false;
 
-        for (int j = 0; j < lastIndex; ++j) {
-            int nextIndex = (j + 1) % count;
-            QPainterPath::Element e1 = original.elementAt(j);
-            QPainterPath::Element e2 = original.elementAt(nextIndex);
-            QPointF p1(e1.x, e1.y), p2(e2.x, e2.y);
+        for (const QLineF& seg : lines) {
+            QPointF p1 = seg.p1(), p2 = seg.p2();
+            const bool p1Inside = QLineF(p1, center).length() <= r + epsilon;
+            const bool p2Inside = QLineF(p2, center).length() <= r + epsilon;
 
-            bool p1Inside = (QLineF(p1, center).length() <= m_gommeRadius + epsilon);
-            bool p2Inside = (QLineF(p2, center).length() <= m_gommeRadius + epsilon);
-
+            // Intersection analytique segment / disque
             QPointF d = p2 - p1;
-            double A = d.x() * d.x() + d.y() * d.y();
-            double B = 2 * ((p1.x() - center.x()) * d.x() + (p1.y() - center.y()) * d.y());
-            double C = (p1.x() - center.x()) * (p1.x() - center.x()) +
-                       (p1.y() - center.y()) * (p1.y() - center.y()) -
-                       m_gommeRadius * m_gommeRadius;
-            double discriminant = B * B - 4 * A * C;
+            const double A = d.x()*d.x() + d.y()*d.y();
+            const double B = 2.0*((p1.x()-center.x())*d.x() + (p1.y()-center.y())*d.y());
+            const double C = (p1.x()-center.x())*(p1.x()-center.x()) +
+                             (p1.y()-center.y())*(p1.y()-center.y()) - r*r;
+            const double disc = B*B - 4*A*C;
 
-            QVector<double> tValues;
-            if (A != 0 && discriminant >= 0) {
-                double sqrtDisc = std::sqrt(discriminant);
-                double t1 = (-B - sqrtDisc) / (2 * A);
-                double t2 = (-B + sqrtDisc) / (2 * A);
-                if (t1 >= 0 && t1 <= 1)
-                    tValues.push_back(t1);
-                if (t2 >= 0 && t2 <= 1)
-                    tValues.push_back(t2);
-                std::sort(tValues.begin(), tValues.end());
+            QVector<double> tVals;
+            if (A > 0 && disc >= 0) {
+                const double s = std::sqrt(disc);
+                const double t1 = (-B - s) / (2*A);
+                const double t2 = (-B + s) / (2*A);
+                if (t1 >= 0 && t1 <= 1) tVals.push_back(t1);
+                if (t2 >= 0 && t2 <= 1) tVals.push_back(t2);
+                std::sort(tVals.begin(), tVals.end());
             }
 
-            auto addSeg = [&](const QPointF &a, const QPointF &b) {
-                if (QLineF(a, b).length() > 0.0)
-                    localSegments.append(QLineF(a, b));
+            auto addSeg = [&](const QPointF& a, const QPointF& b){
+                if (QLineF(a,b).length() > 0.0) kept.append(QLineF(a,b));
             };
 
             if (!p1Inside && !p2Inside) {
-                if (tValues.size() >= 2) {
-                    shapeChanged = true;
-                    double tA = tValues[0], tB = tValues[1];
-                    QPointF ipA = p1 + d * tA;
-                    QPointF ipB = p1 + d * tB;
-                    if ((ipA - p1).manhattanLength() > 0.1)
-                        addSeg(p1, ipA);
-                    if ((p2 - ipB).manhattanLength() > 0.1)
-                        addSeg(ipB, p2);
-                } else if (tValues.size() == 1) {
-                    shapeChanged = true;
+                if (tVals.size() >= 2) {
+                    changed = true;
+                    const QPointF iA = p1 + d * tVals[0];
+                    const QPointF iB = p1 + d * tVals[1];
+                    if ((iA - p1).manhattanLength() > 0.1) addSeg(p1, iA);
+                    if ((p2 - iB).manhattanLength() > 0.1) addSeg(iB, p2);
+                } else if (tVals.size() == 1) {
+                    changed = true; /* passe tangent → on rogne un bout négligeable */
                 } else {
-                    addSeg(p1, p2);
+                    addSeg(p1, p2); // intact
                 }
             } else if (!p1Inside && p2Inside) {
-                if (!tValues.isEmpty()) {
-                    shapeChanged = true;
-                    double t = tValues.first();
-                    QPointF ip = p1 + d * t;
-                    if ((ip - p1).manhattanLength() > 0.1)
-                        addSeg(p1, ip);
+                if (!tVals.isEmpty()) {
+                    changed = true;
+                    const QPointF i = p1 + d * tVals.first();
+                    if ((i - p1).manhattanLength() > 0.1) addSeg(p1, i);
                 }
             } else if (p1Inside && !p2Inside) {
-                if (!tValues.isEmpty()) {
-                    shapeChanged = true;
-                    double t = tValues.last();
-                    QPointF ip = p1 + d * t;
-                    if ((p2 - ip).manhattanLength() > 0.1)
-                        addSeg(ip, p2);
+                if (!tVals.isEmpty()) {
+                    changed = true;
+                    const QPointF i = p1 + d * tVals.last();
+                    if ((p2 - i).manhattanLength() > 0.1) addSeg(i, p2);
                 }
+            } else {
+                // les deux dedans → segment entièrement effacé
+                changed = true;
             }
         }
 
-        if (!shapeChanged) {
+        if (!changed) {
             newShapes.append(shape);
         } else {
-            auto mergedPaths = mergeSegments(localSegments);
-            for (const QPainterPath &mp : mergedPaths) {
+            const auto merged = mergeSegments(kept);
+            for (const QPainterPath& mp : merged) {
                 Shape ns; ns.path = mp; ns.originalId = m_nextShapeId++;
                 newShapes.append(ns);
             }
@@ -549,9 +543,9 @@ void CustomDrawArea::applyEraserAt(const QPointF &center)
 
     if (newShapes != m_shapes) {
         m_shapes = newShapes;
-        updateCanvas();
+        if (!m_deferredErase) updateCanvas(); // commit si pas en mode “bulk”
     }
-    update();
+    if (!m_deferredErase) update();
 }
 
 void CustomDrawArea::updateRotationHandle()
@@ -590,7 +584,7 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     qDebug() << "[DEBUG] setDrawMode() appelé, mode =" << static_cast<int>(mode);
 
     qDebug() << "[setDrawMode] Demande de mode =" << static_cast<int>(mode)
-    << " | Mode courant =" << static_cast<int>(m_drawMode);
+             << " | Mode courant =" << static_cast<int>(m_drawMode);
 
     // Garde-fou : toute valeur hors enum ramène au mode libre
     const int minMode = static_cast<int>(DrawMode::Freehand);
@@ -681,7 +675,7 @@ void CustomDrawArea::clearDrawing()
     m_shapes.clear();
     m_freehandPoints.clear();
     m_undoStack.clear();
-    m_eraserMask.fill(Qt::transparent);
+    m_eraserMask.fill(0);
     updateCanvas();
     update();
 }
@@ -837,8 +831,9 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     if (m_twoFingersOn)
         return;
 
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
-    QPointF clickPos = (event->pos() - m_offset) / m_scale;
+    QPointF raw = (event->pos() - m_offset) / m_scale;
+    QPointF pos = clampToCanvas(snapIfNeeded(raw));
+    QPointF clickPos = clampToCanvas(raw);
 
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
@@ -910,40 +905,40 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
     if (m_selectMode && m_drawMode != DrawMode::Deplacer) {
         const double tol = 25.0;
-            int hitShape = -1;
-            for (int i = m_shapes.size() - 1; i >= 0; --i) {
-                QPainterPathStroker stroker;
-                stroker.setWidth(tol);
-                if (stroker.createStroke(m_shapes[i].path).contains(pos)) {
-                    hitShape = i;
-                    break;
-                }
+        int hitShape = -1;
+        for (int i = m_shapes.size() - 1; i >= 0; --i) {
+            QPainterPathStroker stroker;
+            stroker.setWidth(tol);
+            if (stroker.createStroke(m_shapes[i].path).contains(pos)) {
+                hitShape = i;
+                break;
             }
+        }
 
-            if (hitShape >= 0) {
-                m_lastSelectClick = pos;
-                bool wasFirst = !m_selectedShapes.isEmpty() &&
-                                m_selectedShapes.first() == hitShape;
-                if (m_selectedShapes.contains(hitShape))
-                    m_selectedShapes.removeAll(hitShape);
-                else
-                    m_selectedShapes.append(hitShape);
-                if (m_connectSelectionMode && m_selectedShapes.size() == 1)
-                    update();
-                if (m_connectSelectionMode && m_selectedShapes.size() == 2) {
-                    connectNearestEndpoints(m_selectedShapes[0], m_selectedShapes[1]);
-                    mergeShapesAndConnector(m_selectedShapes[0], m_selectedShapes[1]);
-                    m_selectMode = false;
-                    m_selectedShapes.clear();
-                    m_connectSelectionMode = false;
-                    emit shapeSelection(false);
-                } else if (!m_connectSelectionMode) {
-                    emit multiSelectionModeChanged(true);
-                    if (wasFirst || m_selectedShapes.size() == 1)
-                        updateRotationHandle();
-                }
+        if (hitShape >= 0) {
+            m_lastSelectClick = pos;
+            bool wasFirst = !m_selectedShapes.isEmpty() &&
+                            m_selectedShapes.first() == hitShape;
+            if (m_selectedShapes.contains(hitShape))
+                m_selectedShapes.removeAll(hitShape);
+            else
+                m_selectedShapes.append(hitShape);
+            if (m_connectSelectionMode && m_selectedShapes.size() == 1)
                 update();
+            if (m_connectSelectionMode && m_selectedShapes.size() == 2) {
+                connectNearestEndpoints(m_selectedShapes[0], m_selectedShapes[1]);
+                mergeShapesAndConnector(m_selectedShapes[0], m_selectedShapes[1]);
+                m_selectMode = false;
+                m_selectedShapes.clear();
+                m_connectSelectionMode = false;
+                emit shapeSelection(false);
+            } else if (!m_connectSelectionMode) {
+                emit multiSelectionModeChanged(true);
+                if (wasFirst || m_selectedShapes.size() == 1)
+                    updateRotationHandle();
             }
+            update();
+        }
         return;
     }
 
@@ -1018,11 +1013,29 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         break;
     }
     case DrawMode::Gomme:
-        m_gommeErasing = true;
-        m_gommeCenter = pos;
-        m_gommeMoved = false;        // reset movement flag
-        //qDebug() << "Gomme: début à" << m_gommeCenter;
-        break;
+    {
+        // On veut un seul "Undo" pour tout le stroke → snapshot maintenant
+        pushState();
+
+        m_gommeErasing  = true;
+        m_gommeMoved    = false;
+        m_lastEraserPos = m_gommeCenter = pos;
+
+        m_eraserStroke.clear();
+        m_eraserStroke.push_back(m_gommeCenter);
+
+        // On coupe déjà à la position initiale, mais sans reconstruire immédiatement le canvas
+        m_deferredErase = true;          // les applyEraserAt ne feront pas updateCanvas()
+        m_eraseTimer.start();
+        m_lastEraseCommitMs = 0;
+
+        applyEraserAt(m_gommeCenter);    // coupe vectorielle immédiate
+        m_dirty = logicalCircleToWidgetRect(m_gommeCenter, m_gommeRadius, m_scale, m_offset);
+        commitEraseIfNeeded(false);      // petit commit si besoin
+
+        event->accept();
+        return;
+    }
     case DrawMode::Deplacer:
     {
         if (!m_selectedShapes.isEmpty()) {
@@ -1211,7 +1224,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
+    QPointF raw = (event->pos() - m_offset) / m_scale;
+    QPointF pos = clampToCanvas(snapIfNeeded(raw));
 
     if (m_rotating && !m_selectedShapes.isEmpty()) {
         qreal currentAngle = std::atan2(pos.y() - m_rotationCenter.y(), pos.x() - m_rotationCenter.x());
@@ -1254,7 +1268,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     if (m_twoFingersOn)
         return;
 
-//    pos = (event->pos() - m_offset) / m_scale;    <--- Pose problème pour SnapGrid
+    //    pos = (event->pos() - m_offset) / m_scale;    <--- Pose problème pour SnapGrid
 
     switch (m_drawMode)
     {
@@ -1283,180 +1297,27 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         break;
     case DrawMode::Gomme:
     {
-        if (m_gommeErasing) {
-            m_gommeMoved = true;               // au moins un déplacement
-            m_gommeCenter = pos; // Mise à jour de la position de la gomme
-            update();
-            m_gommeCenter = pos;
-            update();
+        if (!m_gommeErasing) break;
 
-            if (!m_gommeErasing)
-                break; // On s'arrête ici : on ne touche pas aux formes
+        const QPointF prev = m_lastEraserPos;
+        m_gommeCenter = pos;
+        m_gommeMoved  = true;
 
-            QList<Shape> newShapes;
-            bool hasChanged = false; // Drapeau pour détecter si des changements sont effectués
-            const auto mergeSegments = [](QList<QLineF> segs) {
-                QList<QPainterPath> merged;
-                const qreal tol = 0.5;
-                while (!segs.isEmpty()) {
-                    QLineF cur = segs.takeFirst();
-                    QList<QPointF> chain{cur.p1(), cur.p2()};
-                    bool progress = true;
-                    while (progress) {
-                        progress = false;
-                        for (int i = 0; i < segs.size(); ++i) {
-                            QLineF s = segs[i];
-                            if (QLineF(chain.last(), s.p1()).length() <= tol) {
-                                chain.append(s.p2()); segs.removeAt(i); progress = true; break;
-                            }
-                            if (QLineF(chain.last(), s.p2()).length() <= tol) {
-                                chain.append(s.p1()); segs.removeAt(i); progress = true; break;
-                            }
-                            if (QLineF(chain.first(), s.p2()).length() <= tol) {
-                                chain.prepend(s.p1()); segs.removeAt(i); progress = true; break;
-                            }
-                            if (QLineF(chain.first(), s.p1()).length() <= tol) {
-                                chain.prepend(s.p2()); segs.removeAt(i); progress = true; break;
-                            }
-                        }
-                    }
-                    QPainterPath path; // build open path
-                    path.moveTo(chain.first());
-                    for (int i = 1; i < chain.size(); ++i)
-                        path.lineTo(chain[i]);
-                    // do not close; keep fragment open
-                    merged.append(path);
-                }
-                return merged;
-            };
-            const double epsilon = 0.001; // tolérance pour déterminer l'intérieur
-            //const double maxSegmentSize = 5.0; // Limite de taille en pixels pour un segment
+        // Coupe vectorielle le long du déplacement
+        eraseAlong(prev, m_gommeCenter);
+        m_lastEraserPos = m_gommeCenter;
+        m_eraserStroke.push_back(m_gommeCenter);
 
-            // Parcourir toutes les formes existantes
-            for (const Shape &shape : qAsConst(m_shapes)) {
-                if (shape.path.isEmpty())
-                    continue;
-                QPainterPath original = shape.path;
-                int count = original.elementCount();
-                if (count < 2) {
-                    newShapes.append(shape);
-                    continue;
-                }
+        // ➜ Invalide AUSSI l’overlay (ancien et nouveau cercle)
+        const QRect rPrev = logicalCircleToWidgetRect(prev,          m_gommeRadius, m_scale, m_offset);
+        const QRect rNow  = logicalCircleToWidgetRect(m_gommeCenter, m_gommeRadius, m_scale, m_offset);
+        m_dirty = m_dirty.united(rPrev).united(rNow);
 
-                // Détection d'un chemin fermé par comparaison du premier et du dernier point
-                bool hasCloseSubpath = false;
-                if (count > 1) {
-                    QPainterPath::Element first = original.elementAt(0);
-                    QPainterPath::Element last = original.elementAt(count - 1);
-                    if (std::abs(first.x - last.x) < epsilon &&
-                        std::abs(first.y - last.y) < epsilon)
-                        hasCloseSubpath = true;
-                }
+        // Commit throttlé
+        commitEraseIfNeeded(false);
 
-                int lastIndex = hasCloseSubpath ? count : (count - 1);
-                QList<QLineF> localSegments;
-                bool shapeChanged = false;
-
-                // Parcourir chaque segment (en traitant le segment de fermeture si nécessaire)
-                for (int j = 0; j < lastIndex; ++j) {
-                    int nextIndex = (j + 1) % count; // permet de traiter le segment [dernier -> premier] si fermé
-                    QPainterPath::Element e1 = original.elementAt(j);
-                    QPainterPath::Element e2 = original.elementAt(nextIndex);
-                    QPointF p1(e1.x, e1.y), p2(e2.x, e2.y);
-
-                    // On considère un point comme "à l'intérieur" si sa distance est <= rayon + epsilon
-                    bool p1Inside = (QLineF(p1, m_gommeCenter).length() <= m_gommeRadius + epsilon);
-                    bool p2Inside = (QLineF(p2, m_gommeCenter).length() <= m_gommeRadius + epsilon);
-
-                    // Ajouter un drapeau de changement si la gomme touche un segment
-                    if (p1Inside || p2Inside)
-                        hasChanged = shapeChanged = true;
-
-
-                    QPointF d = p2 - p1;
-                    double A = d.x() * d.x() + d.y() * d.y();
-                    double B = 2 * ((p1.x() - m_gommeCenter.x()) * d.x() + (p1.y() - m_gommeCenter.y()) * d.y());
-                    double C = (p1.x() - m_gommeCenter.x()) * (p1.x() - m_gommeCenter.x()) +
-                               (p1.y() - m_gommeCenter.y()) * (p1.y() - m_gommeCenter.y()) -
-                               m_gommeRadius * m_gommeRadius;
-                    double discriminant = B * B - 4 * A * C;
-
-                    QVector<double> tValues;
-                    if (A != 0 && discriminant >= 0) {
-                        double sqrtDisc = std::sqrt(discriminant);
-                        double t1 = (-B - sqrtDisc) / (2 * A);
-                        double t2 = (-B + sqrtDisc) / (2 * A);
-                        if (t1 >= 0 && t1 <= 1)
-                            tValues.push_back(t1);
-                        if (t2 >= 0 && t2 <= 1)
-                            tValues.push_back(t2);
-                        std::sort(tValues.begin(), tValues.end());
-                    }
-
-                    auto addSeg = [&](const QPointF &a, const QPointF &b) {
-                        if (QLineF(a, b).length() > 0.0)
-                            localSegments.append(QLineF(a, b));
-                    };
-
-                    // Si aucun des points n'est à l'intérieur et aucune intersection n'est détectée,
-                    // on conserve le segment entier
-                    if (!p1Inside && !p2Inside) {
-                        if (tValues.size() >= 2) {
-                            shapeChanged = hasChanged = true;
-                            double tA = tValues[0], tB = tValues[1];
-                            QPointF ipA = p1 + d * tA;
-                            QPointF ipB = p1 + d * tB;
-                            if ((ipA - p1).manhattanLength() > 0.1)
-                                addSeg(p1, ipA);
-                            if ((p2 - ipB).manhattanLength() > 0.1)
-                                addSeg(ipB, p2);
-                        } else if (tValues.size() == 1) {
-                            shapeChanged = hasChanged = true; // tangent
-                            // Cas tangent : on supprime entièrement le segment
-                        } else {
-                            addSeg(p1, p2);
-                        }
-                    }
-                    else if (!p1Inside && p2Inside) {
-                        if (!tValues.isEmpty()) {
-                            shapeChanged = hasChanged = true;
-                            double t = tValues.first();
-                            QPointF ip = p1 + d * t;
-                            if ((ip - p1).manhattanLength() > 0.1)
-                                addSeg(p1, ip);
-                        }
-                    }
-                    else if (p1Inside && !p2Inside) {
-                        if (!tValues.isEmpty()) {
-                            shapeChanged = hasChanged = true;
-                            double t = tValues.last();
-                            QPointF ip = p1 + d * t;
-                            if ((p2 - ip).manhattanLength() > 0.1)
-                                addSeg(ip, p2);
-                        }
-                    }
-                    // Si les deux points sont à l'intérieur, on ne garde rien (segment effacé)
-                } // Fin de la boucle sur les segments
-
-                if (!shapeChanged) {
-                    newShapes.append(shape);
-                } else {
-                    auto mergedPaths = mergeSegments(localSegments);
-                    for (const QPainterPath &mp : mergedPaths) {
-                        Shape ns; ns.path = mp; ns.originalId = m_nextShapeId++;
-                        newShapes.append(ns);
-                    }
-                }
-            } // Fin de parcours de m_shapes
-
-            if (newShapes != m_shapes) {
-                m_shapes = newShapes;
-                updateCanvas();
-            }
-            update();
-
-        }
-        break;
+        event->accept();
+        return;
     }
     case DrawMode::Deplacer:
         if (m_shapeMoving) {
@@ -1499,7 +1360,8 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
 
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
+    QPointF raw = (event->pos() - m_offset) / m_scale;
+    QPointF pos = clampToCanvas(snapIfNeeded(raw));
 
     event->accept();
 
@@ -1524,8 +1386,8 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             finalPoints = m_freehandPoints;
         }
         QPainterPath path = (m_smoothingLevel > 0)
-                            ? generateBezierPath(finalPoints)  // Chaikin + Bézier
-                            : generateRawPath(finalPoints);    // segments bruts
+                                ? generateBezierPath(finalPoints)  // Chaikin + Bézier
+                                : generateRawPath(finalPoints);    // segments bruts
         Shape s;
         s.path = path;
         s.originalId = m_nextShapeId++; // Identifiant unique
@@ -1588,11 +1450,19 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     case DrawMode::Gomme:
     {
         if (m_gommeErasing) {
-            if (!m_gommeMoved)
-                applyEraserAt(m_gommeCenter);  // click sans déplacement
             m_gommeErasing = false;
-            m_gommeMoved = false;
-            pushState();
+            m_gommeMoved   = false;
+
+            m_dirty = m_dirty.united(logicalCircleToWidgetRect(m_gommeCenter, m_gommeRadius, m_scale, m_offset));
+
+            // Dernier commit forcé, puis on revient au mode normal de commit
+            commitEraseIfNeeded(true);
+            m_deferredErase = false;
+
+            // Le masque ne participe plus au rendu final ; on peut le vider par hygiène
+            m_eraserMask.fill(0);
+
+            update();
         }
         break;
     }
@@ -1667,16 +1537,15 @@ bool CustomDrawArea::event(QEvent *event)
         event->type() == QEvent::TouchEnd)
     {
         QTouchEvent *touchEvent = static_cast<QTouchEvent *>(event);
-        const QList<QTouchEvent::TouchPoint> &points = touchEvent->touchPoints();
-
+        const auto &points = touchEvent->points();
         if (points.size() == 2) {
             const auto &p1 = points[0];
             const auto &p2 = points[1];
-            qreal curDist = QLineF(p1.pos(), p2.pos()).length();
-            qreal prevDist = QLineF(p1.lastPos(), p2.lastPos()).length();
+            qreal curDist  = QLineF(p1.position(),      p2.position()).length();
+            qreal prevDist = QLineF(p1.lastPosition(),  p2.lastPosition()).length();
             if (prevDist > 0) {
                 qreal factor = curDist / prevDist;
-                QPointF center = (p1.pos() + p2.pos()) / 2.0;
+                QPointF center = (p1.position() + p2.position()) / 2.0;
                 onPinchZoom(center, factor);
             }
         }
@@ -1689,239 +1558,127 @@ bool CustomDrawArea::event(QEvent *event)
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
-    QPainter painter(this);
-    painter.scale(m_zoomFactor, m_zoomFactor);
-    painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
 
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);   // AA toujours ON
+
+    // Fond plein (reste derrière tout)
     painter.fillRect(rect(), Qt::white);
 
-    QPointF logicalTopLeft = (QPointF(0,0) - m_offset) / m_scale;
-    QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
-    int spacing = m_gridSpacing;
-    qreal left   = std::floor(logicalTopLeft.x() / spacing) * spacing;
-    qreal top    = std::floor(logicalTopLeft.y() / spacing) * spacing;
-    qreal right  = std::ceil(logicalBottomRight.x() / spacing) * spacing;
-    qreal bottom = std::ceil(logicalBottomRight.y() / spacing) * spacing;
+    // Étendue visible en repère logique (avant transform)
+    const QPointF logicalTopLeft     = (QPointF(0, 0) - m_offset) / m_scale;
+    const QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
 
+    const int   spacing = m_gridSpacing;
+    const qreal left    = std::floor(logicalTopLeft.x()     / spacing) * spacing;
+    const qreal top     = std::floor(logicalTopLeft.y()     / spacing) * spacing;
+    const qreal right   = std::ceil (logicalBottomRight.x() / spacing) * spacing;
+    const qreal bottom  = std::ceil (logicalBottomRight.y() / spacing) * spacing;
+
+    // Repère logique
     painter.save();
     painter.translate(m_offset);
     painter.scale(m_scale, m_scale);
 
-    // Récupère toutes les formes une seule fois
-    auto shapes = getCustomShapes();
+    // 1) Grille (dessinée en-dessous)
+    {
+        QPen gridPen(QColor(220, 220, 220));
+        gridPen.setStyle(Qt::DotLine);
+        gridPen.setCosmetic(true);  // épaisseur écran constante
+        painter.setPen(gridPen);
 
-    // ─── Surbrillance des segments sélectionnés ───────────────────
-    // ─── Surbrillance des formes sélectionnées ───────────────────
-
-
-/*    if (!m_selectedShapes.isEmpty()) {
-        int idx = m_selectedShapes.first();
-        if (idx >= 0 && idx < m_shapes.size()) {
-            QRectF bounds = m_shapes[idx].path.boundingRect();
-            QPointF center = bounds.center();
-            m_rotationCenter = center;
-
-            // Recalculer la position du handle à distance constante
-            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
-            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
-                           std::sin(totalAngle) * m_rotationHandlePos.radius);
-            m_rotationHandle = m_rotationCenter + offset;
-        }
-
-        // Dessiner les formes avec surlignage
-        QPen normalPen(Qt::black, 2);
-        normalPen.setCosmetic(true);
-
-        QPen selectedPen(Qt::cyan, 4);
-        selectedPen.setCosmetic(true);
-
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            if (m_selectedShapes.contains(i)) {
-                painter.setPen(selectedPen);
-            } else {
-                painter.setPen(normalPen);
-            }
-            painter.setBrush(Qt::NoBrush);
-            painter.drawPath(m_shapes[i].path);
-        }
-
-        // Afficher la poignée SVG si pas trop éloignée
-        const double maxDistance = 150.0;
-        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
-
-        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
-            const int iconSize = 24;  // taille du SVG en pixels
-
-            painter.save();
-            painter.translate(m_rotationHandle);
-            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
-            m_handleRenderer.render(&painter, svgRect);
-            painter.restore();
-        }
+        for (qreal x = left; x <= right; x += spacing)
+            painter.drawLine(QPointF(x, top), QPointF(x, bottom));
+        for (qreal y = top; y <= bottom; y += spacing)
+            painter.drawLine(QPointF(left, y), QPointF(right, y));
     }
 
-
-
-
-
-<<<<<<< HEAD
-    if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
-        QPointF center = bounds.center();
-        m_rotationCenter = center;
-
-        // Position initiale du handle avant rotation (au-dessus)
-        QPointF unrotatedHandle(center.x(), bounds.top() - 20);
-
-        // Appliquer la rotation cumulée du groupe
-        QTransform handleRotation;
-        handleRotation.translate(center.x(), center.y());
-        handleRotation.rotateRadians(m_groupRotationAngle);
-        handleRotation.translate(-center.x(), -center.y());
-
-        m_rotationHandle = handleRotation.map(unrotatedHandle);
-    }
-=======
-    if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
-        QPointF center = bounds.center();
-        if (!m_rotating)
-            m_rotationCenter = center;
-
-        // Position initiale du handle avant rotation (au-dessus)
-        QPointF unrotatedHandle(center.x(), bounds.top() - 20);
-
-        // Appliquer la rotation cumulée du groupe
-        QTransform handleRotation;
-        handleRotation.translate(center.x(), center.y());
-        handleRotation.rotateRadians(m_groupRotationAngle);
-        handleRotation.translate(-center.x(), -center.y());
-
-        m_rotationHandle = handleRotation.map(unrotatedHandle);
-    }
->>>>>>> rotate_shape
-
-
-
-    // -- connecteurs en trait noir continu --
-    // Dessin des formes (incluant désormais tes connecteurs)
-    QPen normalPen(Qt::black, 2);
-    normalPen.setCosmetic(true);
-    painter.setPen(normalPen);
-    painter.setBrush(Qt::NoBrush);
-    for (const Shape &s : m_shapes) {
-        if (s.path.isEmpty())
-            continue;
-        painter.drawPath(s.path);
-    }
-*/
-
-    QPen gridPen(QColor(220,220,220));
-    gridPen.setStyle(Qt::DotLine);
-    painter.setPen(gridPen);
-    for (qreal x = left; x <= right; x += spacing)
-        painter.drawLine(QPointF(x, top), QPointF(x, bottom));
-    for (qreal y = top; y <= bottom; y += spacing)
-        painter.drawLine(QPointF(left, y), QPointF(right, y));
-
+    // Le canvas contient déjà le résultat réel (formes moins la gomme vectorielle)
     painter.drawImage(0, 0, m_canvas);
 
-
+    // 3) Overlay de sélection (UNIQUEMENT les formes sélectionnées)
     if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
+        QRectF  bounds = selectedShapesBounds();
         QPointF center = bounds.center();
         if (!m_rotating)
             m_rotationCenter = center;
 
-        // Recalculer la position du handle à distance constante
-        qreal totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
-        QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
-                       std::sin(totalAngle) * m_rotationHandlePos.radius);
-        m_rotationHandle = m_rotationCenter + offset;
+        // Position actuelle du handle (rayon constant + angle cumulé)
+        qreal   totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
+        QPointF hoffset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                        std::sin(totalAngle) * m_rotationHandlePos.radius);
+        m_rotationHandle = m_rotationCenter + hoffset;
 
-        // Dessiner les formes avec surlignage
-        QPen normalPen(Qt::black, 2);
-        normalPen.setCosmetic(true);
+        QPen normal(Qt::black, 2);
+        normal.setCosmetic(true);
+        normal.setCapStyle(Qt::RoundCap);
+        normal.setJoinStyle(Qt::RoundJoin);
 
-        QPen selectedPen(Qt::cyan, 4);
-        selectedPen.setCosmetic(true);
+        QPen halo(Qt::cyan, 6);         // halo plus épais
+        halo.setCosmetic(true);
+        halo.setCapStyle(Qt::RoundCap);
+        halo.setJoinStyle(Qt::RoundJoin);
 
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            const QPainterPath &path = m_shapes[i].path;   // ← path est déclaré ici
+        for (int i : std::as_const(m_selectedShapes)) {
+            if (i < 0 || i >= m_shapes.size()) continue;
+            const QPainterPath &path = m_shapes[i].path;
 
-            if (m_selectedShapes.contains(i)) {
-                /* 1) halo cyan épais */
-                QPen highlightPen(Qt::cyan, 6);    // épaisseur 6 px
-                highlightPen.setCosmetic(true);
-                painter.setPen(highlightPen);
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(path);            // ← on utilise path
+            painter.setPen(halo);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(path);
 
-                /* 2) trait normal par-dessus */
-                painter.setPen(normalPen);         // noir (ou couleur de base)
-                painter.drawPath(path);
-            } else {
-                painter.setPen(normalPen);
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(path);
-            }
+            painter.setPen(normal);
+            painter.drawPath(path);
         }
 
-
-        // Afficher la poignée SVG si pas trop éloignée
+        // Icône de rotation (si proche & SVG valide)
         const double maxDistance = 150.0;
-        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
-
-        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
-            const int iconSize = 24;  // taille du SVG en pixels
-
+        if (QLineF(m_rotationCenter, m_rotationHandle).length() <= maxDistance &&
+            m_handleRenderer.isValid())
+        {
+            const int iconSize = 24;
             painter.save();
             painter.translate(m_rotationHandle);
-            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
+            QRectF svgRect(-iconSize/2.0, -iconSize/2.0, iconSize, iconSize);
             m_handleRenderer.render(&painter, svgRect);
             painter.restore();
         }
     }
 
+    // 4) Prévisualisations temps réel (ne modifient PAS m_canvas)
+
+    // Ligne
     if (m_drawMode == DrawMode::Line && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
         painter.drawLine(m_startPoint, m_currentPoint);
     }
+
+    // Cercle
     if (m_drawMode == DrawMode::Circle && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
-        QPointF center = (m_startPoint + m_currentPoint) / 2;
-        qreal radius = QLineF(m_startPoint, m_currentPoint).length() / 2;
-        QRectF preview(center.x()-radius, center.y()-radius, 2*radius, 2*radius);
-
-        // Créer un chemin fermé pour le cercle
-        QPainterPath circlePath;
-        circlePath.addEllipse(preview);
-        circlePath.closeSubpath();  // Facultatif, car addEllipse() crée déjà un chemin fermé
-        painter.drawPath(circlePath);
+        QPointF c = (m_startPoint + m_currentPoint) / 2.0;
+        qreal   r = QLineF(m_startPoint, m_currentPoint).length() / 2.0;
+        painter.drawEllipse(c, r, r);
     }
+
+    // Rectangle
     if (m_drawMode == DrawMode::Rectangle && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::blue, 2, Qt::DashLine));
-        QRectF previewRect(m_startPoint, m_currentPoint);
-
-        QPainterPath rectPath;
-        rectPath.addRect(previewRect);
-        rectPath.closeSubpath();  // Facultatif ici aussi, car addRect() crée déjà un chemin fermé
-        painter.drawPath(rectPath);
+        painter.drawRect(QRectF(m_startPoint, m_currentPoint));
     }
+
+    // Point‑par‑point
     if (m_drawMode == DrawMode::PointParPoint && !m_freehandPoints.isEmpty()) {
         painter.setPen(QPen(Qt::magenta, 2, Qt::DashLine));
-        for (int i = 0; i < m_freehandPoints.size() - 1; ++i) {
+        for (int i = 0; i < m_freehandPoints.size() - 1; ++i)
             painter.drawLine(m_freehandPoints[i], m_freehandPoints[i + 1]);
-        }
-        if (m_drawing) {
+        if (m_drawing)
             painter.drawLine(m_freehandPoints.last(), m_currentPoint);
-        }
     }
-    /* === Aperçu temps-réel du tracé libre =========================== */
-    if (m_drawMode == DrawMode::Freehand && !m_freehandPoints.isEmpty())
-    {
-        painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
 
+    // Freehand (aperçu lissé uniquement pour le trait en cours)
+    if (m_drawMode == DrawMode::Freehand && !m_freehandPoints.isEmpty()) {
+        painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
         QPainterPath preview;
         if (m_smoothingLevel > 0 && m_freehandPoints.size() >= 2) {
             QList<QPointF> pts = m_freehandPoints;
@@ -1929,27 +1686,21 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
                 pts = applyLowPassFilter(pts, smoothingAlpha());
             int it = computeSmoothingIterations(pts);
             pts = applyChaikinAlgorithm(pts, it);
-            preview = generateBezierPath(pts);        // lissé
+            preview = generateBezierPath(pts);
         } else {
-            preview = generateRawPath(m_freehandPoints); // segments bruts
+            preview = generateRawPath(m_freehandPoints);
         }
-
         painter.drawPath(preview);
     }
-    /* ================================================================ */
 
+    // Gomme (curseur)
     if (m_drawMode == DrawMode::Gomme && m_gommeErasing) {
         painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
         painter.drawEllipse(m_gommeCenter, m_gommeRadius, m_gommeRadius);
     }
 
     painter.restore();
-    //QRectF visible = currentVisibleLogicalRect();
-    //qDebug() << "📐 Zone logique visible actuelle =" << visible;
-    //qDebug() << "📏 Zone limite logique autorisée =" << m_limitRect;
-
 }
-
 
 void CustomDrawArea::resizeEvent(QResizeEvent *event)
 {
@@ -2009,13 +1760,13 @@ void CustomDrawArea::connectNearestEndpoints(int idx1, int idx2)
     double bestD = std::numeric_limits<double>::infinity();
     QLineF  bestL;
     for (auto &a : ends1) {
-      for (auto &b : ends2) {
-        double d = QLineF(a, b).length();
-        if (d < bestD) {
-          bestD = d;
-          bestL = QLineF(a, b);
+        for (auto &b : ends2) {
+            double d = QLineF(a, b).length();
+            if (d < bestD) {
+                bestD = d;
+                bestL = QLineF(a, b);
+            }
         }
-      }
     }
 
     if (bestD < std::numeric_limits<double>::infinity()) {
@@ -2398,6 +2149,14 @@ QPointF CustomDrawArea::snapIfNeeded(const QPointF &p) const {
     return { roundTo(p.x()), roundTo(p.y()) };
 }
 
+QPointF CustomDrawArea::clampToCanvas(const QPointF &p) const {
+    qreal w = m_canvas.width()  / m_canvas.devicePixelRatioF();
+    qreal h = m_canvas.height() / m_canvas.devicePixelRatioF();
+    qreal x = std::clamp(p.x(), 0.0, w);
+    qreal y = std::clamp(p.y(), 0.0, h);
+    return {x, y};
+}
+
 
 void CustomDrawArea::setGridSpacing(int px)
 {
@@ -2533,4 +2292,100 @@ void CustomDrawArea::revertToFreehand()
     setSmoothingLevel(m_savedSmoothingLevel);
 
     update();
+}
+
+// --- Helpers Gomme -------------------------------------------------
+void CustomDrawArea::stampEraserAt(const QPointF& logicalCenter, qreal radius)
+{
+    // On peint dans l'image m_eraserMask (en pixels "physiques")
+    const qreal dpr = m_eraserMask.devicePixelRatioF();
+
+    QPainter ep(&m_eraserMask);
+    ep.setRenderHint(QPainter::Antialiasing, true);
+    ep.setPen(Qt::NoPen);
+    ep.setBrush(Qt::white);             // Alpha8: 255 => plein effacement
+    ep.scale(dpr, dpr);                  // on peut utiliser des coords "logiques"
+    ep.drawEllipse(logicalCenter, radius, radius);
+    ep.end();
+}
+
+void CustomDrawArea::stampEraserAlong(const QPointF& from, const QPointF& to, qreal radius)
+{
+    const qreal dist = QLineF(from, to).length();
+    if (dist <= 0.001) { stampEraserAt(to, radius); return; }
+
+    // Pas entre les tampons : < rayon/2 pour continuité
+    const qreal step = qMax<qreal>(1.0, radius * 0.5);
+    const int   n    = int(dist / step);
+
+    for (int i = 1; i <= n; ++i) {
+        const qreal t = qreal(i) / qreal(n);
+        const QPointF p = from + t * (to - from);
+        stampEraserAt(p, radius);
+    }
+}
+
+void CustomDrawArea::applyEraserStroke(const QVector<QPointF>& stroke)
+{
+    if (stroke.size() < 1) return;
+
+    // On évite de recalculer le canvas à chaque micro-appel
+    m_deferredErase = true;
+
+    const qreal step = qMax<qreal>(1.0, m_gommeRadius * 0.5);
+    QPointF prev = stroke.first();
+    applyEraserAt(prev);
+
+    for (int i = 1; i < stroke.size(); ++i) {
+        const QPointF cur = stroke[i];
+        const qreal dist = QLineF(prev, cur).length();
+        const int n = int(dist / step);
+        for (int k = 1; k <= n; ++k) {
+            const qreal t = qreal(k) / qreal(n);
+            const QPointF p = prev + t * (cur - prev);
+            applyEraserAt(p);
+        }
+        prev = cur;
+    }
+
+    m_deferredErase = false;
+    updateCanvas();          // commit unique
+    update();
+}
+
+void CustomDrawArea::eraseAlong(const QPointF& from, const QPointF& to)
+{
+    const qreal dist = QLineF(from, to).length();
+    if (dist <= 0.001) {
+        applyEraserAt(to); // coupe vectoriellement à 'to'
+        m_dirty = m_dirty.united(logicalCircleToWidgetRect(to, m_gommeRadius, m_scale, m_offset));
+        return;
+    }
+
+    const qreal step = qMax<qreal>(1.0, m_gommeRadius * 0.5);
+    const int n = qMax(1, int(dist / step));
+    for (int i = 1; i <= n; ++i) {
+        const qreal t = qreal(i) / qreal(n);
+        const QPointF c = from + t * (to - from);
+        applyEraserAt(c); // modifie m_shapes (pas de canvas tant que m_deferredErase = true)
+        m_dirty = m_dirty.united(logicalCircleToWidgetRect(c, m_gommeRadius, m_scale, m_offset));
+    }
+}
+
+void CustomDrawArea::commitEraseIfNeeded(bool force)
+{
+    const qint64 now = m_eraseTimer.elapsed();
+    if (force || now - m_lastEraseCommitMs >= 12) { // ~80 FPS max
+        const bool prev = m_deferredErase;
+        m_deferredErase = false;   // autorise updateCanvas() à réellement reconstruire
+        updateCanvas();            // canvas reconstruit depuis m_shapes
+        m_deferredErase = prev;
+
+        m_lastEraseCommitMs = now;
+
+        if (!m_dirty.isNull()) {
+            update(m_dirty);       // repaint restreint
+            m_dirty = QRect();
+        }
+    }
 }
