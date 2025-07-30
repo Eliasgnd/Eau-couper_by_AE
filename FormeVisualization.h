@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QOpenGLWidget>
 #include <QProgressBar>
 #include <QLabel>
 #include <QPainterPath>

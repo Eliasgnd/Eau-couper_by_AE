@@ -40,6 +40,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     layout->setSpacing(0);
 
     graphicsView = new QGraphicsView(this);
+    graphicsView->setViewport(new QOpenGLWidget());
     scene        = new QGraphicsScene(this);
 
     // Scène = taille du plateau (en mm)
@@ -382,6 +383,7 @@ void FormeVisualization::optimizePlacement() {
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+                    item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 
                     // Ajuste la position en fonction du boundingRect réel de l'élément
                     QRectF bounds = item->boundingRect();
@@ -539,6 +541,7 @@ void FormeVisualization::optimizePlacement2() {
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+                    item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 
                     QRectF bounds = item->boundingRect();
                     QPointF offset(x - bounds.x(), y - bounds.y());
@@ -634,6 +637,7 @@ void FormeVisualization::redraw()
         shapeCopy->setPos(xPos + offsetCorrection.x(), yPos + offsetCorrection.y());
         shapeCopy->setFlag(QGraphicsItem::ItemIsMovable, true);
         shapeCopy->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        shapeCopy->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         scene->addItem(shapeCopy);
     }
     //qDebug() << "Formes prédéfinies placées:" << shapesToPlace;
@@ -706,6 +710,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         // Calcul de l'offset à partir du boundingRect réel de l'item afin
         // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
         // vertical observé avec les formes personnalisées.
@@ -871,6 +876,7 @@ void FormeVisualization::addShapeBottomRight()
     if (newItem) {
         newItem->setFlag(QGraphicsItem::ItemIsMovable, true);
         newItem->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        newItem->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         scene->addItem(newItem);
         newItem->setSelected(false);
         emit shapesPlacedCount(countPlacedShapes());
@@ -1115,6 +1121,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         item->setTransformOriginPoint(item->boundingRect().center());
 
         QRectF bounds = item->boundingRect();
