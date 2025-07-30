@@ -106,7 +106,7 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
 void FormeVisualization::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    if (graphicsView && scene)
+    if (graphicsView && scene && width() > 0 && height() > 0)
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
 }
 
