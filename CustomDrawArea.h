@@ -97,6 +97,9 @@ public:
     void setSnapToGridEnabled(bool enabled) { m_snapToGrid = enabled; update(); }
     bool isSnapToGridEnabled()      const  { return m_snapToGrid;      }
 
+    void setGridVisible(bool visible) { m_showGrid = visible; update(); }
+    bool isGridVisible() const { return m_showGrid; }
+
     static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 
     bool isDeplacerMode() const { return m_deplacerMode; }
@@ -215,6 +218,7 @@ private:
     bool m_twoFingersOn = false;
 
     bool   m_snapToGrid   = false;   // État du “snap”
+    bool   m_showGrid     = true;    // Affichage de la grille
     int    m_gridSpacing  = 20;      // Doit rester synchronisé avec celui du paintEvent
     QPointF snapIfNeeded(const QPointF &p) const;
 
