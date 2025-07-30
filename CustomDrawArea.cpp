@@ -837,8 +837,9 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     if (m_twoFingersOn)
         return;
 
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
-    QPointF clickPos = (event->pos() - m_offset) / m_scale;
+    QPointF raw = (event->pos() - m_offset) / m_scale;
+    QPointF pos = clampToCanvas(snapIfNeeded(raw));
+    QPointF clickPos = clampToCanvas(raw);
 
     if (!m_selectedShapes.isEmpty()) {
         QRectF bounds = selectedShapesBounds();
@@ -1211,7 +1212,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
+    QPointF raw = (event->pos() - m_offset) / m_scale;
+    QPointF pos = clampToCanvas(snapIfNeeded(raw));
 
     if (m_rotating && !m_selectedShapes.isEmpty()) {
         qreal currentAngle = std::atan2(pos.y() - m_rotationCenter.y(), pos.x() - m_rotationCenter.x());
@@ -1499,7 +1501,8 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         return;
     }
 
-    QPointF pos = snapIfNeeded( (event->pos() - m_offset) / m_scale );
+    QPointF raw = (event->pos() - m_offset) / m_scale;
+    QPointF pos = clampToCanvas(snapIfNeeded(raw));
 
     event->accept();
 
@@ -2396,6 +2399,14 @@ QPointF CustomDrawArea::snapIfNeeded(const QPointF &p) const {
         return std::round(v / m_gridSpacing) * m_gridSpacing;
     };
     return { roundTo(p.x()), roundTo(p.y()) };
+}
+
+QPointF CustomDrawArea::clampToCanvas(const QPointF &p) const {
+    qreal w = m_canvas.width()  / m_canvas.devicePixelRatioF();
+    qreal h = m_canvas.height() / m_canvas.devicePixelRatioF();
+    qreal x = std::clamp(p.x(), 0.0, w);
+    qreal y = std::clamp(p.y(), 0.0, h);
+    return {x, y};
 }
 
 
