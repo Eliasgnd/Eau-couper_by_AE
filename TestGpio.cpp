@@ -8,6 +8,7 @@
 #include <QGridLayout>
 #include <QCloseEvent>
 #include <QDebug>
+#include <QTimer>
 
 TestGpio::TestGpio(QWidget *parent)
     : QWidget(parent), ui(new Ui::TestGpio)
@@ -21,9 +22,21 @@ TestGpio::TestGpio(QWidget *parent)
     }
     init_gpio();
 
+    // Création et initialisation du pilote
     Raspberry* rasp = new Raspberry(this);
+    if (!rasp->init()) {
+        qWarning() << "Échec init Raspberry (GPIO/SPI)";
+    }
     connect(rasp, &Raspberry::spiTransfered,
             this, &TestGpio::appendSpiLog);
+
+    // Timer pour déclencher régulièrement une lecture SPI
+    QTimer* spiTimer = new QTimer(this);
+    connect(spiTimer, &QTimer::timeout, this, [rasp]() {
+        // Lecture du registre STATUS (R/W=1, addr=0)
+        rasp->transfer(0x8000);
+    });
+    spiTimer->start(1000); // toutes les secondes
 
     ScreenUtils::placeOnSecondaryScreen(this);
 
@@ -31,7 +44,6 @@ TestGpio::TestGpio(QWidget *parent)
     updateTimer.start(500);
 
     connect(ui->buttonMenu, &QPushButton::clicked, this, &TestGpio::goToMainWindow);
-
 }
 
 TestGpio::~TestGpio()
@@ -153,9 +165,9 @@ void TestGpio::updatePinStates()
             {Raspberry::BEMF_PIN, "BEMF"}
         };
         if(lbl) lbl->setText(QString("%1 (GPIO %2): %3")
-                              .arg(names.value(pin))
-                              .arg(pin)
-                              .arg(val ? "HIGH" : "LOW"));
+                             .arg(names.value(pin))
+                             .arg(pin)
+                             .arg(val ? "HIGH" : "LOW"));
     }
 #endif
 }
@@ -168,10 +180,8 @@ void TestGpio::appendSpiLog(quint16 tx, quint16 rx)
             .arg(rx, 4, 16, QChar('0')));
 }
 
-
 void TestGpio::goToMainWindow()
 {
     this->close();
     MainWindow::getInstance()->showFullScreen();
 }
-
