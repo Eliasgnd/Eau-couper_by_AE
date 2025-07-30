@@ -89,7 +89,8 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
     // <<< AJOUT : informer le layout que la hauteur dépend de la largeur
-    bool hasHeightForWidth() const override { return sizePolicy().hasHeightForWidth(); }
+    // Ce widget impose toujours une hauteur dépendante de la largeur
+    bool hasHeightForWidth() const override { return true; }
     int  heightForWidth(int w) const override;
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
