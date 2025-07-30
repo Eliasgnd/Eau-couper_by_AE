@@ -1,7 +1,7 @@
 #ifndef CUSTOMDRAWAREA_H
 #define CUSTOMDRAWAREA_H
 
-#include "qsvgrenderer.h"
+#include <QSvgRenderer>
 #include "touchgesturereader.h"
 #include <QWidget>
 #include <QPointF>
@@ -13,11 +13,10 @@
 #include <QWheelEvent>
 #include <QTimer>
 #include <QFont>
-#include <QGestureEvent>
-#include <QPinchGesture>
 #include <QRectF>
 #include <QGestureEvent>
 #include <QPinchGesture>
+#include <QElapsedTimer>
 
 class CustomDrawArea : public QWidget
 {
@@ -91,15 +90,15 @@ public:
     void enablePasteMode();               // active le mode collage
     void pasteCopiedShapes(const QPointF &dest); // colle à la position donnée
 
-    // Nouvelle méthode à appeler au lancement pour définir la limite
-    void initializeLimitRect();
-
     // Nouvelle méthode pour appliquer un delta pan avec clamp
     void applyPanDelta(const QPointF &delta);
 
 
     void setSnapToGridEnabled(bool enabled) { m_snapToGrid = enabled; update(); }
     bool isSnapToGridEnabled()      const  { return m_snapToGrid;      }
+
+    void setGridVisible(bool visible) { m_showGrid = visible; update(); }
+    bool isGridVisible() const { return m_showGrid; }
 
     static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 
@@ -133,9 +132,8 @@ protected:
     bool event(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    QRectF currentVisibleLogicalRect() const;
     void clampOffsetToCanvas();
-
+    QPointF clampToCanvas(const QPointF &p) const;
 
 
 private:
@@ -159,11 +157,9 @@ private:
 
     // Gestion de la gomme
     QImage m_canvas;
-    QImage m_eraserMask;
     bool m_gommeErasing = false;
     QPointF m_gommeCenter;
     qreal m_gommeRadius = 20.0;
-    bool m_gommeMoved = false;        // true if mouseMoveEvent was triggered
 
     // Déplacement d'une forme
     int m_selectedShapeIndex = -1;
@@ -174,11 +170,6 @@ private:
     double m_scale = 1.0;
     QPointF m_offset = QPointF(0, 0);
     bool m_panningActive = false;
-
-    // Variables pour déplacement temporaire (aperçu si besoin)
-    QPointF m_tempDelta;
-    int m_tempMovingShapeIndex;
-    bool m_showTempMove = false;
 
     // Variables pour gestion unique des formes
     int m_nextShapeId = 1;
@@ -199,18 +190,14 @@ private:
     // Gestion du canevas
     void initCanvas();
     void updateCanvas();
-
+    void updateCanvas(const QRectF& logicalDirty);  // ← AJOUTER ceci
     void applyEraserAt(const QPointF &center); // gomme une zone circulaire
 
     // Gestion des actions annulables
     void pushState();
 
-    // Fusion de plusieurs QPainterPath en un seul
-    QPainterPath combineSegments(const QList<QPainterPath> &segments);
-
     // Calcule le rectangle englobant de toutes les formes sélectionnées
     QRectF selectedShapesBounds() const;
-    QList<int> collectConnectedFragments(int startIndex) const;
 
     // Recalculates the rotation handle when the selection changes
     void updateRotationHandle();
@@ -224,27 +211,14 @@ private:
     bool m_pasteMode = false;               // vrai si un collage est en attente
     QPointF m_lastSelectClick;              // dernière position de sélection
 
-
-    // Déclaration de la fonction addNode
-    void addNode(const QPointF& position);
-
-    // Variables membres
-    QVector<QPointF> m_nodes;  // Pour stocker les positions des nœuds
-
-
-    QList<QPainterPath> m_paths;
-
     bool gestureEvent(QGestureEvent *event);
     bool pinchTriggered(QPinchGesture *gesture);
-    double m_zoomFactor = 1.0;
 
     TouchGestureReader* m_touchReader;
     bool m_twoFingersOn = false;
-    QRectF m_limitRect;
-    QRectF calculateVisibleRect(const QPointF &offset) const;
-    TouchGestureReader* m_gestureReader = nullptr;
 
     bool   m_snapToGrid   = false;   // État du “snap”
+    bool   m_showGrid     = true;    // Affichage de la grille
     int    m_gridSpacing  = 20;      // Doit rester synchronisé avec celui du paintEvent
     QPointF snapIfNeeded(const QPointF &p) const;
 
@@ -271,11 +245,23 @@ private:
     // -- Helper to reset everything back to the default drawing mode
     void revertToFreehand();
 
+    QPointF m_lastEraserPos;
+
+    // Nouveau
+    bool m_deferredErase = false; // évite updateCanvas() à chaque micro-coupure
+
+    QElapsedTimer m_eraseTimer;
+    qint64        m_lastEraseCommitMs = 0;
+    QRect         m_dirty;               // zone à redessiner côté widget
+
+    void eraseAlong(const QPointF& from, const QPointF& to);
+    void commitEraseIfNeeded(bool force);
+
+    void drawGrid(QPainter &painter);
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
     void shapeSelection(bool enabled);
-    void smoothingChanged(bool enabled);
     void smoothingLevelChanged(int level); // émis lorsque le niveau est modifié
     void multiSelectionModeChanged(bool enabled);
     void deplacerModeChanged(bool enabled);

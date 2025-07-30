@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>990</width>
+    <width>1018</width>
     <height>767</height>
    </rect>
   </property>
@@ -53,7 +53,7 @@ QToolButton#chevronLeft:pressed, QToolButton#chevronRight:pressed { background:#
 /* États existants conservés */
 QPushButton[gommeMode=&quot;true&quot;] { background:#e1bee7; border:2px solid #8e24aa; }
 QPushButton[supprimerMode=&quot;true&quot;] { background:#ffcdd2; border:2px solid #d32f2f; }
-QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quot;], QPushButton[snapMode=&quot;true&quot;] {
+QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quot;], QPushButton[snapMode=&quot;true&quot;], QPushButton[gridVisible=&quot;true&quot;] {
   background:#a0c4ff; border:2px solid #5F7FFF;
 }
    </string>
@@ -415,6 +415,19 @@ QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quo
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="buttonToggleGrid">
+         <property name="text">
+          <string>Grille ✅</string>
+         </property>
+         <property name="iconSize">
+          <size>
+           <width>18</width>
+           <height>18</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="leftSpacer">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
@@ -662,5 +675,3 @@ QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quo
  </resources>
  <connections/>
 </ui>
-
-
