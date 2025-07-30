@@ -28,19 +28,17 @@ public:
     struct Status { bool stall; bool fault; bool bemf; };
     Status readStatus();
 
-    // Toujours disponible, même sous Windows
     uint16_t transfer(uint16_t word);
+
+    // ✅ Pins d’état rendues publiques pour accès depuis TestGpio
+    static constexpr uint8_t STALLN_PIN = 23;
+    static constexpr uint8_t FAULTN_PIN = 24;
+    static constexpr uint8_t BEMF_PIN   = 18;
 
 signals:
     void spiTransfered(quint16 tx, quint16 rx);
 
 private:
-    // Broches d'état (entrée)
-    static constexpr uint8_t STALLN_PIN = 23;
-    static constexpr uint8_t FAULTN_PIN = 24;
-    static constexpr uint8_t BEMF_PIN   = 18;
-
-    // Broches de contrôle GPIO
     static constexpr uint8_t PIN_SCS    = 20;
     static constexpr uint8_t PIN_RESET  = 21;
     static constexpr uint8_t PIN_SLEEPn = 26;
@@ -52,7 +50,6 @@ private:
     static constexpr uint8_t BIN1_PIN   = 17;
     static constexpr uint8_t BIN2_PIN   = 27;
 
-    // SPI matériel
     static constexpr uint8_t SDATI_PIN  = 10;
     static constexpr uint8_t SDATAO_PIN = 9;
     static constexpr uint8_t SCLK_PIN   = 11;
@@ -68,14 +65,13 @@ private:
     };
 
 #ifndef _WIN32
-    // pour libgpiod
     void writePin(uint8_t pin, bool value);
     bool readPin(uint8_t pin);
+
     gpiod_chip *chip{nullptr};
     std::map<uint8_t, gpiod_line*> outputLines;
     std::map<uint8_t, gpiod_line*> inputLines;
 
-    // SPI
     int spiFd{-1};
     uint32_t spiSpeed{1000000};
 #endif
