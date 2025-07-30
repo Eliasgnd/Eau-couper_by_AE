@@ -20,6 +20,7 @@ class custom : public QWidget
 public:
     explicit custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
     ~custom(); // Destructeur
+    void updateFormeButtonIcon(CustomDrawArea::DrawMode mode);
 
 protected:
     void changeEvent(QEvent *event) override;

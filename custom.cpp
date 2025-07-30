@@ -249,6 +249,7 @@ custom::custom(Language lang, QWidget *parent)
     // Bouton "Gomme" : active le mode gomme
     connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Gomme);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::Gomme);
         //qDebug() << "Mode Gomme sélectionné";
     });
 
@@ -306,6 +307,7 @@ custom::custom(Language lang, QWidget *parent)
 
     ui->buttonForme->setMenu(menuForme);
     ui->buttonForme->setPopupMode(QToolButton::InstantPopup);
+    updateFormeButtonIcon(drawArea->getDrawMode());
 
     // --- Création et configuration du conteneur pour la sélection de police ---
     QHBoxLayout *fontLayout = new QHBoxLayout(fontContainer);
@@ -355,37 +357,44 @@ custom::custom(Language lang, QWidget *parent)
     // Mode Texte : afficher fontContainer
     connect(actionText, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Text);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::Text);
         //qDebug() << "Mode Texte activé";
         fontContainer->show();
     });
     // Mode Texte fin : afficher fontContainer
     connect(actionThinText, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::ThinText);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::ThinText);
         fontContainer->show();
     });
     // Pour les autres modes, cacher fontContainer
     connect(actionAlaMain, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Freehand);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::Freehand);
         //qDebug() << "Mode À la main activé";
         fontContainer->hide();
     });
     connect(actionPointParPoint, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::PointParPoint);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::PointParPoint);
         //qDebug() << "Mode Point par point activé";
         fontContainer->hide();
     });
     connect(actionLigne, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Line);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::Line);
         //qDebug() << "Mode Ligne activé";
         fontContainer->hide();
     });
     connect(actionCercle, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Circle);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::Circle);
         //qDebug() << "Mode Cercle activé";
         fontContainer->hide();
     });
     connect(actionRectangle, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Rectangle);
+        updateFormeButtonIcon(CustomDrawArea::DrawMode::Rectangle);
         //qDebug() << "Mode Rectangle activé";
         fontContainer->hide();
     });
@@ -396,6 +405,7 @@ custom::custom(Language lang, QWidget *parent)
             drawArea->deleteSelectedShapes();
         } else {
             drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
+            updateFormeButtonIcon(CustomDrawArea::DrawMode::Supprimer);
             //qDebug() << "Mode Supprimer sélectionné";
         }
     });
@@ -793,6 +803,23 @@ void custom::onCopyPasteClicked()
         ui->buttonSelection->style()->polish(ui->buttonSelection);
         ui->buttonSelection->update();
     }
+}
+
+void custom::updateFormeButtonIcon(CustomDrawArea::DrawMode mode)
+{
+    static const QHash<CustomDrawArea::DrawMode, QString> iconMap = {
+        { CustomDrawArea::DrawMode::Freehand,      ":/icons/freehand.svg" },
+        { CustomDrawArea::DrawMode::PointParPoint, ":/icons/Point_to_point.svg" },
+        { CustomDrawArea::DrawMode::Line,          ":/icons/line.svg" },
+        { CustomDrawArea::DrawMode::Rectangle,     ":/icons/square.svg" },
+        { CustomDrawArea::DrawMode::Circle,        ":/icons/circle.svg" },
+        { CustomDrawArea::DrawMode::Text,          ":/icons/text.svg" },
+        { CustomDrawArea::DrawMode::ThinText,      ":/icons/narrow_text.svg" }
+    };
+
+    auto it = iconMap.constFind(mode);
+    if (it != iconMap.constEnd())
+        ui->buttonForme->setIcon(QIcon(it.value()));
 }
 
 void custom::changeEvent(QEvent *event)

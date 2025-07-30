@@ -445,6 +445,24 @@ QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quo
         <height>400</height>
        </size>
       </property>
+<<<<<<< HEAD
+=======
+      <property name="maximumSize">
+       <size>
+        <width>140</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="cursor">
+       <cursorShape>SizeFDiagCursor</cursorShape>
+      </property>
+      <property name="focusPolicy">
+       <enum>Qt::FocusPolicy::NoFocus</enum>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LayoutDirection::RightToLeft</enum>
+      </property>
+>>>>>>> icone
       <property name="styleSheet">
        <string notr="true">QWidget { background:white; }</string>
       </property>
