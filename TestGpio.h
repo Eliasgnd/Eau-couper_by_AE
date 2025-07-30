@@ -30,6 +30,7 @@ private slots:
     void onPinToggled(bool checked);
     void updatePinStates();
     void goToMainWindow();
+    void appendSpiLog(quint16 tx, quint16 rx);
 
 
 private:
