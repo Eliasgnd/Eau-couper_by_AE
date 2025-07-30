@@ -1,5 +1,7 @@
 #include "FormeVisualization.h"
-#include "qtimer.h"
+#include "AspectRatioWrapper.h"
+
+#include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
@@ -10,12 +12,13 @@
 #include <QtMath>
 #include <QTransform>
 #include <QApplication>
-#include <QPainterPathStroker>  // N'oubliez pas d'inclure ce header
+#include <QPainterPathStroker>
 #include <QMessageBox>
 #include <QAbstractGraphicsShapeItem>
 #include <QRandomGenerator>
-#include <limits>
-#include "inventaire.h"
+#include <QSizePolicy>        // <<< important pour QSizePolicy
+#include <cmath>              // <<< pour std::round (si utilisé)
+// #include <limits>          // (optionnel) retire-le si non utilisé
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -26,22 +29,39 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     spacing(0),
     m_isCustomMode(false)
 {
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    // >>> ICI (dans le corps), on peut écrire du code :
+    // Le widget garde un ratio fixe (B : ratio au niveau du widget)
+    QSizePolicy sp(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    sp.setHeightForWidth(true);
+    setSizePolicy(sp);
+
+    auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
     graphicsView = new QGraphicsView(this);
-    scene = new QGraphicsScene(this);
+    scene        = new QGraphicsScene(this);
 
-    const int drawingWidth = 600;
-    const int drawingHeight = 400;
-    scene->setSceneRect(0, 0, drawingWidth, drawingHeight);
+    // Scène = taille du plateau (en mm)
+    scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
 
-    const int viewWidth = 600;
-    const int viewHeight = 400;
-    graphicsView->setFixedSize(viewWidth, viewHeight);
+    // Fond blanc, quoiqu’il arrive (le stylesheet global ne gagnera plus)
+    graphicsView->setBackgroundBrush(Qt::white);
+    scene->setBackgroundBrush(Qt::white);
+
+    // Dessine la bordure du plateau pour visualiser la limite
+    // Utilise une bordure blanche plus visible et place-la au-dessus des formes
+    m_sheetBorder = scene->addRect(scene->sceneRect(),
+                                   QPen(Qt::white, 2), QBrush(Qt::NoBrush));
+    m_sheetBorder->setZValue(1000);
+    graphicsView->setRenderHint(QPainter::Antialiasing, true);
+    graphicsView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+
+
+    graphicsView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     graphicsView->setFrameStyle(QFrame::NoFrame);
-    graphicsView->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    graphicsView->setAlignment(Qt::AlignCenter);
+    graphicsView->setResizeAnchor(QGraphicsView::AnchorViewCenter);
     graphicsView->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
     graphicsView->setScene(scene);
     graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -52,21 +72,11 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     progressBar->setValue(0);
     progressBar->setVisible(false);
     progressBar->setStyleSheet(
-        "QProgressBar {"
-        "    border: 2px solid #00BCD4;"
-        "    border-radius: 5px;"
-        "    background: #f3f3f3;"
-        "    text-align: center;"
-        "    font-size: 12px;"
-        "    color: black;"
-        "}"
-        "QProgressBar::chunk {"
-        "    background: #00BCD4;"
-        "    width: 10px;"
-        "}"
+        "QProgressBar { border: 2px solid #00BCD4; border-radius: 5px; "
+        "background: #f3f3f3; text-align: center; font-size: 12px; color: black; }"
+        "QProgressBar::chunk { background: #00BCD4; width: 10px; }"
         );
 
-    // Note : Le compteur est désormais géré dans MainWindow, pas dans ce widget
     layout->addWidget(graphicsView);
     layout->addWidget(progressBar);
     setLayout(layout);
@@ -74,10 +84,13 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &FormeVisualization::handleSelectionChanged);
 
+    // Fit initial
+    QTimer::singleShot(0, this, [this](){
+        graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    });
+
     redraw();
 }
-
-
 
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
@@ -95,9 +108,12 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
     return path.united(strokePath);
 }
 
-void FormeVisualization::resizeEvent(QResizeEvent *event)
-{
-    QWidget::resizeEvent(event);
+void FormeVisualization::resizeEvent(QResizeEvent* e) {
+    QWidget::resizeEvent(e);
+    if (graphicsView && scene) {
+        graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        qDebug() << "[FV] w,h =" << width() << height();
+    }
 }
 
 bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
@@ -257,14 +273,14 @@ void FormeVisualization::optimizePlacement() {
     progressBar->setVisible(true);
     progressBar->setValue(0);
 
-    const int drawingWidth = 600;
-    const int drawingHeight = 400;
+    const QRectF sr = scene->sceneRect();
+    const int drawingWidth  = int(sr.width());
+    const int drawingHeight = int(sr.height());
+
     QRectF containerRect(0, 0, drawingWidth, drawingHeight);
 
-    double sizeFactorX = static_cast<double>(drawingWidth) / 600;
-    double sizeFactorY = static_cast<double>(drawingHeight) / 400;
-    int adaptedLargeur = currentLargeur * sizeFactorX;
-    int adaptedLongueur = currentLongueur * sizeFactorY;
+    int adaptedLargeur = currentLargeur;
+    int adaptedLongueur = currentLongueur;
 
     QPainterPath prototypePath;
     if (m_isCustomMode && !m_customShapes.isEmpty()) {
@@ -417,15 +433,12 @@ void FormeVisualization::optimizePlacement2() {
     progressBar->setVisible(true);
     progressBar->setValue(0);
 
-    const int drawingWidth = 600;
-    const int drawingHeight = 400;
-    const int viewWidth = 600;
-    const int viewHeight = 400;
-    double sizeFactorX = static_cast<double>(drawingWidth) / viewWidth;
-    double sizeFactorY = static_cast<double>(drawingHeight) / viewHeight;
+    const QRectF sr = scene->sceneRect();
+    const int drawingWidth  = int(sr.width());
+    const int drawingHeight = int(sr.height());
 
-    int adaptedLargeur = currentLargeur * sizeFactorX;
-    int adaptedLongueur = currentLongueur * sizeFactorY;
+    int adaptedLargeur = currentLargeur;
+    int adaptedLongueur = currentLongueur;
 
     QPainterPath prototypePath;
     if (m_isCustomMode && !m_customShapes.isEmpty()) {
@@ -556,22 +569,19 @@ void FormeVisualization::optimizePlacement2() {
 void FormeVisualization::redraw()
 {
     scene->clear();
+    const QRectF sr = scene->sceneRect();
+    const int drawingWidth  = int(sr.width());
+    const int drawingHeight = int(sr.height());
+
     m_isCustomMode = false;
     m_customShapes.clear();
 
     if (shapeCount <= 0)
         return;
 
-    const int drawingWidth = 600;
-    const int drawingHeight = 400;
-    const int viewWidth = 600;
-    const int viewHeight = 400;
 
-    double sizeFactorX = static_cast<double>(drawingWidth) / viewWidth;
-    double sizeFactorY = static_cast<double>(drawingHeight) / viewHeight;
-
-    int adaptedLargeur = currentLargeur * sizeFactorX;
-    int adaptedLongueur = currentLongueur * sizeFactorY;
+    int adaptedLargeur = currentLargeur;
+    int adaptedLongueur = currentLongueur;
 
     QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
     if (shapes.isEmpty()) {
@@ -655,12 +665,9 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     m_isCustomMode = true;
     m_customShapes = shapes;
 
-    const int drawingWidth = 600;
-    const int drawingHeight = 400;
-    const int viewWidth = 600;
-    const int viewHeight = 400;
-    double sizeFactorX = static_cast<double>(drawingWidth) / viewWidth;
-    double sizeFactorY = static_cast<double>(drawingHeight) / viewHeight;
+    const QRectF sr = scene->sceneRect();
+    const int drawingWidth  = int(sr.width());
+    const int drawingHeight = int(sr.height());
 
     QPainterPath combinedPath;
     for (const QPolygonF &poly : shapes) {
@@ -672,8 +679,8 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         return;
     }
 
-    qreal desiredWidthInScene = currentLargeur * sizeFactorX;
-    qreal desiredHeightInScene = currentLongueur * sizeFactorY;
+    qreal desiredWidthInScene = currentLargeur;
+    qreal desiredHeightInScene = currentLongueur;
     qreal scaleX = desiredWidthInScene / polyBounds.width();
     qreal scaleY = desiredHeightInScene / polyBounds.height();
     QTransform transform;
@@ -816,8 +823,9 @@ void FormeVisualization::addShapeBottomRight()
         return;
     }
 
-    const int drawingWidth = 600;
-    const int drawingHeight = 400;
+    const QRectF sr = scene->sceneRect();
+    const int drawingWidth  = int(sr.width());
+    const int drawingHeight = int(sr.height());
 
     QGraphicsItem *newItem = nullptr;
 
@@ -1160,3 +1168,50 @@ double FormeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPa
     double total = static_cast<double>(drawingWidth) * drawingHeight;
     return total - used;
 }
+
+int FormeVisualization::heightForWidth(int w) const
+{
+    if (m_aspect <= 0.0) return QWidget::heightForWidth(w);
+    return static_cast<int>(std::round(w / m_aspect));
+}
+
+QSize FormeVisualization::sizeHint() const
+{
+    // Taille "agréable" par défaut tout en respectant le ratio
+    int w = 900;
+    return { w, heightForWidth(w) };
+}
+
+QSize FormeVisualization::minimumSizeHint() const
+{
+    int w = 300;
+    return { w, heightForWidth(w) };
+}
+
+void FormeVisualization::setSheetSizeMm(const QSizeF& mm)
+{
+    if (mm.width() <= 0 || mm.height() <= 0)
+        return;
+
+    if (qFuzzyCompare(m_sheetMm.width(), mm.width()) &&
+        qFuzzyCompare(m_sheetMm.height(), mm.height()))
+        return;
+
+    m_sheetMm = mm;
+    m_aspect  = m_sheetMm.width() / m_sheetMm.height();
+
+    // La scène est exprimée en mm : on la recale sur le nouveau plateau
+    scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
+    if (m_sheetBorder)
+        m_sheetBorder->setRect(scene->sceneRect());
+
+    // Prévenir le layout que nos contraintes ont changé
+    updateGeometry();
+
+    // Recentrer / rescaler le contenu
+    if (graphicsView && scene)
+        graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+
+    emit sheetSizeMmChanged(m_sheetMm);
+}
+
