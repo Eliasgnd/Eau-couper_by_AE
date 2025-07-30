@@ -47,8 +47,10 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     graphicsView->setBackgroundBrush(Qt::white);
     scene->setBackgroundBrush(Qt::white);
 
-    // (Optionnel/diagnostic) dessiner le cadre du plateau
-    scene->addRect(scene->sceneRect(), QPen(QColor(220,220,220)));
+    // Dessine la bordure du plateau pour visualiser la limite
+    m_sheetBorder = scene->addRect(scene->sceneRect(),
+                                   QPen(Qt::black, 2), QBrush(Qt::NoBrush));
+    m_sheetBorder->setZValue(-1);
     graphicsView->setRenderHint(QPainter::Antialiasing, true);
     graphicsView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
 
@@ -1196,6 +1198,8 @@ void FormeVisualization::setSheetSizeMm(const QSizeF& mm)
 
     // La scène est exprimée en mm : on la recale sur le nouveau plateau
     scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
+    if (m_sheetBorder)
+        m_sheetBorder->setRect(scene->sceneRect());
 
     // Prévenir le layout que nos contraintes ont changé
     updateGeometry();

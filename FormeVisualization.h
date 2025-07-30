@@ -7,6 +7,7 @@
 #include <QProgressBar>
 #include <QLabel>
 #include <QPainterPath>
+#include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
 #include "ShapeModel.h"
 #include "inventaire.h"
@@ -123,8 +124,12 @@ private:
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
 
+    // Bordure représentant visuellement la limite du plateau
+    QGraphicsRectItem *m_sheetBorder {nullptr};
+
     // <<< AJOUT : taille plateau et ratio (w/h) pour l'Option B
-    QSizeF m_sheetMm {300.0, 200.0};        // X = largeur(mm), Y = hauteur(mm)
+    // Dimensions logiques du plateau (par défaut 600x400)
+    QSizeF m_sheetMm {600.0, 400.0};        // X = largeur(mm), Y = hauteur(mm)
     double m_aspect = m_sheetMm.width() / m_sheetMm.height();
 };
 
