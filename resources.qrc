@@ -45,11 +45,11 @@
         <file>icons/narrow_text.svg</file>
         <file alias="plus.svg">icons/plus.svg</file>
         <file alias="add_folder.svg">icons/add_folder.svg</file>
-    </qresource>
-    <qresource prefix="/">
         <file>html/upload.html</file>
+        <file>icons/freehand.svg</file>
+        <file>icons/line.svg</file>
+        <file>icons/narrow_text.svg</file>
+        <file>icons/Point_to_point.svg</file>
+        <file>icons/text.svg</file>
     </qresource>
 </RCC>
-
-
-

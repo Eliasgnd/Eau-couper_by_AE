@@ -291,7 +291,7 @@ QSlider::handle:horizontal:hover {
        </size>
       </property>
       <property name="cursor">
-       <cursorShape>PointingHandCursor</cursorShape>
+       <cursorShape>SizeFDiagCursor</cursorShape>
       </property>
       <property name="focusPolicy">
        <enum>Qt::FocusPolicy::NoFocus</enum>
