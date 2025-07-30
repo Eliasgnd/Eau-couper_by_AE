@@ -467,13 +467,27 @@ void MainWindow::openImageInCustom(const QString &filePath,
             return;
     }
 
-    QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
-
     custom *cw = new custom(currentLanguage);
     connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
     connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
 
     CustomDrawArea *area = cw->getDrawArea();
+
+    // Scale to fit in a ~300x300 box and center in the drawing widget
+    QRectF br = outline.boundingRect();
+    double maxDim = std::max(br.width(), br.height());
+    if (maxDim > 0.0) {
+        double scale = 300.0 / maxDim;
+        QTransform T;
+        T.translate(-br.x(), -br.y());
+        T.scale(scale, scale);
+        outline = T.map(outline);
+        QRectF scaledBounds = outline.boundingRect();
+        QPointF center(area->width() / 2.0, area->height() / 2.0);
+        outline.translate(center - scaledBounds.center());
+    }
+
+    QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
     for (const QPainterPath &sp : subs)
         area->addImportedLogoSubpath(sp);
 
