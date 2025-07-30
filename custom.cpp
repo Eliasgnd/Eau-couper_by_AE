@@ -1,6 +1,7 @@
 #include "custom.h"
 #include "MainWindow.h"
 #include "qlayout.h"
+#include "qsplitter.h"
 #include "ui_custom.h"
 #include "clavier.h"
 #include "inventaire.h"
