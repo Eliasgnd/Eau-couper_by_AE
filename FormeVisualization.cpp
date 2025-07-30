@@ -48,9 +48,10 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     scene->setBackgroundBrush(Qt::white);
 
     // Dessine la bordure du plateau pour visualiser la limite
+    // Utilise une bordure blanche plus visible et place-la au-dessus des formes
     m_sheetBorder = scene->addRect(scene->sceneRect(),
-                                   QPen(Qt::black, 2), QBrush(Qt::NoBrush));
-    m_sheetBorder->setZValue(-1);
+                                   QPen(Qt::white, 2), QBrush(Qt::NoBrush));
+    m_sheetBorder->setZValue(1000);
     graphicsView->setRenderHint(QPainter::Antialiasing, true);
     graphicsView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
 
