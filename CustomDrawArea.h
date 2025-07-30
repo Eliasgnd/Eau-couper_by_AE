@@ -248,6 +248,9 @@ private:
     int    m_gridSpacing  = 20;      // Doit rester synchronisé avec celui du paintEvent
     QPointF snapIfNeeded(const QPointF &p) const;
 
+    // Clamp un point en coordonnées logiques à la zone du canevas
+    QPointF clampToCanvas(const QPointF &p) const;
+
     // Distance minimale entre deux points consécutifs lors du dessin libre
     qreal  m_minPointDistance = 2.0;
     // Seuil de distance moyen en dessous duquel on applique un lissage renforcé
