@@ -223,7 +223,7 @@ private:
     QPointF snapIfNeeded(const QPointF &p) const;
 
     // Clamp un point en coordonnées logiques à la zone du canevas
-    QPointF clampToCanvas(const QPointF &p) const;
+    //QPointF clampToCanvas(const QPointF &p) const;
 
     // Distance minimale entre deux points consécutifs lors du dessin libre
     qreal  m_minPointDistance = 2.0;
