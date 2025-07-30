@@ -455,6 +455,7 @@ void MainWindow::openImageInCustom(const QString &filePath,
                                    bool colorEdges)
 {
     this->hide();
+
     QPainterPath outline;
     if (colorEdges) {
         ImageEdgeImporter edgeImporter;
@@ -468,30 +469,43 @@ void MainWindow::openImageInCustom(const QString &filePath,
     }
 
     custom *cw = new custom(currentLanguage);
+
     connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
-    connect(cw, &custom::resetDrawingSignal, this, &MainWindow::resetDrawing);
+    connect(cw, &custom::resetDrawingSignal,     this, &MainWindow::resetDrawing);
 
     CustomDrawArea *area = cw->getDrawArea();
+    cw->showFullScreen();   // ← important : la taille de drawArea sera correcte à la prochaine itération d'event loop
 
-    // Scale to fit in a ~300x300 box and center in the drawing widget
-    QRectF br = outline.boundingRect();
-    double maxDim = std::max(br.width(), br.height());
-    if (maxDim > 0.0) {
-        double scale = 300.0 / maxDim;
+    // ⚠️ On décale le centrage à "après mise en page"
+    QTimer::singleShot(0, cw, [area, outline]() mutable {
+        if (!area) return;
+
+        // --- fit & center simple (sans marge) ---
+        QRectF br = outline.boundingRect();
+        if (br.isEmpty()) return;
+
+        const double maxDim = std::max(br.width(), br.height());
+        if (maxDim <= 0.0) return;
+
+        // Ici, on garde ton idée d'une taille cible, mais basée sur le drawArea réel
+        const double target = 0.8; // occupe ~80% du côté le plus court
+        const double w = std::max(1, area->width());
+        const double h = std::max(1, area->height());
+        const double scale = target * std::min(w, h) / maxDim;
+
         QTransform T;
         T.translate(-br.x(), -br.y());
         T.scale(scale, scale);
-        outline = T.map(outline);
-        QRectF scaledBounds = outline.boundingRect();
-        QPointF center(area->width() / 2.0, area->height() / 2.0);
-        outline.translate(center - scaledBounds.center());
-    }
+        QPainterPath scaled = T.map(outline);
 
-    QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(outline);
-    for (const QPainterPath &sp : subs)
-        area->addImportedLogoSubpath(sp);
+        QRectF sb = scaled.boundingRect();
+        QPointF center(w / 2.0, h / 2.0);
+        scaled.translate(center - sb.center());
 
-    cw->showFullScreen();
+        const QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(scaled);
+        for (const QPainterPath &sp : subs)
+            area->addImportedLogoSubpath(sp);
+    });
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {

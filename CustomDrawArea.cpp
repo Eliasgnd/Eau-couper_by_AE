@@ -299,36 +299,38 @@ void CustomDrawArea::clampOffsetToCanvas() {
 
 void CustomDrawArea::updateCanvas()
 {
-    QImage newCanvas(size() * devicePixelRatioF(), QImage::Format_ARGB32_Premultiplied);
+    const QSize physSize = size() * devicePixelRatioF();
+
+    QImage newCanvas(physSize, QImage::Format_ARGB32_Premultiplied);
     newCanvas.setDevicePixelRatio(devicePixelRatioF());
     newCanvas.fill(Qt::transparent);
 
-    QPainter painter(&newCanvas);
-    painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
+    // 1) Dessin vectoriel des formes finales (toujours AA ON)
+    QPainter p(&newCanvas);
+    p.setRenderHint(QPainter::Antialiasing, true);
 
-    // Stylo noir, épaisseur 1, pas de remplissage
-    QPen pen(Qt::black, 1);
+    QPen pen(Qt::black, 2);                // cohérent avec l’overlay
     pen.setCosmetic(true);
-    painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);  // <- IMPORTANT
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
 
-    // Dessin des formes finales
     for (const Shape &shape : m_shapes) {
-        painter.drawPath(shape.path);
+        if (!shape.path.isEmpty())
+            p.drawPath(shape.path);
     }
-    painter.end();
+    p.end();
 
-    // Application de la gomme (mask)
+    // 2) Application du masque de gomme (pixels effacés)
     QPainter maskPainter(&newCanvas);
     maskPainter.setRenderHint(QPainter::Antialiasing, true);
     maskPainter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
     maskPainter.drawImage(0, 0, m_eraserMask);
     maskPainter.end();
 
+    // 3) Remplace le canvas
     m_canvas = newCanvas;
-
-
-
 }
 
 void CustomDrawArea::pushState()
@@ -1692,239 +1694,127 @@ bool CustomDrawArea::event(QEvent *event)
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
-    QPainter painter(this);
-    painter.scale(m_zoomFactor, m_zoomFactor);
-    painter.setRenderHint(QPainter::Antialiasing, m_smoothingLevel > 0);
 
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);   // AA toujours ON
+
+    // Fond
     painter.fillRect(rect(), Qt::white);
 
-    QPointF logicalTopLeft = (QPointF(0,0) - m_offset) / m_scale;
-    QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
-    int spacing = m_gridSpacing;
-    qreal left   = std::floor(logicalTopLeft.x() / spacing) * spacing;
-    qreal top    = std::floor(logicalTopLeft.y() / spacing) * spacing;
-    qreal right  = std::ceil(logicalBottomRight.x() / spacing) * spacing;
-    qreal bottom = std::ceil(logicalBottomRight.y() / spacing) * spacing;
+    // Étendue visible en repère logique (avant transform)
+    const QPointF logicalTopLeft     = (QPointF(0, 0) - m_offset) / m_scale;
+    const QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
 
+    const int   spacing = m_gridSpacing;
+    const qreal left    = std::floor(logicalTopLeft.x()     / spacing) * spacing;
+    const qreal top     = std::floor(logicalTopLeft.y()     / spacing) * spacing;
+    const qreal right   = std::ceil (logicalBottomRight.x() / spacing) * spacing;
+    const qreal bottom  = std::ceil (logicalBottomRight.y() / spacing) * spacing;
+
+    // Repère logique
     painter.save();
     painter.translate(m_offset);
     painter.scale(m_scale, m_scale);
 
-    // Récupère toutes les formes une seule fois
-    auto shapes = getCustomShapes();
+    // 1) Grille (sous le dessin)
+    {
+        QPen gridPen(QColor(220, 220, 220));
+        gridPen.setStyle(Qt::DotLine);
+        gridPen.setCosmetic(true);  // épaisseur écran constante
+        painter.setPen(gridPen);
 
-    // ─── Surbrillance des segments sélectionnés ───────────────────
-    // ─── Surbrillance des formes sélectionnées ───────────────────
-
-
-/*    if (!m_selectedShapes.isEmpty()) {
-        int idx = m_selectedShapes.first();
-        if (idx >= 0 && idx < m_shapes.size()) {
-            QRectF bounds = m_shapes[idx].path.boundingRect();
-            QPointF center = bounds.center();
-            m_rotationCenter = center;
-
-            // Recalculer la position du handle à distance constante
-            qreal totalAngle = m_shapes[idx].rotationAngle + m_rotationHandlePos.angleOffset;
-            QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
-                           std::sin(totalAngle) * m_rotationHandlePos.radius);
-            m_rotationHandle = m_rotationCenter + offset;
-        }
-
-        // Dessiner les formes avec surlignage
-        QPen normalPen(Qt::black, 2);
-        normalPen.setCosmetic(true);
-
-        QPen selectedPen(Qt::cyan, 4);
-        selectedPen.setCosmetic(true);
-
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            if (m_selectedShapes.contains(i)) {
-                painter.setPen(selectedPen);
-            } else {
-                painter.setPen(normalPen);
-            }
-            painter.setBrush(Qt::NoBrush);
-            painter.drawPath(m_shapes[i].path);
-        }
-
-        // Afficher la poignée SVG si pas trop éloignée
-        const double maxDistance = 150.0;
-        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
-
-        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
-            const int iconSize = 24;  // taille du SVG en pixels
-
-            painter.save();
-            painter.translate(m_rotationHandle);
-            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
-            m_handleRenderer.render(&painter, svgRect);
-            painter.restore();
-        }
+        for (qreal x = left; x <= right; x += spacing)
+            painter.drawLine(QPointF(x, top), QPointF(x, bottom));
+        for (qreal y = top; y <= bottom; y += spacing)
+            painter.drawLine(QPointF(left, y), QPointF(right, y));
     }
 
-
-
-
-
-<<<<<<< HEAD
-    if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
-        QPointF center = bounds.center();
-        m_rotationCenter = center;
-
-        // Position initiale du handle avant rotation (au-dessus)
-        QPointF unrotatedHandle(center.x(), bounds.top() - 20);
-
-        // Appliquer la rotation cumulée du groupe
-        QTransform handleRotation;
-        handleRotation.translate(center.x(), center.y());
-        handleRotation.rotateRadians(m_groupRotationAngle);
-        handleRotation.translate(-center.x(), -center.y());
-
-        m_rotationHandle = handleRotation.map(unrotatedHandle);
-    }
-=======
-    if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
-        QPointF center = bounds.center();
-        if (!m_rotating)
-            m_rotationCenter = center;
-
-        // Position initiale du handle avant rotation (au-dessus)
-        QPointF unrotatedHandle(center.x(), bounds.top() - 20);
-
-        // Appliquer la rotation cumulée du groupe
-        QTransform handleRotation;
-        handleRotation.translate(center.x(), center.y());
-        handleRotation.rotateRadians(m_groupRotationAngle);
-        handleRotation.translate(-center.x(), -center.y());
-
-        m_rotationHandle = handleRotation.map(unrotatedHandle);
-    }
->>>>>>> rotate_shape
-
-
-
-    // -- connecteurs en trait noir continu --
-    // Dessin des formes (incluant désormais tes connecteurs)
-    QPen normalPen(Qt::black, 2);
-    normalPen.setCosmetic(true);
-    painter.setPen(normalPen);
-    painter.setBrush(Qt::NoBrush);
-    for (const Shape &s : m_shapes) {
-        if (s.path.isEmpty())
-            continue;
-        painter.drawPath(s.path);
-    }
-*/
-
-    QPen gridPen(QColor(220,220,220));
-    gridPen.setStyle(Qt::DotLine);
-    painter.setPen(gridPen);
-    for (qreal x = left; x <= right; x += spacing)
-        painter.drawLine(QPointF(x, top), QPointF(x, bottom));
-    for (qreal y = top; y <= bottom; y += spacing)
-        painter.drawLine(QPointF(left, y), QPointF(right, y));
-
+    // 2) Image rasterisée (formes + gomme)
     painter.drawImage(0, 0, m_canvas);
 
-
+    // 3) Overlay de sélection (UNIQUEMENT les formes sélectionnées)
     if (!m_selectedShapes.isEmpty()) {
-        QRectF bounds = selectedShapesBounds();
+        QRectF  bounds = selectedShapesBounds();
         QPointF center = bounds.center();
         if (!m_rotating)
             m_rotationCenter = center;
 
-        // Recalculer la position du handle à distance constante
-        qreal totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
-        QPointF offset(std::cos(totalAngle) * m_rotationHandlePos.radius,
-                       std::sin(totalAngle) * m_rotationHandlePos.radius);
-        m_rotationHandle = m_rotationCenter + offset;
+        // Position actuelle du handle (rayon constant + angle cumulé)
+        qreal   totalAngle = m_groupRotationAngle + m_rotationHandlePos.angleOffset;
+        QPointF hoffset(std::cos(totalAngle) * m_rotationHandlePos.radius,
+                        std::sin(totalAngle) * m_rotationHandlePos.radius);
+        m_rotationHandle = m_rotationCenter + hoffset;
 
-        // Dessiner les formes avec surlignage
-        QPen normalPen(Qt::black, 2);
-        normalPen.setCosmetic(true);
+        QPen normal(Qt::black, 2);
+        normal.setCosmetic(true);
+        normal.setCapStyle(Qt::RoundCap);
+        normal.setJoinStyle(Qt::RoundJoin);
 
-        QPen selectedPen(Qt::cyan, 4);
-        selectedPen.setCosmetic(true);
+        QPen halo(Qt::cyan, 6);         // halo plus épais
+        halo.setCosmetic(true);
+        halo.setCapStyle(Qt::RoundCap);
+        halo.setJoinStyle(Qt::RoundJoin);
 
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            const QPainterPath &path = m_shapes[i].path;   // ← path est déclaré ici
+        for (int i : std::as_const(m_selectedShapes)) {
+            if (i < 0 || i >= m_shapes.size()) continue;
+            const QPainterPath &path = m_shapes[i].path;
 
-            if (m_selectedShapes.contains(i)) {
-                /* 1) halo cyan épais */
-                QPen highlightPen(Qt::cyan, 6);    // épaisseur 6 px
-                highlightPen.setCosmetic(true);
-                painter.setPen(highlightPen);
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(path);            // ← on utilise path
+            painter.setPen(halo);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(path);
 
-                /* 2) trait normal par-dessus */
-                painter.setPen(normalPen);         // noir (ou couleur de base)
-                painter.drawPath(path);
-            } else {
-                painter.setPen(normalPen);
-                painter.setBrush(Qt::NoBrush);
-                painter.drawPath(path);
-            }
+            painter.setPen(normal);
+            painter.drawPath(path);
         }
 
-
-        // Afficher la poignée SVG si pas trop éloignée
+        // Icône de rotation (si proche & SVG valide)
         const double maxDistance = 150.0;
-        double distanceToCenter = QLineF(m_rotationCenter, m_rotationHandle).length();
-
-        if (distanceToCenter <= maxDistance && m_handleRenderer.isValid()) {
-            const int iconSize = 24;  // taille du SVG en pixels
-
+        if (QLineF(m_rotationCenter, m_rotationHandle).length() <= maxDistance &&
+            m_handleRenderer.isValid())
+        {
+            const int iconSize = 24;
             painter.save();
             painter.translate(m_rotationHandle);
-            QRectF svgRect(-iconSize / 2.0, -iconSize / 2.0, iconSize, iconSize);
+            QRectF svgRect(-iconSize/2.0, -iconSize/2.0, iconSize, iconSize);
             m_handleRenderer.render(&painter, svgRect);
             painter.restore();
         }
     }
 
+    // 4) Prévisualisations temps-réel (ne modifient PAS m_canvas)
+
+    // Ligne
     if (m_drawMode == DrawMode::Line && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
         painter.drawLine(m_startPoint, m_currentPoint);
     }
+
+    // Cercle
     if (m_drawMode == DrawMode::Circle && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
-        QPointF center = (m_startPoint + m_currentPoint) / 2;
-        qreal radius = QLineF(m_startPoint, m_currentPoint).length() / 2;
-        QRectF preview(center.x()-radius, center.y()-radius, 2*radius, 2*radius);
-
-        // Créer un chemin fermé pour le cercle
-        QPainterPath circlePath;
-        circlePath.addEllipse(preview);
-        circlePath.closeSubpath();  // Facultatif, car addEllipse() crée déjà un chemin fermé
-        painter.drawPath(circlePath);
+        QPointF c = (m_startPoint + m_currentPoint) / 2.0;
+        qreal   r = QLineF(m_startPoint, m_currentPoint).length() / 2.0;
+        painter.drawEllipse(c, r, r);
     }
+
+    // Rectangle
     if (m_drawMode == DrawMode::Rectangle && m_drawingLineOrCircle) {
         painter.setPen(QPen(Qt::blue, 2, Qt::DashLine));
-        QRectF previewRect(m_startPoint, m_currentPoint);
-
-        QPainterPath rectPath;
-        rectPath.addRect(previewRect);
-        rectPath.closeSubpath();  // Facultatif ici aussi, car addRect() crée déjà un chemin fermé
-        painter.drawPath(rectPath);
+        painter.drawRect(QRectF(m_startPoint, m_currentPoint));
     }
+
+    // Point‑par‑point
     if (m_drawMode == DrawMode::PointParPoint && !m_freehandPoints.isEmpty()) {
         painter.setPen(QPen(Qt::magenta, 2, Qt::DashLine));
-        for (int i = 0; i < m_freehandPoints.size() - 1; ++i) {
+        for (int i = 0; i < m_freehandPoints.size() - 1; ++i)
             painter.drawLine(m_freehandPoints[i], m_freehandPoints[i + 1]);
-        }
-        if (m_drawing) {
+        if (m_drawing)
             painter.drawLine(m_freehandPoints.last(), m_currentPoint);
-        }
     }
-    /* === Aperçu temps-réel du tracé libre =========================== */
-    if (m_drawMode == DrawMode::Freehand && !m_freehandPoints.isEmpty())
-    {
-        painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
 
+    // Freehand (aperçu lissé selon le slider, uniquement pour le trait en cours)
+    if (m_drawMode == DrawMode::Freehand && !m_freehandPoints.isEmpty()) {
+        painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
         QPainterPath preview;
         if (m_smoothingLevel > 0 && m_freehandPoints.size() >= 2) {
             QList<QPointF> pts = m_freehandPoints;
@@ -1932,27 +1822,21 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
                 pts = applyLowPassFilter(pts, smoothingAlpha());
             int it = computeSmoothingIterations(pts);
             pts = applyChaikinAlgorithm(pts, it);
-            preview = generateBezierPath(pts);        // lissé
+            preview = generateBezierPath(pts);
         } else {
-            preview = generateRawPath(m_freehandPoints); // segments bruts
+            preview = generateRawPath(m_freehandPoints);
         }
-
         painter.drawPath(preview);
     }
-    /* ================================================================ */
 
+    // Gomme (curseur)
     if (m_drawMode == DrawMode::Gomme && m_gommeErasing) {
         painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
         painter.drawEllipse(m_gommeCenter, m_gommeRadius, m_gommeRadius);
     }
 
     painter.restore();
-    //QRectF visible = currentVisibleLogicalRect();
-    //qDebug() << "📐 Zone logique visible actuelle =" << visible;
-    //qDebug() << "📏 Zone limite logique autorisée =" << m_limitRect;
-
 }
-
 
 void CustomDrawArea::resizeEvent(QResizeEvent *event)
 {
