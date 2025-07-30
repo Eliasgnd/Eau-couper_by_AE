@@ -37,14 +37,18 @@ public:
     /// Full-duplex SPI 16 bits
     uint16_t transfer(uint16_t word);
 
-signals:
-    void spiTransfered(quint16 tx, quint16 rx);
-
-private:
     // Broches d'état (entrée)
     static constexpr uint8_t STALLN_PIN = 23;
     static constexpr uint8_t FAULTN_PIN = 24;
     static constexpr uint8_t BEMF_PIN   = 18;
+
+
+
+signals:
+    void spiTransfered(quint16 tx, quint16 rx);
+
+private:
+
 
     // Broches de contrôle
     static constexpr uint8_t PIN_SCS    = 20;
