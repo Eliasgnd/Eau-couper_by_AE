@@ -56,7 +56,11 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    //qDebug() << "Titre du bouton Play =" << ui->Play->text();
+    // La barre de titre (index 0) ne prend pas de stretch, la vue (index 1) prend tout, le bas (index 2) reste compact.
+    ui->centerVBox->setStretch(0, 0);  // topBarLayout
+    ui->centerVBox->setStretch(1, 1);  // horizontalLayout contenant formeVisualizationWidget
+    ui->centerVBox->setStretch(2, 0);  // horizontalLayout_2 (commandes + Réglages)
+    ui->centerVBox->setStretch(3, 0);  // verticalLayout_2 (vide chez toi)
 
     // --- AJOUT : facteurs de stretch des 3 colonnes du layout principal ---
     // Étirements des colonnes (pas dans le .ui pour éviter l'erreur uic)

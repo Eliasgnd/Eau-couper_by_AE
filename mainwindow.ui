@@ -271,7 +271,7 @@ QPushButton:hover { background-color: #26C6DA; }
 QPushButton:pressed { background-color: #008C9E; }</string>
         </property>
         <property name="text">
-         <string>📥 Réception Fichier Bluetooth</string>
+         <string>Réception Fichier Bluetooth</string>
         </property>
         <property name="icon">
          <iconset>
@@ -565,7 +565,7 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
      </layout>
     </item>
     <item>
-     <layout class="QVBoxLayout" name="centerVBox">
+    <layout class="QVBoxLayout" name="centerVBox" stretch="0,1,0,0">
       <item>
        <layout class="QHBoxLayout" name="topBarLayout">
         <item>
@@ -607,9 +607,9 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
        </layout>
       </item>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
-        <item>
-         <widget class="FormeVisualization" name="formeVisualizationWidget" native="true">
+      <layout class="QHBoxLayout" name="horizontalLayout" stretch="1">
+          <item>
+            <widget class="FormeVisualization" name="formeVisualizationWidget" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -620,8 +620,7 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
            <cursorShape>CrossCursor</cursorShape>
           </property>
           <property name="styleSheet">
-           <string notr="true">QWidget {  background-color: rgb(189, 189, 189);
-        border-color: rgb(85, 170, 255); }</string>
+           <string notr="true">QWidget { background-color: rgb(255, 255, 255); }</string>
           </property>
          </widget>
         </item>

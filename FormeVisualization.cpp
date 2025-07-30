@@ -1,5 +1,5 @@
 #include "FormeVisualization.h"
-#include "qtimer.h"
+#include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
@@ -10,12 +10,13 @@
 #include <QtMath>
 #include <QTransform>
 #include <QApplication>
-#include <QPainterPathStroker>  // N'oubliez pas d'inclure ce header
+#include <QPainterPathStroker>
 #include <QMessageBox>
 #include <QAbstractGraphicsShapeItem>
 #include <QRandomGenerator>
-#include <limits>
-#include "inventaire.h"
+#include <QSizePolicy>        // <<< important pour QSizePolicy
+#include <cmath>              // <<< pour std::round (si utilisé)
+// #include <limits>          // (optionnel) retire-le si non utilisé
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -26,30 +27,37 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     spacing(0),
     m_isCustomMode(false)
 {
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    // >>> ICI (dans le corps), on peut écrire du code :
+    // Le widget garde un ratio fixe (B : ratio au niveau du widget)
+    QSizePolicy sp(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    sp.setHeightForWidth(true);
+    setSizePolicy(sp);
+
+    auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
     graphicsView = new QGraphicsView(this);
-    scene = new QGraphicsScene(this);
+    scene        = new QGraphicsScene(this);
 
-    // --- Scène "logique" fixe : 600x400 (ratio 3:2) ---
-    const int drawingWidth  = 600;
-    const int drawingHeight = 400;
-    scene->setSceneRect(0, 0, drawingWidth, drawingHeight);
+    // Scène = taille du plateau (en mm)
+    scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
 
-    // --- AVANT : setFixedSize -> à supprimer ---
-    // graphicsView->setFixedSize(viewWidth, viewHeight);
+    // Fond blanc, quoiqu’il arrive (le stylesheet global ne gagnera plus)
+    graphicsView->setBackgroundBrush(Qt::white);
+    scene->setBackgroundBrush(Qt::white);
 
-    // Laisser la vue grandir dans le layout
+    // (Optionnel/diagnostic) dessiner le cadre du plateau
+    scene->addRect(scene->sceneRect(), QPen(QColor(220,220,220)));
+    graphicsView->setRenderHint(QPainter::Antialiasing, true);
+    graphicsView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+
+
     graphicsView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     graphicsView->setFrameStyle(QFrame::NoFrame);
-
-    // Centrage + ancres pour un resize propre
     graphicsView->setAlignment(Qt::AlignCenter);
     graphicsView->setResizeAnchor(QGraphicsView::AnchorViewCenter);
     graphicsView->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
-
     graphicsView->setScene(scene);
     graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -71,7 +79,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &FormeVisualization::handleSelectionChanged);
 
-    // IMPORTANT : premier fit après création (attendre un tour d'event loop)
+    // Fit initial
     QTimer::singleShot(0, this, [this](){
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
     });
@@ -1154,3 +1162,48 @@ double FormeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPa
     double total = static_cast<double>(drawingWidth) * drawingHeight;
     return total - used;
 }
+
+int FormeVisualization::heightForWidth(int w) const
+{
+    if (m_aspect <= 0.0) return QWidget::heightForWidth(w);
+    return static_cast<int>(std::round(w / m_aspect));
+}
+
+QSize FormeVisualization::sizeHint() const
+{
+    // Taille "agréable" par défaut tout en respectant le ratio
+    int w = 900;
+    return { w, heightForWidth(w) };
+}
+
+QSize FormeVisualization::minimumSizeHint() const
+{
+    int w = 300;
+    return { w, heightForWidth(w) };
+}
+
+void FormeVisualization::setSheetSizeMm(const QSizeF& mm)
+{
+    if (mm.width() <= 0 || mm.height() <= 0)
+        return;
+
+    if (qFuzzyCompare(m_sheetMm.width(), mm.width()) &&
+        qFuzzyCompare(m_sheetMm.height(), mm.height()))
+        return;
+
+    m_sheetMm = mm;
+    m_aspect  = m_sheetMm.width() / m_sheetMm.height();
+
+    // La scène est exprimée en mm : on la recale sur le nouveau plateau
+    scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
+
+    // Prévenir le layout que nos contraintes ont changé
+    updateGeometry();
+
+    // Recentrer / rescaler le contenu
+    if (graphicsView && scene)
+        graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+
+    emit sheetSizeMmChanged(m_sheetMm);
+}
+
