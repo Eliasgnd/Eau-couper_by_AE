@@ -27,8 +27,7 @@ TestGpio::TestGpio(QWidget *parent)
     updateTimer.start(500);
 
     connect(ui->buttonMenu, &QPushButton::clicked, this, &TestGpio::goToMainWindow);
-    connect(ui->btnSimulateFault, &QPushButton::clicked, this, &TestGpio::on_btnSimulateFault_clicked);
-    connect(ui->btnSimulateStall, &QPushButton::clicked, this, &TestGpio::on_btnSimulateStall_clicked);
+
 }
 
 TestGpio::~TestGpio()
@@ -157,21 +156,7 @@ void TestGpio::updatePinStates()
 #endif
 }
 
-void TestGpio::on_btnSimulateFault_clicked()
-{
-    faultActive = !faultActive;
-    raspberry.writePin(Raspberry::FAULTN_PIN, faultActive ? 0 : 1);
-    ui->btnSimulateFault->setText(faultActive ? "Restore FAULTn" : "Simulate FAULTn");
-    updatePinStates();
-}
 
-void TestGpio::on_btnSimulateStall_clicked()
-{
-    stallActive = !stallActive;
-    raspberry.writePin(Raspberry::STALLN_PIN, stallActive ? 0 : 1);
-    ui->btnSimulateStall->setText(stallActive ? "Restore STALLn" : "Simulate STALLn");
-    updatePinStates();
-}
 
 void TestGpio::goToMainWindow()
 {
