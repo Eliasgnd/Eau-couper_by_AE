@@ -51,6 +51,7 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_pasteMode(false),
     m_lastSelectClick(0,0),
     m_snapToGrid(false),
+    m_showGrid(true),
     m_gridSpacing(20),
     m_minPointDistance(2.0)
 
@@ -1407,7 +1408,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     painter.scale(m_scale, m_scale);
 
     // 1) Grille (dessinée en-dessous)
-    {
+    if (m_showGrid) {
         drawGrid(painter);
     }
 

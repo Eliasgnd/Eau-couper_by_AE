@@ -579,6 +579,18 @@ custom::custom(Language lang, QWidget *parent)
         ui->buttonSnapGrid->update();
     });
 
+    connect(ui->buttonToggleGrid, &QPushButton::clicked, this, [=]() {
+        bool visible = !drawArea->isGridVisible();
+        drawArea->setGridVisible(visible);
+
+        ui->buttonToggleGrid->setText(visible ? "Grille ✅" : "Grille ❌");
+        ui->buttonToggleGrid->setProperty("gridVisible", visible);
+
+        ui->buttonToggleGrid->style()->unpolish(ui->buttonToggleGrid);
+        ui->buttonToggleGrid->style()->polish(ui->buttonToggleGrid);
+        ui->buttonToggleGrid->update();
+    });
+
 
 
     // slider --> change spacing
