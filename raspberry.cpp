@@ -33,7 +33,10 @@ bool Raspberry::init() {
     if (!chip || !init_gpio())
         return false;
 
-    // Reset matériel DRV8711
+    writePin(EN1_PIN, true);
+    writePin(EN2_PIN, true);
+    writePin(EN3_PIN, true);
+
     writePin(PIN_SLEEPn, true);
     writePin(PIN_RESET, false);
     std::this_thread::sleep_for(std::chrono::microseconds(10));

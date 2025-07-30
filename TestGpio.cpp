@@ -32,20 +32,28 @@ TestGpio::TestGpio(QWidget *parent)
     connect(rasp, &Raspberry::spiTransfered,
             this, &TestGpio::appendSpiLog);
 
-    // Timer pour déclencher régulièrement une lecture SPI
+    // Timer pour lecture régulière des registres SPI
     QTimer* spiTimer = new QTimer(this);
     connect(spiTimer, &QTimer::timeout, this, [this, rasp]() {
-        // Sélection du driver 1 via EN1 (contrôle du routage CS)
+        // Lecture registre 0
         rasp->selectDriver(1);
-        // Double-phase read du registre STATUS (addr=1)
-        rasp->transfer(0x9000);        // commande READ addr=1
-        rasp->selectDriver(0);         // désélection temporaire
+        rasp->transfer(0x8000);
+        rasp->selectDriver(0);
         rasp->selectDriver(1);
-        uint16_t status = rasp->transfer(0x0000); // récupération donnée
-        rasp->selectDriver(0);         // désélection finale
-        // Affichage
+        uint16_t reg0 = rasp->transfer(0x0000);
+        rasp->selectDriver(0);
         ui->spiLog->appendPlainText(
-            QString("STATUS=0x%1").arg(status, 3, 16, QChar('0')));
+            QString("REG0=0x%1").arg(reg0, 4, 16, QChar('0')));
+
+        // Lecture registre 1
+        rasp->selectDriver(1);
+        rasp->transfer(0x9000);
+        rasp->selectDriver(0);
+        rasp->selectDriver(1);
+        uint16_t reg1 = rasp->transfer(0x0000);
+        rasp->selectDriver(0);
+        ui->spiLog->appendPlainText(
+            QString("REG1=0x%1").arg(reg1, 4, 16, QChar('0')));
     });
     spiTimer->start(1000); // toutes les secondes
 
