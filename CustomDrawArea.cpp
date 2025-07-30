@@ -1,30 +1,26 @@
 #include "CustomDrawArea.h"
 #include "skeletonizer.h"
+
 #include <QPainter>
 #include <QMouseEvent>
-#include <QDebug>
-#include <cmath>
-#include <limits>
-#include <QPainterPathStroker>
 #include <QWheelEvent>
+#include <QTouchEvent>
 #include <QGestureEvent>
 #include <QPinchGesture>
-#include <QLineF>
-#include <QMap>
-#include <algorithm> // pour std::sort
+#include <QPainterPathStroker>
 #include <QInputDialog>
 #include <QLineEdit>
-#include <limits>
-#include <QtGlobal>
-#include <algorithm>
+#include <QSvgRenderer>
+#include <QTransform>
+#include <QDebug>
+#include <QLineF>
 #include <QList>
 #include <QPainterPath>
-#include <QTouchEvent>
-#include <QPinchGesture>
-#include <utility>
-#include <QTransform>
-#include <QSvgRenderer>
+#include <QtGlobal>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
@@ -80,8 +76,6 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
             this, &CustomDrawArea::setTwoFingersOn);
 
     m_touchReader->start();          // ← on lance le thread UNE seule fois
-    initializeLimitRect();
-
     m_handleRenderer.load(QStringLiteral(":/icons/rotate.svg"));
 
 }
@@ -136,50 +130,6 @@ static QVector<QLineF> pathToLines(const QPainterPath& path)
     return lines;
 }
 
-// Calcule l’aire signée d’un sous‑chemin (≈ 0 si <3 points)
-static double signedArea(const QPainterPath &p)
-{
-    int n = p.elementCount();
-    if (n < 3) return 0.0;
-
-    double A = 0.0;
-    auto ex = [&](int i){ return p.elementAt(i).x; };
-    auto ey = [&](int i){ return p.elementAt(i).y; };
-
-    for (int i = 0; i < n-1; ++i)
-        A += ex(i) * ey(i+1) - ex(i+1) * ey(i);
-    A += ex(n-1) * ey(0) - ex(0) * ey(n-1);   // fermeture
-    return 0.5 * A;                            // signe ⇢ orientation
-}
-
-
-// Parcourt path, détecte chaque sous‐chemin démarré par moveTo(),
-// et reconstruit un nouveau QPainterPath où chacun est fermé.
-static QPainterPath closeAllSubpaths(const QPainterPath &path) {
-    QPainterPath result;
-    int n = path.elementCount();
-    if (n == 0) return result;
-
-    // indice du début du sous‐chemin courant
-    int start = 0;
-    for (int i = 1; i <= n; ++i) {
-        // on détecte soit la fin du tableau, soit un nouveau moveTo → fin de sous‐chemin
-        bool endOfSubpath = (i == n) || path.elementAt(i).isMoveTo();
-        if (endOfSubpath) {
-            // extrait et ferme le sous‐chemin [start .. i-1]
-            QPainterPath::Element e0 = path.elementAt(start);
-            result.moveTo(e0.x, e0.y);
-            for (int j = start + 1; j < i; ++j) {
-                auto e = path.elementAt(j);
-                result.lineTo(e.x, e.y);
-            }
-            result.closeSubpath();  // <-- ferme ce contour
-            start = i;
-        }
-    }
-    return result;
-}
-
 static QPointF pathStart(const QPainterPath &p) {
     if (p.elementCount() == 0)
         return {};
@@ -192,28 +142,6 @@ static QPointF pathEnd(const QPainterPath &p) {
         return {};
     auto e = p.elementAt(p.elementCount() - 1);
     return {e.x, e.y};
-}
-
-// If 'p' forms a closed subpath, returns an equivalent open path
-static QPainterPath reopenIfClosed(const QPainterPath &p) {
-    if (p.elementCount() > 1) {
-        QPainterPath::Element first = p.elementAt(0);
-        QPainterPath::Element last  = p.elementAt(p.elementCount() - 1);
-        if (std::abs(first.x - last.x) < 0.001 &&
-            std::abs(first.y - last.y) < 0.001) {
-            QPainterPath open;
-            open.moveTo(first.x, first.y);
-            for (int i = 1; i < p.elementCount() - 1; ++i) {
-                auto e = p.elementAt(i);
-                if (e.isMoveTo())
-                    open.moveTo(e.x, e.y);
-                else
-                    open.lineTo(e.x, e.y);
-            }
-            return open;
-        }
-    }
-    return p;
 }
 
 static bool pathsTouch(const QPainterPath &a, const QPainterPath &b, qreal tol = 2.0) {
@@ -237,58 +165,19 @@ static inline QRect logicalCircleToWidgetRect(const QPointF& c, qreal r,
     return lr.toAlignedRect();
 }
 
-
 void CustomDrawArea::initCanvas()
 {
     const QSize physSize = size() * devicePixelRatioF();
 
-    // Couche "encre" rasterisée
     m_canvas = QImage(physSize, QImage::Format_ARGB32_Premultiplied);
     m_canvas.setDevicePixelRatio(devicePixelRatioF());
     m_canvas.fill(Qt::white);
-
-    // Masque gomme (canal alpha uniquement)
-    m_eraserMask = QImage(physSize, QImage::Format_Alpha8);
-    m_eraserMask.setDevicePixelRatio(devicePixelRatioF());
-    m_eraserMask.fill(0);  // 0 = pas d’effacement
 }
-
-QRectF m_limitRect;  // zone limite de déplacement, calculée au départ
-
-void CustomDrawArea::initializeLimitRect()
-{
-    QSizeF widgetSize = size() * devicePixelRatioF();
-    QPointF topLeft = QPointF(0, 0);
-    QPointF bottomRight = QPointF(widgetSize.width(), widgetSize.height());
-
-    // Converti en repère logique (à zoom 100%)
-    m_limitRect = QRectF(topLeft / m_scale, bottomRight / m_scale);
-}
-
-
 
 void CustomDrawArea::applyPanDelta(const QPointF &delta) {
     m_offset -= delta;
     clampOffsetToCanvas(); // nouvelle méthode utilisée ici
     update();
-}
-
-
-QRectF CustomDrawArea::calculateVisibleRect(const QPointF &offset) const
-{
-    QSizeF widgetSize = size() * devicePixelRatioF();
-    QPointF topLeft = (QPointF(0, 0) - offset) / m_scale;
-    QPointF bottomRight = (QPointF(widgetSize.width(), widgetSize.height()) - offset) / m_scale;
-    return QRectF(topLeft, bottomRight);
-}
-
-
-
-QRectF CustomDrawArea::currentVisibleLogicalRect() const {
-    QSizeF widgetSize = size() * devicePixelRatioF();
-    QPointF topLeft = (QPointF(0, 0) - m_offset) / m_scale;
-    QPointF bottomRight = (QPointF(widgetSize.width(), widgetSize.height()) - m_offset) / m_scale;
-    return QRectF(topLeft, bottomRight);
 }
 
 void CustomDrawArea::clampOffsetToCanvas() {
@@ -365,14 +254,6 @@ void CustomDrawArea::undoLastAction()
     }
 }
 
-QPainterPath CustomDrawArea::combineSegments(const QList<QPainterPath> &segments)
-{
-    QPainterPath combined;
-    for (const QPainterPath &seg : segments)
-        combined.addPath(seg);
-    return combined;
-}
-
 QRectF CustomDrawArea::selectedShapesBounds() const
 {
     QRectF bounds;
@@ -389,39 +270,6 @@ QRectF CustomDrawArea::selectedShapesBounds() const
         }
     }
     return bounds;
-}
-
-QList<int> CustomDrawArea::collectConnectedFragments(int startIndex) const
-{
-    QList<int> result;
-    if (startIndex < 0 || startIndex >= m_shapes.size())
-        return result;
-
-    int baseId = m_shapes[startIndex].originalId;
-    QVector<bool> visited(m_shapes.size(), false);
-    QVector<int> stack{startIndex};
-    visited[startIndex] = true;
-    const qreal tol = 2.0;
-
-    while (!stack.isEmpty()) {
-        int idx = stack.back();
-        stack.pop_back();
-        result.append(idx);
-
-        for (int i = 0; i < m_shapes.size(); ++i) {
-            if (visited[i])
-                continue;
-            bool sameId = m_shapes[i].originalId == baseId;
-            bool contig = pathsTouch(m_shapes[idx].path, m_shapes[i].path, tol);
-            if (sameId || contig) {
-                visited[i] = true;
-                stack.append(i);
-            }
-        }
-    }
-
-    std::sort(result.begin(), result.end());
-    return result;
 }
 
 void CustomDrawArea::applyEraserAt(const QPointF &center)
@@ -675,10 +523,10 @@ void CustomDrawArea::clearDrawing()
     m_shapes.clear();
     m_freehandPoints.clear();
     m_undoStack.clear();
-    m_eraserMask.fill(0);
     updateCanvas();
     update();
 }
+
 
 void CustomDrawArea::setEraserRadius(qreal radius)
 {
@@ -739,46 +587,6 @@ QPainterPath CustomDrawArea::generateRawPath(const QList<QPointF>& pts)
         path.lineTo(pts[i]);
     return path;
 }
-
-
-static double distanceToSegment(const QPointF &p, const QPointF &a, const QPointF &b)
-{
-    QLineF line(a, b);
-    double len2 = line.length() * line.length();
-    if (len2 <= 0.000001)
-        return QLineF(p, a).length();
-    double t = ((p.x() - a.x()) * (b.x() - a.x()) +
-                (p.y() - a.y()) * (b.y() - a.y())) / len2;
-    if (t < 0.0)
-        t = 0.0;
-    else if (t > 1.0)
-        t = 1.0;
-    QPointF proj(a.x() + t * (b.x() - a.x()),
-                 a.y() + t * (b.y() - a.y()));
-    return QLineF(p, proj).length();
-}
-
-static double distanceToPath(const QPainterPath &path, const QPointF &p)
-{
-    if (path.isEmpty())
-        return std::numeric_limits<double>::max();
-    double best = std::numeric_limits<double>::max();
-    QPointF prev(path.elementAt(0).x, path.elementAt(0).y);
-    for (int i = 1; i < path.elementCount(); ++i) {
-        QPainterPath::Element el = path.elementAt(i);
-        if (el.isMoveTo()) {
-            prev = QPointF(el.x, el.y);
-            continue;
-        }
-        QPointF curr(el.x, el.y);
-        double d = distanceToSegment(p, prev, curr);
-        if (d < best)
-            best = d;
-        prev = curr;
-    }
-    return best;
-}
-
 
 QList<QPointF> CustomDrawArea::applyLowPassFilter(const QList<QPointF>& points, double alpha) const
 {
@@ -1018,11 +826,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         pushState();
 
         m_gommeErasing  = true;
-        m_gommeMoved    = false;
         m_lastEraserPos = m_gommeCenter = pos;
-
-        m_eraserStroke.clear();
-        m_eraserStroke.push_back(m_gommeCenter);
 
         // On coupe déjà à la position initiale, mais sans reconstruire immédiatement le canvas
         m_deferredErase = true;          // les applyEraserAt ne feront pas updateCanvas()
@@ -1301,12 +1105,10 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
         const QPointF prev = m_lastEraserPos;
         m_gommeCenter = pos;
-        m_gommeMoved  = true;
 
         // Coupe vectorielle le long du déplacement
         eraseAlong(prev, m_gommeCenter);
         m_lastEraserPos = m_gommeCenter;
-        m_eraserStroke.push_back(m_gommeCenter);
 
         // ➜ Invalide AUSSI l’overlay (ancien et nouveau cercle)
         const QRect rPrev = logicalCircleToWidgetRect(prev,          m_gommeRadius, m_scale, m_offset);
@@ -1392,13 +1194,6 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         s.path = path;
         s.originalId = m_nextShapeId++; // Identifiant unique
         m_shapes.append(s);
-        {
-            QPainter maskPainter(&m_eraserMask);
-            maskPainter.setRenderHint(QPainter::Antialiasing, true);
-            maskPainter.setCompositionMode(QPainter::CompositionMode_Source);
-            maskPainter.fillRect(path.boundingRect(), Qt::transparent);
-            maskPainter.end();
-        }
         updateCanvas();
         m_drawing = false;
         m_freehandPoints.clear();
@@ -1433,13 +1228,6 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             s.path = path;
             s.originalId = m_nextShapeId++; // Identifiant unique
             m_shapes.append(s);
-            {
-                QPainter maskPainter(&m_eraserMask);
-                maskPainter.setRenderHint(QPainter::Antialiasing, true);
-                maskPainter.setCompositionMode(QPainter::CompositionMode_Source);
-                maskPainter.fillRect(path.boundingRect(), Qt::transparent);
-                maskPainter.end();
-            }
             updateCanvas();
             m_drawingLineOrCircle = false;
         }
@@ -1451,16 +1239,12 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     {
         if (m_gommeErasing) {
             m_gommeErasing = false;
-            m_gommeMoved   = false;
 
             m_dirty = m_dirty.united(logicalCircleToWidgetRect(m_gommeCenter, m_gommeRadius, m_scale, m_offset));
 
             // Dernier commit forcé, puis on revient au mode normal de commit
             commitEraseIfNeeded(true);
             m_deferredErase = false;
-
-            // Le masque ne participe plus au rendu final ; on peut le vider par hygiène
-            m_eraserMask.fill(0);
 
             update();
         }
@@ -1979,17 +1763,6 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
     update();
 }
 
-
-
-// Ajoute le nœud à une structure de données
-void CustomDrawArea::addNode(const QPointF& position)
-{
-    // Si tu veux garder une liste de nœuds
-    m_nodes.append(position);
-}
-
-
-
 void CustomDrawArea::closeCurrentShape()
 {
     // Rien à faire si aucune forme n'est sélectionnée
@@ -2291,65 +2064,6 @@ void CustomDrawArea::revertToFreehand()
 
     setSmoothingLevel(m_savedSmoothingLevel);
 
-    update();
-}
-
-// --- Helpers Gomme -------------------------------------------------
-void CustomDrawArea::stampEraserAt(const QPointF& logicalCenter, qreal radius)
-{
-    // On peint dans l'image m_eraserMask (en pixels "physiques")
-    const qreal dpr = m_eraserMask.devicePixelRatioF();
-
-    QPainter ep(&m_eraserMask);
-    ep.setRenderHint(QPainter::Antialiasing, true);
-    ep.setPen(Qt::NoPen);
-    ep.setBrush(Qt::white);             // Alpha8: 255 => plein effacement
-    ep.scale(dpr, dpr);                  // on peut utiliser des coords "logiques"
-    ep.drawEllipse(logicalCenter, radius, radius);
-    ep.end();
-}
-
-void CustomDrawArea::stampEraserAlong(const QPointF& from, const QPointF& to, qreal radius)
-{
-    const qreal dist = QLineF(from, to).length();
-    if (dist <= 0.001) { stampEraserAt(to, radius); return; }
-
-    // Pas entre les tampons : < rayon/2 pour continuité
-    const qreal step = qMax<qreal>(1.0, radius * 0.5);
-    const int   n    = int(dist / step);
-
-    for (int i = 1; i <= n; ++i) {
-        const qreal t = qreal(i) / qreal(n);
-        const QPointF p = from + t * (to - from);
-        stampEraserAt(p, radius);
-    }
-}
-
-void CustomDrawArea::applyEraserStroke(const QVector<QPointF>& stroke)
-{
-    if (stroke.size() < 1) return;
-
-    // On évite de recalculer le canvas à chaque micro-appel
-    m_deferredErase = true;
-
-    const qreal step = qMax<qreal>(1.0, m_gommeRadius * 0.5);
-    QPointF prev = stroke.first();
-    applyEraserAt(prev);
-
-    for (int i = 1; i < stroke.size(); ++i) {
-        const QPointF cur = stroke[i];
-        const qreal dist = QLineF(prev, cur).length();
-        const int n = int(dist / step);
-        for (int k = 1; k <= n; ++k) {
-            const qreal t = qreal(k) / qreal(n);
-            const QPointF p = prev + t * (cur - prev);
-            applyEraserAt(p);
-        }
-        prev = cur;
-    }
-
-    m_deferredErase = false;
-    updateCanvas();          // commit unique
     update();
 }
 
