@@ -32,9 +32,12 @@ TestGpio::TestGpio(QWidget *parent)
 
     // Timer pour déclencher régulièrement une lecture SPI
     QTimer* spiTimer = new QTimer(this);
-    connect(spiTimer, &QTimer::timeout, this, [rasp]() {
-        // Lecture du registre STATUS (R/W=1, addr=0)
-        rasp->transfer(0x8000);
+    connect(spiTimer, &QTimer::timeout, this, [this, rasp]() {
+        // Double-phase read pour DRV8711 : commande de lecture puis lecture de la donnée
+        rasp->transfer(0x8000);                    // envoie le bit R/W=1, addr=0
+        uint16_t status = rasp->transfer(0x0000);  // récupère la valeur du registre
+        ui->spiLog->appendPlainText(
+            QString("STATUS=0x%1").arg(status, 3, 16, QChar('0')));
     });
     spiTimer->start(1000); // toutes les secondes
 
