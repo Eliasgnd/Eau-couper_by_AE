@@ -24,6 +24,11 @@ public:
     uint16_t transfer(uint16_t word);
 #endif
 
+    // Broches d'entrée accessibles publiquement
+    static constexpr uint8_t STALLN_PIN  = 23;
+    static constexpr uint8_t FAULTN_PIN  = 24;
+    static constexpr uint8_t BEMF_PIN    = 18;
+
 private:
     // Broches GPIO BCM
     static constexpr uint8_t PIN_SCS     = 20;  // Chip Select (CS) - utilisé comme GPIO
@@ -34,11 +39,8 @@ private:
     static constexpr uint8_t EN1_PIN     = 7;
     static constexpr uint8_t EN2_PIN     = 8;
     static constexpr uint8_t EN3_PIN     = 25;
-    static constexpr uint8_t STALLN_PIN  = 23;
-    static constexpr uint8_t FAULTN_PIN  = 24;
     static constexpr uint8_t BIN1_PIN    = 17;
     static constexpr uint8_t BIN2_PIN    = 27;
-    static constexpr uint8_t BEMF_PIN    = 18;
 
     // ⚠️ Les broches SPI suivantes sont gérées par le contrôleur SPI matériel
     static constexpr uint8_t SDATI_PIN   = 10;  // SPI MOSI - sortie Pi
