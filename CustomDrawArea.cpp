@@ -21,6 +21,15 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <QLoggingCategory>
+#include <QVarLengthArray>
+#include <utility>
+
+// Catégories (préfixe stable = "ae.draw")
+Q_LOGGING_CATEGORY(lcDrawMode, "ae.draw.mode")
+Q_LOGGING_CATEGORY(lcSnap,     "ae.draw.snap")
+Q_LOGGING_CATEGORY(lcGesture,  "ae.draw.gesture")
+Q_LOGGING_CATEGORY(lcPerf,     "ae.draw.perf")
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent),
@@ -52,7 +61,6 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     QPalette pal = palette();
     pal.setColor(QPalette::Window, Qt::white);
     setPalette(pal);
-    setStyleSheet("background-color: white;");
 
     grabGesture(Qt::PinchGesture); // Déjà présent
 
@@ -165,6 +173,17 @@ static inline QRect logicalCircleToWidgetRect(const QPointF& c, qreal r,
     return lr.toAlignedRect();
 }
 
+// Petit helper générique : rect logique -> rect widget (avec marge AA)
+static inline QRect logicalToWidgetRect(const QRectF& rLogical,
+                                        qreal scale, const QPointF& offset,
+                                        qreal aaMargin = 2.0)
+{
+    QRectF r = rLogical.adjusted(-aaMargin, -aaMargin, aaMargin, aaMargin);
+    r.translate(offset);
+    r.setSize(r.size() * scale);
+    return r.toAlignedRect();
+}
+
 void CustomDrawArea::initCanvas()
 {
     const QSize physSize = size() * devicePixelRatioF();
@@ -202,26 +221,35 @@ void CustomDrawArea::clampOffsetToCanvas() {
     m_offset.setY(std::clamp(m_offset.y(), minOffsetY, maxOffsetY));
 }
 
-
-
-
-
-// Appeler initializeLimitRect() une fois au démarrage du mode custom, zoom à 100%
-
-
-
 void CustomDrawArea::updateCanvas()
 {
-    const QSize physSize = size() * devicePixelRatioF();
+    // Reconstruit TOUT le canvas en repère logique
+    const qreal dpr = m_canvas.devicePixelRatioF();
+    const QRectF fullLogical(0, 0,
+                             m_canvas.width()  / dpr,
+                             m_canvas.height() / dpr);
+    updateCanvas(fullLogical);  // délègue à la surcharge partielle
+}
 
-    QImage newCanvas(physSize, QImage::Format_ARGB32_Premultiplied);
-    newCanvas.setDevicePixelRatio(devicePixelRatioF());
-    newCanvas.fill(Qt::transparent);
+// Reconstruit uniquement une zone logique du canvas
+void CustomDrawArea::updateCanvas(const QRectF& logicalDirty)
+{
+    if (logicalDirty.isEmpty())
+        return;
 
-    // 1) Dessin vectoriel depuis m_shapes uniquement
-    QPainter p(&newCanvas);
+    // Le canvas existe déjà et a son DPR configuré.
+    QPainter p(&m_canvas);
     p.setRenderHint(QPainter::Antialiasing, true);
 
+    // Clip sur la zone sale en repère logique
+    const QRectF clip = logicalDirty.adjusted(-1, -1, 1, 1); // léger pad
+    p.setClipRect(clip);
+
+    // ⚠️ Important : nettoyer la zone dans le canvas (fond transparent)
+    p.setCompositionMode(QPainter::CompositionMode_Source);
+    p.fillRect(clip, Qt::transparent);
+
+    // Stylo utilisé pour redessiner les formes qui touchent la zone
     QPen pen(Qt::black, 2);
     pen.setCosmetic(true);
     pen.setCapStyle(Qt::RoundCap);
@@ -229,13 +257,13 @@ void CustomDrawArea::updateCanvas()
     p.setPen(pen);
     p.setBrush(Qt::NoBrush);
 
-    for (const Shape &shape : m_shapes)
-        if (!shape.path.isEmpty())
-            p.drawPath(shape.path);
-
+    // Ne redessine que les formes intersectant logicalDirty
+    for (const Shape& s : std::as_const(m_shapes)) {
+        if (s.path.isEmpty()) continue;
+        if (s.path.boundingRect().intersects(clip))
+            p.drawPath(s.path);
+    }
     p.end();
-
-    m_canvas = newCanvas;
 }
 
 void CustomDrawArea::pushState()
@@ -311,7 +339,7 @@ void CustomDrawArea::applyEraserAt(const QPointF &center)
         return merged;
     };
 
-    for (const Shape &shape : qAsConst(m_shapes)) {
+    for (const Shape &shape : std::as_const(m_shapes)) {
         if (shape.path.isEmpty()) { newShapes.append(shape); continue; }
 
         // 1) Linéarise le chemin (gère quadTo/cubicTo)
@@ -429,18 +457,16 @@ void CustomDrawArea::setSmoothingLevel(int level)
 
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
-    qDebug() << "[DEBUG] setDrawMode() appelé, mode =" << static_cast<int>(mode);
-
-    qDebug() << "[setDrawMode] Demande de mode =" << static_cast<int>(mode)
-             << " | Mode courant =" << static_cast<int>(m_drawMode);
+    qCDebug(lcDrawMode) << "setDrawMode() appelé, mode =" << static_cast<int>(mode);
+    qCDebug(lcDrawMode) << "Demande =" << static_cast<int>(mode)
+                        << "| Courant =" << static_cast<int>(m_drawMode);
 
     // Garde-fou : toute valeur hors enum ramène au mode libre
     const int minMode = static_cast<int>(DrawMode::Freehand);
     const int maxMode = static_cast<int>(DrawMode::ThinText);
     int requested = static_cast<int>(mode);
     if (requested < minMode || requested > maxMode) {
-        qWarning() << "[setDrawMode] Mode invalide:" << requested
-                   << "-> retour Freehand";
+        qCWarning(lcDrawMode) << "Mode invalide:" << requested << "-> retour Freehand";
         revertToFreehand();
         return;
     }
@@ -884,81 +910,28 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         break;
     case DrawMode::Text:
     {
-        // Utilisation d'un QInputDialog pour saisir le texte
+        // Saisie du texte
         bool ok = false;
         QString text = QInputDialog::getText(this, tr("Saisir un texte"),
                                              tr("Texte :"), QLineEdit::Normal,
-                                             m_currentText, &ok);
-        if (ok && !text.isEmpty())
-        {
-            m_currentText = text;
-            QPainterPath textPath;
-            textPath.addText(pos, m_textFont, text);
-
-            // Découpage du chemin en sous-chemins (chaque sous-chemin démarre avec moveTo)
-            QList<QPainterPath> letterPaths;
-            if (textPath.elementCount() > 0) {
-                QPainterPath currentSubpath;
-                for (int i = 0; i < textPath.elementCount(); ++i) {
-                    QPainterPath::Element e = textPath.elementAt(i);
-                    if (e.isMoveTo()) {
-                        // Si currentSubpath n'est pas vide, ajouter la précédente lettre
-                        if (!currentSubpath.isEmpty())
-                        {
-                            letterPaths.append(currentSubpath);
-                            currentSubpath = QPainterPath();
-                        }
-                        currentSubpath.moveTo(e.x, e.y);
-                    } else {
-                        currentSubpath.lineTo(e.x, e.y);
-                    }
-                }
-                if (!currentSubpath.isEmpty())
-                    letterPaths.append(currentSubpath);
-            }
-
-            // Pour chaque sous-chemin, créer une Shape avec un identifiant unique
-            for (const QPainterPath &letterPath : letterPaths) {
-                Shape letterShape;
-                letterShape.path = letterPath;
-                letterShape.originalId = m_nextShapeId++;  // Attribue un identifiant unique pour chaque lettre
-                m_shapes.append(letterShape);
-            }
-            pushState();
-            updateCanvas();
-            update();
-        }
-        break;
-    }
-    // ────────────────────────────────────────────────────────────────
-    //  Mode ThinText  → squelette affiné + lissage Chaikin
-    // ────────────────────────────────────────────────────────────────
-    case DrawMode::ThinText:
-    {
-        bool ok = false;
-        QString text = QInputDialog::getText(this,
-                                             tr("Saisir un texte"),
-                                             tr("Texte :"),
-                                             QLineEdit::Normal,
                                              m_currentText, &ok);
         if (!ok || text.isEmpty())
             break;
 
         m_currentText = text;
 
-        QFont thinFont = m_textFont;
-        thinFont.setWeight(QFont::Thin);
+        // Snapshot pour UN seul undo sur l'opération entière
+        pushState();  // ← avant mutation
 
-        // Construction du chemin complet à la position cliquée
+        // Construit le chemin complet, puis découpe en sous-chemins
         QPainterPath textPath;
-        textPath.addText(pos, thinFont, text);
+        textPath.addText(pos, m_textFont, text);
 
-        // Découpage en sous-chemins correspondant à chaque lettre
         QList<QPainterPath> letterPaths;
         if (textPath.elementCount() > 0) {
             QPainterPath currentSubpath;
             for (int i = 0; i < textPath.elementCount(); ++i) {
-                QPainterPath::Element e = textPath.elementAt(i);
+                const QPainterPath::Element e = textPath.elementAt(i);
                 if (e.isMoveTo()) {
                     if (!currentSubpath.isEmpty()) {
                         letterPaths.append(currentSubpath);
@@ -973,52 +946,126 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 letterPaths.append(currentSubpath);
         }
 
-        // Squelettisation et création d'une Shape pour chaque lettre
-        // ↓ à la place de ta boucle “for (const QPainterPath &letterPath …) ”
-        for (const QPainterPath &letterPath : letterPaths)
-        {
+        // Ajoute chaque sous-chemin comme Shape + calcule la zone sale logique
+        QRectF dirtyLogical;   // ← zone à reconstruire dans le canvas
+        for (const QPainterPath &letterPath : letterPaths) {
             if (letterPath.isEmpty()) continue;
-            QRectF br = letterPath.boundingRect();
 
-            /* 1. bitmap */
-            const int oversample = 8;                 // ← 8 au lieu de 16
-            QSize imgSz = (br.size()*oversample).toSize() + QSize(8,8);
+            Shape s;
+            s.path = letterPath;
+            s.originalId = m_nextShapeId++;
+            m_shapes.append(s);
+
+            dirtyLogical = dirtyLogical.united(letterPath.boundingRect());
+        }
+
+        // ⚡ Mise à jour partielle (canvas + repaint écran limité)
+        if (!dirtyLogical.isEmpty()) {
+            updateCanvas(dirtyLogical);
+            update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));
+        }
+        break;
+    }
+    // ────────────────────────────────────────────────────────────────
+    //  Mode ThinText  → squelette affiné + lissage Chaikin
+    // ────────────────────────────────────────────────────────────────
+    case DrawMode::ThinText:
+    {
+        // Saisie du texte
+        bool ok = false;
+        QString text = QInputDialog::getText(this,
+                                             tr("Saisir un texte"),
+                                             tr("Texte :"),
+                                             QLineEdit::Normal,
+                                             m_currentText, &ok);
+        if (!ok || text.isEmpty())
+            break;
+
+        m_currentText = text;
+
+        // Police "fine"
+        QFont thinFont = m_textFont;
+        thinFont.setWeight(QFont::Thin);
+
+        // Snapshot pour UN seul undo sur l'opération entière
+        pushState();  // ← avant mutation
+
+        // Construit le chemin complet, puis découpe en sous-chemins
+        QPainterPath textPath;
+        textPath.addText(pos, thinFont, text);
+
+        QList<QPainterPath> letterPaths;
+        if (textPath.elementCount() > 0) {
+            QPainterPath currentSubpath;
+            for (int i = 0; i < textPath.elementCount(); ++i) {
+                const QPainterPath::Element e = textPath.elementAt(i);
+                if (e.isMoveTo()) {
+                    if (!currentSubpath.isEmpty()) {
+                        letterPaths.append(currentSubpath);
+                        currentSubpath = QPainterPath();
+                    }
+                    currentSubpath.moveTo(e.x, e.y);
+                } else {
+                    currentSubpath.lineTo(e.x, e.y);
+                }
+            }
+            if (!currentSubpath.isEmpty())
+                letterPaths.append(currentSubpath);
+        }
+
+        // Squelettisation lettre par lettre + union des bounds pour MAJ partielle
+        QRectF dirtyLogical;                  // ← zone à reconstruire dans le canvas
+        for (const QPainterPath &letterPath : letterPaths) {
+            if (letterPath.isEmpty()) continue;
+
+            // 1) rendu bitmap (oversample)
+            const QRectF br = letterPath.boundingRect();
+            const int oversample = 8; // 8 suffit généralement
+            QSize imgSz = (br.size() * oversample).toSize() + QSize(8, 8);
             QImage img(imgSz, QImage::Format_Grayscale8);
             img.fill(255);
 
-            QPainter p(&img);
-            p.setRenderHint(QPainter::Antialiasing,false);
-            p.setPen (Qt::NoPen);
-            p.setBrush(Qt::black);
-            p.translate(4 - br.left()*oversample,
-                        4 - br.top ()*oversample);
-            p.scale(oversample, oversample);
-            p.drawPath(letterPath);                  // trait plein (épais de 1px)
+            {
+                QPainter p(&img);
+                p.setRenderHint(QPainter::Antialiasing, false);
+                p.setPen(Qt::NoPen);
+                p.setBrush(Qt::black);
+                p.translate(4 - br.left()*oversample,
+                            4 - br.top() *oversample);
+                p.scale(oversample, oversample);
+                p.drawPath(letterPath); // plein
+            }
 
-            /* 2. thinning */
+            // 2) amincissement (thinning)
             QImage skelImg = Skeletonizer::thin(img);
 
-            /* 3. vectorisation */
+            // 3) vectorisation
             QPainterPath skelPath = Skeletonizer::bitmapToPath(skelImg);
-            QTransform tr;  tr.scale(1.0/oversample, 1.0/oversample);
+            QTransform tr;
+            tr.scale(1.0/oversample, 1.0/oversample);
             skelPath = tr.map(skelPath);
             skelPath.translate(br.left()-4.0/oversample,
                                br.top() -4.0/oversample);
 
-            /* 4. lissage doux                               */
+            // 4) lissage doux
             skelPath = Skeletonizer::smoothPath(skelPath,
                                                 /*chaikinPasses=*/1,
                                                 /*epsilon=*/0.05);
 
-            /* 5. sauvegarde                                 */
-            Shape s;  s.path = skelPath;
+            // 5) on stocke la lettre amincie
+            Shape s;
+            s.path = skelPath;
             s.originalId = m_nextShapeId++;
             m_shapes.append(s);
+
+            dirtyLogical = dirtyLogical.united(skelPath.boundingRect());
         }
 
-        pushState();
-        updateCanvas();
-        update();
+        // ⚡ Mise à jour partielle (canvas + repaint écran limité)
+        if (!dirtyLogical.isEmpty()) {
+            updateCanvas(dirtyLogical);
+            update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));
+        }
         break;
     }
     }  // Fin du switch
@@ -1194,7 +1241,12 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         s.path = path;
         s.originalId = m_nextShapeId++; // Identifiant unique
         m_shapes.append(s);
-        updateCanvas();
+        const QRectF dirtyLogical = s.path.boundingRect();
+        updateCanvas(dirtyLogical);
+
+        // Limite la zone repaintée à l’écran
+        update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));
+
         m_drawing = false;
         m_freehandPoints.clear();
         break;
@@ -1228,7 +1280,10 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             s.path = path;
             s.originalId = m_nextShapeId++; // Identifiant unique
             m_shapes.append(s);
-            updateCanvas();
+            const QRectF dirtyLogical = s.path.boundingRect();
+            updateCanvas(dirtyLogical);
+            update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));
+
             m_drawingLineOrCircle = false;
         }
         break;
@@ -1346,19 +1401,6 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);   // AA toujours ON
 
-    // Fond plein (reste derrière tout)
-    painter.fillRect(rect(), Qt::white);
-
-    // Étendue visible en repère logique (avant transform)
-    const QPointF logicalTopLeft     = (QPointF(0, 0) - m_offset) / m_scale;
-    const QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
-
-    const int   spacing = m_gridSpacing;
-    const qreal left    = std::floor(logicalTopLeft.x()     / spacing) * spacing;
-    const qreal top     = std::floor(logicalTopLeft.y()     / spacing) * spacing;
-    const qreal right   = std::ceil (logicalBottomRight.x() / spacing) * spacing;
-    const qreal bottom  = std::ceil (logicalBottomRight.y() / spacing) * spacing;
-
     // Repère logique
     painter.save();
     painter.translate(m_offset);
@@ -1366,15 +1408,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
     // 1) Grille (dessinée en-dessous)
     {
-        QPen gridPen(QColor(220, 220, 220));
-        gridPen.setStyle(Qt::DotLine);
-        gridPen.setCosmetic(true);  // épaisseur écran constante
-        painter.setPen(gridPen);
-
-        for (qreal x = left; x <= right; x += spacing)
-            painter.drawLine(QPointF(x, top), QPointF(x, bottom));
-        for (qreal y = top; y <= bottom; y += spacing)
-            painter.drawLine(QPointF(left, y), QPointF(right, y));
+        drawGrid(painter);
     }
 
     // Le canvas contient déjà le résultat réel (formes moins la gomme vectorielle)
@@ -1499,8 +1533,9 @@ void CustomDrawArea::addImportedLogo(const QPainterPath &logoPath) {
     s.originalId = m_nextShapeId++; // Génère un identifiant unique
     m_shapes.append(s);
     pushState();
-    updateCanvas();
-    update();
+    const QRectF dirtyLogical = s.path.boundingRect();
+    updateCanvas(dirtyLogical);
+    update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));
 }
 
 void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath)
@@ -1510,8 +1545,9 @@ void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath)
     s.originalId = m_nextShapeId++;  // Génère un identifiant unique pour ce trait
     m_shapes.append(s);
     pushState();
-    updateCanvas();
-    update();
+    const QRectF dirtyLogical = s.path.boundingRect();
+    updateCanvas(dirtyLogical);
+    update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));
 }
 
 void CustomDrawArea::setTextFont(const QFont &font)
@@ -1654,6 +1690,14 @@ void CustomDrawArea::deleteSelectedShapes()
     if (m_selectedShapes.isEmpty())
         return;
 
+    // 1) Calcule la zone sale AVANT suppression
+    QRectF dirtyLogical;                                              // ← NEW
+    for (int idx : std::as_const(m_selectedShapes)) {
+        if (idx >= 0 && idx < m_shapes.size())
+            dirtyLogical = dirtyLogical.united(m_shapes[idx].path.boundingRect());
+    }
+
+    // 2) Supprime
     std::sort(m_selectedShapes.begin(), m_selectedShapes.end(), std::greater<int>());
     pushState();
     for (int idx : std::as_const(m_selectedShapes)) {
@@ -1662,13 +1706,14 @@ void CustomDrawArea::deleteSelectedShapes()
     }
     m_selectedShapes.clear();
     updateRotationHandle();
-    updateCanvas();
-    update();
+
+    // 3) ⚡ Mise à jour partielle (canvas + repaint)
+    updateCanvas(dirtyLogical);                                        // ← NEW
+    update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));      // ← NEW
+
     emit multiSelectionModeChanged(false);
     m_selectMode = false;
 }
-
-
 
 void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
 {
@@ -1765,33 +1810,39 @@ void CustomDrawArea::mergeShapesAndConnector(int idx1, int idx2)
 
 void CustomDrawArea::closeCurrentShape()
 {
-    // Rien à faire si aucune forme n'est sélectionnée
     if (m_selectedShapes.isEmpty())
         return;
 
-    // Sauvegarde pour undo
-    pushState();
-
-    // Pour chaque forme sélectionnée, on ferme le sous‑chemin
-    //qDebug() << "🔁 Fermeture des formes sélectionnées...";
-    //qDebug() << "📌 Formes sélectionnées:" << m_selectedShapes;
-    //qDebug() << "📌 Nombre total de formes:" << m_shapes.size();
-
+    // Zone AVANT
+    QRectF beforeUnion;                                               // ← NEW
     for (int idx : m_selectedShapes) {
-        if (idx < 0 || idx >= m_shapes.size()) {
-            qWarning() << "❌ Index de sélection invalide:" << idx;
-            continue;
-        }
-        QPainterPath &path = m_shapes[idx].path;
-        if (!path.isEmpty()) {
-            //qDebug() << "📏 Element count:" << path.elementCount();
-            path.closeSubpath();
-        }
+        if (idx >= 0 && idx < m_shapes.size())
+            beforeUnion = beforeUnion.united(m_shapes[idx].path.boundingRect());
     }
 
-    // Mise à jour
-    updateCanvas();
-    update();
+    pushState();
+
+    // Fermeture
+    for (int idx : m_selectedShapes) {
+        if (idx < 0 || idx >= m_shapes.size()) continue;
+        QPainterPath &path = m_shapes[idx].path;
+        if (!path.isEmpty())
+            path.closeSubpath();
+    }
+
+    // Zone APRES
+    QRectF afterUnion;                                                // ← NEW
+    for (int idx : m_selectedShapes) {
+        if (idx >= 0 && idx < m_shapes.size())
+            afterUnion = afterUnion.united(m_shapes[idx].path.boundingRect());
+    }
+
+    // Union et petite marge pour l’AA
+    QRectF dirtyLogical = beforeUnion.united(afterUnion).adjusted(-2,-2,2,2); // ← NEW
+
+    // ⚡ Mise à jour partielle (canvas + repaint)
+    updateCanvas(dirtyLogical);                                       // ← NEW
+    update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));     // ← NEW
 }
 
 void CustomDrawArea::startCloseMode()
@@ -1910,12 +1961,14 @@ void CustomDrawArea::setTwoFingersOn(bool active)
 }
 
 QPointF CustomDrawArea::snapIfNeeded(const QPointF &p) const {
+    // si snap désactivé, on retourne directement p
     if (!m_snapToGrid) {
-        qDebug() << "[snapIfNeeded] Snap désactivé.";
         return p;
     }
 
-    qDebug() << "[snapIfNeeded] Snap activé pour" << p;
+    if (Q_UNLIKELY(lcSnap().isDebugEnabled())) {
+        qCDebug(lcSnap) << "Snap activé pour" << p;
+    }
     auto roundTo = [this](qreal v){
         return std::round(v / m_gridSpacing) * m_gridSpacing;
     };
@@ -1960,21 +2013,27 @@ void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
 
     QPointF delta = dest - m_copyAnchor;
     pushState();
+
+    QRectF dirtyLogical;                                                // ← NEW
     for (const Shape &s : std::as_const(m_copiedShapes)) {
         Shape newShape = s;
         QTransform t;
         t.translate(delta.x(), delta.y());
         newShape.path = t.map(s.path);
         m_shapes.append(newShape);
+
+        dirtyLogical = dirtyLogical.united(newShape.path.boundingRect()); // ← NEW
     }
-    updateCanvas();
-    update();
+
+    // ⚡ mise à jour partielle (canvas + repaint)
+    updateCanvas(dirtyLogical);                                           // ← NEW
+    update(logicalToWidgetRect(dirtyLogical, m_scale, m_offset));         // ← NEW
+
     m_pasteMode = false;
     m_selectedShapes.clear();
     emit multiSelectionModeChanged(false);
     cancelSelection();
 }
-
 
 void CustomDrawArea::startDeplacerMode()
 {
@@ -2102,4 +2161,66 @@ void CustomDrawArea::commitEraseIfNeeded(bool force)
             m_dirty = QRect();
         }
     }
+}
+
+void CustomDrawArea::drawGrid(QPainter& painter)
+{
+    // On suppose que la transform (translate/scale) est déjà appliquée
+    painter.save();
+
+    // ⚡️ Pas d'antialiasing pour la grille
+    painter.setRenderHint(QPainter::Antialiasing, false);
+
+    // Stylo "cheap" (cap/join plats et largeur cosmétique 1px)
+    QPen gridPen(QColor(220, 220, 220), 0, Qt::DotLine);
+    gridPen.setCosmetic(true);
+    gridPen.setCapStyle(Qt::FlatCap);
+    gridPen.setJoinStyle(Qt::MiterJoin);
+    painter.setPen(gridPen);
+
+    // Étendue visible en repère logique
+    const QPointF logicalTopLeft     = (QPointF(0, 0) - m_offset) / m_scale;
+    const QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
+
+    const int   spacing = m_gridSpacing;
+    const qreal left    = std::floor(logicalTopLeft.x()     / spacing) * spacing;
+    const qreal top     = std::floor(logicalTopLeft.y()     / spacing) * spacing;
+    const qreal right   = std::ceil (logicalBottomRight.x() / spacing) * spacing;
+    const qreal bottom  = std::ceil (logicalBottomRight.y() / spacing) * spacing;
+
+    // Après le calcul de left/top/right/bottom :
+    const int vCount = int((right - left) / spacing) + 1;
+    const int hCount = int((bottom - top) / spacing) + 1;
+
+    // Seuil simple : si > 6000 lignes, on espace artificiellement la grille
+    if (vCount * hCount > 6000) {
+        const int factor = qCeil(std::sqrt((vCount * hCount) / 6000.0));
+        // On saute des lignes : x += spacing*factor etc.
+        QVarLengthArray<QLineF, 1024> lines;
+        for (qreal x = left; x <= right; x += spacing * factor)
+            lines.append(QLineF(x, top, x, bottom));
+        for (qreal y = top; y <= bottom; y += spacing * factor)
+            lines.append(QLineF(left, y, right, y));
+        painter.drawLines(lines.constData(), lines.size());
+        painter.restore();
+        return;
+    }
+
+    // Clip logique (évite d'envoyer des pixels hors vue au rasterizer)
+    painter.setClipRect(QRectF(QPointF(left, top), QPointF(right, bottom)));
+
+    // ⚡️ Batch : on prépare toutes les lignes d'un coup
+    QVarLengthArray<QLineF, 1024> lines;
+    lines.reserve( (int)((right - left) / spacing + 2) + (int)((bottom - top) / spacing + 2) );
+
+    for (qreal x = left; x <= right; x += spacing)
+        lines.append(QLineF(x, top, x, bottom));
+    for (qreal y = top; y <= bottom; y += spacing)
+        lines.append(QLineF(left, y, right, y));
+
+    // Un seul appel de dessin pour toutes les lignes
+    if (!lines.isEmpty())
+        painter.drawLines(lines.constData(), lines.size());
+
+    painter.restore();
 }

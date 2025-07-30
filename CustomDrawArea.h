@@ -187,7 +187,7 @@ private:
     // Gestion du canevas
     void initCanvas();
     void updateCanvas();
-
+    void updateCanvas(const QRectF& logicalDirty);  // ← AJOUTER ceci
     void applyEraserAt(const QPointF &center); // gomme une zone circulaire
 
     // Gestion des actions annulables
@@ -250,6 +250,7 @@ private:
     void eraseAlong(const QPointF& from, const QPointF& to);
     void commitEraseIfNeeded(bool force);
 
+    void drawGrid(QPainter &painter);
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
