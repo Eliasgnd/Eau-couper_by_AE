@@ -111,6 +111,7 @@ public:
 
 public slots:
     void undoLastAction(); // Annule la dernière action
+    void redoLastAction(); // Rejoue la dernière action annulée
     void mergeShapesAndConnector(int idx1, int idx2);
     /// Ferme la forme dont l’index est m_selectedShapeIndex
     void closeCurrentShape();
@@ -144,6 +145,7 @@ private:
 
     // Pile d'annulation
     QList< QList<Shape> > m_undoStack;
+    QList< QList<Shape> > m_redoStack; // Pile de rétablissement
 
     // États du dessin
     bool m_drawing;

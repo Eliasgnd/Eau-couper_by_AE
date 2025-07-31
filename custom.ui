@@ -177,6 +177,23 @@ QPushButton[deplacerMode=&quot;true&quot;], QPushButton[closeMode=&quot;true&quo
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="buttonAvancer">
+        <property name="text">
+         <string>Avancer           </string>
+        </property>
+        <property name="icon">
+         <iconset resource="resources.qrc">
+          <normaloff>:/icons/arrow-right.svg</normaloff>:/icons/arrow-right.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>18</width>
+          <height>18</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
        <spacer name="barStretch">
         <property name="orientation">
          <enum>Qt::Orientation::Horizontal</enum>

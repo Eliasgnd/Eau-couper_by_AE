@@ -280,16 +280,28 @@ void CustomDrawArea::updateCanvas(const QRectF& logicalDirty)
 void CustomDrawArea::pushState()
 {
     m_undoStack.append(m_shapes);
+    m_redoStack.clear();
     //qDebug() << "pushState: pile size =" << m_undoStack.size();
 }
 
 void CustomDrawArea::undoLastAction()
 {
     if (!m_undoStack.isEmpty()) {
+        m_redoStack.append(m_shapes);
         m_shapes = m_undoStack.takeLast();
         updateCanvas();
         update();
         // qDebug() << "undoLastAction: stack size =" << m_undoStack.size();
+    }
+}
+
+void CustomDrawArea::redoLastAction()
+{
+    if (!m_redoStack.isEmpty()) {
+        m_undoStack.append(m_shapes);
+        m_shapes = m_redoStack.takeLast();
+        updateCanvas();
+        update();
     }
 }
 
@@ -566,6 +578,7 @@ void CustomDrawArea::clearDrawing()
     m_shapes.clear();
     m_freehandPoints.clear();
     m_undoStack.clear();
+    m_redoStack.clear();
     updateCanvas();
     update();
 }
