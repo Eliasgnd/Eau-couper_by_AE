@@ -16,6 +16,7 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     : QWidget(parent), ui(new Ui::BluetoothReceiverDialog)
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_DeleteOnClose);
     ScreenUtils::placeOnSecondaryScreen(this);
 
     ui->logTextEdit->setVisible(false);
