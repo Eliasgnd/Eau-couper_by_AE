@@ -217,7 +217,7 @@ custom::custom(Language lang, QWidget *parent)
         //qDebug() << "Signal applyCustomShapeSignal émis avec les formes !";
         emit applyCustomShapeSignal(drawArea->getCustomShapes());
         this->close();
-        delete this;
+        deleteLater();
     });
 
 
@@ -652,7 +652,7 @@ void custom::goToMainWindow()
 void custom::closeCustom()
 {
     this->close();
-    delete this;
+    deleteLater();
 }
 
 void custom::ouvrirClavier()
