@@ -43,6 +43,6 @@
         <file>icons/line.svg</file>
         <file>icons/text.svg</file>
         <file>icons/narrow_text.svg</file>
-        <file alias="add_folder.svg">icons/add_folder.svg</file>
+        <file>icons/add_folder.svg</file>
     </qresource>
 </RCC>
