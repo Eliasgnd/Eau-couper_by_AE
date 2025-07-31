@@ -782,6 +782,32 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
         item->setRotation(item->rotation() + angleDelta);
 }
 
+void FormeVisualization::scaleSelectedShapes(qreal factor)
+{
+    if (m_decoupeEnCours)
+    {
+        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
+                                           "Découpe en cours",
+                                           "Impossible de modifier les param\u00e8tres ou la forme pendant la d\u00e9coupe.",
+                                           QMessageBox::Ok,
+                                           this);
+        msg->setModal(false);
+        msg->show();
+        return;
+    }
+
+    if (qFuzzyCompare(factor, 1.0))
+        return;
+
+    const auto selected = scene->selectedItems();
+    for (QGraphicsItem *item : selected) {
+        QPointF center = item->boundingRect().center();
+        item->setTransformOriginPoint(center);
+        item->setScale(item->scale() * factor);
+    }
+    graphicsView->viewport()->update();
+}
+
 void FormeVisualization::deleteSelectedShapes()
 {
     if (m_decoupeEnCours)
@@ -1072,6 +1098,7 @@ void FormeVisualization::handleSelectionChanged()
             shape->setPen(QPen(Qt::black, 1));
         }
     }
+    emit selectionChanged(!scene->selectedItems().isEmpty());
 }
 
 void FormeVisualization::resetAllShapeColors()

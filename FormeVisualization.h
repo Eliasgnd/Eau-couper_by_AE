@@ -77,6 +77,8 @@ public slots:
     void endDecoupeProgress();
     void resetCutMarkers();
 
+    // Mise à l'échelle des formes sélectionnées
+    void scaleSelectedShapes(qreal factor);
     // <<< AJOUT : setter taille en mm
     void setSheetSizeMm(const QSizeF& mm);
 
@@ -88,6 +90,8 @@ signals:
 
     // <<< AJOUT
     void sheetSizeMmChanged(const QSizeF&);
+    // Signale la présence ou non d'une sélection
+    void selectionChanged(bool hasSelection);
 
 protected:
     // --- API existante ---

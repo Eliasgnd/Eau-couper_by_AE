@@ -187,6 +187,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->Slider_longueur, &QSlider::valueChanged, this, &MainWindow::updateSpinBoxLongueur);
     connect(ui->Slider_largeur, &QSlider::valueChanged, this, &MainWindow::updateSpinBoxLargeur);
 
+    ui->selectionScaleSlider->setVisible(false);
+    connect(ui->selectionScaleSlider, &QSlider::valueChanged, this, &MainWindow::onSelectionScaleChanged);
+    connect(formeVisualization, &FormeVisualization::selectionChanged,
+            this, &MainWindow::onSelectionPresenceChanged);
+
     // Bon : on récupère directement les valeurs actuelles des spinboxes longueur/largeur
     updateSliderLongueur(ui->Longueur->value());
     updateSliderLargeur (ui->Largeur ->value());
@@ -655,6 +660,28 @@ void MainWindow::updateSpacing(int value)
     if (formeVisualization) {
         // Met à jour l'espacement et redessine
         formeVisualization->setSpacing(value);
+    }
+}
+
+void MainWindow::onSelectionScaleChanged(int value)
+{
+    if (!formeVisualization)
+        return;
+    qreal factor = static_cast<qreal>(value) / selectionScalePrevValue;
+    formeVisualization->scaleSelectedShapes(factor);
+    selectionScalePrevValue = value;
+}
+
+void MainWindow::onSelectionPresenceChanged(bool hasSelection)
+{
+    if (ui->selectionScaleSlider)
+    {
+        ui->selectionScaleSlider->setVisible(hasSelection);
+        if (hasSelection)
+        {
+            selectionScalePrevValue = 100;
+            ui->selectionScaleSlider->setValue(100);
+        }
     }
 }
 

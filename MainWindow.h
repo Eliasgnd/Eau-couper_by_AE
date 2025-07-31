@@ -66,6 +66,9 @@ private slots:
     //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
+    void onSelectionScaleChanged(int value);
+    void onSelectionPresenceChanged(bool hasSelection);
+
     void openAIImagePromptDialog();
     void showDossier();
     void generateAIImage(const QString &prompt,
@@ -105,6 +108,7 @@ private:
     void StartPixel();
     QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
     double smoothedTotalMs = -1.0;     // Lissage de l'estimation
+    int selectionScalePrevValue = 100;
     void retranslateDynamicUi();
     bool promptAndSaveCurrentCustomShape();
     QNetworkAccessManager *m_netManager = nullptr;
