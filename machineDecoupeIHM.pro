@@ -1,4 +1,5 @@
-QT += core gui widgets svg network bluetooth httpserver
+QT += core gui widgets svg network bluetooth httpserver openglwidgets
+QT += openglwidgets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
