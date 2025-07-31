@@ -577,7 +577,7 @@ void WifiConfigDialog::connectSelected()
             msg = tr("Délai dépassé. Réessayez en vous rapprochant du point d’accès.");
 
         QMessageBox::warning(this, tr("Connexion Wi‑Fi"), QString("❌ %1").arg(msg));
-        showToast(this, tr("✅ Connecté à %1").arg(ssid), 1600);
+        showToast(this, tr("❌ Connexion à %1 échouée").arg(ssid), 1600);
         updateStatusLabel(tr("❌ Échec de la connexion à %1").arg(ssid), false);
         return;
     }
@@ -598,6 +598,7 @@ void WifiConfigDialog::connectSelected()
         }
     }
 
+    showToast(this, tr("✅ Connecté à %1").arg(ssid), 1600);
     updateStatusLabel(tr("✅ Connecté à %1").arg(ssid), true);
     if (ui->passwordEdit) ui->passwordEdit->clear();
     checkConnectionStatus();
