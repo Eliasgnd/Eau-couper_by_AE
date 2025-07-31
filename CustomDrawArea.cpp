@@ -31,21 +31,13 @@ Q_LOGGING_CATEGORY(lcSnap,     "ae.draw.snap")
 Q_LOGGING_CATEGORY(lcGesture,  "ae.draw.gesture")
 Q_LOGGING_CATEGORY(lcPerf,     "ae.draw.perf")
 
-static bool isPrimaryMode(CustomDrawArea::DrawMode mode)
+static bool isPrimaryMode(CustomDrawArea::DrawMode m)
 {
     using DM = CustomDrawArea::DrawMode;
-    switch (mode) {
-    case DM::Freehand:
-    case DM::PointParPoint:
-    case DM::Line:
-    case DM::Rectangle:
-    case DM::Circle:
-    case DM::Text:
-    case DM::ThinText:
-        return true;
-    default:
-        return false;
-    }
+    return m == DM::Freehand  || m == DM::PointParPoint ||
+           m == DM::Line      || m == DM::Rectangle    ||
+           m == DM::Circle    || m == DM::Text         ||
+           m == DM::ThinText;
 }
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
@@ -212,19 +204,11 @@ void CustomDrawArea::initCanvas()
     m_canvas.fill(Qt::white);
 }
 
-void CustomDrawArea::applyPanDelta(const QPointF &delta)
-{
+void CustomDrawArea::applyPanDelta(const QPointF &delta) {
     m_offset -= delta;
-    clampOffsetToCanvas();
+    clampOffsetToCanvas(); // nouvelle méthode utilisée ici
     update();
-
-    // garde le dernier « mode principal » pour pouvoir y revenir
-    if (isPrimaryMode(m_drawMode))
-        m_lastPrimaryMode = m_drawMode;
-
-    emit drawModeChanged(m_drawMode);
 }
-
 
 void CustomDrawArea::clampOffsetToCanvas() {
     QSizeF widgetSize = size() * devicePixelRatioF();
@@ -488,6 +472,10 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     qCDebug(lcDrawMode) << "Demande =" << static_cast<int>(mode)
                         << "| Courant =" << static_cast<int>(m_drawMode);
 
+    // 1) keep track of the last primary tool before we overwrite m_drawMode
+    if (isPrimaryMode(mode))
+        m_lastPrimaryMode = mode;
+
     // Garde-fou : toute valeur hors enum ramène au mode libre
     const int minMode = static_cast<int>(DrawMode::Freehand);
     const int maxMode = static_cast<int>(DrawMode::ThinText);
@@ -542,6 +530,7 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
         setSmoothingLevel(0);
 
     update();
+    emit drawModeChanged(mode);
 }
 
 
@@ -2157,6 +2146,11 @@ void CustomDrawArea::revertToFreehand()
 }
 
 void CustomDrawArea::restoreLastPrimaryMode()
+{
+    setDrawMode(m_lastPrimaryMode);
+}
+
+void CustomDrawArea::restorePreviousMode()
 {
     setDrawMode(m_lastPrimaryMode);
 }

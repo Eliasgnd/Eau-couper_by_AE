@@ -33,6 +33,7 @@
 #include <QHBoxLayout>
 #include <cmath>
 #include "ScreenUtils.h"
+#include <QStatusBar>
 
 static QString modeToString(CustomDrawArea::DrawMode mode)
 {
