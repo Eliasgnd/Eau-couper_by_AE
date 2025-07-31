@@ -31,7 +31,7 @@ HEADERS += \
     CustomDrawArea.h LogoImporter.h ImageEdgeImporter.h ShapeModel.h \
     DossierWidget.h \
     ScreenUtils.h \
-    aspectratiowrapper.h \
+    AspectRatioWrapper.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     raspberry.h TestGpio.h \
@@ -53,7 +53,7 @@ SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \
     CustomDrawArea.cpp LogoImporter.cpp ImageEdgeImporter.cpp ShapeModel.cpp \
     DossierWidget.cpp \
-    aspectratiowrapper.cpp \
+    AspectRatioWrapper.cpp \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
