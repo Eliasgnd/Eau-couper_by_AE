@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.1" language="en_US">
-<context>
+<TS version="2.1" language="en_EN">
+  <context>
     <name>AIImageProcessDialog</name>
     <message>
         <location filename="../AIImageProcessDialog.cpp" line="11"/>
@@ -355,7 +354,7 @@ Veuillez patienter avant de quitter.</translation>
     <message>
         <location filename="../mainwindow.ui" line="149"/>
         <source>Etoile                             </source>
-        <translation>Etoile                             </translation>
+        <translation>Star                          </translation>
     </message>
     <message>
         <location filename="../mainwindow.ui" line="175"/>
