@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1920</width>
-    <height>965</height>
+    <height>1005</height>
    </rect>
   </property>
   <property name="maximumSize">
@@ -49,7 +49,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Cercle                             </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/circle.svg</normaloff>:/icons/circle.svg</iconset>
         </property>
        </widget>
@@ -74,7 +74,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Rectangle                       </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/square.svg</normaloff>:/icons/square.svg</iconset>
         </property>
        </widget>
@@ -99,7 +99,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Triangle                          </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/triangle.svg</normaloff>:/icons/triangle.svg</iconset>
         </property>
        </widget>
@@ -124,7 +124,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Coeur                            </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/heart.svg</normaloff>:/icons/heart.svg</iconset>
         </property>
        </widget>
@@ -149,7 +149,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Etoile                             </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/star.svg</normaloff>:/icons/star.svg</iconset>
         </property>
        </widget>
@@ -224,7 +224,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Inventaire                      </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/book.svg</normaloff>:/icons/book.svg</iconset>
         </property>
        </widget>
@@ -249,7 +249,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Custom                         </string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/pencil.svg</normaloff>:/icons/pencil.svg</iconset>
         </property>
        </widget>
@@ -274,7 +274,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Réception Fichier Bluetooth</string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/download.svg</normaloff>:/icons/download.svg</iconset>
         </property>
        </widget>
@@ -341,7 +341,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
          <string>Générer logo IA</string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/plus.svg</normaloff>:/icons/plus.svg</iconset>
         </property>
        </widget>
@@ -363,10 +363,10 @@ QPushButton:hover { background-color: #26C6DA; }
 QPushButton:pressed { background-color: #008C9E; }</string>
         </property>
         <property name="text">
-         <string>Images générées</string>
+         <string>Dossiers</string>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/folderfull.svg</normaloff>:/icons/folderfull.svg</iconset>
         </property>
        </widget>
@@ -426,7 +426,7 @@ QPushButton:hover { background-color: rgb(190, 10, 10); }</string>
            <string/>
           </property>
           <property name="icon">
-           <iconset>
+           <iconset resource="resources.qrc">
             <normaloff>:/icons/stop.svg</normaloff>:/icons/stop.svg</iconset>
           </property>
           <property name="iconSize">
@@ -457,7 +457,7 @@ QPushButton:hover { background-color: rgb(250, 200, 0); }</string>
            <string/>
           </property>
           <property name="icon">
-           <iconset>
+           <iconset resource="resources.qrc">
             <normaloff>:/icons/pause.svg</normaloff>:/icons/pause.svg</iconset>
           </property>
           <property name="iconSize">
@@ -488,7 +488,7 @@ QPushButton:hover  { background-color: rgb(0, 100, 0); }</string>
            <string/>
           </property>
           <property name="icon">
-           <iconset>
+           <iconset resource="resources.qrc">
             <normaloff>:/icons/play.svg</normaloff>:/icons/play.svg</iconset>
           </property>
           <property name="iconSize">
@@ -529,8 +529,8 @@ QProgressBar::chunk { background: #00BCD4; width: 10px; }</string>
        <widget class="QPushButton" name="pushButton">
         <property name="minimumSize">
          <size>
-          <width>100</width>
-          <height>60</height>
+          <width>0</width>
+          <height>0</height>
          </size>
         </property>
         <property name="maximumSize">
@@ -542,7 +542,7 @@ QProgressBar::chunk { background: #00BCD4; width: 10px; }</string>
         <property name="styleSheet">
          <string notr="true">QPushButton {
     background-color: #D32F2F; color: white; font-size: 18px; font-weight: bold;
-    border: none; border-radius: 50px; min-width: 100px; min-height: 100px;
+    border: none; border-radius: 20px;
 }
 QPushButton:hover { background-color: #F44336; }
 QPushButton:pressed { background-color: #B71C1C; }</string>
@@ -551,7 +551,7 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
          <string/>
         </property>
         <property name="icon">
-         <iconset>
+         <iconset resource="resources.qrc">
           <normaloff>:/icons/on-off.svg</normaloff>:/icons/on-off.svg</iconset>
         </property>
         <property name="iconSize">
@@ -862,7 +862,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset>
+             <iconset resource="resources.qrc">
               <normaloff>:/icons/arrow-left.svg</normaloff>:/icons/arrow-left.svg</iconset>
             </property>
             <property name="autoRepeat">
@@ -911,7 +911,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset>
+             <iconset resource="resources.qrc">
               <normaloff>:/icons/rotate-left.svg</normaloff>:/icons/rotate-left.svg</iconset>
             </property>
            </widget>
@@ -957,7 +957,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset>
+             <iconset resource="resources.qrc">
               <normaloff>:/icons/rotate-right.svg</normaloff>:/icons/rotate-right.svg</iconset>
             </property>
            </widget>
@@ -1003,7 +1003,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset>
+             <iconset resource="resources.qrc">
               <normaloff>:/icons/arrow-right.svg</normaloff>:/icons/arrow-right.svg</iconset>
             </property>
             <property name="autoRepeat">
@@ -1031,7 +1031,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset>
+             <iconset resource="resources.qrc">
               <normaloff>:/icons/arrow-down.svg</normaloff>:/icons/arrow-down.svg</iconset>
             </property>
             <property name="autoRepeat">
@@ -1059,7 +1059,7 @@ QPushButton:pressed { background-color: #008C9E; }</string>
              <string/>
             </property>
             <property name="icon">
-             <iconset>
+             <iconset resource="resources.qrc">
               <normaloff>:/icons/arrow-up.svg</normaloff>:/icons/arrow-up.svg</iconset>
             </property>
             <property name="autoRepeat">
@@ -1098,7 +1098,9 @@ QPushButton:pressed { background-color: #008C9E; }</string>
    <container>1</container>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
  <connections>
   <connection>
    <sender>pushButton</sender>
