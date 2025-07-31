@@ -103,6 +103,7 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     , m_tcpServer(new QTcpServer(this))
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_DeleteOnClose);
     setWindowTitle(tr("Transfert Wi‑Fi"));
 
     m_trayIcon = new QSystemTrayIcon(QIcon(":/icons/download.svg"), this);

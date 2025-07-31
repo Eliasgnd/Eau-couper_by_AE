@@ -426,27 +426,27 @@ void MainWindow::openTestGpio() {
 
 void MainWindow::openWifiTransfer() {
     this->hide();
-    WifiTransferWidget *w = new WifiTransferWidget();
+    WifiTransferWidget *w = new WifiTransferWidget(this);
     w->showFullScreen();
 }
 
 void MainWindow::openWifiConfig() {
     this->hide();
-    WifiConfigDialog *dlg = new WifiConfigDialog();
+    WifiConfigDialog *dlg = new WifiConfigDialog(this);
     dlg->showFullScreen();
 }
 
 void MainWindow::showDossier()
 {
     this->hide();
-    DossierWidget *page = new DossierWidget(currentLanguage);
+    DossierWidget *page = new DossierWidget(currentLanguage, this);
     page->showFullScreen();
 }
 
 void MainWindow::on_receptionFichierButton_clicked()
 {
     this->hide();
-    BluetoothReceiverDialog *page = new BluetoothReceiverDialog();
+    BluetoothReceiverDialog *page = new BluetoothReceiverDialog(this);
     page->showFullScreen();
 }
 

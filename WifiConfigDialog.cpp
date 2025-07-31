@@ -41,6 +41,7 @@ WifiConfigDialog::WifiConfigDialog(QWidget *parent)
     , ui(new Ui::WifiConfigDialog)
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_DeleteOnClose);
 
     // --- Réglages UI pour grand écran (table) ---
     if (ui->networksTable) {

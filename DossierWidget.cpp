@@ -33,6 +33,7 @@ DossierWidget::DossierWidget(Language lang, QWidget *parent)
     , m_lang(lang)
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_DeleteOnClose);
     ScreenUtils::placeOnSecondaryScreen(this);
 
     // ===== BARRE OUTILS (ajout dynamique) =====
