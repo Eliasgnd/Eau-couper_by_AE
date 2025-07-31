@@ -212,16 +212,19 @@ void CustomDrawArea::initCanvas()
     m_canvas.fill(Qt::white);
 }
 
-void CustomDrawArea::applyPanDelta(const QPointF &delta) {
+void CustomDrawArea::applyPanDelta(const QPointF &delta)
+{
     m_offset -= delta;
-    clampOffsetToCanvas(); // nouvelle méthode utilisée ici
+    clampOffsetToCanvas();
     update();
 
-    if (isPrimaryMode(mode))
-        m_lastPrimaryMode = mode;
+    // garde le dernier « mode principal » pour pouvoir y revenir
+    if (isPrimaryMode(m_drawMode))
+        m_lastPrimaryMode = m_drawMode;
 
     emit drawModeChanged(m_drawMode);
 }
+
 
 void CustomDrawArea::clampOffsetToCanvas() {
     QSizeF widgetSize = size() * devicePixelRatioF();

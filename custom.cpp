@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "qlayout.h"
 #include "qsplitter.h"
+#include "qstatusbar.h"
 #include "ui_custom.h"
 #include "clavier.h"
 #include "inventaire.h"
