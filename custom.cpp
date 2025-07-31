@@ -501,6 +501,7 @@ custom::custom(Language lang, QWidget *parent)
 
 
     connect(ui->buttonRetour, &QPushButton::clicked, drawArea, &CustomDrawArea::undoLastAction);
+    connect(ui->buttonAvancer, &QPushButton::clicked, drawArea, &CustomDrawArea::redoLastAction);
 
     // Menu pour les différents types d'importation d'image
     QMenu *importMenu = new QMenu(this);
