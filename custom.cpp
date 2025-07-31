@@ -31,6 +31,7 @@
 #include <QFontComboBox>
 #include <QHBoxLayout>
 #include <cmath>
+#include <QStatusBar>
 #include "ScreenUtils.h"
 
 static QString modeToString(CustomDrawArea::DrawMode mode)
