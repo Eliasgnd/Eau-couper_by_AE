@@ -77,7 +77,7 @@
     <message>
         <location filename="../BluetoothReceiverDialog.ui" line="74" />
         <source>🔄 Initialisation Bluetooth...</source>
-        <translation />
+        <translation type="unfinished"/>
     </message>
     <message>
         <location filename="../BluetoothReceiverDialog.ui" line="99" />
@@ -135,12 +135,31 @@ Veuillez patienter avant de quitter.</source>
         <translation> A file is being received.
 Please wait until you leave.</translation>
     </message>
-</context>
-        <location filename="../CustomDrawArea.cpp" line="916" />
-        <location filename="../CustomDrawArea.cpp" line="978" />
-        <location filename="../CustomDrawArea.cpp" line="917" />
-        <location filename="../CustomDrawArea.cpp" line="979" />
-<context>
+    </context>
+    <context>
+        <name>CustomDrawArea</name>
+        <message>
+            <location filename="../CustomDrawArea.cpp" line="916"/>
+            <source>Texte1</source>
+            <translation>Text1</translation>
+        </message>
+        <message>
+            <location filename="../CustomDrawArea.cpp" line="917"/>
+            <source>Texte2</source>
+            <translation>Text2</translation>
+        </message>
+        <message>
+            <location filename="../CustomDrawArea.cpp" line="978"/>
+            <source>Texte3</source>
+            <translation>Text3</translation>
+        </message>
+        <message>
+            <location filename="../CustomDrawArea.cpp" line="979"/>
+            <source>Texte4</source>
+            <translation>Text4</translation>
+        </message>
+    </context>
+    <context>
     <name>Dispositions</name>
     <message>
         <location filename="../Dispositions.ui" line="19" />
@@ -150,7 +169,7 @@ Please wait until you leave.</translation>
     <message>
         <location filename="../Dispositions.ui" line="42" />
         <source>✖</source>
-        <translation />
+        <translation type="unfinished"/>
     </message>
     <message>
         <location filename="../Dispositions.cpp" line="44" />
@@ -266,16 +285,18 @@ Please wait until you leave.</translation>
         <translation>Delete %1?</translation>
     </message>
 </context>
-        <location filename="../inventaire.ui" line="20" />
+<context>
+    <name>Inventaire</name>
     <message>
         <location filename="../inventaire.ui" line="73" />
         <source>Rechercher</source>
         <translation>Search</translation>
     </message>
+</context>
     <message>
         <location filename="../inventaire.ui" line="99" />
         <source>✖</source>
-        <translation />
+        <translation type="unfinished"/>
     </message>
     <message>
         <location filename="../inventaire.cpp" line="398" />
@@ -531,7 +552,7 @@ Please wait until you leave.</translation>
     <message>
         <location filename="../WifiConfigDialog.ui" line="25" />
         <source>⏳</source>
-        <translation />
+        <translation type="unfinished"/>
     </message>
     <message>
         <location filename="../WifiConfigDialog.ui" line="35" />
@@ -781,7 +802,7 @@ Please wait until you leave.</translation>
     <message>
         <location filename="../WifiConfigDialog.cpp" line="779" />
         <source>🗂️ Profil enregistré — saisissez le mot de passe si nécessaire</source>
-        <translation />
+        <translation type="unfinished"/>
     </message>
     <message>
         <location filename="../WifiConfigDialog.cpp" line="802" />
@@ -1148,4 +1169,5 @@ Would you like to crush him?</translation>
     </message>
     <message>
         <location filename="../custom.cpp" line="809" />
+    </message>
 </TS>
