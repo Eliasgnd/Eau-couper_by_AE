@@ -47,6 +47,7 @@ HEADERS += \
     qrcodegen.hpp \
     ImagePaths.h \
     WifiConfigDialog.h
+    GeometryUtils.h
 
 
 SOURCES += \
