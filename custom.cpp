@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "qlayout.h"
 #include "qsplitter.h"
+#include "qstatusbar.h"
 #include "ui_custom.h"
 #include "clavier.h"
 #include "inventaire.h"
@@ -24,6 +25,7 @@
 #include <QMessageBox>
 #include <QTimer>
 #include <QImage>
+#include <QMainWindow>
 #include <QProgressDialog>
 #include <QApplication>
 #include <algorithm>
@@ -31,6 +33,22 @@
 #include <QHBoxLayout>
 #include <cmath>
 #include "ScreenUtils.h"
+#include <QStatusBar>
+
+static QString modeToString(CustomDrawArea::DrawMode mode)
+{
+    using DM = CustomDrawArea::DrawMode;
+    switch (mode) {
+    case DM::Freehand:      return QObject::tr("Freehand");
+    case DM::PointParPoint: return QObject::tr("PointParPoint");
+    case DM::Line:          return QObject::tr("Line");
+    case DM::Rectangle:     return QObject::tr("Rectangle");
+    case DM::Circle:        return QObject::tr("Circle");
+    case DM::Text:          return QObject::tr("Text");
+    case DM::ThinText:      return QObject::tr("ThinText");
+    default:                return QString();
+    }
+}
 
 // Constructeur : création de l'interface et des connexions
 custom::custom(Language lang, QWidget *parent)
@@ -309,6 +327,12 @@ custom::custom(Language lang, QWidget *parent)
     ui->buttonForme->setMenu(menuForme);
     ui->buttonForme->setPopupMode(QToolButton::InstantPopup);
     updateFormeButtonIcon(drawArea->getDrawMode());
+    connect(drawArea, &CustomDrawArea::drawModeChanged, this,
+            [this](CustomDrawArea::DrawMode m){
+                updateFormeButtonIcon(m);
+                if (auto mw = qobject_cast<QMainWindow*>(window()))
+                    mw->statusBar()->showMessage(modeToString(m));
+            });
 
     // --- Création et configuration du conteneur pour la sélection de police ---
     QHBoxLayout *fontLayout = new QHBoxLayout(fontContainer);

@@ -63,6 +63,8 @@ public:
     // Gestion des modes de dessin
     void setDrawMode(DrawMode mode);
     DrawMode getDrawMode() const;
+    DrawMode lastPrimaryMode() const { return m_lastPrimaryMode; }
+    void restorePreviousMode();
 
     // Accès aux formes et gestion du dessin
     QList<QPolygonF> getCustomShapes() const;
@@ -149,6 +151,7 @@ private:
     int m_savedSmoothingLevel;   // sauvegarde du niveau pour le mode Freehand
     bool m_lowPassFilterEnabled = true;
     DrawMode m_drawMode = DrawMode::Freehand;
+    DrawMode m_lastPrimaryMode = DrawMode::Freehand; // remember the last primary mode so we can restore it later
 
     // Variables pour le dessin de formes géométriques
     QPointF m_startPoint;
@@ -241,6 +244,7 @@ private:
 
     // -- Helper to reset everything back to the default drawing mode
     void revertToFreehand();
+    void restoreLastPrimaryMode();
 
     QPointF m_lastEraserPos;
 
@@ -264,6 +268,7 @@ signals:
     void deplacerModeChanged(bool enabled);
     void supprimerModeChanged(bool);
     void gommeModeChanged(bool);
+    void drawModeChanged(DrawMode mode);
 
 private slots:
     void onPinchZoom(const QPointF &center, qreal scaleFactor);
