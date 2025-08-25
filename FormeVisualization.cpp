@@ -20,14 +20,27 @@
 #include <QFuture>
 #include <QtConcurrent>
 #include <QCoreApplication>
+#include <QCache>
 
 #include "GeometryUtils.h"
 
 namespace {
-constexpr double kOverlapEpsilon   = 0.5;   // tolerance for true overlap
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
 enum InvalidReason { Valid = 0, OutOfBounds = 1, SelfIntersection = 2, InteriorOverlap = 3 };
+
+QCache<quint64, QPainterPath> gPathCache(256);
+
+quint64 hashPath(const QPainterPath &p, int spacing)
+{
+    quint64 h = qHash(spacing);
+    for (int i = 0; i < p.elementCount(); ++i) {
+        auto el = p.elementAt(i);
+        h = qHash(el.x, h);
+        h = qHash(el.y, h);
+    }
+    return h;
+}
 }
 
 FormeVisualization::FormeVisualization(QWidget *parent)
@@ -692,18 +705,31 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
     emit shapesPlacedCount(shapesToPlace);
 
-    QtConcurrent::run([this, items, scaledPath]() {
-        QPainterPath exact = scaledPath.simplified();
+    const quint64 key = hashPath(scaledPath, spacing);
+    if (QPainterPath *cached = gPathCache.object(key)) {
+        QPainterPath exact = *cached;
         QRectF bbox = exact.boundingRect();
-        QMetaObject::invokeMethod(this, [this, items, exact, bbox, scaledPath]() {
-            for (QGraphicsPathItem *item : items) {
-                if (!item) continue;
-                item->setPath(exact);
-                item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-                m_cache[item] = {scaledPath, exact, bbox, item->transform()};
-            }
-        }, Qt::QueuedConnection);
-    });
+        for (QGraphicsPathItem *item : items) {
+            if (!item) continue;
+            item->setPath(exact);
+            item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+            m_cache[item] = {scaledPath, exact, bbox, item->transform()};
+        }
+    } else {
+        QtConcurrent::run([this, items, scaledPath, key]() {
+            QPainterPath exact = scaledPath.simplified();
+            QRectF bbox = exact.boundingRect();
+            QMetaObject::invokeMethod(this, [this, items, exact, bbox, scaledPath, key]() {
+                gPathCache.insert(key, new QPainterPath(exact));
+                for (QGraphicsPathItem *item : items) {
+                    if (!item) continue;
+                    item->setPath(exact);
+                    item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+                    m_cache[item] = {scaledPath, exact, bbox, item->transform()};
+                }
+            }, Qt::QueuedConnection);
+        });
+    }
 }
 
 void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
@@ -1033,7 +1059,7 @@ bool FormeVisualization::validateShapes()
                                                        kBroadPhaseMargin, kBroadPhaseMargin);
                     if (!b1.intersects(geoms[j].bbox))
                         continue;
-                    if (pathsOverlap(geoms[i].path, geoms[j].path, kOverlapEpsilon)) {
+                    if (pathsOverlap(geoms[i].path, geoms[j].path, globalEpsilon())) {
                         collided << i << j;
                     }
                 }

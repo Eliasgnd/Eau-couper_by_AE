@@ -59,6 +59,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    setGlobalEpsilon(0.5);
     // La barre de titre (index 0) ne prend pas de stretch, la vue (index 1) prend tout, le bas (index 2) reste compact.
     ui->centerVBox->setStretch(0, 0);  // topBarLayout
     ui->centerVBox->setStretch(1, 1);  // horizontalLayout contenant formeVisualizationWidget
