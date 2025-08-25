@@ -5,10 +5,8 @@ SOURCES += placement_tests.cpp \
            inventory_safety_tests.cpp \
            main.cpp \
            ../motorcontrol.cpp \
-           ../GeometryUtils.cpp \
-           ../SafeInventoryLoader.cpp
+           ../GeometryUtils.cpp
 INCLUDEPATH += ..
 HEADERS += ../motorcontrol.h \
-           ../SafeInventoryLoader.h \
            placement_tests.h \
            inventory_safety_tests.h
