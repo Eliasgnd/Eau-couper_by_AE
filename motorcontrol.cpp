@@ -11,7 +11,6 @@ static int toSteps(double mm, double mmPerStep=0.1) {
 }
 
 void MotorControl::moveRapid(double x, double y) {
-    qDebug() << "RAPID " << x << y;
     stepsX += toSteps(x);
     stepsY += toSteps(y);
 }

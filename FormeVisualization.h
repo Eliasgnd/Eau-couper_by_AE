@@ -11,6 +11,8 @@
 #include <QSizeF>                // <<< AJOUT
 #include "ShapeModel.h"
 #include "inventaire.h"
+#include <QHash>
+#include <QTransform>
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
@@ -121,6 +123,13 @@ private:
     bool m_cancelOptimization = false;
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
+
+    struct CachedShape {
+        QPainterPath path;
+        QRectF       bbox;
+        QTransform   transform;
+    };
+    QHash<QAbstractGraphicsShapeItem*, CachedShape> m_cache;
 
     // Bordure représentant visuellement la limite du plateau
     // (placée au-dessus des formes pour rester visible)

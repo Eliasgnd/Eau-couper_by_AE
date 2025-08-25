@@ -22,39 +22,18 @@
 #include <QPolygonF>
 #include <utility>
 
-// -----------------------------------------------------------------------------
-// Robust overlap detection helpers
-// -----------------------------------------------------------------------------
-// Epsilon in squared scene units (mm² in our usage). Any intersection with an
-// area <= kOverlapEpsilon is considered mere border contact and therefore
-// ignored by the placement optimiser and validation pipeline.  The winding fill
-// rule is used when converting paths to polygons.
+#include <QHash>
+#include <QSet>
+#include <QFuture>
+#include <QtConcurrent>
+
+#include "GeometryUtils.h"
+
 namespace {
 constexpr double kOverlapEpsilon   = 0.5;   // tolerance for true overlap
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
-
-static double pathArea(const QPainterPath &path)
-{
-    double area = 0.0;
-    const auto polys = path.toFillPolygons();
-    for (const QPolygonF &poly : polys) {
-        double polyArea = 0.0;
-        for (int i = 0, n = poly.size(); i < n; ++i) {
-            const QPointF &p1 = poly[i];
-            const QPointF &p2 = poly[(i + 1) % n];
-            polyArea += p1.x() * p2.y() - p2.x() * p1.y();
-        }
-        area += polyArea / 2.0;
-    }
-    return std::fabs(area);
+constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
 }
-
-static bool pathsOverlap(const QPainterPath &a, const QPainterPath &b)
-{
-    QPainterPath inter = a.intersected(b);
-    return pathArea(inter) > kOverlapEpsilon;
-}
-} // namespace
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -148,7 +127,6 @@ void FormeVisualization::resizeEvent(QResizeEvent* e) {
     QWidget::resizeEvent(e);
     if (graphicsView && scene) {
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
-        qDebug() << "[FV] w,h =" << width() << height();
     }
 }
 
@@ -1066,49 +1044,103 @@ int FormeVisualization::countPlacedShapes() const
 
 bool FormeVisualization::validateShapes()
 {
+    auto *vp = graphicsView->viewport();
+    vp->setUpdatesEnabled(false);
+    const bool oldAA = graphicsView->renderHints() & QPainter::Antialiasing;
+    graphicsView->setRenderHint(QPainter::Antialiasing, false);
+
     resetAllShapeColors();
     bool allValid = true;
     QList<QAbstractGraphicsShapeItem*> shapes;
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
-        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item))
             shapes << shape;
-        }
     }
 
-    // Ajout d'une tolérance pour éviter les faux positifs sur les bords
     QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
+    QVector<QPainterPath> paths;
+    QVector<QRectF> bboxes;
+    paths.reserve(shapes.size());
+    bboxes.reserve(shapes.size());
+
     for (auto *shape : shapes) {
-        QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
-        if (!bounds.contains(rect)) {
+        auto &cache = m_cache[shape];
+        QTransform t = shape->sceneTransform();
+        if (cache.transform != t) {
+            QPainterPath base = shape->shape().simplified();
+            cache.path      = t.map(base);
+            cache.bbox      = cache.path.boundingRect();
+            cache.transform = t;
+        }
+        paths << cache.path;
+        bboxes << cache.bbox;
+        if (!bounds.contains(cache.bbox)) {
             shape->setPen(QPen(Qt::red, 1));
             allValid = false;
         }
     }
 
-    struct ShapeInfo { QAbstractGraphicsShapeItem* item; QPainterPath path; QRectF bbox; };
-    QList<ShapeInfo> infos;
-    for (auto *shape : shapes) {
-        QPainterPath p = shape->mapToScene(shape->shape().simplified());
-        infos.append({shape, p, p.boundingRect()});
-    }
+    struct ShapeGeom { QPainterPath path; QRectF bbox; };
+    QVector<ShapeGeom> geoms;
+    geoms.reserve(paths.size());
+    for (int i = 0; i < paths.size(); ++i)
+        geoms.push_back({paths[i], bboxes[i]});
 
-    for (int i = 0; i < infos.size(); ++i) {
-        QRectF b1 = infos[i].bbox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
-                                           kBroadPhaseMargin, kBroadPhaseMargin);
-        for (int j = i + 1; j < infos.size(); ++j) {
-            if (!b1.intersects(infos[j].bbox))
-                continue;
-            if (pathsOverlap(infos[i].path, infos[j].path)) {
-                infos[i].item->setPen(QPen(Qt::red, 1));
-                infos[j].item->setPen(QPen(Qt::red, 1));
-                allValid = false;
+    auto future = QtConcurrent::run([geoms]() {
+        QSet<int> collided;
+        QHash<QPair<int,int>, QVector<int>> grid;
+        grid.reserve(geoms.size() * 2);
+        QSet<quint64> tested;
+
+        for (int i = 0; i < geoms.size(); ++i) {
+            const QRectF &b = geoms[i].bbox;
+            const int x0 = static_cast<int>(std::floor(b.left()  / kGridCellSize));
+            const int y0 = static_cast<int>(std::floor(b.top()   / kGridCellSize));
+            const int x1 = static_cast<int>(std::floor(b.right() / kGridCellSize));
+            const int y1 = static_cast<int>(std::floor(b.bottom()/ kGridCellSize));
+            for (int x = x0; x <= x1; ++x)
+                for (int y = y0; y <= y1; ++y)
+                    grid[{x, y}].append(i);
+        }
+
+        for (auto it = grid.constBegin(); it != grid.constEnd(); ++it) {
+            const QVector<int> &idxs = it.value();
+            for (int a = 0; a < idxs.size(); ++a) {
+                for (int b = a + 1; b < idxs.size(); ++b) {
+                    int i = idxs[a];
+                    int j = idxs[b];
+                    const quint64 key = (static_cast<quint64>(qMin(i,j)) << 32) | qMax(i,j);
+                    if (tested.contains(key))
+                        continue;
+                    tested.insert(key);
+                    QRectF b1 = geoms[i].bbox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
+                                                       kBroadPhaseMargin, kBroadPhaseMargin);
+                    if (!b1.intersects(geoms[j].bbox))
+                        continue;
+                    if (pathsOverlap(geoms[i].path, geoms[j].path, kOverlapEpsilon)) {
+                        collided << i << j;
+                    }
+                }
             }
         }
-    }
+        return collided;
+    });
+
+    while (!future.isFinished())
+        QCoreApplication::processEvents();
+
+    QSet<int> collided = future.result();
+    for (int idx : collided)
+        shapes[idx]->setPen(QPen(Qt::red, 1));
+    if (!collided.isEmpty())
+        allValid = false;
 
     emit shapesPlacedCount(shapes.size());
+
+    graphicsView->setRenderHint(QPainter::Antialiasing, oldAA);
+    vp->setUpdatesEnabled(true);
     return allValid;
 }
 
