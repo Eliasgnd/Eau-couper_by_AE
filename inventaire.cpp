@@ -37,6 +37,15 @@
 #include <QDebug>
 #include <QSvgRenderer>
 #include <algorithm>
+#include <utility>
+
+namespace {
+template <typename F>
+inline void invokeLater(QObject *obj, F &&func)
+{
+    QMetaObject::invokeMethod(obj, std::forward<F>(func), Qt::QueuedConnection);
+}
+}
 
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
@@ -517,14 +526,14 @@ void Inventaire::loadCustomShapes()
 
         QFile file(path);
         if (!file.open(QIODevice::ReadOnly)) {
-            QMetaObject::invokeMethod(this, &Inventaire::displayShapes, Qt::QueuedConnection);
+            invokeLater(this, [this] { displayShapes(); });
             return;
         }
 
         const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
         file.close();
         if (!doc.isObject()) {
-            QMetaObject::invokeMethod(this, &Inventaire::displayShapes, Qt::QueuedConnection);
+            invokeLater(this, [this] { displayShapes(); });
             return;
         }
 
@@ -678,7 +687,7 @@ void Inventaire::loadCustomShapes()
                 m_baseLastUsed[type] = QDateTime::fromSecsSinceEpoch(ts);
         }
 
-        QMetaObject::invokeMethod(this, &Inventaire::displayShapes, Qt::QueuedConnection);
+        invokeLater(this, [this] { displayShapes(); });
     });
 }
 
