@@ -5,10 +5,12 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QProgressBar>
-#include <QLabel>
 #include <QPainterPath>
 #include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
+#include <QPoint>
+#include <QColor>
+#include <QPolygonF>
 #include "ShapeModel.h"
 #include "inventaire.h"
 #include <QHash>
@@ -39,15 +41,15 @@ public:
                              int drawingWidth, int drawingHeight);
     void colorPositionRed (const QPoint& position);
     void colorPositionBlue(const QPoint& position);
-    QGraphicsScene* getScene() const;
+    QGraphicsScene* getScene() const { return scene; }
     void setCustomMode();
-    void setEditingEnabled(bool enabled);
-    bool isEditingEnabled() const;
+    void setEditingEnabled(bool enabled) { editingEnabled = enabled; }
+    bool isEditingEnabled() const { return editingEnabled; }
     void setDecoupeEnCours(bool etat);
-    bool isDecoupeEnCours() const;
-    void cancelOptimization();
+    bool isDecoupeEnCours() const { return m_decoupeEnCours; }
+    void cancelOptimization() { if (m_optimizationRunning) m_cancelOptimization = true; }
     bool isOptimizationRunning() const { return m_optimizationRunning; }
-    QGraphicsView* getGraphicsView() const;
+    QGraphicsView* getGraphicsView() const { return graphicsView; }
 
     bool isCustomMode() const { return m_isCustomMode; }
     void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
@@ -101,6 +103,8 @@ private slots:
     void handleSelectionChanged();
 
 private:
+    bool warnIfCutting();
+    void addCutMarker(const QPoint& p, const QColor& color, bool center = false);
     int countPlacedShapes() const;
     void redraw();
 
