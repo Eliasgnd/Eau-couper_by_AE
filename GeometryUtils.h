@@ -102,3 +102,16 @@ bool validateAndProxyPolygons(QList<QPolygonF> &polys,
 // Enable a global safe mode which forces the use of proxies for invalid shapes.
 void setSafeMode(bool enabled);
 bool safeModeEnabled();
+
+// Global epsilon used by geometry utilities. Allows consistent tolerance
+// tuning across the application on low-end devices.
+double globalEpsilon();
+void setGlobalEpsilon(double eps);
+
+// Simplify a path using a Douglas–Peucker style algorithm with tolerance tol.
+// The original path is untouched and still available for the final cut.
+QPainterPath simplifyForProxy(const QPainterPath &p, double tol);
+
+// Build a lightweight proxy for quick display/tests. The tolerance is derived
+// from the path's bounding box (roughly 0.3–0.5% of the diagonal).
+QPainterPath buildProxyPath(const QPainterPath &path);
