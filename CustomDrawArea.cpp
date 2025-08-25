@@ -1422,19 +1422,19 @@ bool CustomDrawArea::event(QEvent *event)
 
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
-    Q_UNUSED(event);
-
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, m_highQuality);
+    painter.setClipRegion(event->region());
 
     // Repère logique
-    painter.save();
     painter.translate(m_offset);
     painter.scale(m_scale, m_scale);
 
+    const QRect dirty = event->rect();
+
     // 1) Grille (dessinée en-dessous)
     if (m_showGrid) {
-        drawGrid(painter);
+        drawGrid(painter, dirty);
     }
 
     // Le canvas contient déjà le résultat réel (formes moins la gomme vectorielle)
@@ -1453,39 +1453,42 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
                         std::sin(totalAngle) * m_rotationHandlePos.radius);
         m_rotationHandle = m_rotationCenter + hoffset;
 
-        QPen normal(Qt::black, 2);
-        normal.setCosmetic(true);
-        normal.setCapStyle(Qt::RoundCap);
-        normal.setJoinStyle(Qt::RoundJoin);
+        QRect widgetBounds = logicalToWidgetRect(bounds, m_scale, m_offset);
+        if (dirty.intersects(widgetBounds)) {
+            QPen normal(Qt::black, 2);
+            normal.setCosmetic(true);
+            normal.setCapStyle(Qt::RoundCap);
+            normal.setJoinStyle(Qt::RoundJoin);
 
-        QPen halo(Qt::cyan, 6);         // halo plus épais
-        halo.setCosmetic(true);
-        halo.setCapStyle(Qt::RoundCap);
-        halo.setJoinStyle(Qt::RoundJoin);
+            QPen halo(Qt::cyan, 6);         // halo plus épais
+            halo.setCosmetic(true);
+            halo.setCapStyle(Qt::RoundCap);
+            halo.setJoinStyle(Qt::RoundJoin);
 
-        for (int i : std::as_const(m_selectedShapes)) {
-            if (i < 0 || i >= m_shapes.size()) continue;
-            const QPainterPath &path = m_shapes[i].path;
+            for (int i : std::as_const(m_selectedShapes)) {
+                if (i < 0 || i >= m_shapes.size()) continue;
+                const QPainterPath &path = m_shapes[i].path;
 
-            painter.setPen(halo);
-            painter.setBrush(Qt::NoBrush);
-            painter.drawPath(path);
+                painter.setPen(halo);
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(path);
 
-            painter.setPen(normal);
-            painter.drawPath(path);
-        }
+                painter.setPen(normal);
+                painter.drawPath(path);
+            }
 
-        // Icône de rotation (si proche & SVG valide)
-        const double maxDistance = 150.0;
-        if (QLineF(m_rotationCenter, m_rotationHandle).length() <= maxDistance &&
-            m_handleRenderer.isValid())
-        {
-            const int iconSize = 24;
-            painter.save();
-            painter.translate(m_rotationHandle);
-            QRectF svgRect(-iconSize/2.0, -iconSize/2.0, iconSize, iconSize);
-            m_handleRenderer.render(&painter, svgRect);
-            painter.restore();
+            // Icône de rotation (si proche & SVG valide)
+            const double maxDistance = 150.0;
+            if (QLineF(m_rotationCenter, m_rotationHandle).length() <= maxDistance &&
+                m_handleRenderer.isValid())
+            {
+                const int iconSize = 24;
+                painter.save();
+                painter.translate(m_rotationHandle);
+                QRectF svgRect(-iconSize/2.0, -iconSize/2.0, iconSize, iconSize);
+                m_handleRenderer.render(&painter, svgRect);
+                painter.restore();
+            }
         }
     }
 
@@ -1493,57 +1496,76 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
     // Ligne
     if (m_drawMode == DrawMode::Line && m_drawingLineOrCircle) {
-        painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
-        painter.drawLine(m_startPoint, m_currentPoint);
+        QRect widgetRect = logicalToWidgetRect(QRectF(m_startPoint, m_currentPoint).normalized(), m_scale, m_offset);
+        if (dirty.intersects(widgetRect)) {
+            painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
+            painter.drawLine(m_startPoint, m_currentPoint);
+        }
     }
 
     // Cercle
     if (m_drawMode == DrawMode::Circle && m_drawingLineOrCircle) {
-        painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
         QPointF c = (m_startPoint + m_currentPoint) / 2.0;
         qreal   r = QLineF(m_startPoint, m_currentPoint).length() / 2.0;
-        painter.drawEllipse(c, r, r);
+        QRect widgetRect = logicalCircleToWidgetRect(c, r, m_scale, m_offset);
+        if (dirty.intersects(widgetRect)) {
+            painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
+            painter.drawEllipse(c, r, r);
+        }
     }
 
     // Rectangle
     if (m_drawMode == DrawMode::Rectangle && m_drawingLineOrCircle) {
-        painter.setPen(QPen(Qt::blue, 2, Qt::DashLine));
-        painter.drawRect(QRectF(m_startPoint, m_currentPoint));
+        QRect widgetRect = logicalToWidgetRect(QRectF(m_startPoint, m_currentPoint), m_scale, m_offset);
+        if (dirty.intersects(widgetRect)) {
+            painter.setPen(QPen(Qt::blue, 2, Qt::DashLine));
+            painter.drawRect(QRectF(m_startPoint, m_currentPoint));
+        }
     }
 
     // Point‑par‑point
     if (m_drawMode == DrawMode::PointParPoint && !m_freehandPoints.isEmpty()) {
-        painter.setPen(QPen(Qt::magenta, 2, Qt::DashLine));
-        for (int i = 0; i < m_freehandPoints.size() - 1; ++i)
-            painter.drawLine(m_freehandPoints[i], m_freehandPoints[i + 1]);
+        QRectF logical = QPolygonF(m_freehandPoints).boundingRect();
         if (m_drawing)
-            painter.drawLine(m_freehandPoints.last(), m_currentPoint);
+            logical = logical.united(QRectF(m_freehandPoints.last(), m_currentPoint).normalized());
+        QRect widgetRect = logicalToWidgetRect(logical, m_scale, m_offset);
+        if (dirty.intersects(widgetRect)) {
+            painter.setPen(QPen(Qt::magenta, 2, Qt::DashLine));
+            for (int i = 0; i < m_freehandPoints.size() - 1; ++i)
+                painter.drawLine(m_freehandPoints[i], m_freehandPoints[i + 1]);
+            if (m_drawing)
+                painter.drawLine(m_freehandPoints.last(), m_currentPoint);
+        }
     }
 
     // Freehand (aperçu lissé uniquement pour le trait en cours)
     if (m_drawMode == DrawMode::Freehand && !m_freehandPoints.isEmpty()) {
-        painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
-        QPainterPath preview;
-        if (m_smoothingLevel > 0 && m_freehandPoints.size() >= 2) {
-            QList<QPointF> pts = m_freehandPoints;
-            if (m_lowPassFilterEnabled)
-                pts = applyLowPassFilter(pts, smoothingAlpha());
-            int it = computeSmoothingIterations(pts);
-            pts = applyChaikinAlgorithm(pts, it);
-            preview = generateBezierPath(pts);
-        } else {
-            preview = generateRawPath(m_freehandPoints);
+        QRectF logical = QPolygonF(m_freehandPoints).boundingRect();
+        if (dirty.intersects(logicalToWidgetRect(logical, m_scale, m_offset))) {
+            painter.setPen(QPen(Qt::gray, 2, Qt::DashLine));
+            QPainterPath preview;
+            if (m_smoothingLevel > 0 && m_freehandPoints.size() >= 2) {
+                QList<QPointF> pts = m_freehandPoints;
+                if (m_lowPassFilterEnabled)
+                    pts = applyLowPassFilter(pts, smoothingAlpha());
+                int it = computeSmoothingIterations(pts);
+                pts = applyChaikinAlgorithm(pts, it);
+                preview = generateBezierPath(pts);
+            } else {
+                preview = generateRawPath(m_freehandPoints);
+            }
+            painter.drawPath(preview);
         }
-        painter.drawPath(preview);
     }
 
     // Gomme (curseur)
     if (m_drawMode == DrawMode::Gomme && m_gommeErasing) {
-        painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
-        painter.drawEllipse(m_gommeCenter, m_gommeRadius, m_gommeRadius);
+        QRect widgetRect = logicalCircleToWidgetRect(m_gommeCenter, m_gommeRadius, m_scale, m_offset);
+        if (dirty.intersects(widgetRect)) {
+            painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
+            painter.drawEllipse(m_gommeCenter, m_gommeRadius, m_gommeRadius);
+        }
     }
-
-    painter.restore();
 }
 
 void CustomDrawArea::resizeEvent(QResizeEvent *event)
@@ -2201,12 +2223,10 @@ void CustomDrawArea::commitEraseIfNeeded(bool force)
     }
 }
 
-void CustomDrawArea::drawGrid(QPainter& painter)
+void CustomDrawArea::drawGrid(QPainter& painter, const QRect& dirtyRect)
 {
     // On suppose que la transform (translate/scale) est déjà appliquée
-    painter.save();
-
-    // ⚡️ Pas d'antialiasing pour la grille
+    const bool oldAA = painter.testRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::Antialiasing, false);
 
     // Stylo "cheap" (cap/join plats et largeur cosmétique 1px)
@@ -2216,9 +2236,9 @@ void CustomDrawArea::drawGrid(QPainter& painter)
     gridPen.setJoinStyle(Qt::MiterJoin);
     painter.setPen(gridPen);
 
-    // Étendue visible en repère logique
-    const QPointF logicalTopLeft     = (QPointF(0, 0) - m_offset) / m_scale;
-    const QPointF logicalBottomRight = (QPointF(width(), height()) - m_offset) / m_scale;
+    // Étendue visible en repère logique limitée à dirtyRect
+    const QPointF logicalTopLeft     = (dirtyRect.topLeft()     - m_offset) / m_scale;
+    const QPointF logicalBottomRight = (dirtyRect.bottomRight() - m_offset) / m_scale;
 
     const int   spacing = m_gridSpacing;
     const qreal left    = std::floor(logicalTopLeft.x()     / spacing) * spacing;
@@ -2233,19 +2253,15 @@ void CustomDrawArea::drawGrid(QPainter& painter)
     // Seuil simple : si > 6000 lignes, on espace artificiellement la grille
     if (vCount * hCount > 6000) {
         const int factor = qCeil(std::sqrt((vCount * hCount) / 6000.0));
-        // On saute des lignes : x += spacing*factor etc.
         QVarLengthArray<QLineF, 1024> lines;
         for (qreal x = left; x <= right; x += spacing * factor)
             lines.append(QLineF(x, top, x, bottom));
         for (qreal y = top; y <= bottom; y += spacing * factor)
             lines.append(QLineF(left, y, right, y));
         painter.drawLines(lines.constData(), lines.size());
-        painter.restore();
+        painter.setRenderHint(QPainter::Antialiasing, oldAA);
         return;
     }
-
-    // Clip logique (évite d'envoyer des pixels hors vue au rasterizer)
-    painter.setClipRect(QRectF(QPointF(left, top), QPointF(right, bottom)));
 
     // ⚡️ Batch : on prépare toutes les lignes d'un coup
     QVarLengthArray<QLineF, 1024> lines;
@@ -2260,5 +2276,5 @@ void CustomDrawArea::drawGrid(QPainter& painter)
     if (!lines.isEmpty())
         painter.drawLines(lines.constData(), lines.size());
 
-    painter.restore();
+    painter.setRenderHint(QPainter::Antialiasing, oldAA);
 }
