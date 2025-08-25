@@ -75,6 +75,10 @@ public:
     void addImportedLogo(const QPainterPath &logoPath);
     void addImportedLogoSubpath(const QPainterPath &subpath);
 
+    // Qualité de rendu : désactive l'antialiasing en mode aperçu
+    void setHighQuality(bool enabled);
+    bool highQuality() const { return m_highQuality; }
+
     // --- Nouvelles méthodes pour la gestion du texte ---
     // Setter et getter pour la police utilisée dans l'ajout de texte
     void setTextFont(const QFont &font);
@@ -160,6 +164,7 @@ private:
 
     // Gestion de la gomme
     QImage m_canvas;
+    bool   m_highQuality = false;
     bool m_gommeErasing = false;
     QPointF m_gommeCenter;
     qreal m_gommeRadius = 20.0;
