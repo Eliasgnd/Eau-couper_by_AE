@@ -1,5 +1,4 @@
 #include "FormeVisualization.h"
-#include "AspectRatioWrapper.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
@@ -8,21 +7,15 @@
 #include <QGraphicsPolygonItem>
 #include <QGraphicsPathItem>
 #include <QResizeEvent>
-#include <QDebug>
 #include <QtMath>
 #include <QTransform>
 #include <QApplication>
 #include <QPainterPathStroker>
 #include <QMessageBox>
 #include <QAbstractGraphicsShapeItem>
-#include <QRandomGenerator>
 #include <QSizePolicy>        // <<< important pour QSizePolicy
 #include <cmath>              // <<< pour std::round (si utilisé)
-// #include <limits>          // (optionnel) retire-le si non utilisé
 #include <QPolygonF>
-#include <utility>
-
-#include <QHash>
 #include <QSet>
 #include <QFuture>
 #include <QtConcurrent>
@@ -146,11 +139,26 @@ bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+bool FormeVisualization::warnIfCutting()
+{
+    if (!m_decoupeEnCours && !m_optimizationRunning)
+        return false;
+
+    auto *msg = new QMessageBox(QMessageBox::Warning,
+                                 "Découpe en cours",
+                                 "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                 QMessageBox::Ok,
+                                 this);
+    msg->setModal(false);
+    msg->show();
+    return true;
+}
+
 void FormeVisualization::setModel(ShapeModel::Type model)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours)
+    if (warnIfCutting())
         return;
     cancelOptimization();
 
@@ -164,15 +172,8 @@ void FormeVisualization::updateDimensions(int largeur, int longueur)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
-    }
+    if (warnIfCutting())
+        return;
     cancelOptimization();
     currentLargeur = largeur;
     currentLongueur = longueur;
@@ -186,16 +187,8 @@ void FormeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
 
     cancelOptimization();
 
@@ -213,16 +206,8 @@ void FormeVisualization::setSpacing(int newSpacing)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
 
     cancelOptimization();
 
@@ -236,15 +221,8 @@ void FormeVisualization::setSpacing(int newSpacing)
 
 void FormeVisualization::setPredefinedMode()
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
-    }
+    if (warnIfCutting())
+        return;
 
     cancelOptimization();
 
@@ -259,15 +237,8 @@ void FormeVisualization::setPredefinedMode()
    ****** OPTIMIZE PLACEMENT 1 (avec caching et test rapide) ******
 */
 void FormeVisualization::optimizePlacement() {
-    if (m_decoupeEnCours || m_optimizationRunning) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
-    }
+    if (warnIfCutting())
+        return;
 
     // Remise à zéro de l'espacement
     setSpacing(0);
@@ -286,22 +257,19 @@ void FormeVisualization::optimizePlacement() {
 
     QRectF containerRect(0, 0, drawingWidth, drawingHeight);
 
-    int adaptedLargeur = currentLargeur;
-    int adaptedLongueur = currentLongueur;
-
     QPainterPath prototypePath;
     if (m_isCustomMode && !m_customShapes.isEmpty()) {
         for (const QPolygonF &poly : m_customShapes)
             prototypePath.addPolygon(poly);
         prototypePath = prototypePath.simplified();
         QRectF customBounds = prototypePath.boundingRect();
-        double scaleX = (customBounds.width() > 0) ? (adaptedLargeur / customBounds.width()) : 1.0;
-        double scaleY = (customBounds.height() > 0) ? (adaptedLongueur / customBounds.height()) : 1.0;
+        double scaleX = (customBounds.width() > 0) ? (currentLargeur / customBounds.width()) : 1.0;
+        double scaleY = (customBounds.height() > 0) ? (currentLongueur / customBounds.height()) : 1.0;
         QTransform scaleTransform;
         scaleTransform.scale(scaleX, scaleY);
         prototypePath = scaleTransform.map(prototypePath);
     } else {
-        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
+        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
         if (shapesList.isEmpty()) {
             //qDebug() << "Erreur : Aucun prototype de forme disponible.";
 
@@ -422,16 +390,8 @@ void FormeVisualization::optimizePlacement() {
 }
 
 void FormeVisualization::optimizePlacement2() {
-    if (m_decoupeEnCours || m_optimizationRunning) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
 
     setSpacing(0);
     m_optimizationRunning = true;
@@ -447,21 +407,18 @@ void FormeVisualization::optimizePlacement2() {
     const int drawingWidth  = int(sr.width());
     const int drawingHeight = int(sr.height());
 
-    int adaptedLargeur = currentLargeur;
-    int adaptedLongueur = currentLongueur;
-
     QPainterPath prototypePath;
     if (m_isCustomMode && !m_customShapes.isEmpty()) {
         for (const QPolygonF &poly : m_customShapes)
             prototypePath.addPolygon(poly);
         QRectF customBounds = prototypePath.boundingRect();
-        double scaleX = (customBounds.width() > 0) ? (adaptedLargeur / customBounds.width()) : 1.0;
-        double scaleY = (customBounds.height() > 0) ? (adaptedLongueur / customBounds.height()) : 1.0;
+        double scaleX = (customBounds.width() > 0) ? (currentLargeur / customBounds.width()) : 1.0;
+        double scaleY = (customBounds.height() > 0) ? (currentLongueur / customBounds.height()) : 1.0;
         QTransform scaleTransform;
         scaleTransform.scale(scaleX, scaleY);
         prototypePath = scaleTransform.map(prototypePath);
     } else {
-        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
+        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
         if (shapesList.isEmpty()) {
             m_optimizationRunning = false;
             progressBar->setVisible(false);
@@ -594,10 +551,7 @@ void FormeVisualization::redraw()
         return;
 
 
-    int adaptedLargeur = currentLargeur;
-    int adaptedLongueur = currentLongueur;
-
-    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
+    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
     if (shapes.isEmpty()) {
         //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
         emit shapesPlacedCount(0);
@@ -656,16 +610,8 @@ void FormeVisualization::redraw()
 
 void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
 
     cancelOptimization();
 
@@ -737,16 +683,8 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
 void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
     // Parcours de tous les items sélectionnés dans la scène
     for (QGraphicsItem *item : scene->selectedItems()) {
         item->moveBy(dx, dy);
@@ -757,16 +695,8 @@ void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 
 void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
     const auto selected = scene->selectedItems();
     if (selected.isEmpty())
         return;
@@ -798,17 +728,8 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
 
 void FormeVisualization::deleteSelectedShapes()
 {
-    if (m_decoupeEnCours)
-    {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
 
     bool removed = false;
     const auto selected = scene->selectedItems();
@@ -825,17 +746,8 @@ void FormeVisualization::deleteSelectedShapes()
 
 void FormeVisualization::addShapeBottomRight()
 {
-    if (m_decoupeEnCours)
-    {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (warnIfCutting())
         return;
-    }
 
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
@@ -900,12 +812,19 @@ void FormeVisualization::setCustomMode() {
 // -----------------------------------------------------------------------------
 // Ajout d’un point rouge
 // -----------------------------------------------------------------------------
-void FormeVisualization::colorPositionRed(const QPoint& p)
+void FormeVisualization::addCutMarker(const QPoint& p, const QColor& color, bool center)
 {
-    auto *dot = scene->addEllipse(p.x()-1, p.y()-1, 2, 2,
-                                  QPen(Qt::NoPen), QBrush(Qt::red));
+    int x = center ? p.x() - 1 : p.x();
+    int y = center ? p.y() - 1 : p.y();
+    auto *dot = scene->addEllipse(x, y, 2, 2,
+                                  QPen(Qt::NoPen), QBrush(color));
     m_cutMarkers << dot;
     graphicsView->viewport()->update();
+}
+
+void FormeVisualization::colorPositionRed(const QPoint& p)
+{
+    addCutMarker(p, Qt::red, true);
 }
 
 // -----------------------------------------------------------------------------
@@ -913,10 +832,7 @@ void FormeVisualization::colorPositionRed(const QPoint& p)
 // -----------------------------------------------------------------------------
 void FormeVisualization::colorPositionBlue(const QPoint& p)
 {
-    auto *dot = scene->addEllipse(p.x(), p.y(), 2, 2,
-                                  QPen(Qt::NoPen), QBrush(Qt::blue));
-    m_cutMarkers << dot;
-    graphicsView->viewport()->update();
+    addCutMarker(p, Qt::blue);
 }
 
 // -----------------------------------------------------------------------------
@@ -929,10 +845,6 @@ void FormeVisualization::resetCutMarkers()
         delete item;
     }
     m_cutMarkers.clear();
-}
-
-QGraphicsScene* FormeVisualization::getScene() const {
-    return scene;
 }
 
 // ======================================================================================================================
@@ -982,17 +894,6 @@ void FormeVisualization::updateDecoupeProgress(int currentStep) {
 void FormeVisualization::endDecoupeProgress() {
     progressBar->setVisible(false);
 }
-
-void FormeVisualization::setEditingEnabled(bool enabled)
-{
-    editingEnabled = enabled;
-}
-
-bool FormeVisualization::isEditingEnabled() const
-{
-    return editingEnabled;
-}
-
 void FormeVisualization::setDecoupeEnCours(bool etat)
 {
     m_decoupeEnCours = etat;
@@ -1000,22 +901,6 @@ void FormeVisualization::setDecoupeEnCours(bool etat)
     for (QGraphicsItem *item : scene->items()) {
         item->setFlag(QGraphicsItem::ItemIsMovable, !etat);
     }
-}
-
-bool FormeVisualization::isDecoupeEnCours() const
-{
-    return m_decoupeEnCours;
-}
-
-void FormeVisualization::cancelOptimization()
-{
-    if (m_optimizationRunning)
-        m_cancelOptimization = true;
-}
-
-QGraphicsView* FormeVisualization::getGraphicsView() const
-{
-    return graphicsView;
 }
 
 int FormeVisualization::countPlacedShapes() const
