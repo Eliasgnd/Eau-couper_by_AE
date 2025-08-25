@@ -19,6 +19,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QtGlobal>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -565,6 +566,15 @@ void Inventaire::loadCustomShapes()
         if (tArr.size() >= 6)
             data.transform = QTransform(tArr[0].toDouble(), tArr[1].toDouble(), tArr[2].toDouble(),
                                         tArr[3].toDouble(), tArr[4].toDouble(), tArr[5].toDouble());
+        // Validate transform values
+        auto checkTransform = [](const QTransform &t){
+            return qIsFinite(t.m11()) && qIsFinite(t.m12()) && qIsFinite(t.m21()) &&
+                   qIsFinite(t.m22()) && qIsFinite(t.dx()) && qIsFinite(t.dy());
+        };
+        if (!checkTransform(data.transform)) {
+            qWarning() << "Invalid transform reset for" << data.name;
+            data.transform.reset();
+        }
 
         // Polygons
         const QJsonArray polyArr = obj.value("polygons").toArray();
@@ -579,12 +589,18 @@ void Inventaire::loadCustomShapes()
             data.polygons.append(poly);
         }
 
-        bool ok = sanitizePolygons(data.polygons);
-        if (!ok)
-            ok = sanitizePolygons(data.polygons);
+        QString warn;
+        bool ok = false;
+        try {
+            ok = validateAndProxyPolygons(data.polygons, safeModeEnabled(), &warn);
+        } catch (...) {
+            ok = false;
+        }
         if (!ok) {
             qWarning() << "Invalid shape skipped:" << data.name;
             data.valid = false;
+        } else if (!warn.isEmpty()) {
+            qWarning() << warn << data.name;
         }
 
         // Layouts (optional)
