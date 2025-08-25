@@ -18,6 +18,7 @@ uint qHash(const CacheKey &key, uint seed = 0) {
 QHash<CacheKey,QPainterPath> gSimplifiedCache;
 PipelineMetrics gMetrics;
 bool gLowEndMode = false;
+bool gSafeMode = false;
 
 QPainterPath simplifyForTest(const QPainterPath &p, double tol) {
     CacheKey key{&p};
@@ -208,3 +209,41 @@ bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
     polys = result;
     return allValid;
 }
+
+bool validateAndProxyPolygons(QList<QPolygonF> &polys,
+                              bool safeMode,
+                              QString *warning,
+                              double eps)
+{
+    QList<QPolygonF> copy = polys; // deep copy
+    bool ok = true;
+    try {
+        ok = sanitizePolygons(copy, eps);
+    } catch (...) {
+        ok = false;
+    }
+    if (!ok || copy.isEmpty()) {
+        if (!safeMode)
+            return false;
+        QRectF bounds;
+        for (const QPolygonF &p : polys)
+            bounds = bounds.united(p.boundingRect());
+        if (bounds.isNull())
+            return false;
+        QPolygonF proxy;
+        proxy << bounds.topLeft() << QPointF(bounds.right(), bounds.top())
+              << bounds.bottomRight() << QPointF(bounds.left(), bounds.bottom())
+              << bounds.topLeft();
+        polys = {proxy};
+        if (warning)
+            *warning = QStringLiteral("Invalid geometry replaced with proxy");
+        return true;
+    }
+    polys = copy;
+    if (warning)
+        warning->clear();
+    return true;
+}
+
+void setSafeMode(bool enabled){ gSafeMode = enabled; }
+bool safeModeEnabled(){ return gSafeMode; }

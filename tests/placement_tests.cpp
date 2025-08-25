@@ -2,18 +2,7 @@
 #include <QElapsedTimer>
 #include "../GeometryUtils.h"
 #include "../motorcontrol.h"
-
-class PlacementTests : public QObject {
-    Q_OBJECT
-private slots:
-    void borderContactNotOverlap();
-    void interiorIntersection();
-    void motorControlSteps();
-    void normalizationRemovesDuplicates();
-    void complexityGuardRejects();
-    void stressWorstCase();
-    void lowEndModeAdjusts();
-};
+#include "placement_tests.h"
 
 void PlacementTests::borderContactNotOverlap()
 {
@@ -76,5 +65,3 @@ void PlacementTests::lowEndModeAdjusts()
     setLowEndMode(false);
 }
 
-QTEST_MAIN(PlacementTests)
-#include "placement_tests.moc"

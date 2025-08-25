@@ -90,3 +90,15 @@ constexpr int kMaxPathElements = 10000;
 
 bool sanitizePolygon(QPolygonF &poly, double eps = 1e-6);
 bool sanitizePolygons(QList<QPolygonF> &polys, double eps = 1e-6);
+
+// Validate polygons and replace with a safe proxy (bounding box) when invalid.
+// Returns false if polygons are invalid and no proxy was created (safe mode off).
+// When a proxy is used, an optional warning message is filled.
+bool validateAndProxyPolygons(QList<QPolygonF> &polys,
+                              bool safeMode,
+                              QString *warning = nullptr,
+                              double eps = 1e-6);
+
+// Enable a global safe mode which forces the use of proxies for invalid shapes.
+void setSafeMode(bool enabled);
+bool safeModeEnabled();
