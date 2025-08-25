@@ -597,9 +597,9 @@ void Inventaire::loadCustomShapes()
                 data.polygons.append(poly);
             }
 
-            bool ok = sanitizePolygons(data.polygons);
+            bool ok = sanitizePolygons(data.polygons, globalEpsilon());
             if (!ok)
-                ok = sanitizePolygons(data.polygons);
+                ok = sanitizePolygons(data.polygons, globalEpsilon());
             if (!ok) {
                 qWarning() << "Invalid shape skipped:" << data.name;
                 data.valid = false;
@@ -698,7 +698,8 @@ void Inventaire::saveCustomShapes() const
         m_saveTimer->setSingleShot(true);
         QObject::connect(m_saveTimer, &QTimer::timeout, const_cast<Inventaire*>(this), &Inventaire::performSave);
     }
-    m_saveTimer->start(200);
+    // Debounce writes to avoid UI stalls during rapid updates
+    m_saveTimer->start(400);
 }
 
 void Inventaire::performSave() const

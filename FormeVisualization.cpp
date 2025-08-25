@@ -64,8 +64,10 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     m_sheetBorder = scene->addRect(scene->sceneRect(),
                                    QPen(Qt::white, 2), QBrush(Qt::NoBrush));
     m_sheetBorder->setZValue(1000);
-    graphicsView->setRenderHint(QPainter::Antialiasing, true);
-    graphicsView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    // Disable antialiasing during bulk updates to keep the UI responsive
+    graphicsView->setRenderHint(QPainter::Antialiasing, false);
+    graphicsView->setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
+    scene->setItemIndexMethod(QGraphicsScene::BspTreeIndex);
 
 
     graphicsView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -642,21 +644,17 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     const int drawingHeight = int(sr.height());
 
     QPainterPath combinedPath;
-    for (const QPolygonF &poly : shapes) {
+    for (const QPolygonF &poly : shapes)
         combinedPath.addPolygon(poly);
-    }
     QRectF polyBounds = combinedPath.boundingRect();
-    if (polyBounds.width() <= 0 || polyBounds.height() <= 0) {
-        //qDebug() << "Erreur : dimensions invalides pour le dessin custom combiné.";
+    if (polyBounds.width() <= 0 || polyBounds.height() <= 0)
         return;
-    }
 
     qreal desiredWidthInScene = currentLargeur;
     qreal desiredHeightInScene = currentLongueur;
     qreal scaleX = desiredWidthInScene / polyBounds.width();
     qreal scaleY = desiredHeightInScene / polyBounds.height();
-    QTransform transform;
-    transform.scale(scaleX, scaleY);
+    QTransform transform; transform.scale(scaleX, scaleY);
     QPainterPath scaledPath = normalizePath(transform.map(combinedPath));
     if (isPathTooComplex(scaledPath, kMaxPathElements))
         return;
@@ -669,30 +667,43 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
 
+    QVector<QGraphicsPathItem*> items;
+    items.reserve(shapesToPlace);
+    QPainterPath proxy = buildProxyPath(scaledPath);
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
         int row = i / maxCols;
         qreal xPos = col * cellWidth;
         qreal yPos = row * cellHeight;
 
-        QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
+        QGraphicsPathItem *item = new QGraphicsPathItem(proxy);
         item->setPen(QPen(Qt::black, 1));
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        // Calcul de l'offset à partir du boundingRect réel de l'item afin
-        // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
-        // vertical observé avec les formes personnalisées.
+        item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         QRectF bounds = item->boundingRect();
         QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(xPos + offset.x(), yPos + offset.y());
         scene->addItem(item);
         item->setSelected(false);
-
+        items << item;
     }
 
-    //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
     emit shapesPlacedCount(shapesToPlace);
+
+    QtConcurrent::run([this, items, scaledPath]() {
+        QPainterPath exact = scaledPath.simplified();
+        QRectF bbox = exact.boundingRect();
+        QMetaObject::invokeMethod(this, [this, items, exact, bbox, scaledPath]() {
+            for (QGraphicsPathItem *item : items) {
+                if (!item) continue;
+                item->setPath(exact);
+                item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+                m_cache[item] = {scaledPath, exact, bbox, item->transform()};
+            }
+        }, Qt::QueuedConnection);
+    });
 }
 
 void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)

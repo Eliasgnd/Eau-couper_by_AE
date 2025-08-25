@@ -20,7 +20,7 @@ PipelineMetrics gMetrics;
 bool gLowEndMode = false;
 bool gSafeMode = false;
 
-QPainterPath simplifyForTest(const QPainterPath &p, double tol) {
+QPainterPath simplifyForProxyInternal(const QPainterPath &p, double tol) {
     CacheKey key{&p};
     auto it = gSimplifiedCache.constFind(key);
     if (it != gSimplifiedCache.constEnd())
@@ -89,6 +89,24 @@ bool rasterOverlap(const QPainterPath &a, const QPainterPath &b, int res){
 }
 } // namespace
 
+static double gEpsilon = 1e-6;
+
+double globalEpsilon(){ return gEpsilon; }
+void setGlobalEpsilon(double eps){ gEpsilon = eps; }
+
+QPainterPath simplifyForProxy(const QPainterPath &p, double tol)
+{
+    return simplifyForProxyInternal(p, tol);
+}
+
+QPainterPath buildProxyPath(const QPainterPath &path)
+{
+    QRectF bbox = path.boundingRect();
+    double diag = QLineF(bbox.topLeft(), bbox.bottomRight()).length();
+    double tau = qMax(0.5, diag * (gLowEndMode ? 0.005 : 0.003));
+    return simplifyForProxyInternal(path, tau);
+}
+
 PipelineMetrics lastPipelineMetrics(){ return gMetrics; }
 void setLowEndMode(bool enabled){ gLowEndMode = enabled; }
 
@@ -104,8 +122,8 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
 
     // Tier1: simplification
     double tau = gLowEndMode ? epsilon/2.0 : epsilon/10.0;
-    QPainterPath sa = simplifyForTest(a, tau);
-    QPainterPath sb = simplifyForTest(b, tau);
+    QPainterPath sa = simplifyForProxyInternal(a, tau);
+    QPainterPath sb = simplifyForProxyInternal(b, tau);
     gMetrics.simplificationTolerance = tau;
     gMetrics.tier1Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms;
     if (!sa.boundingRect().intersects(sb.boundingRect())) return false;

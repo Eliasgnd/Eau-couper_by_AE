@@ -51,6 +51,7 @@
 #include <QDir>
 #include <QDateTime>
 #include <QRegularExpression>
+#include <QtConcurrent>
 
 
 
@@ -535,116 +536,113 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
 void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                                        const QString &name)
 {
-    /* 1) Empêcher la modification pendant une découpe ---------------- */
     if (formeVisualization && formeVisualization->isDecoupeEnCours()) {
         QMessageBox::warning(this,
                              tr("Découpe en cours"),
                              tr("Impossible de modifier la forme pendant la découpe."));
         return;
     }
-
-    /* 2) Passage en mode Custom -------------------------------------- */
     if (!formeVisualization) {
         this->showFullScreen();
         return;
     }
 
-    // Validate and simplify polygons before displaying ----------------
-    QList<QPolygonF> cleaned = polygons;
-    QString warn;
-    sanitizePolygons(cleaned);
-    sanitizePolygons(cleaned);
-    validateAndProxyPolygons(cleaned, true, &warn);
-    if (!warn.isEmpty())
-        qWarning() << warn << name;
+    QtConcurrent::run([=]() {
+        QList<QPolygonF> cleaned = polygons;
+        QString warn;
+        sanitizePolygons(cleaned, globalEpsilon());
+        sanitizePolygons(cleaned, globalEpsilon());
+        validateAndProxyPolygons(cleaned, true, &warn, globalEpsilon());
+        QPainterPath combinedPath;
+        for (const QPolygonF &poly : cleaned)
+            combinedPath.addPolygon(poly);
+        bool tooComplex = isPathTooComplex(combinedPath, kMaxPathElements);
+        QRectF bounds = combinedPath.boundingRect();
+        QPointF shift(-bounds.topLeft());
+        for (QPolygonF &poly : cleaned)
+            poly.translate(shift);
+        bounds.translate(shift);
 
-    formeVisualization->setCustomMode();
+        QMetaObject::invokeMethod(this, [=]() {
+            if (!warn.isEmpty())
+                qWarning() << warn << name;
+            if (tooComplex) {
+                QMessageBox::warning(this, tr("Forme trop complexe"),
+                                     tr("La forme %1 dépasse la limite de complexité.").arg(name));
+                return;
+            }
 
-    /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
-    int largeur = ui->Largeur->value();
-    int hauteur = ui->Longueur->value();
-    if (largeur <= 0)
-        largeur = 100;
-    if (hauteur <= 0)
-        hauteur = 100;
-    formeVisualization->updateDimensions(largeur, hauteur);
+            formeVisualization->setCustomMode();
 
-    QPainterPath combinedPath;
-    for (const QPolygonF &poly : cleaned)
-        combinedPath.addPolygon(poly);
-    if (isPathTooComplex(combinedPath, kMaxPathElements)) {
-        QMessageBox::warning(this, tr("Forme trop complexe"),
-                             tr("La forme %1 dépasse la limite de complexité.").arg(name));
-        return;
-    }
-    QRectF bounds = combinedPath.boundingRect();
-    QPointF shift(-bounds.topLeft());
-    for (QPolygonF &poly : cleaned)
-        poly.translate(shift);
-    bounds.translate(shift);
-    const int margin = 1;
-    if (bounds.width() > largeur || bounds.height() > hauteur) {
-        largeur = qMax(largeur, int(std::ceil(bounds.width())) + margin);
-        hauteur = qMax(hauteur, int(std::ceil(bounds.height())) + margin);
-        formeVisualization->updateDimensions(largeur, hauteur);
-    }
+            int largeur = ui->Largeur->value();
+            int hauteur = ui->Longueur->value();
+            if (largeur <= 0)
+                largeur = 100;
+            if (hauteur <= 0)
+                hauteur = 100;
+            formeVisualization->updateDimensions(largeur, hauteur);
 
-    formeVisualization->displayCustomShapes(cleaned);
-    formeVisualization->setCurrentCustomShapeName(name);
+            const int margin = 1;
+            if (bounds.width() > largeur || bounds.height() > hauteur) {
+                largeur = qMax(largeur, int(std::ceil(bounds.width())) + margin);
+                hauteur = qMax(hauteur, int(std::ceil(bounds.height())) + margin);
+                formeVisualization->updateDimensions(largeur, hauteur);
+            }
 
-    /* 4) Si des dispositions existent, ouvrir la fenêtre Dispositions */
-    QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
-    if (!layouts.isEmpty()) {
-        Dispositions *disp = new Dispositions(name, layouts,
-                                              polygons, currentLanguage);
+            formeVisualization->displayCustomShapes(cleaned);
+            formeVisualization->setCurrentCustomShapeName(name);
 
-        connect(disp, &Dispositions::layoutSelected, this,
-                [this](const LayoutData &ld) {
-                    formeVisualization->applyLayout(ld);
+            QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
+            if (!layouts.isEmpty()) {
+                Dispositions *disp = new Dispositions(name, layouts,
+                                                      polygons, currentLanguage);
 
-                    // verrouillage/déverrouillage propre des widgets
-                    const bool block = true;
-                    ui->Largeur->blockSignals(block);
-                    ui->Longueur->blockSignals(block);
-                    ui->shapeCountSpinBox->blockSignals(block);
-                    ui->spaceSpinBox->blockSignals(block);
-                    ui->Slider_largeur->blockSignals(block);
-                    ui->Slider_longueur->blockSignals(block);
+                connect(disp, &Dispositions::layoutSelected, this,
+                        [this](const LayoutData &ld) {
+                            formeVisualization->applyLayout(ld);
 
-                    ui->Largeur->setValue(ld.largeur);
-                    ui->Longueur->setValue(ld.longueur);
-                    ui->Slider_largeur->setValue(ld.largeur);
-                    ui->Slider_longueur->setValue(ld.longueur);
-                    ui->shapeCountSpinBox->setValue(ld.items.size());
-                    ui->spaceSpinBox->setValue(ld.spacing);
+                            const bool block = true;
+                            ui->Largeur->blockSignals(block);
+                            ui->Longueur->blockSignals(block);
+                            ui->shapeCountSpinBox->blockSignals(block);
+                            ui->spaceSpinBox->blockSignals(block);
+                            ui->Slider_largeur->blockSignals(block);
+                            ui->Slider_longueur->blockSignals(block);
 
-                    ui->Largeur->blockSignals(!block);
-                    ui->Longueur->blockSignals(!block);
-                    ui->shapeCountSpinBox->blockSignals(!block);
-                    ui->spaceSpinBox->blockSignals(!block);
-                    ui->Slider_largeur->blockSignals(!block);
-                    ui->Slider_longueur->blockSignals(!block);
-                });
+                            ui->Largeur->setValue(ld.largeur);
+                            ui->Longueur->setValue(ld.longueur);
+                            ui->Slider_largeur->setValue(ld.largeur);
+                            ui->Slider_longueur->setValue(ld.longueur);
+                            ui->shapeCountSpinBox->setValue(ld.items.size());
+                            ui->spaceSpinBox->setValue(ld.spacing);
 
-        /* signaux de fermeture/retour */
-        connect(disp, &Dispositions::shapeOnlySelected, this, [](){});
-        connect(disp, &Dispositions::closed, this, [this, disp]() {
-            this->showFullScreen();
-            disp->deleteLater();
-        });
-        connect(disp, &Dispositions::requestOpenInventaire, this,
-                [this, disp]() {
+                            ui->Largeur->blockSignals(!block);
+                            ui->Longueur->blockSignals(!block);
+                            ui->shapeCountSpinBox->blockSignals(!block);
+                            ui->spaceSpinBox->blockSignals(!block);
+                            ui->Slider_largeur->blockSignals(!block);
+                            ui->Slider_longueur->blockSignals(!block);
+                        });
+
+                connect(disp, &Dispositions::shapeOnlySelected, this, [](){});
+                connect(disp, &Dispositions::closed, this, [this, disp]() {
+                    this->showFullScreen();
                     disp->deleteLater();
-                    Inventaire::getInstance()->showFullScreen();
                 });
+                connect(disp, &Dispositions::requestOpenInventaire, this,
+                        [this, disp]() {
+                            disp->deleteLater();
+                            Inventaire::getInstance()->showFullScreen();
+                        });
 
-        this->hide();
-        disp->showFullScreen();
-        return;
-    }
+                this->hide();
+                disp->showFullScreen();
+                return;
+            }
 
-    /* 5) Pas de dispositions : on se contente d’afficher la forme ----- */
-    this->showFullScreen();
+            this->showFullScreen();
+        }, Qt::QueuedConnection);
+    });
 }
 
 void MainWindow::resetDrawing() {
