@@ -19,6 +19,7 @@
 #include <QSet>
 #include <QFuture>
 #include <QtConcurrent>
+#include <QCoreApplication>
 
 #include "GeometryUtils.h"
 
@@ -26,6 +27,7 @@ namespace {
 constexpr double kOverlapEpsilon   = 0.5;   // tolerance for true overlap
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
+enum InvalidReason { Valid = 0, OutOfBounds = 1, SelfIntersection = 2, InteriorOverlap = 3 };
 }
 
 FormeVisualization::FormeVisualization(QWidget *parent)
@@ -933,6 +935,7 @@ int FormeVisualization::countPlacedShapes() const
 
 bool FormeVisualization::validateShapes()
 {
+    qApp->setProperty("invalidReason", 0);
     auto *vp = graphicsView->viewport();
     vp->setUpdatesEnabled(false);
     const bool oldAA = graphicsView->renderHints() & QPainter::Antialiasing;
@@ -964,11 +967,21 @@ bool FormeVisualization::validateShapes()
             cache.bbox      = cache.path.boundingRect();
             cache.transform = t;
         }
+        QList<QPolygonF> polys = cache.path.toFillPolygons();
+        if (!sanitizePolygons(polys)) {
+            shape->setPen(QPen(Qt::red, 1));
+            allValid = false;
+            if (qApp->property("invalidReason").toInt() == 0)
+                qApp->setProperty("invalidReason", SelfIntersection);
+            continue;
+        }
         paths << cache.path;
         bboxes << cache.bbox;
         if (!bounds.contains(cache.bbox)) {
             shape->setPen(QPen(Qt::red, 1));
             allValid = false;
+            if (qApp->property("invalidReason").toInt() == 0)
+                qApp->setProperty("invalidReason", OutOfBounds);
         }
     }
 
@@ -1024,8 +1037,11 @@ bool FormeVisualization::validateShapes()
     QSet<int> collided = future.result();
     for (int idx : collided)
         shapes[idx]->setPen(QPen(Qt::red, 1));
-    if (!collided.isEmpty())
+    if (!collided.isEmpty()) {
         allValid = false;
+        if (qApp->property("invalidReason").toInt() == 0)
+            qApp->setProperty("invalidReason", InteriorOverlap);
+    }
 
     emit shapesPlacedCount(shapes.size());
 

@@ -511,9 +511,15 @@ void MainWindow::openImageInCustom(const QString &filePath,
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
 
-
     //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
+        // Sanitize twice and replace with proxy if still invalid
+        sanitizePolygons(shapes);
+        sanitizePolygons(shapes);
+        QString warn;
+        validateAndProxyPolygons(shapes, true, &warn);
+        if (!warn.isEmpty())
+            qWarning() << warn;
         formeVisualization->displayCustomShapes(shapes);
         formeVisualization->setCurrentCustomShapeName("");
     } else {
@@ -547,13 +553,21 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     QList<QPolygonF> cleaned = polygons;
     QString warn;
     sanitizePolygons(cleaned);
-    if (!validateAndProxyPolygons(cleaned, safeModeEnabled(), &warn)) {
-        QMessageBox::warning(this, tr("Forme invalide"),
-                             tr("La forme %1 est invalide.").arg(name));
-        return;
-    }
+    sanitizePolygons(cleaned);
+    validateAndProxyPolygons(cleaned, true, &warn);
     if (!warn.isEmpty())
         qWarning() << warn << name;
+
+    formeVisualization->setCustomMode();
+
+    /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
+    int largeur = ui->Largeur->value();
+    int hauteur = ui->Longueur->value();
+    if (largeur <= 0)
+        largeur = 100;
+    if (hauteur <= 0)
+        hauteur = 100;
+    formeVisualization->updateDimensions(largeur, hauteur);
 
     QPainterPath combinedPath;
     for (const QPolygonF &poly : cleaned)
@@ -563,20 +577,18 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                              tr("La forme %1 dépasse la limite de complexité.").arg(name));
         return;
     }
-
-    formeVisualization->setCustomMode();
-
-    /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
     QRectF bounds = combinedPath.boundingRect();
+    QPointF shift(-bounds.topLeft());
+    for (QPolygonF &poly : cleaned)
+        poly.translate(shift);
+    bounds.translate(shift);
+    const int margin = 1;
+    if (bounds.width() > largeur || bounds.height() > hauteur) {
+        largeur = qMax(largeur, int(std::ceil(bounds.width())) + margin);
+        hauteur = qMax(hauteur, int(std::ceil(bounds.height())) + margin);
+        formeVisualization->updateDimensions(largeur, hauteur);
+    }
 
-    int largeur = ui->Largeur->value();
-    int hauteur = ui->Longueur->value();
-    if (largeur <= 0)
-        largeur = bounds.width()  > 0 ? qRound(bounds.width())  : 100;
-    if (hauteur <= 0)
-        hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
-
-    formeVisualization->updateDimensions(largeur, hauteur);
     formeVisualization->displayCustomShapes(cleaned);
     formeVisualization->setCurrentCustomShapeName(name);
 
@@ -699,8 +711,15 @@ void MainWindow::StartPixel()
     formeVisualization->resetAllShapeColors();
 
     if (!formeVisualization->validateShapes()) {
-        QMessageBox::warning(this, tr("Formes invalides"),
-                             tr("Certaines formes dépassent la zone ou se chevauchent."));
+        int reason = qApp->property("invalidReason").toInt();
+        QString msg;
+        switch (reason) {
+        case 1: msg = tr("Une forme dépasse la zone de découpe."); break;
+        case 2: msg = tr("Une forme s'auto-intersecte."); break;
+        case 3: msg = tr("Des formes se chevauchent."); break;
+        default: msg = tr("Certaines formes sont invalides."); break;
+        }
+        QMessageBox::warning(this, tr("Formes invalides"), msg);
         return;
     }
 
