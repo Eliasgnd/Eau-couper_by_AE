@@ -40,6 +40,7 @@ HEADERS += \
     AspectRatioWrapper.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
+    GeometryUtils.h \
     raspberry.h TestGpio.h \
     skeletonizer.h \
     touchgesturereader.h \
@@ -63,6 +64,7 @@ SOURCES += \
     clavier.cpp claviernumerique.cpp custom.cpp \
     inventaire.cpp Dispositions.cpp keyboardeventfilter.cpp motorcontrol.cpp \
     pathplanner.cpp trajetmotor.cpp \
+    GeometryUtils.cpp \
     raspberry.cpp TestGpio.cpp \
     skeletonizer.cpp \
     touchgesturereader.cpp \

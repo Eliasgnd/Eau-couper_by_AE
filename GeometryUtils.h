@@ -2,6 +2,10 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QLineF>
+#include <QElapsedTimer>
+#include <QHash>
+#include <QQueue>
+#include <functional>
 #include <cmath>
 
 inline double pathArea(const QPainterPath &path)
@@ -20,13 +24,37 @@ inline double pathArea(const QPainterPath &path)
     return std::fabs(area);
 }
 
-inline bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon = 0.5)
-{
-    if (!a.boundingRect().intersects(b.boundingRect()))
-        return false;
-    QPainterPath inter = a.intersected(b);
-    return pathArea(inter) > epsilon;
-}
+struct PipelineMetrics {
+    int pairsProcessed = 0;
+    qint64 tier0Ms = 0;
+    qint64 tier1Ms = 0;
+    qint64 tier2Ms = 0;
+    qint64 tier3Ms = 0;
+    int rasterResolution = 0;
+    double simplificationTolerance = 0.0;
+};
+
+// Adaptive multi-tier overlap test. Uses original geometry for final decision.
+// epsilon defines the minimum interior intersection area considered a collision.
+bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon = 0.5);
+
+// Enable or disable low-end mode which relaxes tolerances and lowers raster resolution.
+void setLowEndMode(bool enabled);
+
+// Retrieve metrics collected during the most recent pathsOverlap invocation.
+PipelineMetrics lastPipelineMetrics();
+
+// Work queue allowing overlap checks to be spread over multiple frames.
+class CutQueue {
+public:
+    void enqueue(const QPainterPath &a, const QPainterPath &b, std::function<void(bool)> cb);
+    void process(int budgetMs = 12);
+    void cancel();
+private:
+    struct Item { QPainterPath a; QPainterPath b; std::function<void(bool)> cb; };
+    QQueue<Item> m_items;
+    bool m_cancelled = false;
+};
 
 inline QPainterPath normalizePath(const QPainterPath &path, double eps = 1e-6)
 {
