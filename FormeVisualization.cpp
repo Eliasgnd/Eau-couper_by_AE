@@ -27,7 +27,7 @@
 namespace {
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
-enum InvalidReason { Valid = 0, OutOfBounds = 1, SelfIntersection = 2, InteriorOverlap = 3 };
+enum InvalidReason { Valid = 0, OutOfBounds = 1, InteriorOverlap = 2 };
 
 QCache<quint64, QPainterPath> gPathCache(256);
 
@@ -120,17 +120,20 @@ FormeVisualization::FormeVisualization(QWidget *parent)
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
     // Si aucun espacement n'est demandé, renvoyer le chemin original
-    if (spacing <= 0)
-        return path;
+    if (spacing <= 0) {
+        QPainterPath p = path; p.setFillRule(Qt::OddEvenFill); return p;
+    }
 
     QPainterPathStroker stroker;
     // Ici, spacing est interprété comme la largeur totale désirée.
     // Le contour généré s'étend d'environ spacing/2 de chaque côté.
     stroker.setWidth(spacing);
 
-    QPainterPath strokePath = stroker.createStroke(path);
-    // Le buffer correspond à l'union du chemin original et de son contour élargi
-    return path.united(strokePath);
+    QPainterPath p = path; p.setFillRule(Qt::OddEvenFill);
+    QPainterPath strokePath = stroker.createStroke(p);
+    QPainterPath result = p.united(strokePath);
+    result.setFillRule(Qt::OddEvenFill);
+    return result;
 }
 
 void FormeVisualization::resizeEvent(QResizeEvent* e) {
@@ -669,6 +672,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     qreal scaleY = desiredHeightInScene / polyBounds.height();
     QTransform transform; transform.scale(scaleX, scaleY);
     QPainterPath scaledPath = normalizePath(transform.map(combinedPath));
+    scaledPath.setFillRule(Qt::OddEvenFill);
     if (isPathTooComplex(scaledPath, kMaxPathElements))
         return;
     QRectF scaledBounds = scaledPath.boundingRect();
@@ -707,17 +711,18 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
     const quint64 key = hashPath(scaledPath, spacing);
     if (QPainterPath *cached = gPathCache.object(key)) {
-        QPainterPath exact = *cached;
+        QPainterPath exact = *cached; exact.setFillRule(Qt::OddEvenFill);
         QRectF bbox = exact.boundingRect();
         for (QGraphicsPathItem *item : items) {
             if (!item) continue;
             item->setPath(exact);
             item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-            m_cache[item] = {scaledPath, exact, bbox, item->transform()};
+            m_cache[item] = {scaledPath, exact, {}, bbox, item->transform()};
         }
     } else {
         QtConcurrent::run([this, items, scaledPath, key]() {
             QPainterPath exact = scaledPath.simplified();
+            exact.setFillRule(Qt::OddEvenFill);
             QRectF bbox = exact.boundingRect();
             QMetaObject::invokeMethod(this, [this, items, exact, bbox, scaledPath, key]() {
                 gPathCache.insert(key, new QPainterPath(exact));
@@ -725,7 +730,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
                     if (!item) continue;
                     item->setPath(exact);
                     item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-                    m_cache[item] = {scaledPath, exact, bbox, item->transform()};
+                    m_cache[item] = {scaledPath, exact, {}, bbox, item->transform()};
                 }
             }, Qt::QueuedConnection);
         });
@@ -823,6 +828,7 @@ void FormeVisualization::addShapeBottomRight()
         QTransform transform;
         transform.scale(scaleX, scaleY);
         QPainterPath scaledPath = transform.map(combinedPath);
+        scaledPath.setFillRule(Qt::OddEvenFill);
         QRectF bounds = scaledPath.boundingRect();
 
         auto *item = new QGraphicsPathItem(scaledPath);
@@ -988,7 +994,8 @@ bool FormeVisualization::validateShapes()
             shapes << shape;
     }
 
-    QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
+    double eps = globalEpsilon();
+    QRectF bounds = scene->sceneRect().adjusted(-eps, -eps, eps, eps);
     QVector<QPainterPath> paths;
     QVector<QRectF> bboxes;
     paths.reserve(shapes.size());
@@ -996,21 +1003,22 @@ bool FormeVisualization::validateShapes()
 
     for (auto *shape : shapes) {
         auto &cache = m_cache[shape];
-        if (cache.base.isEmpty())
+        if (cache.base.isEmpty()) {
             cache.base = shape->shape().simplified();
+            cache.base.setFillRule(Qt::OddEvenFill);
+        }
         QTransform t = shape->sceneTransform();
         if (cache.transform != t) {
             cache.path      = t.map(cache.base);
+            cache.path.setFillRule(Qt::OddEvenFill);
             cache.bbox      = cache.path.boundingRect();
+            cache.polys     = cache.path.toFillPolygons();
+            sanitizePolygons(cache.polys);
             cache.transform = t;
         }
-        QList<QPolygonF> polys = cache.path.toFillPolygons();
-        if (!sanitizePolygons(polys)) {
-            shape->setPen(QPen(Qt::red, 1));
-            allValid = false;
-            if (qApp->property("invalidReason").toInt() == 0)
-                qApp->setProperty("invalidReason", SelfIntersection);
-            continue;
+        if (cache.polys.isEmpty()) {
+            cache.polys = cache.path.toFillPolygons();
+            sanitizePolygons(cache.polys);
         }
         paths << cache.path;
         bboxes << cache.bbox;
@@ -1130,6 +1138,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
     QTransform scale;
     scale.scale(scaleX, scaleY);
     QPainterPath scaledPath = scale.map(combinedPath);
+    scaledPath.setFillRule(Qt::OddEvenFill);
     QRectF scaledBounds = scaledPath.boundingRect();
 
     for (const LayoutItem &li : layout.items) {

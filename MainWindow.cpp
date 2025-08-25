@@ -714,8 +714,7 @@ void MainWindow::StartPixel()
         QString msg;
         switch (reason) {
         case 1: msg = tr("Une forme dépasse la zone de découpe."); break;
-        case 2: msg = tr("Une forme s'auto-intersecte."); break;
-        case 3: msg = tr("Des formes se chevauchent."); break;
+        case 2: msg = tr("Des formes se chevauchent."); break;
         default: msg = tr("Certaines formes sont invalides."); break;
         }
         QMessageBox::warning(this, tr("Formes invalides"), msg);
