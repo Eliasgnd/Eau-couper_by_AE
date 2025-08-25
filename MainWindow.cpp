@@ -556,7 +556,24 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     if (hauteur <= 0)
         hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
 
-    formeVisualization->updateDimensions(largeur, hauteur);
+    // Lorsque l'on charge une forme depuis l'inventaire, on force le nombre
+    // d'exemplaires à 1 pour éviter de placer un grand nombre de copies
+    // (ce qui provoquait des ralentissements et un crash lors de la
+    // génération du trajet).  On synchronise ensuite les dimensions et le
+    // compteur interne de FormeVisualization afin que les formes de
+    // l'inventaire soient traitées comme les formes enregistrées.
+    ui->shapeCountSpinBox->blockSignals(true);
+    ui->shapeCountSpinBox->setValue(1);
+    ui->shapeCountSpinBox->blockSignals(false);
+
+    ui->Largeur->blockSignals(true);
+    ui->Longueur->blockSignals(true);
+    ui->Largeur->setValue(largeur);
+    ui->Longueur->setValue(hauteur);
+    ui->Largeur->blockSignals(false);
+    ui->Longueur->blockSignals(false);
+
+    formeVisualization->setShapeCount(1, selectedShapeType, largeur, hauteur);
     formeVisualization->displayCustomShapes(polygons);
     formeVisualization->setCurrentCustomShapeName(name);
 
