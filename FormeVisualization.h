@@ -125,9 +125,10 @@ private:
     bool m_rotationPivotValid {false};
 
     struct CachedShape {
-        QPainterPath path;
-        QRectF       bbox;
-        QTransform   transform;
+        QPainterPath base;      // simplified local path (cache)
+        QPainterPath path;      // transformed path
+        QRectF       bbox;      // cached bounding box
+        QTransform   transform; // last transform used
     };
     QHash<QAbstractGraphicsShapeItem*, CachedShape> m_cache;
 

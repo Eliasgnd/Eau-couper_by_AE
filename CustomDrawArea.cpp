@@ -106,6 +106,15 @@ CustomDrawArea::~CustomDrawArea()
     }
 }
 
+void CustomDrawArea::setHighQuality(bool enabled)
+{
+    if (m_highQuality == enabled)
+        return;
+    m_highQuality = enabled;
+    updateCanvas();
+    update();
+}
+
 
 // juste après vos #include, avant toute méthode :
 
@@ -250,7 +259,7 @@ void CustomDrawArea::updateCanvas(const QRectF& logicalDirty)
 
     // Le canvas existe déjà et a son DPR configuré.
     QPainter p(&m_canvas);
-    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::Antialiasing, m_highQuality);
 
     // Clip sur la zone sale en repère logique
     const QRectF clip = logicalDirty.adjusted(-1, -1, 1, 1); // léger pad
@@ -261,7 +270,7 @@ void CustomDrawArea::updateCanvas(const QRectF& logicalDirty)
     p.fillRect(clip, Qt::transparent);
 
     // Stylo utilisé pour redessiner les formes qui touchent la zone
-    QPen pen(Qt::black, 2);
+    QPen pen(Qt::black, m_highQuality ? 2.0 : 1.0);
     pen.setCosmetic(true);
     pen.setCapStyle(Qt::RoundCap);
     pen.setJoinStyle(Qt::RoundJoin);
@@ -1416,7 +1425,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     Q_UNUSED(event);
 
     QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);   // AA toujours ON
+    painter.setRenderHint(QPainter::Antialiasing, m_highQuality);
 
     // Repère logique
     painter.save();
