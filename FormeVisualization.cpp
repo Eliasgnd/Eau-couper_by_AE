@@ -335,11 +335,13 @@ void FormeVisualization::optimizePlacement() {
                 candidate = adjust.map(candidate);
                 candidate.closeSubpath();
 
-                QPainterPath candidatePath = candidate.simplified();
-                if (!containerRect.contains(candidatePath.boundingRect()))
+                QPainterPath candidatePath = normalizePath(candidate);
+                if (isPathTooComplex(candidatePath, kMaxPathElements))
                     continue;
 
                 QRectF candBBox = candidatePath.boundingRect();
+                if (!containerRect.contains(candBBox))
+                    continue;
                 QRectF searchRect = candBBox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
                                                      kBroadPhaseMargin, kBroadPhaseMargin);
                 QList<QGraphicsItem*> nearby = scene->items(searchRect, Qt::IntersectsItemBoundingRect);
@@ -487,11 +489,13 @@ void FormeVisualization::optimizePlacement2() {
                 QPainterPath candidate = candidateTransform.map(prototypePath);
                 candidate.closeSubpath();
 
-                QPainterPath candidatePath = candidate.simplified();
-                if (!containerRect.contains(candidatePath.boundingRect()))
+                QPainterPath candidatePath = normalizePath(candidate);
+                if (isPathTooComplex(candidatePath, kMaxPathElements))
                     continue;
 
                 QRectF candBBox = candidatePath.boundingRect();
+                if (!containerRect.contains(candBBox))
+                    continue;
                 QRectF searchRect = candBBox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
                                                      kBroadPhaseMargin, kBroadPhaseMargin);
                 QList<QGraphicsItem*> nearby = scene->items(searchRect, Qt::IntersectsItemBoundingRect);
@@ -651,7 +655,9 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     qreal scaleY = desiredHeightInScene / polyBounds.height();
     QTransform transform;
     transform.scale(scaleX, scaleY);
-    QPainterPath scaledPath = transform.map(combinedPath);
+    QPainterPath scaledPath = normalizePath(transform.map(combinedPath));
+    if (isPathTooComplex(scaledPath, kMaxPathElements))
+        return;
     QRectF scaledBounds = scaledPath.boundingRect();
 
     qreal cellWidth = scaledBounds.width() + spacing;
