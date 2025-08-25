@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QDateTime>
 #include <QTransform>
+#include <QTimer>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -166,6 +167,8 @@ private:
     void displayShapesInFolder(const QString &folderName, const QString &filter);
     bool folderIsEmpty(const QString &folderName) const;
     bool folderContainsMatchingShape(const QString &folderName, const QString &text) const;
+    mutable QTimer *m_saveTimer {nullptr};
+    void performSave() const;
 };
 
 #endif // INVENTAIRE_H
