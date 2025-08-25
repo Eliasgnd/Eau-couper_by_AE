@@ -17,9 +17,7 @@
 #include <cmath>              // <<< pour std::round (si utilisé)
 #include <QPolygonF>
 #include <QSet>
-#include <QFuture>
-#include <QtConcurrent>
-#include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QCache>
 
 #include "GeometryUtils.h"
@@ -40,6 +38,17 @@ quint64 hashPath(const QPainterPath &p, int spacing)
         h = qHash(el.y, h);
     }
     return h;
+}
+
+double polygonArea(const QPolygonF &poly)
+{
+    double area = 0.0;
+    for (int i = 0, n = poly.size(); i < n; ++i) {
+        const QPointF &p1 = poly[i];
+        const QPointF &p2 = poly[(i + 1) % n];
+        area += p1.x() * p2.y() - p2.x() * p1.y();
+    }
+    return std::abs(area) / 2.0;
 }
 }
 
@@ -1036,57 +1045,71 @@ bool FormeVisualization::validateShapes()
     for (int i = 0; i < paths.size(); ++i)
         geoms.push_back({paths[i], bboxes[i]});
 
-    auto future = QtConcurrent::run([geoms]() {
-        QSet<int> collided;
-        QHash<QPair<int,int>, QVector<int>> grid;
-        grid.reserve(geoms.size() * 2);
-        QSet<quint64> tested;
+    QElapsedTimer timer;
+    timer.start();
+    int pairsTested = 0;
 
-        for (int i = 0; i < geoms.size(); ++i) {
-            const QRectF &b = geoms[i].bbox;
-            const int x0 = static_cast<int>(std::floor(b.left()  / kGridCellSize));
-            const int y0 = static_cast<int>(std::floor(b.top()   / kGridCellSize));
-            const int x1 = static_cast<int>(std::floor(b.right() / kGridCellSize));
-            const int y1 = static_cast<int>(std::floor(b.bottom()/ kGridCellSize));
-            for (int x = x0; x <= x1; ++x)
-                for (int y = y0; y <= y1; ++y)
-                    grid[{x, y}].append(i);
-        }
+    QHash<QPair<int,int>, QVector<int>> grid;
+    grid.reserve(geoms.size() * 2);
+    QSet<quint64> tested;
 
-        for (auto it = grid.constBegin(); it != grid.constEnd(); ++it) {
-            const QVector<int> &idxs = it.value();
-            for (int a = 0; a < idxs.size(); ++a) {
-                for (int b = a + 1; b < idxs.size(); ++b) {
-                    int i = idxs[a];
-                    int j = idxs[b];
-                    const quint64 key = (static_cast<quint64>(qMin(i,j)) << 32) | qMax(i,j);
-                    if (tested.contains(key))
-                        continue;
-                    tested.insert(key);
-                    QRectF b1 = geoms[i].bbox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
-                                                       kBroadPhaseMargin, kBroadPhaseMargin);
-                    if (!b1.intersects(geoms[j].bbox))
-                        continue;
-                    if (pathsOverlap(geoms[i].path, geoms[j].path, globalEpsilon())) {
-                        collided << i << j;
+    for (int i = 0; i < geoms.size(); ++i) {
+        const QRectF &b = geoms[i].bbox;
+        const int x0 = static_cast<int>(std::floor(b.left()  / kGridCellSize));
+        const int y0 = static_cast<int>(std::floor(b.top()   / kGridCellSize));
+        const int x1 = static_cast<int>(std::floor(b.right() / kGridCellSize));
+        const int y1 = static_cast<int>(std::floor(b.bottom()/ kGridCellSize));
+        for (int x = x0; x <= x1; ++x)
+            for (int y = y0; y <= y1; ++y)
+                grid[{x, y}].append(i);
+    }
+
+    for (auto it = grid.constBegin(); it != grid.constEnd() && allValid; ++it) {
+        const QVector<int> &idxs = it.value();
+        for (int a = 0; a < idxs.size() && allValid; ++a) {
+            for (int b = a + 1; b < idxs.size(); ++b) {
+                int i = idxs[a];
+                int j = idxs[b];
+                const quint64 key = (static_cast<quint64>(qMin(i, j)) << 32) | qMax(i, j);
+                if (tested.contains(key))
+                    continue;
+                tested.insert(key);
+                ++pairsTested;
+                QRectF b1 = geoms[i].bbox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
+                                                   kBroadPhaseMargin, kBroadPhaseMargin);
+                if (!b1.intersects(geoms[j].bbox))
+                    continue;
+                QPainterPath pa = geoms[i].path;
+                QPainterPath pb = geoms[j].path;
+                Qt::FillRule rule = (pa.fillRule() == Qt::WindingFill || pb.fillRule() == Qt::WindingFill)
+                                    ? Qt::WindingFill : Qt::OddEvenFill;
+                pa.setFillRule(rule);
+                pb.setFillRule(rule);
+                QPainterPath inter = pa.intersected(pb);
+                inter.setFillRule(rule);
+                if (!inter.isEmpty()) {
+                    double area = 0.0;
+                    const auto polys = inter.toFillPolygons(QTransform());
+                    for (const QPolygonF &poly : polys)
+                        area += polygonArea(poly);
+                    QRectF ib = inter.boundingRect();
+                    double epsArea = qMax(1e-6 * ib.width() * ib.height(), 0.25);
+                    if (area > epsArea) {
+                        shapes[i]->setPen(QPen(Qt::red, 1));
+                        shapes[j]->setPen(QPen(Qt::red, 1));
+                        allValid = false;
+                        if (qApp->property("invalidReason").toInt() == 0)
+                            qApp->setProperty("invalidReason", InteriorOverlap);
                     }
                 }
+                if (!allValid)
+                    break;
             }
         }
-        return collided;
-    });
-
-    while (!future.isFinished())
-        QCoreApplication::processEvents();
-
-    QSet<int> collided = future.result();
-    for (int idx : collided)
-        shapes[idx]->setPen(QPen(Qt::red, 1));
-    if (!collided.isEmpty()) {
-        allValid = false;
-        if (qApp->property("invalidReason").toInt() == 0)
-            qApp->setProperty("invalidReason", InteriorOverlap);
     }
+
+    qApp->setProperty("validationPairs", pairsTested);
+    qApp->setProperty("validationMs", timer.elapsed());
 
     emit shapesPlacedCount(shapes.size());
 

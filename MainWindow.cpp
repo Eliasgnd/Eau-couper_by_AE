@@ -309,6 +309,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
+
+    ui->Play->setEnabled(formeVisualization->validateShapes());
+    auto *validationTimer = new QTimer(this);
+    validationTimer->setInterval(100);
+    connect(validationTimer, &QTimer::timeout, this, [this]() {
+        if (!formeVisualization->isDecoupeEnCours()) {
+            bool ok = formeVisualization->validateShapes();
+            ui->Play->setEnabled(ok);
+        }
+    });
+    validationTimer->start();
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
                 if (!optimized) {
@@ -714,10 +725,11 @@ void MainWindow::StartPixel()
         QString msg;
         switch (reason) {
         case 1: msg = tr("Une forme dépasse la zone de découpe."); break;
-        case 2: msg = tr("Des formes se chevauchent."); break;
+        case 2: msg = tr("Découpe impossible : des formes se chevauchent."); break;
         default: msg = tr("Certaines formes sont invalides."); break;
         }
         QMessageBox::warning(this, tr("Formes invalides"), msg);
+        ui->Play->setEnabled(false);
         return;
     }
 
