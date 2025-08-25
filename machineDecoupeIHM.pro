@@ -5,6 +5,10 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
+QMAKE_CXXFLAGS_RELEASE += -O2 -flto
+QMAKE_LFLAGS_RELEASE += -flto
+DEFINES += QT_NO_DEBUG
+
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
     CONFIG += link_pkgconfig
