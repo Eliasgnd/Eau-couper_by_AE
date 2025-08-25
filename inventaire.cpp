@@ -589,18 +589,12 @@ void Inventaire::loadCustomShapes()
             data.polygons.append(poly);
         }
 
-        QString warn;
-        bool ok = false;
-        try {
-            ok = validateAndProxyPolygons(data.polygons, safeModeEnabled(), &warn);
-        } catch (...) {
-            ok = false;
-        }
+        bool ok = sanitizePolygons(data.polygons);
+        if (!ok)
+            ok = sanitizePolygons(data.polygons);
         if (!ok) {
             qWarning() << "Invalid shape skipped:" << data.name;
             data.valid = false;
-        } else if (!warn.isEmpty()) {
-            qWarning() << warn << data.name;
         }
 
         // Layouts (optional)

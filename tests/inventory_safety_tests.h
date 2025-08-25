@@ -5,6 +5,6 @@ class InventorySafetyTests : public QObject {
     Q_OBJECT
 private slots:
     void malformedShapeUsesProxy();
-    void corruptedFileHandled();
-    void hugeInventoryHandled();
+    void invalidShapeRejected();
+    void hugePolygonHandled();
 };

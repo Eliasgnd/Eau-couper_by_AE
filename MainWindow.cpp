@@ -20,6 +20,7 @@
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
 #include "AspectRatioWrapper.h"
+#include "GeometryUtils.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -541,12 +542,31 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
         this->showFullScreen();
         return;
     }
+
+    // Validate and simplify polygons before displaying ----------------
+    QList<QPolygonF> cleaned = polygons;
+    QString warn;
+    sanitizePolygons(cleaned);
+    if (!validateAndProxyPolygons(cleaned, safeModeEnabled(), &warn)) {
+        QMessageBox::warning(this, tr("Forme invalide"),
+                             tr("La forme %1 est invalide.").arg(name));
+        return;
+    }
+    if (!warn.isEmpty())
+        qWarning() << warn << name;
+
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : cleaned)
+        combinedPath.addPolygon(poly);
+    if (isPathTooComplex(combinedPath, kMaxPathElements)) {
+        QMessageBox::warning(this, tr("Forme trop complexe"),
+                             tr("La forme %1 dépasse la limite de complexité.").arg(name));
+        return;
+    }
+
     formeVisualization->setCustomMode();
 
     /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
-    QPainterPath combinedPath;
-    for (const QPolygonF &poly : polygons)
-        combinedPath.addPolygon(poly);
     QRectF bounds = combinedPath.boundingRect();
 
     int largeur = ui->Largeur->value();
@@ -557,7 +577,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
         hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
 
     formeVisualization->updateDimensions(largeur, hauteur);
-    formeVisualization->displayCustomShapes(polygons);
+    formeVisualization->displayCustomShapes(cleaned);
     formeVisualization->setCurrentCustomShapeName(name);
 
     /* 4) Si des dispositions existent, ouvrir la fenêtre Dispositions */
