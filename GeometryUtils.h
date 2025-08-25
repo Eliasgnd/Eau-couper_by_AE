@@ -2,6 +2,7 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QLineF>
+#include <QList>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QQueue>
@@ -86,3 +87,6 @@ inline bool isPathTooComplex(const QPainterPath &path, int maxElements)
 }
 
 constexpr int kMaxPathElements = 10000;
+
+bool sanitizePolygon(QPolygonF &poly, double eps = 1e-6);
+bool sanitizePolygons(QList<QPolygonF> &polys, double eps = 1e-6);
