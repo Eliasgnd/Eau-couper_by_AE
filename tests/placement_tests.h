@@ -11,4 +11,6 @@ private slots:
     void complexityGuardRejects();
     void stressWorstCase();
     void lowEndModeAdjusts();
+    void selfIntersectingAccepted();
+    void selfIntersectingOverlapDetected();
 };

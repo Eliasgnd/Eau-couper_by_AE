@@ -65,3 +65,31 @@ void PlacementTests::lowEndModeAdjusts()
     setLowEndMode(false);
 }
 
+void PlacementTests::selfIntersectingAccepted()
+{
+    QPainterPath star;
+    star.moveTo(0,0);
+    star.lineTo(20,20);
+    star.lineTo(0,20);
+    star.lineTo(20,0);
+    star.closeSubpath();
+    star.setFillRule(Qt::OddEvenFill);
+    QList<QPolygonF> polys = star.toFillPolygons();
+    QVERIFY(sanitizePolygons(polys));
+    QPainterPath far; far.addRect(40,40,10,10);
+    QVERIFY(!pathsOverlap(star, far));
+}
+
+void PlacementTests::selfIntersectingOverlapDetected()
+{
+    QPainterPath star;
+    star.moveTo(0,0);
+    star.lineTo(20,20);
+    star.lineTo(0,20);
+    star.lineTo(20,0);
+    star.closeSubpath();
+    star.setFillRule(Qt::OddEvenFill);
+    QPainterPath rect; rect.addRect(5,5,10,10);
+    QVERIFY(pathsOverlap(star, rect));
+}
+

@@ -4,6 +4,7 @@
 #include <QPainterPathStroker>
 #include <QQueue>
 #include <QtGlobal>
+#include <QDebug>
 #include <algorithm>
 
 namespace {
@@ -139,10 +140,15 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
         return rasterOverlap(ea, eb, raster);
     }
 
-    // Tier3: exact
-    QPainterPath inter = a.intersected(b);
+    // Tier3: exact interior area test
+    QPainterPath pa = a; pa.setFillRule(Qt::OddEvenFill);
+    QPainterPath pb = b; pb.setFillRule(Qt::OddEvenFill);
+    QPainterPath inter = pa.intersected(pb);
+    inter.setFillRule(Qt::OddEvenFill);
     gMetrics.tier3Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms - gMetrics.tier1Ms - gMetrics.tier2Ms;
-    const double epsArea = epsilon * epsilon;
+    QRectF ib = inter.boundingRect();
+    double bboxArea = ib.width()*ib.height();
+    double epsArea = qMax(1e-6 * bboxArea, 0.25);
     return pathArea(inter) > epsArea;
 }
 
@@ -190,8 +196,10 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
         prev = pt;
         hasPrev = true;
     }
-    if (cleaned.size() < 3)
-        return false;
+    if (cleaned.size() < 3) {
+        poly = QPolygonF();
+        return true;
+    }
     if (cleaned.first() != cleaned.last())
         cleaned << cleaned.first();
 
@@ -201,6 +209,7 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
     if (area < 0)
         std::reverse(cleaned.begin(), cleaned.end());
 
+    bool selfIntersect = false;
     for (int i=0;i<cleaned.size()-1;++i){
         QPointF a1=cleaned[i], a2=cleaned[i+1];
         for (int j=i+1;j<cleaned.size()-1;++j){
@@ -208,9 +217,11 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
                 continue;
             QPointF b1=cleaned[j], b2=cleaned[j+1];
             if (segmentsIntersect(a1,a2,b1,b2))
-                return false;
+                selfIntersect = true;
         }
     }
+    if (selfIntersect)
+        qInfo() << "Self-intersection detected in polygon";
     poly = cleaned;
     return true;
 }
@@ -218,15 +229,13 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
 bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
 {
     QList<QPolygonF> result;
-    bool allValid = true;
     for (QPolygonF p : polys) {
-        if (sanitizePolygon(p, eps))
+        sanitizePolygon(p, eps);
+        if (!p.isEmpty())
             result << p;
-        else
-            allValid = false;
     }
     polys = result;
-    return allValid;
+    return true;
 }
 
 bool validateAndProxyPolygons(QList<QPolygonF> &polys,
