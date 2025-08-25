@@ -553,8 +553,8 @@ Veuillez patienter avant de quitter.</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="683"/>
-        <source>Certaines formes dépassent la zone ou se chevauchent.</source>
-        <translation>Certaines formes dépassent la zone ou se chevauchent.</translation>
+        <source>Découpe impossible : des formes se chevauchent.</source>
+        <translation>Découpe impossible : des formes se chevauchent.</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="727"/>
