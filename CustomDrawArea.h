@@ -263,7 +263,7 @@ private:
     void eraseAlong(const QPointF& from, const QPointF& to);
     void commitEraseIfNeeded(bool force);
 
-    void drawGrid(QPainter &painter);
+    void drawGrid(QPainter &painter, const QRect &dirtyRect);
 signals:
     void zoomChanged(double newScale); // Signal pour informer d'un changement de zoom
     void closeModeChanged(bool enabled);
