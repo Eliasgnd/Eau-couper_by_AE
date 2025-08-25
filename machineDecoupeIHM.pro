@@ -1,5 +1,14 @@
 QT += core gui widgets svg network bluetooth httpserver openglwidgets
 QT += openglwidgets
+# ==== Anti-LNK1163 (MSVC) ====
+win32-msvc* {
+    CONFIG -= ltcg                 # coupe le /GL et /LTCG (LTO)
+    QMAKE_CXXFLAGS += /Gy-         # désactive le function-level linking (/Gy)
+    QMAKE_LFLAGS  += /OPT:NOICF    # coupe l'Identical COMDAT Folding
+    QMAKE_LFLAGS  += /INCREMENTAL:NO
+}
+
+# Si tu utilises QtConcurrent quelque part :
 QT += concurrent
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
