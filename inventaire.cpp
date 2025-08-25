@@ -4,6 +4,7 @@
 #include "MainWindow.h"
 #include "Language.h"
 #include "ScreenUtils.h"
+#include "GeometryUtils.h"
 
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -520,6 +521,9 @@ void Inventaire::loadCustomShapes()
         return;
 
     const QJsonObject root = doc.object();
+    const int version = root.value("version").toInt();
+    if (version < kInventorySchemaVersion)
+        qInfo() << "Migrating inventory schema" << version << "->" << kInventorySchemaVersion;
 
     // ------------------------------
     // Folders
@@ -555,6 +559,12 @@ void Inventaire::loadCustomShapes()
         qint64 tsShape = static_cast<qint64>(obj.value("lastUsed").toDouble());
         if (tsShape > 0)
             data.lastUsed = QDateTime::fromSecsSinceEpoch(tsShape);
+        data.material = obj.value("material").toString("generic");
+        data.kerf = obj.value("kerf").toDouble(0.0);
+        QJsonArray tArr = obj.value("transform").toArray();
+        if (tArr.size() >= 6)
+            data.transform = QTransform(tArr[0].toDouble(), tArr[1].toDouble(), tArr[2].toDouble(),
+                                        tArr[3].toDouble(), tArr[4].toDouble(), tArr[5].toDouble());
 
         // Polygons
         const QJsonArray polyArr = obj.value("polygons").toArray();
@@ -567,6 +577,14 @@ void Inventaire::loadCustomShapes()
                     poly.append(QPointF(p.at(0).toDouble(), p.at(1).toDouble()));
             }
             data.polygons.append(poly);
+        }
+
+        bool ok = sanitizePolygons(data.polygons);
+        if (!ok)
+            ok = sanitizePolygons(data.polygons);
+        if (!ok) {
+            qWarning() << "Invalid shape skipped:" << data.name;
+            data.valid = false;
         }
 
         // Layouts (optional)
@@ -596,7 +614,8 @@ void Inventaire::loadCustomShapes()
             data.layouts.append(ld);
         }
 
-        m_customShapes.append(data);
+        if (data.valid)
+            m_customShapes.append(data);
     }
 
     // ------------------------------
@@ -666,6 +685,16 @@ void Inventaire::saveCustomShapes() const
         obj["folder"] = data.folder;
         obj["usageCount"] = data.usageCount;
         obj["lastUsed"] = data.lastUsed.isValid() ? static_cast<qint64>(data.lastUsed.toSecsSinceEpoch()) : 0;
+        obj["material"] = data.material;
+        obj["kerf"] = data.kerf;
+        QJsonArray tArr;
+        tArr.append(data.transform.m11());
+        tArr.append(data.transform.m12());
+        tArr.append(data.transform.m21());
+        tArr.append(data.transform.m22());
+        tArr.append(data.transform.dx());
+        tArr.append(data.transform.dy());
+        obj["transform"] = tArr;
 
         // Polygons
         QJsonArray polyArr;
@@ -756,6 +785,7 @@ void Inventaire::saveCustomShapes() const
     }
 
     QJsonObject rootObj;
+    rootObj["version"]     = kInventorySchemaVersion;
     rootObj["shapes"]      = shapesArr;
     rootObj["baseLayouts"] = baseObj;
     rootObj["baseFolders"] = baseFoldersObj;

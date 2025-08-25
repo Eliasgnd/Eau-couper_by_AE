@@ -10,6 +10,7 @@
 #include <QStringList>
 #include <QListWidget>
 #include <QDateTime>
+#include <QTransform>
 #include "ShapeModel.h"
 #include "Language.h"
 
@@ -20,6 +21,8 @@ QT_END_NAMESPACE
 // -----------------------------------------------------------------------------
 // Data structures
 // -----------------------------------------------------------------------------
+
+constexpr int kInventorySchemaVersion = 2;
 
 // Single item in a saved layout
 struct LayoutItem {
@@ -47,6 +50,10 @@ struct CustomShapeData {
     QList<LayoutData> layouts;
     int usageCount {0};
     QDateTime lastUsed;
+    QString material {"generic"};
+    double kerf {0.0};
+    QTransform transform {};
+    bool valid {true};
 };
 
 // Structure pour un dossier
