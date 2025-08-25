@@ -451,14 +451,16 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 // -----------------------------------------------------------------------------
 void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
 {
-    if (shapeNameExists(name)) {
-        qDebug() << "Forme déjà enregistrée avec ce nom";
+    if (shapeNameExists(name))
         return;
-    }
+
+    QList<QPolygonF> clean = polygons;
+    bool ok = sanitizePolygons(clean, globalEpsilon());
 
     CustomShapeData newData;
-    newData.polygons = polygons;
+    newData.polygons = clean;
     newData.name     = name;
+    newData.valid    = ok;
     m_customShapes.append(newData);
 
     saveCustomShapes();

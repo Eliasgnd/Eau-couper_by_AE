@@ -36,7 +36,8 @@ struct PipelineMetrics {
 };
 
 // Adaptive multi-tier overlap test. Uses original geometry for final decision.
-// epsilon defines the minimum interior intersection area considered a collision.
+// epsilon is a distance tolerance; interiors are considered overlapping only if
+// the intersected area exceeds epsilon*epsilon.
 bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon = 0.5);
 
 // Enable or disable low-end mode which relaxes tolerances and lowers raster resolution.
@@ -107,6 +108,8 @@ bool safeModeEnabled();
 // tuning across the application on low-end devices.
 double globalEpsilon();
 void setGlobalEpsilon(double eps);
+
+inline double epsilonArea() { double e = globalEpsilon(); return e * e; }
 
 // Simplify a path using a Douglas–Peucker style algorithm with tolerance tol.
 // The original path is untouched and still available for the final cut.

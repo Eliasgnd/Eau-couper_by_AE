@@ -89,7 +89,7 @@ bool rasterOverlap(const QPainterPath &a, const QPainterPath &b, int res){
 }
 } // namespace
 
-static double gEpsilon = 1e-6;
+static double gEpsilon = 0.5;
 
 double globalEpsilon(){ return gEpsilon; }
 void setGlobalEpsilon(double eps){ gEpsilon = eps; }
@@ -142,7 +142,8 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
     // Tier3: exact
     QPainterPath inter = a.intersected(b);
     gMetrics.tier3Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms - gMetrics.tier1Ms - gMetrics.tier2Ms;
-    return pathArea(inter) > epsilon;
+    const double epsArea = epsilon * epsilon;
+    return pathArea(inter) > epsArea;
 }
 
 void CutQueue::enqueue(const QPainterPath &a, const QPainterPath &b, std::function<void(bool)> cb){
