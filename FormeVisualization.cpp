@@ -19,6 +19,42 @@
 #include <QSizePolicy>        // <<< important pour QSizePolicy
 #include <cmath>              // <<< pour std::round (si utilisé)
 // #include <limits>          // (optionnel) retire-le si non utilisé
+#include <QPolygonF>
+#include <utility>
+
+// -----------------------------------------------------------------------------
+// Robust overlap detection helpers
+// -----------------------------------------------------------------------------
+// Epsilon in squared scene units (mm² in our usage). Any intersection with an
+// area <= kOverlapEpsilon is considered mere border contact and therefore
+// ignored by the placement optimiser and validation pipeline.  The winding fill
+// rule is used when converting paths to polygons.
+namespace {
+constexpr double kOverlapEpsilon   = 0.5;   // tolerance for true overlap
+constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
+
+static double pathArea(const QPainterPath &path)
+{
+    double area = 0.0;
+    const auto polys = path.toFillPolygons();
+    for (const QPolygonF &poly : polys) {
+        double polyArea = 0.0;
+        for (int i = 0, n = poly.size(); i < n; ++i) {
+            const QPointF &p1 = poly[i];
+            const QPointF &p2 = poly[(i + 1) % n];
+            polyArea += p1.x() * p2.y() - p2.x() * p1.y();
+        }
+        area += polyArea / 2.0;
+    }
+    return std::fabs(area);
+}
+
+static bool pathsOverlap(const QPainterPath &a, const QPainterPath &b)
+{
+    QPainterPath inter = a.intersected(b);
+    return pathArea(inter) > kOverlapEpsilon;
+}
+} // namespace
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -325,7 +361,7 @@ void FormeVisualization::optimizePlacement() {
     int count = shapeCount;
     QList<int> angles = {0, 180, 90};
 
-    struct PathInfo { QPainterPath path; QRectF bbox; };
+    struct PathInfo { QGraphicsPathItem *item; QPainterPath path; QRectF bbox; };
     QList<PathInfo> placedPaths;
     int shapesPlaced = 0;
     int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
@@ -360,24 +396,28 @@ void FormeVisualization::optimizePlacement() {
                 candidate = adjust.map(candidate);
                 candidate.closeSubpath();
 
-                if (!containerRect.contains(candidate.boundingRect()))
+                QPainterPath candidatePath = candidate.simplified();
+                if (!containerRect.contains(candidatePath.boundingRect()))
                     continue;
 
-                QRectF candBBox = candidate.boundingRect();
+                QRectF candBBox = candidatePath.boundingRect();
+                QRectF searchRect = candBBox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
+                                                     kBroadPhaseMargin, kBroadPhaseMargin);
+                QList<QGraphicsItem*> nearby = scene->items(searchRect, Qt::IntersectsItemBoundingRect);
                 bool collision = false;
-                for (const PathInfo &existing : placedPaths) {
-                    if (!existing.bbox.intersects(candBBox))
-                        continue;
-                    QPainterPath inter = candidate.intersected(existing.path);
-                    QRectF br = inter.boundingRect();
-                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
-                        collision = true;
-                        break;
+                for (QGraphicsItem *other : nearby) {
+                    for (const PathInfo &existing : placedPaths) {
+                        if (existing.item == other && pathsOverlap(candidatePath, existing.path)) {
+                            collision = true;
+                            break;
+                        }
                     }
+                    if (collision)
+                        break;
                 }
 
                 if (!collision) {
-                    QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
+                    QGraphicsPathItem *item = new QGraphicsPathItem(candidatePath);
                     item->setPen(QPen(Qt::black, 1));
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -391,8 +431,8 @@ void FormeVisualization::optimizePlacement() {
                     item->setSelected(false);
 
                     // Enregistre la position corrigée pour les futurs tests de collision
-                    candidate.translate(offset);
-                    placedPaths.append({candidate, candidate.boundingRect()});
+                    candidatePath.translate(offset);
+                    placedPaths.append({item, candidatePath, candidatePath.boundingRect()});
                     shapesPlaced++;
                     break;
                 }
@@ -477,7 +517,7 @@ void FormeVisualization::optimizePlacement2() {
     prototypePath = normTransform.map(prototypePath);
     prototypePath.closeSubpath();
 
-    struct PathInfo { QPainterPath path; QRectF bbox; };
+    struct PathInfo { QGraphicsPathItem *item; QPainterPath path; QRectF bbox; };
     QList<PathInfo> placedPaths;
     int shapesPlaced = 0;
     int count = shapeCount;
@@ -517,24 +557,28 @@ void FormeVisualization::optimizePlacement2() {
                 QPainterPath candidate = candidateTransform.map(prototypePath);
                 candidate.closeSubpath();
 
-                if (!containerRect.contains(candidate.boundingRect()))
+                QPainterPath candidatePath = candidate.simplified();
+                if (!containerRect.contains(candidatePath.boundingRect()))
                     continue;
 
-                QRectF candBBox = candidate.boundingRect();
+                QRectF candBBox = candidatePath.boundingRect();
+                QRectF searchRect = candBBox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
+                                                     kBroadPhaseMargin, kBroadPhaseMargin);
+                QList<QGraphicsItem*> nearby = scene->items(searchRect, Qt::IntersectsItemBoundingRect);
                 bool collision = false;
-                for (const PathInfo &existing : placedPaths) {
-                    if (!existing.bbox.intersects(candBBox))
-                        continue;
-                    QPainterPath inter = candidate.intersected(existing.path);
-                    QRectF br = inter.boundingRect();
-                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
-                        collision = true;
-                        break;
+                for (QGraphicsItem *other : nearby) {
+                    for (const PathInfo &existing : placedPaths) {
+                        if (existing.item == other && pathsOverlap(candidatePath, existing.path)) {
+                            collision = true;
+                            break;
+                        }
                     }
+                    if (collision)
+                        break;
                 }
 
                 if (!collision) {
-                    QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
+                    QGraphicsPathItem *item = new QGraphicsPathItem(candidatePath);
                     item->setPen(QPen(Qt::black, 1));
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -545,8 +589,8 @@ void FormeVisualization::optimizePlacement2() {
                     item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
 
-                    candidate.translate(offset);
-                    placedPaths.append({candidate, candidate.boundingRect()});
+                    candidatePath.translate(offset);
+                    placedPaths.append({item, candidatePath, candidatePath.boundingRect()});
                     shapesPlaced++;
                     if (shapesPlaced >= count) {
                         finished = true;
@@ -1035,7 +1079,7 @@ bool FormeVisualization::validateShapes()
 
     // Ajout d'une tolérance pour éviter les faux positifs sur les bords
     QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
-    for (auto *shape : std::as_const(shapes)) {
+    for (auto *shape : shapes) {
         QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
         if (!bounds.contains(rect)) {
             shape->setPen(QPen(Qt::red, 1));
@@ -1043,18 +1087,22 @@ bool FormeVisualization::validateShapes()
         }
     }
 
-    for (int i = 0; i < shapes.size(); ++i) {
-        for (int j = i + 1; j < shapes.size(); ++j) {
-            QPainterPath p1 = shapes[i]->mapToScene(shapes[i]->shape());
-            QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
-            QPainterPath inter = p1.intersected(p2);
-            QRectF iRect = inter.boundingRect();
-            // Consider shapes colliding only if the intersection is larger than one pixel
-            if (!iRect.isNull() && iRect.width() > 1.0 && iRect.height() > 1.0) {
+    struct ShapeInfo { QAbstractGraphicsShapeItem* item; QPainterPath path; QRectF bbox; };
+    QList<ShapeInfo> infos;
+    for (auto *shape : shapes) {
+        QPainterPath p = shape->mapToScene(shape->shape().simplified());
+        infos.append({shape, p, p.boundingRect()});
+    }
 
-
-                shapes[i]->setPen(QPen(Qt::red, 1));
-                shapes[j]->setPen(QPen(Qt::red, 1));
+    for (int i = 0; i < infos.size(); ++i) {
+        QRectF b1 = infos[i].bbox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
+                                           kBroadPhaseMargin, kBroadPhaseMargin);
+        for (int j = i + 1; j < infos.size(); ++j) {
+            if (!b1.intersects(infos[j].bbox))
+                continue;
+            if (pathsOverlap(infos[i].path, infos[j].path)) {
+                infos[i].item->setPen(QPen(Qt::red, 1));
+                infos[j].item->setPen(QPen(Qt::red, 1));
                 allValid = false;
             }
         }
