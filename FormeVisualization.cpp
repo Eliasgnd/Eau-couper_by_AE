@@ -300,8 +300,8 @@ void FormeVisualization::optimizePlacement() {
     int count = shapeCount;
     QList<int> angles = {0, 180, 90};
 
-    struct PathInfo { QGraphicsPathItem *item; QPainterPath path; QRectF bbox; };
-    QList<PathInfo> placedPaths;
+    struct PathInfo { QPainterPath path; QRectF bbox; };
+    QHash<QGraphicsItem*, PathInfo> placedPaths;
     int shapesPlaced = 0;
     int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
     progressBar->setMinimum(0);
@@ -345,14 +345,16 @@ void FormeVisualization::optimizePlacement() {
                 QList<QGraphicsItem*> nearby = scene->items(searchRect, Qt::IntersectsItemBoundingRect);
                 bool collision = false;
                 for (QGraphicsItem *other : nearby) {
-                    for (const PathInfo &existing : placedPaths) {
-                        if (existing.item == other && pathsOverlap(candidatePath, existing.path)) {
-                            collision = true;
-                            break;
-                        }
-                    }
-                    if (collision)
+                    auto it = placedPaths.constFind(other);
+                    if (it == placedPaths.constEnd())
+                        continue;
+                    const PathInfo &existing = it.value();
+                    if (!candBBox.intersects(existing.bbox))
+                        continue;
+                    if (pathsOverlap(candidatePath, existing.path)) {
+                        collision = true;
                         break;
+                    }
                 }
 
                 if (!collision) {
@@ -370,8 +372,9 @@ void FormeVisualization::optimizePlacement() {
                     item->setSelected(false);
 
                     // Enregistre la position corrigée pour les futurs tests de collision
+                    candBBox.translate(offset);
                     candidatePath.translate(offset);
-                    placedPaths.append({item, candidatePath, candidatePath.boundingRect()});
+                    placedPaths.insert(item, {candidatePath, candBBox});
                     shapesPlaced++;
                     break;
                 }
@@ -444,8 +447,8 @@ void FormeVisualization::optimizePlacement2() {
     prototypePath = normTransform.map(prototypePath);
     prototypePath.closeSubpath();
 
-    struct PathInfo { QGraphicsPathItem *item; QPainterPath path; QRectF bbox; };
-    QList<PathInfo> placedPaths;
+    struct PathInfo { QPainterPath path; QRectF bbox; };
+    QHash<QGraphicsItem*, PathInfo> placedPaths;
     int shapesPlaced = 0;
     int count = shapeCount;
     const int step = 5;
@@ -494,14 +497,16 @@ void FormeVisualization::optimizePlacement2() {
                 QList<QGraphicsItem*> nearby = scene->items(searchRect, Qt::IntersectsItemBoundingRect);
                 bool collision = false;
                 for (QGraphicsItem *other : nearby) {
-                    for (const PathInfo &existing : placedPaths) {
-                        if (existing.item == other && pathsOverlap(candidatePath, existing.path)) {
-                            collision = true;
-                            break;
-                        }
-                    }
-                    if (collision)
+                    auto it = placedPaths.constFind(other);
+                    if (it == placedPaths.constEnd())
+                        continue;
+                    const PathInfo &existing = it.value();
+                    if (!candBBox.intersects(existing.bbox))
+                        continue;
+                    if (pathsOverlap(candidatePath, existing.path)) {
+                        collision = true;
                         break;
+                    }
                 }
 
                 if (!collision) {
@@ -516,8 +521,9 @@ void FormeVisualization::optimizePlacement2() {
                     item->moveBy(offset.x(), offset.y());
                     scene->addItem(item);
 
+                    candBBox.translate(offset);
                     candidatePath.translate(offset);
-                    placedPaths.append({item, candidatePath, candidatePath.boundingRect()});
+                    placedPaths.insert(item, {candidatePath, candBBox});
                     shapesPlaced++;
                     if (shapesPlaced >= count) {
                         finished = true;
