@@ -108,6 +108,9 @@ private:
     int countPlacedShapes() const;
     void redraw();
 
+    // Build and display a path using the LOD pipeline.
+    void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
+
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};

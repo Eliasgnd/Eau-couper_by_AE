@@ -118,3 +118,7 @@ QPainterPath simplifyForProxy(const QPainterPath &p, double tol);
 // Build a lightweight proxy for quick display/tests. The tolerance is derived
 // from the path's bounding box (roughly 0.3–0.5% of the diagonal).
 QPainterPath buildProxyPath(const QPainterPath &path);
+
+// Render a raster fallback of the path for instant preview.
+// The result is a square pixmap of size res x res in device coordinates.
+QPixmap rasterFallback(const QPainterPath &path, int res = 512);

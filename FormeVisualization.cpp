@@ -6,6 +6,7 @@
 #include <QGraphicsRectItem>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsPathItem>
+#include <QGraphicsPixmapItem>
 #include <QResizeEvent>
 #include <QtMath>
 #include <QTransform>
@@ -19,6 +20,8 @@
 #include <QSet>
 #include <QElapsedTimer>
 #include <QCache>
+#include <QtConcurrent>
+#include <QAtomicBool>
 
 #include "GeometryUtils.h"
 
@@ -38,6 +41,55 @@ quint64 hashPath(const QPainterPath &p, int spacing)
         h = qHash(el.y, h);
     }
     return h;
+}
+
+// Create a three-tier LOD representation for complex paths. A raster fallback
+// (P0) is displayed immediately, a simplified polygon proxy (P1) replaces it
+// when ready, and the exact path (P2) is set afterwards. Computation happens on
+// background threads and can be cancelled by destroying the temporary pixmap
+// item before completion.
+void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF &pos)
+{
+    QPainterPath clean = normalizePath(path);
+    const int rasterSize = qBound(512, int(qMax(clean.boundingRect().width(),
+                                               clean.boundingRect().height())),
+                                  1024);
+    QPixmap pm = rasterFallback(clean, rasterSize);
+    auto *pix = new QGraphicsPixmapItem(pm);
+    pix->setTransformationMode(Qt::FastTransformation);
+    pix->setPos(pos);
+    pix->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+    scene->addItem(pix);
+
+    auto cancel = new QAtomicBool(false);
+    QObject::connect(pix, &QObject::destroyed, [cancel]() { cancel->storeRelease(true); });
+
+    QtConcurrent::run([this, clean, pos, pix, cancel]() {
+        QPainterPath proxy = buildProxyPath(clean);
+        if (cancel->loadAcquire()) return;
+        QMetaObject::invokeMethod(this, [this, clean, proxy, pos, pix, cancel]() {
+            if (cancel->loadAcquire()) { delete cancel; return; }
+            auto *item = new QGraphicsPathItem(proxy);
+            item->setPen(QPen(Qt::black, 1));
+            item->setBrush(Qt::NoBrush);
+            item->setFlag(QGraphicsItem::ItemIsMovable, true);
+            item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+            item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+            item->setPos(pos);
+            scene->addItem(item);
+            scene->removeItem(pix);
+            delete pix;
+            QtConcurrent::run([this, clean, item, cancel]() {
+                QPainterPath exact = clean.simplified();
+                if (cancel->loadAcquire()) return;
+                QMetaObject::invokeMethod(this, [item, exact, cancel]() {
+                    if (cancel->loadAcquire()) { delete cancel; return; }
+                    item->setPath(exact);
+                    delete cancel;
+                }, Qt::QueuedConnection);
+            });
+        }, Qt::QueuedConnection);
+    });
 }
 
 double polygonArea(const QPolygonF &poly)
@@ -840,20 +892,29 @@ void FormeVisualization::addShapeBottomRight()
         scaledPath.setFillRule(Qt::OddEvenFill);
         QRectF bounds = scaledPath.boundingRect();
 
-        auto *item = new QGraphicsPathItem(scaledPath);
-        item->setPen(QPen(Qt::black, 1));
-        item->setBrush(Qt::NoBrush);
-        newItem = item;
-
         QPointF offset(-bounds.x(), -bounds.y());
-        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
-                        drawingHeight - bounds.height() + offset.y());
+        QPointF pos(drawingWidth - bounds.width() + offset.x(),
+                    drawingHeight - bounds.height() + offset.y());
+        addPathWithLOD(scaledPath, pos);
+        emit shapesPlacedCount(countPlacedShapes());
+        return;
     } else {
         QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
         if (shapesList.isEmpty())
             return;
 
         newItem = shapesList.takeFirst();
+        if (auto pathItem = qgraphicsitem_cast<QGraphicsPathItem*>(newItem)) {
+            QPainterPath p = pathItem->path();
+            QRectF bounds = p.boundingRect();
+            QPointF offset(-bounds.x(), -bounds.y());
+            QPointF pos(drawingWidth - bounds.width() + offset.x(),
+                        drawingHeight - bounds.height() + offset.y());
+            delete newItem;
+            addPathWithLOD(p, pos);
+            emit shapesPlacedCount(countPlacedShapes());
+            return;
+        }
         QRectF bounds = newItem->boundingRect();
         QPointF offset(-bounds.x(), -bounds.y());
         newItem->setPos(drawingWidth - bounds.width() + offset.x(),
