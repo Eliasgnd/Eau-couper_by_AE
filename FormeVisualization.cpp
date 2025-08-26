@@ -118,7 +118,7 @@ public:
         QGraphicsPathItem::setPath(m_asset.full);
     }
 
-    void setPen(const QPen &pen) override
+    void setPen(const QPen &pen)
     {
         if (pen == this->pen())
             return;
@@ -126,7 +126,7 @@ public:
         updateGeometryCaches(m_asset.full);
     }
 
-    void setBrush(const QBrush &brush) override
+    void setBrush(const QBrush &brush)
     {
         if (brush == this->brush())
             return;
