@@ -120,8 +120,10 @@ QPixmap rasterFallback(const QPainterPath &path, int res)
     painter.setRenderHint(QPainter::Antialiasing, false);
     painter.translate(-bounds.topLeft());
     painter.scale(res / bounds.width(), res / bounds.height());
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(Qt::black);
+    QPen pen(Qt::black, 1);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
     painter.drawPath(path);
     painter.end();
     return pm;

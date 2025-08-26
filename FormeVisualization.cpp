@@ -143,9 +143,15 @@ protected:
 
         PainterState guard(painter);
         painter->setClipRect(exposed);
-        const qreal lod = option->levelOfDetailFromTransform(painter->worldTransform());
 
-        drawState(painter, m_state, lod);
+        painter->setBrush(Qt::NoBrush);
+        QPen pen(Qt::black, 1);
+        pen.setCosmetic(true);
+        painter->setPen(pen);
+
+        const qreal lod = option->levelOfDetailFromTransform(painter->worldTransform());
+        painter->setRenderHint(QPainter::Antialiasing, lod >= kLODBucketLow);
+        painter->drawPath(selectByLOD(m_state, lod));
     }
 
     QPainterPath shape() const override
@@ -1005,38 +1011,30 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         return;
     }
 
-    qreal desiredWidthInScene = currentLargeur;
-    qreal desiredHeightInScene = currentLongueur;
-    qreal scaleX = desiredWidthInScene / polyBounds.width();
-    qreal scaleY = desiredHeightInScene / polyBounds.height();
-    QTransform transform; transform.scale(scaleX, scaleY);
-    QPainterPath scaledPath = normalizePath(transform.map(combinedPath));
-    scaledPath.setFillRule(Qt::OddEvenFill);
-    if (isPathTooComplex(scaledPath, kMaxPathElements)) {
-        scene->blockSignals(false);
-        vp->setUpdatesEnabled(true);
-        vp->update();
-        return;
-    }
-    QRectF scaledBounds = scaledPath.boundingRect();
+    qreal targetW = currentLargeur;
+    qreal targetH = currentLongueur;
 
-    qreal cellWidth = scaledBounds.width() + spacing;
-    qreal cellHeight = scaledBounds.height() + spacing;
+    qreal cellWidth = targetW + spacing;
+    qreal cellHeight = targetH + spacing;
     int maxCols = qFloor(drawingWidth / cellWidth);
     int maxRows = qFloor(drawingHeight / cellHeight);
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
 
-    QVector<QGraphicsPathItem*> items;
-    items.reserve(shapesToPlace);
-    QPainterPath proxy = buildProxyPath(scaledPath);
+    QTransform scaleTransform;
+    QPointF c = polyBounds.center();
+    scaleTransform.translate(targetW / 2.0, targetH / 2.0);
+    scaleTransform.scale(targetW / polyBounds.width(),
+                        targetH / polyBounds.height());
+    scaleTransform.translate(-c.x(), -c.y());
+
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
         int row = i / maxCols;
         qreal xPos = col * cellWidth;
         qreal yPos = row * cellHeight;
 
-        QGraphicsPathItem *item = new LODPathItem(proxy);
+        QGraphicsPathItem *item = new LODPathItem(combinedPath);
         QPen pen(Qt::black, 1);
         pen.setCosmetic(true);
         item->setPen(pen);
@@ -1044,42 +1042,13 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-        QRectF bounds = item->boundingRect();
-        QPointF offset(-bounds.x(), -bounds.y());
-        item->setPos(xPos + offset.x(), yPos + offset.y());
+        item->setTransform(scaleTransform);
+        item->setPos(xPos, yPos);
         scene->addItem(item);
         item->setSelected(false);
-        items << item;
     }
 
     emit shapesPlacedCount(shapesToPlace);
-
-    const quint64 key = hashPath(scaledPath, spacing);
-    if (QPainterPath *cached = gPathCache.object(key)) {
-        QPainterPath exact = *cached; exact.setFillRule(Qt::OddEvenFill);
-        QRectF bbox = exact.boundingRect();
-        for (QGraphicsPathItem *item : items) {
-            if (!item) continue;
-            item->setPath(exact);
-            item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-            m_cache[item] = {scaledPath, exact, {}, bbox, item->transform()};
-        }
-    } else {
-        QtConcurrent::run([this, items, scaledPath, key]() {
-            QPainterPath exact = scaledPath.simplified();
-            exact.setFillRule(Qt::OddEvenFill);
-            QRectF bbox = exact.boundingRect();
-            QMetaObject::invokeMethod(this, [this, items, exact, bbox, scaledPath, key]() {
-                gPathCache.insert(key, new QPainterPath(exact));
-                for (QGraphicsPathItem *item : items) {
-                    if (!item) continue;
-                    item->setPath(exact);
-                    item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-                    m_cache[item] = {scaledPath, exact, {}, bbox, item->transform()};
-                }
-            }, Qt::QueuedConnection);
-        });
-    }
 
     scene->blockSignals(false);
     vp->setUpdatesEnabled(true);
