@@ -21,7 +21,8 @@
 #include <QElapsedTimer>
 #include <QCache>
 #include <QtConcurrent>
-#include <QAtomic>
+#include <memory>
+#include <atomic>
 
 #include "GeometryUtils.h"
 
@@ -50,6 +51,8 @@ quint64 hashPath(const QPainterPath &p, int spacing)
 // item before completion.
 void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF &pos)
 {
+    // Light-weight raster shown immediately while heavy geometry is prepared in
+    // the background.
     QPainterPath clean = normalizePath(path);
     const int rasterSize = qBound(512, int(qMax(clean.boundingRect().width(),
                                                clean.boundingRect().height())),
@@ -61,14 +64,19 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     pix->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
     scene->addItem(pix);
 
-    auto cancel = new QAtomicInteger<bool>(false);
-    QObject::connect(pix, &QObject::destroyed, [cancel]() { cancel->storeRelease(true); });
+    // Shared flag used to cancel background jobs if the view is destroyed.
+    auto cancel = std::make_shared<std::atomic_bool>(false);
+    QObject::connect(this, &QObject::destroyed, [cancel]() { cancel->store(true); });
 
     QtConcurrent::run([this, clean, pos, pix, cancel]() {
         QPainterPath proxy = buildProxyPath(clean);
-        if (cancel->loadAcquire()) return;
+        if (cancel->load())
+            return;
+
         QMetaObject::invokeMethod(this, [this, clean, proxy, pos, pix, cancel]() {
-            if (cancel->loadAcquire()) { delete cancel; return; }
+            if (cancel->load())
+                return;
+
             auto *item = new QGraphicsPathItem(proxy);
             item->setPen(QPen(Qt::black, 1));
             item->setBrush(Qt::NoBrush);
@@ -79,14 +87,24 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             scene->addItem(item);
             scene->removeItem(pix);
             delete pix;
-            QtConcurrent::run([this, clean, item, cancel]() {
+
+            QTransform t = item->sceneTransform();
+            QtConcurrent::run([this, clean, item, t, cancel]() {
                 QPainterPath exact = clean.simplified();
-                if (cancel->loadAcquire()) return;
-                QMetaObject::invokeMethod(this, [item, exact, cancel]() {
-                    if (cancel->loadAcquire()) { delete cancel; return; }
-                    item->setPath(exact);
-                    delete cancel;
-                }, Qt::QueuedConnection);
+                QRectF bbox = t.map(exact).boundingRect();
+                if (cancel->load())
+                    return;
+                QPainterPath mapped = t.map(exact);
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, item, exact, mapped, bbox, t, cancel]() {
+                        if (cancel->load() || !scene->items().contains(item))
+                            return;
+                        item->setPath(exact);
+                        item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+                        m_cache[item] = {exact, mapped, {}, bbox, t};
+                    },
+                    Qt::QueuedConnection);
             });
         }, Qt::QueuedConnection);
     });
@@ -630,6 +648,10 @@ void FormeVisualization::optimizePlacement2() {
 
 void FormeVisualization::redraw()
 {
+    auto *vp = graphicsView->viewport();
+    scene->blockSignals(true);
+    vp->setUpdatesEnabled(false);
+
     scene->clear();
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
@@ -638,14 +660,19 @@ void FormeVisualization::redraw()
     m_isCustomMode = false;
     m_customShapes.clear();
 
-    if (shapeCount <= 0)
+    if (shapeCount <= 0) {
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
-
+    }
 
     QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
     if (shapes.isEmpty()) {
-        //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
         emit shapesPlacedCount(0);
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
     }
     QGraphicsItem *prototype = shapes.first();
@@ -654,8 +681,10 @@ void FormeVisualization::redraw()
     qreal effectiveWidth = bounds.width();
     qreal effectiveHeight = bounds.height();
     if (effectiveWidth <= 0 || effectiveHeight <= 0) {
-        //qDebug() << "Erreur : dimensions invalides pour la forme.";
         emit shapesPlacedCount(0);
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
     }
     qreal cellWidth = effectiveWidth + spacing;
@@ -666,14 +695,17 @@ void FormeVisualization::redraw()
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
 
-    //qDebug() << "Grille :" << maxCols << "colonnes x" << maxRows << "lignes ="
-    //         << totalCells << "cellules. Placement de" << shapesToPlace << "formes.";
-
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
         int row = i / maxCols;
         qreal xPos = col * cellWidth;
         qreal yPos = row * cellHeight;
+
+        if (auto path = dynamic_cast<QGraphicsPathItem*>(prototype)) {
+            QPointF offset(-bounds.x(), -bounds.y());
+            addPathWithLOD(path->path(), QPointF(xPos + offset.x(), yPos + offset.y()));
+            continue;
+        }
 
         QGraphicsItem *shapeCopy = nullptr;
         if (auto rect = dynamic_cast<QGraphicsRectItem*>(prototype))
@@ -682,21 +714,21 @@ void FormeVisualization::redraw()
             shapeCopy = new QGraphicsEllipseItem(ellipse->rect());
         else if (auto polygon = dynamic_cast<QGraphicsPolygonItem*>(prototype))
             shapeCopy = new QGraphicsPolygonItem(polygon->polygon());
-        else if (auto path = dynamic_cast<QGraphicsPathItem*>(prototype))
-            shapeCopy = new QGraphicsPathItem(path->path());
 
-        if (!shapeCopy) {
-            //qDebug() << "Erreur : Impossible de copier la forme !";
+        if (!shapeCopy)
             continue;
-        }
+
         QPointF offsetCorrection(-bounds.x(), -bounds.y());
         shapeCopy->setPos(xPos + offsetCorrection.x(), yPos + offsetCorrection.y());
         shapeCopy->setFlag(QGraphicsItem::ItemIsMovable, true);
         shapeCopy->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(shapeCopy);
     }
-    //qDebug() << "Formes prédéfinies placées:" << shapesToPlace;
+
     emit shapesPlacedCount(shapesToPlace);
+    scene->blockSignals(false);
+    vp->setUpdatesEnabled(true);
+    vp->update();
 }
 
 void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
@@ -705,11 +737,16 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         return;
 
     cancelOptimization();
+    auto *vp = graphicsView->viewport();
+    scene->blockSignals(true);
+    vp->setUpdatesEnabled(false);
 
     scene->clear();
 
     if (shapes.isEmpty()) {
-        //qDebug() << "Aucune forme personnalisée à afficher.";
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
     }
 
@@ -724,8 +761,12 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     for (const QPolygonF &poly : shapes)
         combinedPath.addPolygon(poly);
     QRectF polyBounds = combinedPath.boundingRect();
-    if (polyBounds.width() <= 0 || polyBounds.height() <= 0)
+    if (polyBounds.width() <= 0 || polyBounds.height() <= 0) {
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
+    }
 
     qreal desiredWidthInScene = currentLargeur;
     qreal desiredHeightInScene = currentLongueur;
@@ -734,8 +775,12 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     QTransform transform; transform.scale(scaleX, scaleY);
     QPainterPath scaledPath = normalizePath(transform.map(combinedPath));
     scaledPath.setFillRule(Qt::OddEvenFill);
-    if (isPathTooComplex(scaledPath, kMaxPathElements))
+    if (isPathTooComplex(scaledPath, kMaxPathElements)) {
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
+    }
     QRectF scaledBounds = scaledPath.boundingRect();
 
     qreal cellWidth = scaledBounds.width() + spacing;
@@ -796,6 +841,10 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
             }, Qt::QueuedConnection);
         });
     }
+
+    scene->blockSignals(false);
+    vp->setUpdatesEnabled(true);
+    vp->update();
 }
 
 void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
