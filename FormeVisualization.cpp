@@ -21,6 +21,7 @@
 #include <QSet>
 #include <QElapsedTimer>
 #include <QCache>
+#include <QSignalBlocker>
 
 #include "GeometryUtils.h"
 
@@ -287,10 +288,6 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             if (cancel->load(std::memory_order_acquire) || !scene) return;
 
             auto *item = new LODPathItem(proxy);
-            QPen pen(Qt::black, 1);
-            pen.setCosmetic(true);
-            item->setPen(pen);
-            item->setBrush(Qt::NoBrush);
             item->setFlag(QGraphicsItem::ItemIsMovable,   true);
             item->setFlag(QGraphicsItem::ItemIsSelectable,true);
             item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
@@ -298,21 +295,9 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             QRectF br = proxy.boundingRect();
             const qreal W = currentLargeur;
             const qreal H = currentLongueur;
-            if (W > 0 && H > 0 && br.width() > 0 && br.height() > 0) {
-                const qreal sx = W / br.width();
-                const qreal sy = H / br.height();
-                const QPointF c = br.center();
-                QTransform T;
-                T.translate(c.x(), c.y());
-                T.scale(sx, sy);
-                T.translate(-c.x(), -c.y());
-                item->setTransform(T);
-                QRectF br2 = T.mapRect(br);
-                QPointF offset(-br2.x(), -br2.y());
-                item->setPos(pos + offset);
-            } else {
-                item->setPos(pos);
-            }
+            applySize(item, W, H);
+            QRectF br2 = item->transform().mapRect(br);
+            item->setPos(pos - br2.topLeft());
             scene->addItem(item);
 
             // Remplacer le pixmap (et annuler tout travail qui s’y référait)
@@ -346,6 +331,35 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             });
         }, Qt::QueuedConnection);
     });
+}
+
+void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
+{
+    if (!item || W <= 0 || H <= 0)
+        return;
+
+    QSignalBlocker blocker(scene);
+
+    item->setBrush(Qt::NoBrush);
+    QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+    pen.setCosmetic(true);
+    item->setPen(pen);
+
+    QPainterPath path = item->path();
+    QRectF br = path.boundingRect();
+    if (br.isEmpty())
+        return;
+
+    qreal sx = W / br.width();
+    qreal sy = H / br.height();
+    QPointF c = br.center();
+    QTransform T;
+    T.translate(c.x(), c.y());
+    T.scale(sx, sy);
+    T.translate(-c.x(), -c.y());
+    item->setTransform(T, false);
+
+    item->setData(kSizedOnInsert, 1);
 }
 
 double polygonArea(const QPolygonF &poly)
@@ -1021,13 +1035,6 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
 
-    QTransform scaleTransform;
-    QPointF c = polyBounds.center();
-    scaleTransform.translate(targetW / 2.0, targetH / 2.0);
-    scaleTransform.scale(targetW / polyBounds.width(),
-                        targetH / polyBounds.height());
-    scaleTransform.translate(-c.x(), -c.y());
-
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
         int row = i / maxCols;
@@ -1035,15 +1042,12 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         qreal yPos = row * cellHeight;
 
         QGraphicsPathItem *item = new LODPathItem(combinedPath);
-        QPen pen(Qt::black, 1);
-        pen.setCosmetic(true);
-        item->setPen(pen);
-        item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-        item->setTransform(scaleTransform);
-        item->setPos(xPos, yPos);
+        applySize(item, targetW, targetH);
+        QRectF br2 = item->transform().mapRect(polyBounds);
+        item->setPos(xPos - br2.x(), yPos - br2.y());
         scene->addItem(item);
         item->setSelected(false);
     }

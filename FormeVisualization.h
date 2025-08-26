@@ -7,6 +7,7 @@
 #include <QProgressBar>
 #include <QPainterPath>
 #include <QGraphicsRectItem>
+#include <QGraphicsPathItem>
 #include <QSizeF>                // <<< AJOUT
 #include <QPoint>
 #include <QColor>
@@ -110,6 +111,11 @@ private:
 
     // Build and display a path using the LOD pipeline.
     void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
+
+    // Apply the current width/height to a path item at creation time or later edits.
+    void applySize(QGraphicsPathItem *item, qreal W, qreal H);
+
+    static constexpr int kSizedOnInsert = 0x1001;
 
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
