@@ -883,7 +883,7 @@ void MainWindow::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
-void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
+void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type, int width, int height)
 {
     selectedShapeType = type;
     QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForBaseShape(type);
@@ -921,8 +921,24 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
             ui->Slider_longueur->blockSignals(false);
         });
 
-        connect(disp, &Dispositions::shapeOnlySelected, this, [this, type]() {
+        connect(disp, &Dispositions::shapeOnlySelected, this, [this, type, width, height]() {
             selectedShapeType = type;
+
+            ui->Largeur->blockSignals(true);
+            ui->Longueur->blockSignals(true);
+            ui->Slider_largeur->blockSignals(true);
+            ui->Slider_longueur->blockSignals(true);
+
+            ui->Largeur->setValue(width);
+            ui->Longueur->setValue(height);
+            ui->Slider_largeur->setValue(width);
+            ui->Slider_longueur->setValue(height);
+
+            ui->Largeur->blockSignals(false);
+            ui->Longueur->blockSignals(false);
+            ui->Slider_largeur->blockSignals(false);
+            ui->Slider_longueur->blockSignals(false);
+
             formeVisualization->setPredefinedMode();
             formeVisualization->setModel(type);
         });
@@ -941,6 +957,21 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
         disp->showFullScreen();
         return;
     }
+
+    ui->Largeur->blockSignals(true);
+    ui->Longueur->blockSignals(true);
+    ui->Slider_largeur->blockSignals(true);
+    ui->Slider_longueur->blockSignals(true);
+
+    ui->Largeur->setValue(width);
+    ui->Longueur->setValue(height);
+    ui->Slider_largeur->setValue(width);
+    ui->Slider_longueur->setValue(height);
+
+    ui->Largeur->blockSignals(false);
+    ui->Longueur->blockSignals(false);
+    ui->Slider_largeur->blockSignals(false);
+    ui->Slider_longueur->blockSignals(false);
 
     formeVisualization->setPredefinedMode();
     formeVisualization->setModel(type);

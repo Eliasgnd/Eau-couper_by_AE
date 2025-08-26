@@ -92,7 +92,7 @@ private:
     QAction *actionEnglish = nullptr;
     QAction *actionWifiConfig = nullptr;
 
-    void onShapeSelectedFromInventaire(ShapeModel::Type type);
+    void onShapeSelectedFromInventaire(ShapeModel::Type type, int width, int height);
 
 private:
     Ui::MainWindow *ui;
