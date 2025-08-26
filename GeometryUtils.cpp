@@ -5,6 +5,7 @@
 #include <QQueue>
 #include <QtGlobal>
 #include <QDebug>
+#include <QPixmap>
 #include <algorithm>
 
 namespace {
@@ -106,6 +107,24 @@ QPainterPath buildProxyPath(const QPainterPath &path)
     double diag = QLineF(bbox.topLeft(), bbox.bottomRight()).length();
     double tau = qMax(0.5, diag * (gLowEndMode ? 0.005 : 0.003));
     return simplifyForProxyInternal(path, tau);
+}
+
+QPixmap rasterFallback(const QPainterPath &path, int res)
+{
+    QRectF bounds = path.boundingRect();
+    if (bounds.isEmpty() || res <= 0)
+        return QPixmap();
+    QPixmap pm(res, res);
+    pm.fill(Qt::transparent);
+    QPainter painter(&pm);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.translate(-bounds.topLeft());
+    painter.scale(res / bounds.width(), res / bounds.height());
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(Qt::black);
+    painter.drawPath(path);
+    painter.end();
+    return pm;
 }
 
 PipelineMetrics lastPipelineMetrics(){ return gMetrics; }
