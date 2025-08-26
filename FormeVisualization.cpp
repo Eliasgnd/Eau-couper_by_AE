@@ -36,7 +36,32 @@
 namespace {
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
+constexpr int    kSegmentSimplifyThreshold = 2000;
+constexpr qreal  kLODBucketLow  = 0.8;      // LOD switch for simplified path
 enum InvalidReason { Valid = 0, OutOfBounds = 1, InteriorOverlap = 2 };
+
+struct PainterState {
+    QPainter *p;
+    explicit PainterState(QPainter *p) : p(p) { if (p) p->save(); }
+    ~PainterState() { if (p) p->restore(); }
+};
+
+struct StyleKey {
+    quint32 penColor = 0;
+    quint32 brushColor = 0;
+    qreal   penWidth = 0.0;
+};
+
+static QPair<QPen,QBrush> makeStyle(const StyleKey &k)
+{
+    return { QPen(QColor::fromRgba(k.penColor), k.penWidth),
+             QBrush(QColor::fromRgba(k.brushColor)) };
+}
+
+static bool intersects(const QPainterPath &p, const QRectF &r)
+{
+    return p.intersects(r) || r.contains(p.boundingRect());
+}
 
 QCache<quint64, QPainterPath> gPathCache(256);
 
@@ -66,6 +91,15 @@ double polygonArea(const QPolygonF &poly)
 class LODPathItem : public QGraphicsPathItem
 {
 public:
+    struct Asset {
+        QPainterPath full;
+        QPainterPath simplified;
+        QPainterPath stroke;
+        QPixmap      pixmap;
+        QRectF       bounds;
+        StyleKey     key;
+    };
+
     explicit LODPathItem(const QPainterPath &p,
                          const QPen &pen = QPen(),
                          const QBrush &brush = QBrush())
@@ -75,13 +109,13 @@ public:
         QGraphicsPathItem::setBrush(brush);
         setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         updateGeometryCaches(p);
-        QGraphicsPathItem::setPath(m_fullPath);
+        QGraphicsPathItem::setPath(m_asset.full);
     }
 
     void setPath(const QPainterPath &p)
     {
         updateGeometryCaches(p);
-        QGraphicsPathItem::setPath(m_fullPath);
+        QGraphicsPathItem::setPath(m_asset.full);
     }
 
     void setPen(const QPen &pen) override
@@ -89,7 +123,7 @@ public:
         if (pen == this->pen())
             return;
         QGraphicsPathItem::setPen(pen);
-        updateGeometryCaches(m_fullPath);
+        updateGeometryCaches(m_asset.full);
     }
 
     void setBrush(const QBrush &brush) override
@@ -97,84 +131,75 @@ public:
         if (brush == this->brush())
             return;
         QGraphicsPathItem::setBrush(brush);
-        updateGeometryCaches(m_fullPath);
+        updateGeometryCaches(m_asset.full);
     }
 
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
     {
         const QRectF exposed = option->exposedRect;
-        if (!exposed.intersects(boundingRect()))
+        if (!intersects(m_asset.full, exposed))
             return;
 
+        PainterState guard(painter);
         painter->setClipRect(exposed);
-
-        if (m_usePixmap) {
-            QPen pen = this->pen();
-            QBrush brush = this->brush();
-            const qreal dpr = painter->device()->devicePixelRatioF();
-            const quint64 key = cacheKey(pen, brush, dpr);
-            if (QPixmap *cached = s_pixmapCache.object(key)) {
-                painter->drawPixmap(boundingRect().topLeft(), *cached);
-                return;
-            }
-            QPixmap pm = renderPixmap(m_fullPath, pen, brush, dpr);
-            s_pixmapCache.insert(key, new QPixmap(pm), pm.width() * pm.height() * 4);
-            painter->drawPixmap(boundingRect().topLeft(), pm);
-            return;
-        }
-
         const qreal lod = option->levelOfDetailFromTransform(painter->worldTransform());
-        const bool lowLOD = lod < 0.8;
-        painter->setRenderHint(QPainter::Antialiasing, !lowLOD);
 
-        QBrush brush = lowLOD ? QBrush(this->brush().color()) : this->brush();
-        QPen pen = lowLOD ? QPen(this->pen().color(), this->pen().widthF()) : this->pen();
-        if (lowLOD && pen.widthF() > 10.0)
-            pen = Qt::NoPen;
-
-        const QPainterPath &path = lowLOD ? m_simplified : m_fullPath;
-        painter->setPen(pen);
-        painter->setBrush(brush);
-        painter->drawPath(path);
+        drawAsset(painter, m_asset, lod);
     }
 
     QPainterPath shape() const override
     {
-        if (m_strokePath.isEmpty())
-            return m_fullPath;
-        return m_fullPath.united(m_strokePath);
+        if (m_asset.stroke.isEmpty())
+            return m_asset.full;
+        return m_asset.full.united(m_asset.stroke);
     }
 
 private:
+    static const QPainterPath &selectAssetByLOD(const Asset &a, qreal lod)
+    {
+        return (lod < kLODBucketLow) ? a.simplified : a.full;
+    }
+
+    static void drawAsset(QPainter *p, const Asset &a, qreal lod)
+    {
+        if (!a.pixmap.isNull()) {
+            p->drawPixmap(a.bounds.topLeft(), a.pixmap);
+            return;
+        }
+        auto style = makeStyle(a.key);
+        p->setRenderHint(QPainter::Antialiasing, lod >= kLODBucketLow);
+        p->setPen(style.first);
+        p->setBrush(style.second);
+        p->drawPath(selectAssetByLOD(a, lod));
+    }
+
     void updateGeometryCaches(const QPainterPath &p)
     {
-        m_fullPath = p;
-        m_fullPath.setFillRule(Qt::OddEvenFill);
-        m_geomHash = hashPath(m_fullPath, 0);
+        m_asset.full = p;
+        m_asset.full.setFillRule(Qt::OddEvenFill);
+        m_geomHash = hashPath(m_asset.full, 0);
 
-        // simplified path via polygons (Douglas-Peucker)
-        m_simplified = simplify(m_fullPath);
+        m_asset.simplified = simplify(m_asset.full);
 
-        // optional stroked path
         if (pen().style() != Qt::NoPen && pen().widthF() > 0.0 && !pen().isCosmetic()) {
             QPainterPathStroker stroker(pen());
-            m_strokePath = stroker.createStroke(m_fullPath);
+            m_asset.stroke = stroker.createStroke(m_asset.full);
         } else {
-            m_strokePath = QPainterPath();
+            m_asset.stroke = QPainterPath();
         }
 
-        const QRectF br = m_fullPath.boundingRect();
-        m_usePixmap = (m_fullPath.elementCount() > 20000 ||
-                       br.width() * br.height() > 1e6);
+        m_asset.bounds = m_asset.full.boundingRect();
+        m_asset.key.penColor   = pen().color().rgba();
+        m_asset.key.brushColor = brush().color().rgba();
+        m_asset.key.penWidth   = pen().widthF();
 
-        if (m_usePixmap) {
-            const quint64 key = cacheKey(pen(), brush(), 1.0);
-            if (!s_pixmapCache.object(key)) {
-                QPixmap pm = renderPixmap(m_fullPath, pen(), brush(), 1.0);
-                s_pixmapCache.insert(key, new QPixmap(pm), pm.width() * pm.height() * 4);
-            }
-        }
+        const bool needPixmap = (m_asset.full.elementCount() > kSegmentSimplifyThreshold ||
+                                 m_asset.bounds.width() * m_asset.bounds.height() > 1e6);
+        if (needPixmap)
+            m_asset.pixmap = renderPixmap(m_asset.full, pen(), brush(), 1.0);
+        else
+            m_asset.pixmap = QPixmap();
     }
 
     static QPainterPath simplify(const QPainterPath &p)
@@ -186,41 +211,24 @@ private:
         return simp.simplified();
     }
 
-    quint64 cacheKey(const QPen &pen, const QBrush &brush, qreal dpr) const
-    {
-        quint64 key = m_geomHash;
-        key = key * 31 + qHash(pen.color().rgba());
-        key = key * 31 + qHash(brush.color().rgba());
-        key = key * 31 + qHash(qRound64(dpr * 1000));
-        return key;
-    }
-
     static QPixmap renderPixmap(const QPainterPath &path, const QPen &pen, const QBrush &brush, qreal dpr)
     {
         QRectF br = path.boundingRect();
-        QSize sz = (br.size() * dpr).toSize();
-        QPixmap pm(sz);
+        QPixmap pm(br.size().toSize() * dpr);
         pm.setDevicePixelRatio(dpr);
         pm.fill(Qt::transparent);
-        QPainter p(&pm);
-        p.setRenderHint(QPainter::Antialiasing, true);
-        p.setPen(pen);
-        p.setBrush(brush);
-        p.translate(-br.topLeft());
-        p.drawPath(path);
-        p.end();
+        QPainter painter(&pm);
+        PainterState guard(&painter);
+        painter.translate(-br.topLeft());
+        painter.setPen(pen);
+        painter.setBrush(brush);
+        painter.drawPath(path);
         return pm;
     }
 
-    QPainterPath m_fullPath;
-    QPainterPath m_simplified;
-    QPainterPath m_strokePath;
+    Asset m_asset;
     quint64 m_geomHash {0};
-    bool m_usePixmap {false};
-    static QCache<quint64, QPixmap> s_pixmapCache;
 };
-
-QCache<quint64, QPixmap> LODPathItem::s_pixmapCache(64 * 1024 * 1024);
 
 
 // Create a three-tier LOD representation for complex paths. A raster fallback
