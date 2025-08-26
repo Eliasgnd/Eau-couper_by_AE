@@ -281,12 +281,32 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             if (cancel->load(std::memory_order_acquire) || !scene) return;
 
             auto *item = new LODPathItem(proxy);
-            item->setPen(QPen(Qt::black, 1));
+            QPen pen(Qt::black, 1);
+            pen.setCosmetic(true);
+            item->setPen(pen);
             item->setBrush(Qt::NoBrush);
             item->setFlag(QGraphicsItem::ItemIsMovable,   true);
             item->setFlag(QGraphicsItem::ItemIsSelectable,true);
             item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-            item->setPos(pos);
+
+            QRectF br = proxy.boundingRect();
+            const qreal W = currentLargeur;
+            const qreal H = currentLongueur;
+            if (W > 0 && H > 0 && br.width() > 0 && br.height() > 0) {
+                const qreal sx = W / br.width();
+                const qreal sy = H / br.height();
+                const QPointF c = br.center();
+                QTransform T;
+                T.translate(c.x(), c.y());
+                T.scale(sx, sy);
+                T.translate(-c.x(), -c.y());
+                item->setTransform(T);
+                QRectF br2 = T.mapRect(br);
+                QPointF offset(-br2.x(), -br2.y());
+                item->setPos(pos + offset);
+            } else {
+                item->setPos(pos);
+            }
             scene->addItem(item);
 
             // Remplacer le pixmap (et annuler tout travail qui s’y référait)
@@ -672,7 +692,9 @@ void FormeVisualization::optimizePlacement() {
 
                 if (!collision) {
                     QGraphicsPathItem *item = new LODPathItem(candidatePath);
-                    item->setPen(QPen(Qt::black, 1));
+                    QPen pen(Qt::black, 1);
+                    pen.setCosmetic(true);
+                    item->setPen(pen);
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -826,7 +848,9 @@ void FormeVisualization::optimizePlacement2() {
 
                 if (!collision) {
                     QGraphicsPathItem *item = new LODPathItem(candidatePath);
-                    item->setPen(QPen(Qt::black, 1));
+                    QPen pen(Qt::black, 1);
+                    pen.setCosmetic(true);
+                    item->setPen(pen);
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
                     item->setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -1013,7 +1037,9 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         qreal yPos = row * cellHeight;
 
         QGraphicsPathItem *item = new LODPathItem(proxy);
-        item->setPen(QPen(Qt::black, 1));
+        QPen pen(Qt::black, 1);
+        pen.setCosmetic(true);
+        item->setPen(pen);
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -1155,7 +1181,9 @@ void FormeVisualization::addShapeBottomRight()
         QRectF bounds = scaledPath.boundingRect();
 
         auto *item = new LODPathItem(scaledPath);
-        item->setPen(QPen(Qt::black, 1));
+        QPen pen(Qt::black, 1);
+        pen.setCosmetic(true);
+        item->setPen(pen);
         item->setBrush(Qt::NoBrush);
         newItem = item;
 
@@ -1437,7 +1465,9 @@ void FormeVisualization::handleSelectionChanged()
     m_rotationPivotValid = false;
     for (QGraphicsItem *item : scene->selectedItems()) {
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            shape->setPen(QPen(Qt::black, 1));
+            QPen pen(Qt::black, 1);
+            pen.setCosmetic(true);
+            shape->setPen(pen);
         }
     }
 }
@@ -1448,7 +1478,9 @@ void FormeVisualization::resetAllShapeColors()
         if (m_cutMarkers.contains(item))
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            shape->setPen(QPen(Qt::black, 1));
+            QPen pen(Qt::black, 1);
+            pen.setCosmetic(true);
+            shape->setPen(pen);
         }
     }
     graphicsView->viewport()->update();
@@ -1480,7 +1512,9 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
 
     for (const LayoutItem &li : layout.items) {
         QGraphicsPathItem *item = new LODPathItem(scaledPath);
-        item->setPen(QPen(Qt::black, 1));
+        QPen pen(Qt::black, 1);
+        pen.setCosmetic(true);
+        item->setPen(pen);
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
