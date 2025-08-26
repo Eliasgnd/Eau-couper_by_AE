@@ -6,6 +6,8 @@
 #include <QGraphicsRectItem>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsPathItem>
+#include <QGraphicsPixmapItem>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QtMath>
 #include <QTransform>
@@ -61,6 +63,132 @@ double polygonArea(const QPolygonF &poly)
 }
 }
 
+class LODPathItem : public QGraphicsPathItem
+{
+public:
+    explicit LODPathItem(const QPainterPath &p,
+                         const QPen &pen = QPen(),
+                         const QBrush &brush = QBrush())
+        : QGraphicsPathItem(p)
+    {
+        setPen(pen);
+        setBrush(brush);
+        setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+        updateGeometryCaches(p);
+        QGraphicsPathItem::setPath(m_fullPath);
+    }
+
+    void setPath(const QPainterPath &p) override
+    {
+        updateGeometryCaches(p);
+        QGraphicsPathItem::setPath(m_fullPath);
+    }
+
+protected:
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
+    {
+        const QRectF exposed = option->exposedRect;
+        if (!exposed.intersects(boundingRect()))
+            return;
+
+        const qreal lod = option->levelOfDetailFromTransform(painter->worldTransform());
+        const bool lowLOD = lod < 0.8;
+        const int bucket = lowLOD ? 0 : 1;
+
+        painter->setClipRect(exposed);
+        painter->setRenderHint(QPainter::Antialiasing, !lowLOD);
+
+        QBrush brush = lowLOD ? QBrush(this->brush().color()) : this->brush();
+        QPen pen = lowLOD ? QPen(this->pen().color(), this->pen().widthF()) : this->pen();
+
+        if (m_usePixmap) {
+            const quint64 key = cacheKey(bucket, pen, brush);
+            if (QPixmap *cached = s_pixmapCache.object(key)) {
+                painter->drawPixmap(boundingRect().topLeft(), *cached);
+                return;
+            }
+            QPixmap pm = renderPixmap(bucket, pen, brush,
+                                      painter->device()->devicePixelRatioF());
+            s_pixmapCache.insert(key, new QPixmap(pm), pm.width() * pm.height() * 4);
+            painter->drawPixmap(boundingRect().topLeft(), pm);
+            return;
+        }
+
+        const QPainterPath &path = lowLOD ? m_simplified : m_fullPath;
+        painter->setPen(pen);
+        painter->setBrush(brush);
+        painter->drawPath(path);
+    }
+
+    QPainterPath shape() const override
+    {
+        if (pen().style() == Qt::NoPen || pen().widthF() <= 0.0)
+            return m_fullPath;
+
+        if (m_strokePath.isEmpty()) {
+            QPainterPathStroker stroker(pen());
+            m_strokePath = stroker.createStroke(m_fullPath);
+        }
+        return m_fullPath.united(m_strokePath);
+    }
+
+private:
+    void updateGeometryCaches(const QPainterPath &p)
+    {
+        m_fullPath = p;
+        m_fullPath.setFillRule(Qt::OddEvenFill);
+        m_simplified = simplify(p);
+        m_usePixmap = (p.elementCount() > 1000 ||
+                       p.boundingRect().width() * p.boundingRect().height() > 100000);
+        m_strokePath = QPainterPath();
+    }
+
+    static QPainterPath simplify(const QPainterPath &p)
+    {
+        QPainterPath simp;
+        for (const QPolygonF &poly : p.toSubpathPolygons())
+            simp.addPolygon(poly);
+        simp.setFillRule(Qt::OddEvenFill);
+        return simp.simplified();
+    }
+
+    quint64 cacheKey(int bucket, const QPen &pen, const QBrush &brush) const
+    {
+        quint64 key = hashPath(m_fullPath, 0);
+        key = key * 31 + bucket;
+        key = key * 31 + qHash(pen.color().rgba());
+        key = key * 31 + qHash(brush.color().rgba());
+        return key;
+    }
+
+    QPixmap renderPixmap(int bucket, const QPen &pen, const QBrush &brush, qreal dpr) const
+    {
+        const QPainterPath &path = bucket == 0 ? m_simplified : m_fullPath;
+        QRectF br = boundingRect();
+        QSize sz = (br.size() * dpr).toSize();
+        QPixmap pm(sz);
+        pm.setDevicePixelRatio(dpr);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing, bucket != 0);
+        p.setPen(pen);
+        p.setBrush(brush);
+        p.translate(-br.topLeft());
+        p.drawPath(path);
+        p.end();
+        return pm;
+    }
+
+    QPainterPath m_fullPath;
+    QPainterPath m_simplified;
+    mutable QPainterPath m_strokePath;
+    bool m_usePixmap {false};
+    static QCache<quint64, QPixmap> s_pixmapCache;
+};
+
+QCache<quint64, QPixmap> LODPathItem::s_pixmapCache(64 * 1024 * 1024);
+
+
 // Create a three-tier LOD representation for complex paths. A raster fallback
 // (P0) is displayed immediately, a simplified polygon proxy (P1) replaces it
 // when ready, and the exact path (P2) is set afterwards. Computation happens on
@@ -100,7 +228,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         QMetaObject::invokeMethod(this, [=]() {
             if (cancel->load(std::memory_order_acquire) || !scene) return;
 
-            auto *item = new QGraphicsPathItem(proxy);
+            auto *item = new LODPathItem(proxy);
             item->setPen(QPen(Qt::black, 1));
             item->setBrush(Qt::NoBrush);
             item->setFlag(QGraphicsItem::ItemIsMovable,   true);
@@ -491,7 +619,7 @@ void FormeVisualization::optimizePlacement() {
                 }
 
                 if (!collision) {
-                    QGraphicsPathItem *item = new QGraphicsPathItem(candidatePath);
+                    QGraphicsPathItem *item = new LODPathItem(candidatePath);
                     item->setPen(QPen(Qt::black, 1));
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -645,7 +773,7 @@ void FormeVisualization::optimizePlacement2() {
                 }
 
                 if (!collision) {
-                    QGraphicsPathItem *item = new QGraphicsPathItem(candidatePath);
+                    QGraphicsPathItem *item = new LODPathItem(candidatePath);
                     item->setPen(QPen(Qt::black, 1));
                     item->setBrush(Qt::NoBrush);
                     item->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -746,7 +874,7 @@ void FormeVisualization::redraw()
         else if (auto polygon = qgraphicsitem_cast<QGraphicsPolygonItem*>(prototype))
             shapeCopy = new QGraphicsPolygonItem(polygon->polygon());
         else if (auto path2 = qgraphicsitem_cast<QGraphicsPathItem*>(prototype))
-            shapeCopy = new QGraphicsPathItem(path2->path());
+            shapeCopy = new LODPathItem(path2->path());
 
         if (!shapeCopy) continue;
 
@@ -832,7 +960,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         qreal xPos = col * cellWidth;
         qreal yPos = row * cellHeight;
 
-        QGraphicsPathItem *item = new QGraphicsPathItem(proxy);
+        QGraphicsPathItem *item = new LODPathItem(proxy);
         item->setPen(QPen(Qt::black, 1));
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -974,7 +1102,7 @@ void FormeVisualization::addShapeBottomRight()
         scaledPath.setFillRule(Qt::OddEvenFill);
         QRectF bounds = scaledPath.boundingRect();
 
-        auto *item = new QGraphicsPathItem(scaledPath);
+        auto *item = new LODPathItem(scaledPath);
         item->setPen(QPen(Qt::black, 1));
         item->setBrush(Qt::NoBrush);
         newItem = item;
@@ -1299,7 +1427,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
     QRectF scaledBounds = scaledPath.boundingRect();
 
     for (const LayoutItem &li : layout.items) {
-        QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
+        QGraphicsPathItem *item = new LODPathItem(scaledPath);
         item->setPen(QPen(Qt::black, 1));
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
