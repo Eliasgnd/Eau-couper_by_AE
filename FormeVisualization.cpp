@@ -78,7 +78,7 @@ public:
         QGraphicsPathItem::setPath(m_fullPath);
     }
 
-    void setPath(const QPainterPath &p) override
+    void setPath(const QPainterPath &p)
     {
         updateGeometryCaches(p);
         QGraphicsPathItem::setPath(m_fullPath);
