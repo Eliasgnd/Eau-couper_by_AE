@@ -27,6 +27,10 @@
 #include <QFutureWatcher>
 #include <QThreadPool>
 
+#include <QtConcurrent>
+#include <memory>
+#include <atomic>
+
 namespace {
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
@@ -43,6 +47,88 @@ quint64 hashPath(const QPainterPath &p, int spacing)
         h = qHash(el.y, h);
     }
     return h;
+}
+
+
+// Create a three-tier LOD representation for complex paths. A raster fallback
+// (P0) is displayed immediately, a simplified polygon proxy (P1) replaces it
+// when ready, and the exact path (P2) is set afterwards. Computation happens on
+// background threads and can be cancelled by destroying the temporary pixmap
+// item before completion.
+void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF &pos)
+{
+    if (!scene)
+        return;
+
+    // 0) Affichage instantané : raster à partir du "path" brut (pas de normalisation bloquante sur l’UI)
+    const int rasterSize = qBound(512,
+                                  int(qMax(path.boundingRect().width(), path.boundingRect().height())),
+                                  1024);
+    QPixmap pm = rasterFallback(path, rasterSize);
+    auto *pix = new QGraphicsPixmapItem(pm);
+    pix->setTransformationMode(Qt::FastTransformation);
+    pix->setPos(pos);
+    pix->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+    scene->addItem(pix);
+
+    // 1) Drapeau d’annulation partagé (annule si la vue/scene est détruite)
+    auto cancel = std::make_shared<std::atomic_bool>(false);
+    QObject::connect(this,  &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
+    QObject::connect(scene, &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
+
+    // 2) Étape proxy/clean en arrière-plan (PAS de travail lourd dans paint() / visibilité)
+    QThreadPool::globalInstance()->start([this, path, pos, pix, cancel]{
+        if (cancel->load(std::memory_order_acquire)) return;
+
+        // Normalisation et proxy hors UI
+        QPainterPath clean = normalizePath(path);
+        QPainterPath proxy = buildProxyPath(clean);
+        if (cancel->load(std::memory_order_acquire)) return;
+
+        // 3) Remplacement du raster par l’item proxy sur l’UI thread
+        QMetaObject::invokeMethod(this, [=]() {
+            if (cancel->load(std::memory_order_acquire) || !scene) return;
+
+            auto *item = new QGraphicsPathItem(proxy);
+            item->setPen(QPen(Qt::black, 1));
+            item->setBrush(Qt::NoBrush);
+            item->setFlag(QGraphicsItem::ItemIsMovable,   true);
+            item->setFlag(QGraphicsItem::ItemIsSelectable,true);
+            item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+            item->setPos(pos);
+            scene->addItem(item);
+
+            // Remplacer le pixmap (et annuler tout travail qui s’y référait)
+            scene->removeItem(pix);
+            delete pix;
+
+            // 4) Étape exacte : nouvelle annulation dédiée à l’item, avec garde de durée de vie
+            auto cancel2 = std::make_shared<std::atomic_bool>(false);
+            QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
+            QPointer<QGraphicsPathItem> guard = item;
+
+            QThreadPool::globalInstance()->start([this, clean, guard, cancel2]{
+                if (cancel2->load(std::memory_order_acquire) || !guard) return;
+
+                QPainterPath exact = clean.simplified();  // lourd -> hors UI
+                if (cancel2->load(std::memory_order_acquire) || !guard) return;
+
+                QMetaObject::invokeMethod(this, [=]() {
+                    if (cancel2->load(std::memory_order_acquire) || !guard || !scene) return;
+
+                    guard->setPath(exact);
+                    guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+
+                    QTransform t = guard->sceneTransform();
+                    QPainterPath mapped = t.map(exact);
+                    QRectF bbox = mapped.boundingRect();
+
+                    // m_cache manipulé uniquement sur l’UI thread
+                    m_cache[guard] = { exact, mapped, {}, bbox, t };
+                }, Qt::QueuedConnection);
+            });
+        }, Qt::QueuedConnection);
+    });
 }
 
 double polygonArea(const QPolygonF &poly)
@@ -579,10 +665,12 @@ void FormeVisualization::optimizePlacement2() {
 }
 
 
-
-
 void FormeVisualization::redraw()
 {
+    auto *vp = graphicsView->viewport();
+    scene->blockSignals(true);
+    vp->setUpdatesEnabled(false);
+
     scene->clear();
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
@@ -599,6 +687,20 @@ void FormeVisualization::redraw()
     if (shapes.isEmpty()) {
         //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
         emit shapesPlacedCount(0);
+
+    if (shapeCount <= 0) {
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
+        return;
+    }
+
+    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
+    if (shapes.isEmpty()) {
+        emit shapesPlacedCount(0);
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
     }
     QGraphicsItem *prototype = shapes.first();
@@ -609,6 +711,11 @@ void FormeVisualization::redraw()
     if (effectiveWidth <= 0 || effectiveHeight <= 0) {
         //qDebug() << "Erreur : dimensions invalides pour la forme.";
         emit shapesPlacedCount(0);
+
+        emit shapesPlacedCount(0);
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
     }
     qreal cellWidth = effectiveWidth + spacing;
@@ -619,14 +726,22 @@ void FormeVisualization::redraw()
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
 
+
     //qDebug() << "Grille :" << maxCols << "colonnes x" << maxRows << "lignes ="
     //         << totalCells << "cellules. Placement de" << shapesToPlace << "formes.";
+
 
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
         int row = i / maxCols;
         qreal xPos = col * cellWidth;
         qreal yPos = row * cellHeight;
+
+        if (auto path = dynamic_cast<QGraphicsPathItem*>(prototype)) {
+            QPointF offset(-bounds.x(), -bounds.y());
+            addPathWithLOD(path->path(), QPointF(xPos + offset.x(), yPos + offset.y()));
+            continue;
+        }
 
         QGraphicsItem *shapeCopy = nullptr;
         if (auto rect = dynamic_cast<QGraphicsRectItem*>(prototype))
@@ -642,6 +757,9 @@ void FormeVisualization::redraw()
             //qDebug() << "Erreur : Impossible de copier la forme !";
             continue;
         }
+
+        if (!shapeCopy)
+            continue;
         QPointF offsetCorrection(-bounds.x(), -bounds.y());
         shapeCopy->setPos(xPos + offsetCorrection.x(), yPos + offsetCorrection.y());
         shapeCopy->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -652,17 +770,31 @@ void FormeVisualization::redraw()
     emit shapesPlacedCount(shapesToPlace);
 }
 
+
+
+    emit shapesPlacedCount(shapesToPlace);
+    scene->blockSignals(false);
+    vp->setUpdatesEnabled(true);
+    vp->update();
+}
+
 void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 {
     if (warnIfCutting())
         return;
 
     cancelOptimization();
+    auto *vp = graphicsView->viewport();
+    scene->blockSignals(true);
+    vp->setUpdatesEnabled(false);
 
     scene->clear();
 
     if (shapes.isEmpty()) {
         //qDebug() << "Aucune forme personnalisée à afficher.";
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
     }
 
@@ -677,8 +809,12 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     for (const QPolygonF &poly : shapes)
         combinedPath.addPolygon(poly);
     QRectF polyBounds = combinedPath.boundingRect();
-    if (polyBounds.width() <= 0 || polyBounds.height() <= 0)
+    if (polyBounds.width() <= 0 || polyBounds.height() <= 0) {
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
+    }
 
     qreal desiredWidthInScene = currentLargeur;
     qreal desiredHeightInScene = currentLongueur;
@@ -687,8 +823,12 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     QTransform transform; transform.scale(scaleX, scaleY);
     QPainterPath scaledPath = normalizePath(transform.map(combinedPath));
     scaledPath.setFillRule(Qt::OddEvenFill);
-    if (isPathTooComplex(scaledPath, kMaxPathElements))
+    if (isPathTooComplex(scaledPath, kMaxPathElements)) {
+        scene->blockSignals(false);
+        vp->setUpdatesEnabled(true);
+        vp->update();
         return;
+    }
     QRectF scaledBounds = scaledPath.boundingRect();
 
     qreal cellWidth = scaledBounds.width() + spacing;
@@ -749,6 +889,10 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
             }, Qt::QueuedConnection);
         });
     }
+
+    scene->blockSignals(false);
+    vp->setUpdatesEnabled(true);
+    vp->update();
 }
 
 void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
