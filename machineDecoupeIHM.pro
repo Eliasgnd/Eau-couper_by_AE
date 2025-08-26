@@ -15,8 +15,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
 
-QMAKE_CXXFLAGS_RELEASE += -O2 -flto
-QMAKE_LFLAGS_RELEASE += -flto
+QMAKE_CXXFLAGS_RELEASE += -Oz -flto -ffunction-sections -fdata-sections
+QMAKE_LFLAGS_RELEASE += -flto -Wl,--gc-sections
 DEFINES += QT_NO_DEBUG
 
 # ==== PLATEFORME LINUX / RASPBERRY PI ====

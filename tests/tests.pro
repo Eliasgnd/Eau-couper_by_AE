@@ -10,3 +10,6 @@ INCLUDEPATH += ..
 HEADERS += ../motorcontrol.h \
            placement_tests.h \
            inventory_safety_tests.h
+
+QMAKE_CXXFLAGS += -Oz -ffunction-sections -fdata-sections
+QMAKE_LFLAGS += -Wl,--gc-sections
