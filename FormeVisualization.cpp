@@ -21,7 +21,7 @@
 #include <QElapsedTimer>
 #include <QCache>
 #include <QtConcurrent>
-#include <QAtomicBool>
+#include <QAtomic>
 
 #include "GeometryUtils.h"
 
@@ -61,7 +61,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     pix->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
     scene->addItem(pix);
 
-    auto cancel = new QAtomicBool(false);
+    auto cancel = new QAtomicInteger<bool>(false);
     QObject::connect(pix, &QObject::destroyed, [cancel]() { cancel->storeRelease(true); });
 
     QtConcurrent::run([this, clean, pos, pix, cancel]() {
