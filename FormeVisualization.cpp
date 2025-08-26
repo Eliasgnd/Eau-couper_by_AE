@@ -44,6 +44,18 @@ quint64 hashPath(const QPainterPath &p, int spacing)
     return h;
 }
 
+double polygonArea(const QPolygonF &poly)
+{
+    double area = 0.0;
+    for (int i = 0, n = poly.size(); i < n; ++i) {
+        const QPointF &p1 = poly[i];
+        const QPointF &p2 = poly[(i + 1) % n];
+        area += p1.x() * p2.y() - p2.x() * p1.y();
+    }
+    return std::abs(area) / 2.0;
+}
+}
+
 // Create a three-tier LOD representation for complex paths. A raster fallback
 // (P0) is displayed immediately, a simplified polygon proxy (P1) replaces it
 // when ready, and the exact path (P2) is set afterwards. Computation happens on
@@ -108,18 +120,6 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             });
         }, Qt::QueuedConnection);
     });
-}
-
-double polygonArea(const QPolygonF &poly)
-{
-    double area = 0.0;
-    for (int i = 0, n = poly.size(); i < n; ++i) {
-        const QPointF &p1 = poly[i];
-        const QPointF &p2 = poly[(i + 1) % n];
-        area += p1.x() * p2.y() - p2.x() * p1.y();
-    }
-    return std::abs(area) / 2.0;
-}
 }
 
 FormeVisualization::FormeVisualization(QWidget *parent)
