@@ -91,9 +91,9 @@ double polygonArea(const QPolygonF &poly)
 class LODPathItem : public QGraphicsPathItem
 {
 public:
-    struct Asset {
+    struct State {
         QPainterPath full;
-        QPainterPath simplified;
+        QPainterPath lite;
         QPainterPath stroke;
         QPixmap      pixmap;
         QRectF       bounds;
@@ -109,13 +109,13 @@ public:
         QGraphicsPathItem::setBrush(brush);
         setCacheMode(QGraphicsItem::DeviceCoordinateCache);
         updateGeometryCaches(p);
-        QGraphicsPathItem::setPath(m_asset.full);
+        QGraphicsPathItem::setPath(m_state.full);
     }
 
     void setPath(const QPainterPath &p)
     {
         updateGeometryCaches(p);
-        QGraphicsPathItem::setPath(m_asset.full);
+        QGraphicsPathItem::setPath(m_state.full);
     }
 
     void setPen(const QPen &pen)
@@ -123,7 +123,7 @@ public:
         if (pen == this->pen())
             return;
         QGraphicsPathItem::setPen(pen);
-        updateGeometryCaches(m_asset.full);
+        updateGeometryCaches(m_state.full);
     }
 
     void setBrush(const QBrush &brush)
@@ -131,75 +131,85 @@ public:
         if (brush == this->brush())
             return;
         QGraphicsPathItem::setBrush(brush);
-        updateGeometryCaches(m_asset.full);
+        updateGeometryCaches(m_state.full);
     }
 
 protected:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
     {
         const QRectF exposed = option->exposedRect;
-        if (!intersects(m_asset.full, exposed))
+        if (!intersects(m_state.full, exposed))
             return;
 
         PainterState guard(painter);
         painter->setClipRect(exposed);
         const qreal lod = option->levelOfDetailFromTransform(painter->worldTransform());
 
-        drawAsset(painter, m_asset, lod);
+        drawState(painter, m_state, lod);
     }
 
     QPainterPath shape() const override
     {
-        if (m_asset.stroke.isEmpty())
-            return m_asset.full;
-        return m_asset.full.united(m_asset.stroke);
+        if (m_state.stroke.isEmpty())
+            return m_state.full;
+        return m_state.full.united(m_state.stroke);
     }
 
 private:
-    static const QPainterPath &selectAssetByLOD(const Asset &a, qreal lod)
+    static const QPainterPath &selectByLOD(const State &s, qreal lod)
     {
-        return (lod < kLODBucketLow) ? a.simplified : a.full;
+        return (lod < kLODBucketLow) ? s.lite : s.full;
     }
 
-    static void drawAsset(QPainter *p, const Asset &a, qreal lod)
+    static void drawState(QPainter *p, const State &s, qreal lod)
     {
-        if (!a.pixmap.isNull()) {
-            p->drawPixmap(a.bounds.topLeft(), a.pixmap);
+        if (!s.pixmap.isNull()) {
+            p->drawPixmap(s.bounds.topLeft(), s.pixmap);
             return;
         }
-        auto style = makeStyle(a.key);
+        auto style = makeStyle(s.key);
         p->setRenderHint(QPainter::Antialiasing, lod >= kLODBucketLow);
         p->setPen(style.first);
         p->setBrush(style.second);
-        p->drawPath(selectAssetByLOD(a, lod));
+        p->drawPath(selectByLOD(s, lod));
     }
+
+    enum class StrokeMode { None, Cosmetic, Normal };
+
+    using StrokeFn = void(*)(LODPathItem*, const QPainterPath&);
+    static void buildNone(LODPathItem* self, const QPainterPath&) { self->m_state.stroke = {}; }
+    static void buildStroke(LODPathItem* self, const QPainterPath& path) {
+        QPainterPathStroker stroker(self->pen());
+        self->m_state.stroke = stroker.createStroke(path);
+    }
+    static constexpr StrokeFn kStrokeDispatch[] = { buildNone, buildNone, buildStroke };
 
     void updateGeometryCaches(const QPainterPath &p)
     {
-        m_asset.full = p;
-        m_asset.full.setFillRule(Qt::OddEvenFill);
-        m_geomHash = hashPath(m_asset.full, 0);
+        m_state.full = p;
+        m_state.full.setFillRule(Qt::OddEvenFill);
+        m_geomHash = hashPath(m_state.full, 0);
 
-        m_asset.simplified = simplify(m_asset.full);
+        m_state.lite = simplify(m_state.full);
 
-        if (pen().style() != Qt::NoPen && pen().widthF() > 0.0 && !pen().isCosmetic()) {
-            QPainterPathStroker stroker(pen());
-            m_asset.stroke = stroker.createStroke(m_asset.full);
-        } else {
-            m_asset.stroke = QPainterPath();
-        }
+        StrokeMode mode = StrokeMode::Normal;
+        if (pen().style() == Qt::NoPen)
+            mode = StrokeMode::None;
+        else if (pen().isCosmetic() || pen().widthF() <= 0.0)
+            mode = StrokeMode::Cosmetic;
+        kStrokeDispatch[static_cast<int>(mode)](this, m_state.full);
 
-        m_asset.bounds = m_asset.full.boundingRect();
-        m_asset.key.penColor   = pen().color().rgba();
-        m_asset.key.brushColor = brush().color().rgba();
-        m_asset.key.penWidth   = pen().widthF();
+        m_state.bounds = m_state.full.boundingRect();
+        m_state.key.penColor   = pen().color().rgba();
+        m_state.key.brushColor = brush().color().rgba();
+        m_state.key.penWidth   = pen().widthF();
 
-        const bool needPixmap = (m_asset.full.elementCount() > kSegmentSimplifyThreshold ||
-                                 m_asset.bounds.width() * m_asset.bounds.height() > 1e6);
+        const bool needPixmap = (m_state.full.elementCount() > kSegmentSimplifyThreshold ||
+                                 m_state.bounds.width() * m_state.bounds.height() > 1e6);
         if (needPixmap)
-            m_asset.pixmap = renderPixmap(m_asset.full, pen(), brush(), 1.0);
+            m_state.pixmap = renderPixmap(m_state.full, pen(), brush(), 1.0);
         else
-            m_asset.pixmap = QPixmap();
+            m_state.pixmap = QPixmap();
     }
 
     static QPainterPath simplify(const QPainterPath &p)
@@ -226,7 +236,7 @@ private:
         return pm;
     }
 
-    Asset m_asset;
+    State m_state;
     quint64 m_geomHash {0};
 };
 
