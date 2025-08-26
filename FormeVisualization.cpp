@@ -49,6 +49,17 @@ quint64 hashPath(const QPainterPath &p, int spacing)
     return h;
 }
 
+double polygonArea(const QPolygonF &poly)
+{
+    double area = 0.0;
+    for (int i = 0, n = poly.size(); i < n; ++i) {
+        const QPointF &p1 = poly[i];
+        const QPointF &p2 = poly[(i + 1) % n];
+        area += p1.x() * p2.y() - p2.x() * p1.y();
+    }
+    return std::abs(area) / 2.0;
+}
+}
 
 // Create a three-tier LOD representation for complex paths. A raster fallback
 // (P0) is displayed immediately, a simplified polygon proxy (P1) replaces it
@@ -105,25 +116,25 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             // 4) Étape exacte : nouvelle annulation dédiée à l’item, avec garde de durée de vie
             auto cancel2 = std::make_shared<std::atomic_bool>(false);
             QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
-            QPointer<QGraphicsPathItem> guard = item;
+            QGraphicsPathItem* guard = item;
 
             QThreadPool::globalInstance()->start([this, clean, guard, cancel2]{
-                if (cancel2->load(std::memory_order_acquire) || !guard) return;
+                if (cancel2->load(std::memory_order_acquire)) return;
 
-                QPainterPath exact = clean.simplified();  // lourd -> hors UI
-                if (cancel2->load(std::memory_order_acquire) || !guard) return;
+                QPainterPath exact = clean.simplified();
+                if (cancel2->load(std::memory_order_acquire)) return;
 
-                QMetaObject::invokeMethod(this, [=]() {
-                    if (cancel2->load(std::memory_order_acquire) || !guard || !scene) return;
+                QMetaObject::invokeMethod(this, [=](){
+                    if (cancel2->load(std::memory_order_acquire) || !scene) return;
+                    // Vérifie que le pointeur correspond encore à un item présent dans la scène
+                    if (!scene->items().contains(guard)) return;
 
                     guard->setPath(exact);
                     guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 
-                    QTransform t = guard->sceneTransform();
-                    QPainterPath mapped = t.map(exact);
-                    QRectF bbox = mapped.boundingRect();
-
-                    // m_cache manipulé uniquement sur l’UI thread
+                    const QTransform t = guard->sceneTransform();
+                    const QPainterPath mapped = t.map(exact);
+                    const QRectF bbox = mapped.boundingRect();
                     m_cache[guard] = { exact, mapped, {}, bbox, t };
                 }, Qt::QueuedConnection);
             });
@@ -141,7 +152,7 @@ double polygonArea(const QPolygonF &poly)
     }
     return std::abs(area) / 2.0;
 }
-}
+
 
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -679,16 +690,8 @@ void FormeVisualization::redraw()
     m_isCustomMode = false;
     m_customShapes.clear();
 
-    if (shapeCount <= 0)
-        return;
-
-
-    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
-    if (shapes.isEmpty()) {
-        //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
-        emit shapesPlacedCount(0);
-
     if (shapeCount <= 0) {
+        emit shapesPlacedCount(0);
         scene->blockSignals(false);
         vp->setUpdatesEnabled(true);
         vp->update();
@@ -703,33 +706,25 @@ void FormeVisualization::redraw()
         vp->update();
         return;
     }
-    QGraphicsItem *prototype = shapes.first();
 
+    QGraphicsItem *prototype = shapes.first();
     QRectF bounds = prototype->boundingRect();
-    qreal effectiveWidth = bounds.width();
+    qreal effectiveWidth  = bounds.width();
     qreal effectiveHeight = bounds.height();
     if (effectiveWidth <= 0 || effectiveHeight <= 0) {
-        //qDebug() << "Erreur : dimensions invalides pour la forme.";
-        emit shapesPlacedCount(0);
-
         emit shapesPlacedCount(0);
         scene->blockSignals(false);
         vp->setUpdatesEnabled(true);
         vp->update();
         return;
     }
-    qreal cellWidth = effectiveWidth + spacing;
-    qreal cellHeight = effectiveHeight + spacing;
 
+    qreal cellWidth  = effectiveWidth  + spacing;
+    qreal cellHeight = effectiveHeight + spacing;
     int maxCols = qFloor(drawingWidth / cellWidth);
     int maxRows = qFloor(drawingHeight / cellHeight);
-    int totalCells = maxCols * maxRows;
+    int totalCells    = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
-
-
-    //qDebug() << "Grille :" << maxCols << "colonnes x" << maxRows << "lignes ="
-    //         << totalCells << "cellules. Placement de" << shapesToPlace << "formes.";
-
 
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;
@@ -737,40 +732,30 @@ void FormeVisualization::redraw()
         qreal xPos = col * cellWidth;
         qreal yPos = row * cellHeight;
 
-        if (auto path = dynamic_cast<QGraphicsPathItem*>(prototype)) {
+        if (auto pathItem = qgraphicsitem_cast<QGraphicsPathItem*>(prototype)) {
             QPointF offset(-bounds.x(), -bounds.y());
-            addPathWithLOD(path->path(), QPointF(xPos + offset.x(), yPos + offset.y()));
+            addPathWithLOD(pathItem->path(), QPointF(xPos + offset.x(), yPos + offset.y()));
             continue;
         }
 
         QGraphicsItem *shapeCopy = nullptr;
-        if (auto rect = dynamic_cast<QGraphicsRectItem*>(prototype))
+        if (auto rect = qgraphicsitem_cast<QGraphicsRectItem*>(prototype))
             shapeCopy = new QGraphicsRectItem(rect->rect());
-        else if (auto ellipse = dynamic_cast<QGraphicsEllipseItem*>(prototype))
+        else if (auto ellipse = qgraphicsitem_cast<QGraphicsEllipseItem*>(prototype))
             shapeCopy = new QGraphicsEllipseItem(ellipse->rect());
-        else if (auto polygon = dynamic_cast<QGraphicsPolygonItem*>(prototype))
+        else if (auto polygon = qgraphicsitem_cast<QGraphicsPolygonItem*>(prototype))
             shapeCopy = new QGraphicsPolygonItem(polygon->polygon());
-        else if (auto path = dynamic_cast<QGraphicsPathItem*>(prototype))
-            shapeCopy = new QGraphicsPathItem(path->path());
+        else if (auto path2 = qgraphicsitem_cast<QGraphicsPathItem*>(prototype))
+            shapeCopy = new QGraphicsPathItem(path2->path());
 
-        if (!shapeCopy) {
-            //qDebug() << "Erreur : Impossible de copier la forme !";
-            continue;
-        }
+        if (!shapeCopy) continue;
 
-        if (!shapeCopy)
-            continue;
-        QPointF offsetCorrection(-bounds.x(), -bounds.y());
-        shapeCopy->setPos(xPos + offsetCorrection.x(), yPos + offsetCorrection.y());
+        QPointF offset(-bounds.x(), -bounds.y());
+        shapeCopy->setPos(xPos + offset.x(), yPos + offset.y());
         shapeCopy->setFlag(QGraphicsItem::ItemIsMovable, true);
         shapeCopy->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(shapeCopy);
     }
-    //qDebug() << "Formes prédéfinies placées:" << shapesToPlace;
-    emit shapesPlacedCount(shapesToPlace);
-}
-
-
 
     emit shapesPlacedCount(shapesToPlace);
     scene->blockSignals(false);
@@ -1240,7 +1225,7 @@ bool FormeVisualization::validateShapes()
                     double area = 0.0;
                     const auto polys = inter.toFillPolygons(QTransform());
                     for (const QPolygonF &poly : polys)
-                        area += polygonArea(poly);
+                        area += ::polygonArea(poly);
                     QRectF ib = inter.boundingRect();
                     double epsArea = qMax(1e-6 * ib.width() * ib.height(), 0.25);
                     if (area > epsArea) {
