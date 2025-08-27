@@ -97,6 +97,7 @@ private:
     void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
     void applySize(class MovablePathItem *item, qreal W, qreal H);
     void cleanup();
+    void refitView();
     static void messageForwarder(QtMsgType, const QMessageLogContext&, const QString&);
     QtMessageHandler previousHandler {nullptr};
 

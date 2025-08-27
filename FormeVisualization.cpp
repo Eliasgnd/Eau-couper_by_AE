@@ -9,6 +9,7 @@
 #include <QPen>
 #include <QResizeEvent>
 #include <QVBoxLayout>
+#include <QTimer>
 
 class MovablePathItem : public QGraphicsPathItem {
 public:
@@ -117,6 +118,8 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     if (m_sheetBorder) {
         m_sheetBorder->setZValue(1.0);
     }
+    refitView();
+    QTimer::singleShot(0, this, [this]() { refitView(); });
 
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &FormeVisualization::handleSelectionChanged);
@@ -152,6 +155,14 @@ void FormeVisualization::cleanup() {
 
     delete scene;
     scene = nullptr;
+}
+
+void FormeVisualization::refitView() {
+    if (!graphicsView || !scene) {
+        return;
+    }
+    graphicsView->resetTransform();
+    graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
 }
 
 static QPen defaultPen() {
@@ -347,7 +358,7 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF> &shapes) {
         QPointF pos = cellPos - br.topLeft();
         pos = clampPositionToScene(br, bounds, pos);
         item->setPos(pos);
-        QRectF r = item->mapRectToScene(br);
+        QRectF r = br.translated(pos);
         if (bounds.contains(r)) {
             scene->addItem(item);
             placed += 1;
@@ -654,7 +665,7 @@ void FormeVisualization::setSheetSizeMm(const QSizeF &mm) {
         m_sheetBorder->setRect(rect);
     }
     emit sheetSizeMmChanged(m_sheetMm);
-    graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    refitView();
 }
 
 int FormeVisualization::heightForWidth(int w) const {
@@ -671,7 +682,7 @@ QSize FormeVisualization::minimumSizeHint() const {
 
 void FormeVisualization::resizeEvent(QResizeEvent *e) {
     QWidget::resizeEvent(e);
-    graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    refitView();
 }
 
 bool FormeVisualization::eventFilter(QObject *watched, QEvent *event) {
