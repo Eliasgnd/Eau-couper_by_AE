@@ -242,9 +242,7 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
         }
     }
     if (selfIntersect) {
-//        qInfo() << "Self-intersection detected in polygon";
         cleaned.clear();
-        poly = QPolygonF();
         return false;
     }
     poly = cleaned;
@@ -256,11 +254,14 @@ bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
     QList<QPolygonF> result;
     bool allValid = true;
     for (QPolygonF p : polys) {
-        bool ok = sanitizePolygon(p, eps);
-        if (ok && !p.isEmpty())
-            result << p;
-        else if (!ok)
+        if (sanitizePolygon(p, eps)) {
+            if (!p.isEmpty())
+                result << p;
+        }
+        else
+        {
             allValid = false;
+        }
     }
     if (!allValid)
         qInfo() << "Self-intersection detected in polygon";
