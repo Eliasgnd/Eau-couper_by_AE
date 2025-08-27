@@ -94,8 +94,6 @@ private:
     void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
     void applySize(QGraphicsPathItem *item, qreal W, qreal H);
 
-    static constexpr int kSizedOnInsert = 0x1001;
-
     QGraphicsView  *graphicsView {};
     QGraphicsScene *scene {};
     QProgressBar   *progressBar {};
@@ -110,8 +108,6 @@ private:
     QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
     bool m_decoupeEnCours = false;
-    QPointF m_rotationPivot;
-    bool m_rotationPivotValid {false};
     QGraphicsRectItem *m_sheetBorder {nullptr};
     QSizeF m_sheetMm {600.0, 400.0};
     double m_aspect = m_sheetMm.width() / m_sheetMm.height();

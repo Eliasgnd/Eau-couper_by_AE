@@ -8,6 +8,30 @@
 #include <QPainter>
 #include <QtMath>
 
+// Lightweight path item that keeps its geometry inside the scene rectangle
+class MovablePathItem : public QGraphicsPathItem {
+public:
+    using QGraphicsPathItem::QGraphicsPathItem;
+protected:
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override {
+        if (change == ItemPositionChange && scene()) {
+            QPointF newPos = value.toPointF();
+            QRectF r = mapRectToScene(path().boundingRect());
+            r.translate(newPos - pos());
+            QRectF bounds = scene()->sceneRect();
+            if (!bounds.contains(r)) {
+                QPointF adj = newPos;
+                if (r.left() < bounds.left())  adj.rx() += bounds.left() - r.left();
+                if (r.top() < bounds.top())    adj.ry() += bounds.top() - r.top();
+                if (r.right() > bounds.right()) adj.rx() -= r.right() - bounds.right();
+                if (r.bottom() > bounds.bottom()) adj.ry() -= r.bottom() - bounds.bottom();
+                return adj;
+            }
+        }
+        return QGraphicsPathItem::itemChange(change, value);
+    }
+};
+
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent)
 {
@@ -38,11 +62,12 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 {
     if (!scene)
         return;
-    auto *item = new QGraphicsPathItem(path);
-    item->setFlag(QGraphicsItem::ItemIsMovable, true);
-    item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-    scene->addItem(item);
+    auto *item = new MovablePathItem(path);
+    item->setFlag(QGraphicsItem::ItemIsMovable);
+    item->setFlag(QGraphicsItem::ItemIsSelectable);
+    item->setFlag(QGraphicsItem::ItemSendsGeometryChanges);
     applySize(item, currentLargeur, currentLongueur);
+    scene->addItem(item);
     QRectF br = item->path().boundingRect();
     item->setPos(pos - br.topLeft());
 }
@@ -82,22 +107,30 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     int cols = qMax(1, int(scene->sceneRect().width() / cellW));
     int rows = qMax(1, int(scene->sceneRect().height() / cellH));
     int max = qMin(shapeCount, cols * rows);
+    int placed = 0;
 
     for (int i = 0; i < max; ++i) {
         int col = i % cols;
         int row = i / cols;
-        auto *item = new QGraphicsPathItem(combined);
-        item->setFlag(QGraphicsItem::ItemIsMovable, true);
-        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        scene->addItem(item);
+        auto *item = new MovablePathItem(combined);
+        item->setFlag(QGraphicsItem::ItemIsMovable);
+        item->setFlag(QGraphicsItem::ItemIsSelectable);
+        item->setFlag(QGraphicsItem::ItemSendsGeometryChanges);
         applySize(item, W, H);
         QRectF br = item->path().boundingRect();
-        qreal x = col * cellW - br.x();
-        qreal y = row * cellH - br.y();
-        item->setPos(x, y);
+        QPointF topLeft(col * cellW, row * cellH);
+        QPointF finalPos = topLeft - br.topLeft();
+        QRectF r = br.translated(finalPos);
+        if (scene->sceneRect().contains(r)) {
+            scene->addItem(item);
+            item->setPos(finalPos);
+            ++placed;
+        } else {
+            delete item;
+        }
     }
 
-    emit shapesPlacedCount(max);
+    emit shapesPlacedCount(placed);
     graphicsView->viewport()->update();
 }
 
@@ -109,11 +142,12 @@ void FormeVisualization::updateDimensions(int largeur, int longueur)
     currentLongueur = longueur;
     for (QGraphicsItem *it : scene->items()) {
         if (auto *item = dynamic_cast<QGraphicsPathItem*>(it)) {
-            QRectF br = item->path().boundingRect();
-            QPointF tl = item->pos() + br.topLeft();
+            QPointF anchor = item->mapRectToScene(item->path().boundingRect()).topLeft();
+            qreal rot = item->rotation();
             applySize(item, currentLargeur, currentLongueur);
-            QRectF br2 = item->path().boundingRect();
-            item->setPos(tl - br2.topLeft());
+            item->setRotation(rot);
+            QPointF newTL = item->mapRectToScene(item->path().boundingRect()).topLeft();
+            item->setPos(item->pos() + (anchor - newTL));
         }
     }
     graphicsView->viewport()->update();
@@ -394,7 +428,6 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
 
 void FormeVisualization::handleSelectionChanged()
 {
-    m_rotationPivotValid = false;
     for (QGraphicsItem *item : scene->selectedItems())
         if (auto shape = dynamic_cast<QGraphicsPathItem*>(item)) {
             QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
@@ -449,9 +482,9 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
         return;
     QPointF c = br.center();
     QTransform t;
-    t.translate(-c.x(), -c.y());
-    t.scale(W / br.width(), H / br.height());
     t.translate(c.x(), c.y());
+    t.scale(W / br.width(), H / br.height());
+    t.translate(-c.x(), -c.y());
     p = t.map(p);
     item->setPath(p);
     item->setTransform(QTransform());
@@ -460,6 +493,7 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
     item->setPen(pen);
     item->setBrush(Qt::NoBrush);
     QRectF br2 = item->path().boundingRect();
+    item->setTransformOriginPoint(br2.center());
     qreal area = br2.width() * br2.height();
     if (area > 1e6)
         item->setCacheMode(QGraphicsItem::NoCache);
