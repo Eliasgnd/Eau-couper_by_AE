@@ -198,6 +198,9 @@ private:
         m_geomHash = hashPath(m_state.full, 0);
 
         m_state.lite = simplify(m_state.full);
+        qDebug() << "[LODItem] updateGeometryCaches"
+                 << "fullElems=" << m_state.full.elementCount()
+                 << "bounds=" << m_state.full.boundingRect();
 
         const int ec = m_state.full.elementCount();
         if (ec > 20000)
@@ -221,6 +224,9 @@ private:
             m_state.pixmap = renderPixmap(m_state.full, pen(), brush(), 1.0);
         else
             m_state.pixmap = QPixmap();
+        qDebug() << "[LODItem] cache"
+                 << "pix=" << !m_state.pixmap.isNull()
+                 << "penW=" << m_state.key.penWidth;
 
         const qreal area = m_state.bounds.width()*m_state.bounds.height();
         setCacheMode(area>250000.0 ? QGraphicsItem::ItemCoordinateCache : QGraphicsItem::DeviceCoordinateCache);
@@ -284,6 +290,12 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     const qreal H = currentLongueur;
     const QPointF basePos = pos;
 
+    QElapsedTimer lodT; lodT.start(); qDebug() << "[LOD] enter"
+             << "elems=" << path.elementCount()
+             << "bbox=" << path.boundingRect()
+             << "W=" << W << "H=" << H << "basePos=" << basePos;
+
+
     // If we already know the target size, skip the placeholder pixmap and
     // spawn the final item immediately at the correct dimensions.
     if (W > 0 && H > 0) {
@@ -304,11 +316,16 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 
         // Proxy/clean computation off the UI thread.
         QGraphicsPathItem *guard = item;
-        QThreadPool::globalInstance()->start([this, path, guard, W, H, basePos, cancel]{
+        QThreadPool::globalInstance()->start([this, path, guard, W, H, basePos, cancel, lodT]{
             if (cancel->load(std::memory_order_acquire)) return;
 
             QPainterPath clean = normalizePath(path);
             QPainterPath proxy = buildProxyPath(clean);
+            qDebug() << "[LOD] worker1 done"
+                     << "normalize+proxy ms=" << lodT.elapsed()
+                     << "cleanElems=" << clean.elementCount()
+                     << "proxyPolysBbox=" << proxy.boundingRect();
+
             if (cancel->load(std::memory_order_acquire)) return;
 
             // (1) UI — CAPTURE aussi 'clean' par valeur
@@ -317,6 +334,9 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
                 if (!scene->items().contains(guard)) return;
 
                 guard->setPath(proxy);
+                qDebug() << "[LOD] UI proxy" << "W=" << W << "H=" << H
+                         << "proxyBbox=" << proxy.boundingRect();
+
                 applySize(guard, W, H);
                 const QRectF br2 = guard->transform().mapRect(proxy.boundingRect());
                 guard->setPos(basePos - br2.topLeft());
@@ -388,7 +408,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         QGraphicsPathItem* guard = item;
 
         // Worker → calc clean & proxy
-        QThreadPool::globalInstance()->start([this, path, guard, W0, H0, P0, cancel]{
+        QThreadPool::globalInstance()->start([this, path, guard, W0, H0, P0, cancel, lodT]{
             if (cancel->load(std::memory_order_acquire)) return;
 
             const QPainterPath clean = normalizePath(path);
@@ -410,11 +430,15 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 
             if (cancel->load(std::memory_order_acquire)) return;
             const QPainterPath exact = clean;
+            qDebug() << "[LOD] worker2 exact ready"
+                     << "exactElems=" << exact.elementCount()
+                     << "msSinceEnter=" << lodT.elapsed();
+
             if (cancel->load(std::memory_order_acquire)) return;
 
 
             // UI: appliquer exact
-            QMetaObject::invokeMethod(this, [this, guard, cancel, exact, W0, H0, P0](){
+            QMetaObject::invokeMethod(this, [this, guard, cancel, exact, W0, H0, P0, lodT](){
                 if (cancel->load(std::memory_order_acquire) || !scene) return;
                 if (!scene->items().contains(guard)) return;
 
@@ -424,6 +448,9 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
                 applySize(guard, W0, H0);
                 const QRectF br_exact_t = guard->transform().mapRect(exact.boundingRect());
                 guard->setPos(P0 - br_exact_t.topLeft());
+                qDebug() << "[LOD] UI exact applied"
+                         << "finalBbox=" << exact.boundingRect()
+                         << "totalMs=" << lodT.elapsed();
 
                 const QTransform t = guard->sceneTransform();
                 const QPainterPath mapped = t.map(exact);
@@ -526,41 +553,56 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 
 void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
 {
-    if (!item)
-        return;
+    if (!item) return;
+
+    QElapsedTimer t; t.start();
 
     QSignalBlocker blocker(scene);
+
+    // Ne réapplique pas le style si déjà correct
     if (!(item->brush().style()==Qt::NoBrush &&
           item->pen().color()==Qt::black &&
           item->pen().isCosmetic() &&
-          qFuzzyCompare(item->pen().widthF(),1.0))) {
+          qFuzzyCompare(item->pen().widthF(), 1.0))) {
         item->setBrush(Qt::NoBrush);
         QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
         pen.setCosmetic(true);
         item->setPen(pen);
     }
 
-    if (W <= 0 || H <= 0)
-        return;
+    if (W <= 0 || H <= 0) return;
 
     QPainterPath path = item->path();
     path.setFillRule(Qt::OddEvenFill);
-    QRectF br = path.boundingRect();
-    if (br.isEmpty())
-        return;
+    const QRectF brBefore = path.boundingRect();
+    if (brBefore.isEmpty()) return;
 
-    if (W>0 && H>0 && std::fabs(br.width()-W)<=0.01 && std::fabs(br.height()-H)<=0.01)
-        return;
+    qDebug() << "[SIZE] in"
+             << "W=" << W << "H=" << H
+             << "bboxBefore=" << brBefore
+             << "currT=" << item->transform();
 
-    qreal sx = W / br.width();
-    qreal sy = H / br.height();
-    QPointF c = br.center();
+    // Déjà à la bonne taille ?
+    if (std::fabs(brBefore.width()-W) <= 0.01 &&
+        std::fabs(brBefore.height()-H) <= 0.01) {
+        qDebug() << "[SIZE] skip (already sized)" << "ms=" << t.elapsed();
+        return;
+    }
+
+    // Échelle “baked” dans la géométrie (pas dans la transform)
+    const QPointF c = brBefore.center();
     QTransform T;
     T.translate(c.x(), c.y());
-    T.scale(sx, sy);
+    T.scale(W / brBefore.width(), H / brBefore.height());
     T.translate(-c.x(), -c.y());
-    item->setPath(T.map(path));
-    item->setTransform(QTransform());
+
+    item->setPath(T.map(path));        // bake size
+    item->setTransform(QTransform());  // transform identité
+
+    const QRectF brAfter = item->path().boundingRect();
+    qDebug() << "[SIZE] out"
+             << "bboxAfter=" << brAfter
+             << "ms=" << t.elapsed();
 
     item->setData(kSizedOnInsert, 1);
 }
@@ -1169,6 +1211,8 @@ void FormeVisualization::redraw()
 
         if (auto pathItem = qgraphicsitem_cast<QGraphicsPathItem*>(prototype)) {
             QPointF offset(-bounds.x(), -bounds.y());
+            qDebug() << "[DISP] addPathWithLOD"
+                     << "i=" << i << "xPos=" << xPos << "yPos=" << yPos;
             addPathWithLOD(pathItem->path(), QPointF(xPos + offset.x(), yPos + offset.y()));
             continue;
         }
@@ -1229,6 +1273,10 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     for (const QPolygonF &poly : shapes)
         combinedPath.addPolygon(poly);
     QRectF polyBounds = combinedPath.boundingRect();
+    qDebug() << "[DISP] custom"
+             << "targetW/H=" << currentLargeur << currentLongueur
+             << "polyBbox=" << polyBounds << "count=" << shapes.size();
+
     if (polyBounds.width() <= 0 || polyBounds.height() <= 0) {
         scene->blockSignals(false);
         vp->setUpdatesEnabled(true);
@@ -1245,6 +1293,11 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     int maxRows = qFloor(drawingHeight / cellHeight);
     int totalCells = maxCols * maxRows;
     int shapesToPlace = qMin(shapeCount, totalCells);
+    qDebug() << "[DISP] grid"
+             << "cell=" << cellWidth << "x" << cellHeight
+             << "max=" << maxCols << "x" << maxRows
+             << "place=" << shapesToPlace;
+
 
     for (int i = 0; i < shapesToPlace; ++i) {
         int col = i % maxCols;

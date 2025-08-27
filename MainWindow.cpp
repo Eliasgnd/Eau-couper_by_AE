@@ -585,6 +585,9 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
             }
 
             formeVisualization->setCustomMode();
+            qDebug() << "[MW] sendToViz"
+                     << "polys=" << cleaned.size()
+                     << "bounds=" << bounds << "tooComplex=" << tooComplex;
 
             int largeur = ui->Largeur->value();
             int hauteur = ui->Longueur->value();
