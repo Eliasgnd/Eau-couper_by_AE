@@ -187,19 +187,6 @@ void CutQueue::process(int budgetMs){
 
 void CutQueue::cancel(){ m_cancelled = true; m_items.clear(); }
 
-static bool segmentsIntersect(const QPointF &a1, const QPointF &a2,
-                              const QPointF &b1, const QPointF &b2)
-{
-    auto cross = [](const QPointF &p, const QPointF &q){ return p.x()*q.y() - p.y()*q.x(); };
-    QPointF r = a2 - a1;
-    QPointF s = b2 - b1;
-    double denom = cross(r, s);
-    if (qFuzzyIsNull(denom)) return false;
-    QPointF diff = b1 - a1;
-    double t = cross(diff, s) / denom;
-    double u = cross(diff, r) / denom;
-    return t > 0 && t < 1 && u > 0 && u < 1;
-}
 
 bool sanitizePolygon(QPolygonF &poly, double eps)
 {
@@ -227,24 +214,6 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
         area += cleaned[i].x()*cleaned[i+1].y() - cleaned[i+1].x()*cleaned[i].y();
     if (area < 0)
         std::reverse(cleaned.begin(), cleaned.end());
-
-    bool selfIntersect = false;
-    for (int i = 0; i < cleaned.size() - 1 && !selfIntersect; ++i) {
-        QPointF a1 = cleaned[i], a2 = cleaned[i + 1];
-        for (int j = i + 1; j < cleaned.size() - 1; ++j) {
-            if (std::abs(j - i) <= 1 || (i == 0 && j == cleaned.size() - 2))
-                continue;
-            QPointF b1 = cleaned[j], b2 = cleaned[j + 1];
-            if (segmentsIntersect(a1, a2, b1, b2)) {
-                selfIntersect = true;
-                break;
-            }
-        }
-    }
-    if (selfIntersect) {
-        cleaned.clear();
-        return false;
-    }
     poly = cleaned;
     return true;
 }
