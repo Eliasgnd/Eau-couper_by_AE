@@ -89,12 +89,17 @@ inline bool isPathTooComplex(const QPainterPath &path, int maxElements)
 
 constexpr int kMaxPathElements = 10000;
 
+// Remove duplicates, enforce orientation and detect self-intersections.
+// Returns false if the polygon was invalid and cleared.
 bool sanitizePolygon(QPolygonF &poly, double eps = 1e-6);
+
+// Sanitize a list of polygons, discarding invalid ones. Returns true only if
+// all polygons were valid.
 bool sanitizePolygons(QList<QPolygonF> &polys, double eps = 1e-6);
 
-// Validate polygons and replace with a safe proxy (bounding box) when invalid.
-// Returns false if polygons are invalid and no proxy was created (safe mode off).
-// When a proxy is used, an optional warning message is filled.
+// Validate polygons, removing invalid ones. If none remain and safeMode is
+// enabled, a bounding box proxy is inserted and a warning message is filled.
+// Returns true only when all polygons were valid.
 bool validateAndProxyPolygons(QList<QPolygonF> &polys,
                               bool safeMode,
                               QString *warning = nullptr,
