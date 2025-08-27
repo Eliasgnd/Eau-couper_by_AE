@@ -199,39 +199,53 @@ private:
 
         m_state.lite = simplify(m_state.full);
 
-        StrokeMode mode = StrokeMode::Normal;
-        if (pen().style() == Qt::NoPen)
-            mode = StrokeMode::None;
-        else if (pen().isCosmetic() || pen().widthF() <= 0.0)
-            mode = StrokeMode::Cosmetic;
-        kStrokeDispatch[static_cast<int>(mode)](this, m_state.full);
+        const int ec = m_state.full.elementCount();
+        if (ec > 20000)
+            m_state.stroke = QPainterPath();
+        else {
+            StrokeMode mode = (pen().style()==Qt::NoPen ? StrokeMode::None :
+                               (pen().isCosmetic()||pen().widthF()<=0.0 ? StrokeMode::Cosmetic : StrokeMode::Normal));
+            kStrokeDispatch[static_cast<int>(mode)](this, m_state.full);
+        }
 
         m_state.bounds = m_state.full.boundingRect();
         m_state.key.penColor   = pen().color().rgba();
         m_state.key.brushColor = brush().color().rgba();
         m_state.key.penWidth   = pen().widthF();
 
-        const bool needPixmap = (m_state.full.elementCount() > kSegmentSimplifyThreshold ||
-                                 m_state.bounds.width() * m_state.bounds.height() > 1e6);
-        if (needPixmap)
+        const QSizeF bs = m_state.bounds.size();
+        const int MAX_DIM = 4096;
+        if (bs.width()>MAX_DIM || bs.height()>MAX_DIM)
+            m_state.pixmap = QPixmap();
+        else if (m_state.full.elementCount()>kSegmentSimplifyThreshold)
             m_state.pixmap = renderPixmap(m_state.full, pen(), brush(), 1.0);
         else
             m_state.pixmap = QPixmap();
+
+        const qreal area = m_state.bounds.width()*m_state.bounds.height();
+        setCacheMode(area>250000.0 ? QGraphicsItem::ItemCoordinateCache : QGraphicsItem::DeviceCoordinateCache);
     }
 
     static QPainterPath simplify(const QPainterPath &p)
     {
         QPainterPath simp;
-        for (const QPolygonF &poly : p.toSubpathPolygons())
-            simp.addPolygon(poly);
+        for (const QPolygonF &poly : p.toFillPolygons())
+            if (poly.size()>=3)
+                simp.addPolygon(poly);
         simp.setFillRule(Qt::OddEvenFill);
-        return simp.simplified();
+        return simp;
     }
 
     static QPixmap renderPixmap(const QPainterPath &path, const QPen &pen, const QBrush &brush, qreal dpr)
     {
         QRectF br = path.boundingRect();
-        QPixmap pm(br.size().toSize() * dpr);
+        QPixmap empty;
+        if (!br.isValid() || br.isEmpty())
+            return empty;
+        QSize sz = (br.size()*dpr).toSize().expandedTo(QSize(1,1));
+        if (sz.width()>4096 || sz.height()>4096)
+            return empty;
+        QPixmap pm(sz);
         pm.setDevicePixelRatio(dpr);
         pm.fill(Qt::transparent);
         QPainter painter(&pm);
@@ -304,7 +318,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
                 QThreadPool::globalInstance()->start([this, clean, guard, W, H, basePos, cancel2] {
                     if (cancel2->load(std::memory_order_acquire)) return;
 
-                    QPainterPath exact = clean.simplified();
+                    const QPainterPath exact = clean;
                     if (cancel2->load(std::memory_order_acquire)) return;
 
                     QMetaObject::invokeMethod(this, [=]() {
@@ -388,7 +402,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             }, Qt::QueuedConnection);
 
             if (cancel->load(std::memory_order_acquire)) return;
-            const QPainterPath exact = clean.simplified();
+            const QPainterPath exact = clean;
             if (cancel->load(std::memory_order_acquire)) return;
 
             QMetaObject::invokeMethod(this, [this, guard, cancel, exact, W0, H0, P0](){
@@ -500,7 +514,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 >>>>>>> 7c778e2 (changé)
                 if (cancel2->load(std::memory_order_acquire)) return;
 
-                QPainterPath exact = clean.simplified();
+                const QPainterPath exact = clean;
                 if (cancel2->load(std::memory_order_acquire)) return;
 
 <<<<<<< HEAD
@@ -538,11 +552,15 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
         return;
 
     QSignalBlocker blocker(scene);
-
-    item->setBrush(Qt::NoBrush);
-    QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
-    pen.setCosmetic(true);
-    item->setPen(pen);
+    if (!(item->brush().style()==Qt::NoBrush &&
+          item->pen().color()==Qt::black &&
+          item->pen().isCosmetic() &&
+          qFuzzyCompare(item->pen().widthF(),1.0))) {
+        item->setBrush(Qt::NoBrush);
+        QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+        pen.setCosmetic(true);
+        item->setPen(pen);
+    }
 
     if (W <= 0 || H <= 0)
         return;
@@ -550,6 +568,9 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
     QPainterPath path = item->path();
     QRectF br = path.boundingRect();
     if (br.isEmpty())
+        return;
+
+    if (W>0 && H>0 && std::fabs(br.width()-W)<=0.01 && std::fabs(br.height()-H)<=0.01)
         return;
 
     qreal sx = W / br.width();
