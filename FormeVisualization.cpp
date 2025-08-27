@@ -3,26 +3,35 @@
 #include <QVBoxLayout>
 #include <QResizeEvent>
 #include <QMouseEvent>
-#include <QGraphicsEllipseItem>
 #include <QImage>
 #include <QPainter>
-#include <QtMath>
+#include <QApplication>
 
-// Lightweight path item that keeps its geometry inside the scene rectangle
+// -----------------------------------------------------------------------------
+// Movable item clamping itself inside the scene rectangle
+// -----------------------------------------------------------------------------
 class MovablePathItem : public QGraphicsPathItem {
 public:
     using QGraphicsPathItem::QGraphicsPathItem;
+
 protected:
-    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override {
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override
+    {
         if (change == ItemPositionChange && scene()) {
             QPointF newPos = value.toPointF();
-            QRectF r = mapRectToScene(path().boundingRect());
-            r.translate(newPos - pos());
+            // compute bounding rect at new position including rotation
+            QRectF local = path().boundingRect();
+            QTransform t;
+            t.translate(newPos.x(), newPos.y());
+            t.translate(transformOriginPoint().x(), transformOriginPoint().y());
+            t.rotate(rotation());
+            t.translate(-transformOriginPoint().x(), -transformOriginPoint().y());
+            QRectF r = t.mapRect(local);
             QRectF bounds = scene()->sceneRect();
             if (!bounds.contains(r)) {
                 QPointF adj = newPos;
-                if (r.left() < bounds.left())  adj.rx() += bounds.left() - r.left();
-                if (r.top() < bounds.top())    adj.ry() += bounds.top() - r.top();
+                if (r.left() < bounds.left())   adj.rx() += bounds.left() - r.left();
+                if (r.top() < bounds.top())     adj.ry() += bounds.top() - r.top();
                 if (r.right() > bounds.right()) adj.rx() -= r.right() - bounds.right();
                 if (r.bottom() > bounds.bottom()) adj.ry() -= r.bottom() - bounds.bottom();
                 return adj;
@@ -32,6 +41,27 @@ protected:
     }
 };
 
+// -----------------------------------------------------------------------------
+// Message handler forwarding to previous one
+// -----------------------------------------------------------------------------
+void FormeVisualization::messageForwarder(QtMsgType type,
+                                          const QMessageLogContext &ctx,
+                                          const QString &msg)
+{
+    if (FormeVisualization *self = qobject_cast<FormeVisualization*>(qApp->property("FormeVisualizationInstance").value<QObject*>())) {
+        if (self->previousHandler)
+            self->previousHandler(type, ctx, msg);
+    } else {
+        auto prev = qInstallMessageHandler(nullptr);
+        if (prev)
+            prev(type, ctx, msg);
+        qInstallMessageHandler(FormeVisualization::messageForwarder);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Constructor / Destructor
+// -----------------------------------------------------------------------------
 FormeVisualization::FormeVisualization(QWidget *parent)
     : QWidget(parent)
 {
@@ -49,13 +79,76 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     layout->addWidget(graphicsView);
     layout->addWidget(progressBar);
 
-    QRectF rect(0,0,m_sheetMm.width(),m_sheetMm.height());
+    QRectF rect(0,0,m_sheetMm.width(), m_sheetMm.height());
     scene->setSceneRect(rect);
     m_sheetBorder = scene->addRect(rect, QPen(Qt::gray));
     m_sheetBorder->setZValue(1);
 
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &FormeVisualization::handleSelectionChanged);
+
+    if (qApp) {
+        qApp->setProperty("FormeVisualizationInstance", QVariant::fromValue<QObject*>(this));
+        previousHandler = qInstallMessageHandler(FormeVisualization::messageForwarder);
+        connect(qApp, &QCoreApplication::aboutToQuit, this, &FormeVisualization::cleanup);
+    }
+}
+
+FormeVisualization::~FormeVisualization()
+{
+    cleanup();
+}
+
+// -----------------------------------------------------------------------------
+// Helper to release scene before QApplication quits
+// -----------------------------------------------------------------------------
+void FormeVisualization::cleanup()
+{
+    if (previousHandler) {
+        qInstallMessageHandler(previousHandler);
+        previousHandler = nullptr;
+    }
+
+    if (graphicsView && graphicsView->scene())
+        graphicsView->setScene(nullptr);
+
+    if (scene) {
+        scene->clear();
+        delete scene;
+        scene = nullptr;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Geometry utilities
+// -----------------------------------------------------------------------------
+void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
+{
+    if (!item)
+        return;
+    QPainterPath p = item->path();
+    QRectF br = p.boundingRect();
+    if (br.width() <= 0 || br.height() <= 0)
+        return;
+    QPointF c = br.center();
+    QTransform t;
+    t.translate(c.x(), c.y());
+    t.scale(W / br.width(), H / br.height());
+    t.translate(-c.x(), -c.y());
+    p = t.map(p);
+    item->setPath(p);
+    item->setTransform(QTransform());
+    QRectF br2 = item->path().boundingRect();
+    item->setTransformOriginPoint(br2.center());
+    QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+    pen.setCosmetic(true);
+    item->setPen(pen);
+    item->setBrush(Qt::NoBrush);
+    qreal area = br2.width() * br2.height();
+    if (area > 1e6)
+        item->setCacheMode(QGraphicsItem::NoCache);
+    else
+        item->setCacheMode(QGraphicsItem::ItemCoordinateCache);
 }
 
 void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF &pos)
@@ -67,17 +160,19 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     item->setFlag(QGraphicsItem::ItemIsSelectable);
     item->setFlag(QGraphicsItem::ItemSendsGeometryChanges);
     applySize(item, currentLargeur, currentLongueur);
-    scene->addItem(item);
     QRectF br = item->path().boundingRect();
     item->setPos(pos - br.topLeft());
+    scene->addItem(item);
 }
 
+// -----------------------------------------------------------------------------
+// Shape placement
+// -----------------------------------------------------------------------------
 void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 {
     if (warnIfCutting())
         return;
 
-    // remove existing path items except border and cut markers
     QList<QGraphicsItem*> toRemove;
     for (QGraphicsItem *it : scene->items()) {
         if (it == m_sheetBorder || m_cutMarkers.contains(it))
@@ -238,8 +333,6 @@ void FormeVisualization::rotateSelectedShapes(qreal angle)
 {
     for (QGraphicsItem *it : scene->selectedItems()) {
         if (auto *path = dynamic_cast<QGraphicsPathItem*>(it)) {
-            QPointF center = path->path().boundingRect().center();
-            path->setTransformOriginPoint(center);
             path->setRotation(path->rotation() + angle);
         }
     }
@@ -399,6 +492,9 @@ QSize FormeVisualization::minimumSizeHint() const
     return QSize(200, heightForWidth(200));
 }
 
+// -----------------------------------------------------------------------------
+// QWidget overrides
+// -----------------------------------------------------------------------------
 void FormeVisualization::resizeEvent(QResizeEvent *e)
 {
     QWidget::resizeEvent(e);
@@ -420,6 +516,9 @@ bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+// -----------------------------------------------------------------------------
+// Internal helpers
+// -----------------------------------------------------------------------------
 QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
     Q_UNUSED(spacing);
@@ -472,32 +571,4 @@ void FormeVisualization::redraw()
     }
 }
 
-void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
-{
-    if (!item)
-        return;
-    QPainterPath p = item->path();
-    QRectF br = p.boundingRect();
-    if (br.width() <= 0 || br.height() <= 0)
-        return;
-    QPointF c = br.center();
-    QTransform t;
-    t.translate(c.x(), c.y());
-    t.scale(W / br.width(), H / br.height());
-    t.translate(-c.x(), -c.y());
-    p = t.map(p);
-    item->setPath(p);
-    item->setTransform(QTransform());
-    QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
-    pen.setCosmetic(true);
-    item->setPen(pen);
-    item->setBrush(Qt::NoBrush);
-    QRectF br2 = item->path().boundingRect();
-    item->setTransformOriginPoint(br2.center());
-    qreal area = br2.width() * br2.height();
-    if (area > 1e6)
-        item->setCacheMode(QGraphicsItem::NoCache);
-    else
-        item->setCacheMode(QGraphicsItem::ItemCoordinateCache);
-}
-
+// -----------------------------------------------------------------------------

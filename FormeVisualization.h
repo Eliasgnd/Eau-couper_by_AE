@@ -18,6 +18,7 @@ class FormeVisualization : public QWidget {
     Q_PROPERTY(QSizeF sheetSizeMm READ sheetSizeMm WRITE setSheetSizeMm NOTIFY sheetSizeMmChanged)
 public:
     explicit FormeVisualization(QWidget *parent = nullptr);
+    ~FormeVisualization();
 
     void setModel(ShapeModel::Type model);
     void updateDimensions(int largeur, int longueur);
@@ -93,6 +94,9 @@ private:
 
     void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
     void applySize(QGraphicsPathItem *item, qreal W, qreal H);
+    void cleanup();
+    static void messageForwarder(QtMsgType, const QMessageLogContext&, const QString&);
+    QtMessageHandler previousHandler {nullptr};
 
     QGraphicsView  *graphicsView {};
     QGraphicsScene *scene {};
