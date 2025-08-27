@@ -1186,6 +1186,7 @@ bool FormeVisualization::validateShapes()
     QHash<QPair<int,int>, QVector<int>> grid;
     grid.reserve(geoms.size() * 2);
     QSet<quint64> tested;
+    QVector<bool> invalid(shapes.size(), false);
 
     for (int i = 0; i < geoms.size(); ++i) {
         const QRectF &b = geoms[i].bbox;
@@ -1198,12 +1199,14 @@ bool FormeVisualization::validateShapes()
                 grid[{x, y}].append(i);
     }
 
-    for (auto it = grid.constBegin(); it != grid.constEnd() && allValid; ++it) {
+    for (auto it = grid.constBegin(); it != grid.constEnd(); ++it) {
         const QVector<int> &idxs = it.value();
-        for (int a = 0; a < idxs.size() && allValid; ++a) {
+        for (int a = 0; a < idxs.size(); ++a) {
             for (int b = a + 1; b < idxs.size(); ++b) {
                 int i = idxs[a];
                 int j = idxs[b];
+                if (invalid[i] && invalid[j])
+                    continue;
                 const quint64 key = (static_cast<quint64>(qMin(i, j)) << 32) | qMax(i, j);
                 if (tested.contains(key))
                     continue;
@@ -1231,13 +1234,13 @@ bool FormeVisualization::validateShapes()
                     if (area > epsArea) {
                         shapes[i]->setPen(QPen(Qt::red, 1));
                         shapes[j]->setPen(QPen(Qt::red, 1));
+                        invalid[i] = true;
+                        invalid[j] = true;
                         allValid = false;
                         if (qApp->property("invalidReason").toInt() == 0)
                             qApp->setProperty("invalidReason", InteriorOverlap);
                     }
                 }
-                if (!allValid)
-                    break;
             }
         }
     }
