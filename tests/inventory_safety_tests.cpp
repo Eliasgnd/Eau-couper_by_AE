@@ -10,8 +10,8 @@ void InventorySafetyTests::malformedShapeUsesProxy()
     p << QPointF(0,0) << QPointF(10,10) << QPointF(0,10) << QPointF(10,0) << QPointF(0,0);
     polys << p;
     QString warn;
-    QVERIFY(validateAndProxyPolygons(polys, true, &warn));
-    QVERIFY(warn.isEmpty());
+    QVERIFY(!validateAndProxyPolygons(polys, true, &warn));
+    QVERIFY(!warn.isEmpty());
     QCOMPARE(polys.size(), 1);
     setSafeMode(false);
 }
@@ -24,7 +24,7 @@ void InventorySafetyTests::invalidShapeRejected()
     p << QPointF(0,0) << QPointF(10,10) << QPointF(0,10) << QPointF(10,0) << QPointF(0,0);
     polys << p;
     QString warn;
-    QVERIFY(validateAndProxyPolygons(polys, false, &warn));
+    QVERIFY(!validateAndProxyPolygons(polys, false, &warn));
 }
 
 void InventorySafetyTests::hugePolygonHandled()
