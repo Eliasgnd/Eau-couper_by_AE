@@ -193,7 +193,7 @@ static void removeExistingShapeItems(QGraphicsScene *sc,
         QGraphicsItem *it = items.at(i);
         bool isBorder = (it == border);
         bool isMarker = markers.contains(it);
-        bool isPath = isPathItem(it);
+        bool isPath = qgraphicsitem_cast<QGraphicsPathItem*>(it) != nullptr; // ou MovablePathItem*
         if (!isBorder && !isMarker && isPath) {
             sc->removeItem(it);
             delete it;
