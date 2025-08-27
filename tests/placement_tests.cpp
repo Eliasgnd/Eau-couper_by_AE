@@ -93,3 +93,23 @@ void PlacementTests::selfIntersectingOverlapDetected()
     QVERIFY(pathsOverlap(star, rect));
 }
 
+void PlacementTests::heartPathLODNoHang()
+{
+    // Create a simple heart shape using cubic curves.
+    QPainterPath heart;
+    heart.moveTo(50, 15);
+    heart.cubicTo(35, 0, 0, 25, 50, 70);
+    heart.cubicTo(100, 25, 65, 0, 50, 15);
+    heart.closeSubpath();
+    heart.setFillRule(Qt::OddEvenFill);
+
+    QElapsedTimer t; t.start();
+    QPainterPath clean = normalizePath(heart);
+    QPainterPath proxy = buildProxyPath(clean);
+    QPainterPath exact = clean.simplified();
+
+    QList<QPolygonF> polys = exact.toFillPolygons();
+    QVERIFY(sanitizePolygons(polys));
+    QVERIFY(t.elapsed() < 500); // Should complete well under half a second
+}
+

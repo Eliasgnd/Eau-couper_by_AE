@@ -79,6 +79,7 @@ inline QPainterPath normalizePath(const QPainterPath &path, double eps = 1e-6)
     }
     if (result.elementCount() > 2)
         result.closeSubpath();
+    result.setFillRule(Qt::OddEvenFill);
     return result.simplified();
 }
 

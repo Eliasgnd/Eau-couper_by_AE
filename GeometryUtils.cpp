@@ -23,15 +23,26 @@ bool gLowEndMode = false;
 bool gSafeMode = false;
 
 QPainterPath simplifyForProxyInternal(const QPainterPath &p, double tol) {
+    if (p.elementCount() > kMaxPathElements ||
+        p.boundingRect().width() * p.boundingRect().height() > 1e8)
+        return p;
+
     CacheKey key{&p};
     auto it = gSimplifiedCache.constFind(key);
     if (it != gSimplifiedCache.constEnd())
         return it.value();
+
+    QPainterPath copy = p;
+    copy.setFillRule(Qt::OddEvenFill);
+
     QPainterPath result;
-    for (const QPolygonF &poly : p.toFillPolygons()) {
-        if (poly.size() < 3) continue;
+    result.setFillRule(Qt::OddEvenFill);
+    for (const QPolygonF &poly : copy.toFillPolygons()) {
+        if (poly.size() < 3)
+            continue;
         QVector<QPointF> pts = poly;
-        if (!pts.isEmpty() && pts.first() == pts.last()) pts.removeLast();
+        if (!pts.isEmpty() && pts.first() == pts.last())
+            pts.removeLast();
         QVector<int> keep; keep << 0 << pts.size()-1;
         auto distToSegment = [](const QPointF &p1, const QPointF &p2, const QPointF &pt){
             QLineF l(p1,p2);
@@ -51,6 +62,8 @@ QPainterPath simplifyForProxyInternal(const QPainterPath &p, double tol) {
         };
         dp(0, pts.size()-1);
         std::sort(keep.begin(), keep.end());
+        if (keep.isEmpty())
+            continue;
         QPainterPath sub; sub.moveTo(pts[keep[0]]);
         for(int i=1;i<keep.size();++i) sub.lineTo(pts[keep[i]]);
         sub.closeSubpath(); result.addPath(sub);

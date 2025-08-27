@@ -221,10 +221,20 @@ private:
 
     static QPainterPath simplify(const QPainterPath &p)
     {
+        // Early-out if the path is already huge to avoid expensive work.
+        QRectF br = p.boundingRect();
+        if (p.elementCount() > kSegmentSimplifyThreshold ||
+            br.width() * br.height() > 1e6)
+            return p;
+
+        QPainterPath tmp = p;
+        tmp.setFillRule(Qt::OddEvenFill);
+
         QPainterPath simp;
-        for (const QPolygonF &poly : p.toSubpathPolygons())
-            simp.addPolygon(poly);
         simp.setFillRule(Qt::OddEvenFill);
+        const auto polys = tmp.toFillPolygons();
+        for (const QPolygonF &poly : polys)
+            simp.addPolygon(poly);
         return simp.simplified();
     }
 
@@ -548,6 +558,7 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
         return;
 
     QPainterPath path = item->path();
+    path.setFillRule(Qt::OddEvenFill);
     QRectF br = path.boundingRect();
     if (br.isEmpty())
         return;
@@ -559,7 +570,8 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
     T.translate(c.x(), c.y());
     T.scale(sx, sy);
     T.translate(-c.x(), -c.y());
-    item->setTransform(T, false);
+    item->setPath(T.map(path));
+    item->setTransform(QTransform());
 
     item->setData(kSizedOnInsert, 1);
 }

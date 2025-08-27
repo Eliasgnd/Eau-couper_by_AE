@@ -13,4 +13,5 @@ private slots:
     void lowEndModeAdjusts();
     void selfIntersectingAccepted();
     void selfIntersectingOverlapDetected();
+    void heartPathLODNoHang();
 };

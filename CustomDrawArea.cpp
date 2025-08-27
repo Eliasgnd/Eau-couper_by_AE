@@ -145,15 +145,19 @@ QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &pat
 }
 
 // Approxime un QPainterPath en une liste de segments droits.
-// Utilise toSubpathPolygons() pour linéariser les courbes.
+// Utilise toFillPolygons() pour linéariser les courbes tout en évitant les
+// auto-intersections grâce à la règle de remplissage OddEven.
 static QVector<QLineF> pathToLines(const QPainterPath& path)
 {
     QVector<QLineF> lines;
-    const auto polys = path.toSubpathPolygons(); // approximation des courbes
+    QPainterPath p = path;
+    p.setFillRule(Qt::OddEvenFill);
+    const auto polys = p.toFillPolygons();
     for (const QPolygonF& poly : polys) {
-        for (int i = 0; i + 1 < poly.size(); ++i) {
+        if (poly.size() < 2)
+            continue;
+        for (int i = 0; i + 1 < poly.size(); ++i)
             lines.push_back(QLineF(poly[i], poly[i+1]));
-        }
     }
     return lines;
 }
