@@ -22,6 +22,7 @@
 #include <QElapsedTimer>
 #include <QCache>
 #include <QSignalBlocker>
+#include <QDebug>
 
 #include "GeometryUtils.h"
 
@@ -33,6 +34,26 @@
 #include <QtConcurrent>
 #include <memory>
 #include <atomic>
+
+#ifdef QT_DEBUG
+#include <cstdio>
+static thread_local const char* gPhase = nullptr;
+struct PhaseTag {
+    const char* saved;
+    explicit PhaseTag(const char* n) : saved(gPhase) { gPhase = n; }
+    ~PhaseTag() { gPhase = saved; }
+};
+static void siMessageHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
+{
+    Q_UNUSED(type);
+    Q_UNUSED(ctx);
+    if (msg.contains("Self-intersection detected in polygon")) {
+        qDebug() << "[SI]" << "phase=" << (gPhase ? gPhase : "(unknown)") << msg;
+    }
+    fprintf(stderr, "%s\n", msg.toLocal8Bit().constData());
+}
+static const auto siHandlerInstaller = [](){ qInstallMessageHandler(siMessageHandler); return 0; }();
+#endif
 
 namespace {
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
@@ -187,7 +208,12 @@ private:
     static void buildNone(LODPathItem* self, const QPainterPath&) { self->m_state.stroke = {}; }
     static void buildStroke(LODPathItem* self, const QPainterPath& path) {
         QPainterPathStroker stroker(self->pen());
-        self->m_state.stroke = stroker.createStroke(path);
+        {
+#ifdef QT_DEBUG
+            PhaseTag tag("stroker.createStroke");
+#endif
+            self->m_state.stroke = stroker.createStroke(path);
+        }
     }
     static constexpr StrokeFn kStrokeDispatch[] = { buildNone, buildNone, buildStroke };
 
@@ -243,10 +269,18 @@ private:
         tmp.setFillRule(Qt::OddEvenFill);
 
         QPainterPath simp;
-        for (const QPolygonF &poly : p.toFillPolygons())
-            if (poly.size()>=3)
-                simp.addPolygon(poly);
+        {
+#ifdef QT_DEBUG
+            PhaseTag tag("simplify.toFillPolygons");
+#endif
+            for (const QPolygonF &poly : p.toFillPolygons())
+                if (poly.size()>=3)
+                    simp.addPolygon(poly);
+        }
         simp.setFillRule(Qt::OddEvenFill);
+#ifdef QT_DEBUG
+        PhaseTag tag2("simplify.return");
+#endif
         return simp;
     }
 
@@ -268,7 +302,12 @@ private:
         painter.translate(-br.topLeft());
         painter.setPen(pen);
         painter.setBrush(brush);
-        painter.drawPath(path);
+        {
+#ifdef QT_DEBUG
+            PhaseTag tag("renderPixmap.drawPath");
+#endif
+            painter.drawPath(path);
+        }
         return pm;
     }
 
@@ -319,8 +358,18 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         QThreadPool::globalInstance()->start([this, path, guard, W, H, basePos, cancel, lodT]{
             if (cancel->load(std::memory_order_acquire)) return;
 
-            QPainterPath clean = normalizePath(path);
-            QPainterPath proxy = buildProxyPath(clean);
+            QPainterPath clean = [&](){
+#ifdef QT_DEBUG
+                PhaseTag tag("normalizePath");
+#endif
+                return normalizePath(path);
+            }();
+            QPainterPath proxy = [&](){
+#ifdef QT_DEBUG
+                PhaseTag tag("buildProxyPath");
+#endif
+                return buildProxyPath(clean);
+            }();
             qDebug() << "[LOD] worker1 done"
                      << "normalize+proxy ms=" << lodT.elapsed()
                      << "cleanElems=" << clean.elementCount()
@@ -411,8 +460,18 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         QThreadPool::globalInstance()->start([this, path, guard, W0, H0, P0, cancel, lodT]{
             if (cancel->load(std::memory_order_acquire)) return;
 
-            const QPainterPath clean = normalizePath(path);
-            const QPainterPath proxy = buildProxyPath(clean);
+            const QPainterPath clean = [&](){
+#ifdef QT_DEBUG
+                PhaseTag tag("normalizePath");
+#endif
+                return normalizePath(path);
+            }();
+            const QPainterPath proxy = [&](){
+#ifdef QT_DEBUG
+                PhaseTag tag("buildProxyPath");
+#endif
+                return buildProxyPath(clean);
+            }();
             if (cancel->load(std::memory_order_acquire)) return;
 
             // UI: appliquer proxy (ne capture PAS clean)
@@ -481,8 +540,18 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     QThreadPool::globalInstance()->start([this, path, P0, pix, cancel, W0, H0, outlinePen]{
         if (cancel->load(std::memory_order_acquire)) return;
 
-        const QPainterPath clean = normalizePath(path);
-        const QPainterPath proxy = buildProxyPath(clean);
+        const QPainterPath clean = [&](){
+#ifdef QT_DEBUG
+            PhaseTag tag("normalizePath");
+#endif
+            return normalizePath(path);
+        }();
+        const QPainterPath proxy = [&](){
+#ifdef QT_DEBUG
+            PhaseTag tag("buildProxyPath");
+#endif
+            return buildProxyPath(clean);
+        }();
         if (cancel->load(std::memory_order_acquire)) return;
 
         // UI: remplacer pixmap par item(proxy)
@@ -857,7 +926,12 @@ void FormeVisualization::optimizePlacement() {
     if (m_isCustomMode && !m_customShapes.isEmpty()) {
         for (const QPolygonF &poly : m_customShapes)
             prototypePath.addPolygon(poly);
-        prototypePath = prototypePath.simplified();
+        {
+#ifdef QT_DEBUG
+            PhaseTag tag("path.simplified");
+#endif
+            prototypePath = prototypePath.simplified();
+        }
         QRectF customBounds = prototypePath.boundingRect();
         double scaleX = (customBounds.width() > 0) ? (currentLargeur / customBounds.width()) : 1.0;
         double scaleY = (customBounds.height() > 0) ? (currentLongueur / customBounds.height()) : 1.0;
@@ -1592,7 +1666,12 @@ bool FormeVisualization::validateShapes()
     for (auto *shape : shapes) {
         auto &cache = m_cache[shape];
         if (cache.base.isEmpty()) {
-            cache.base = shape->shape().simplified();
+            {
+#ifdef QT_DEBUG
+                PhaseTag tag("path.simplified");
+#endif
+                cache.base = shape->shape().simplified();
+            }
             cache.base.setFillRule(Qt::OddEvenFill);
         }
         QTransform t = shape->sceneTransform();
