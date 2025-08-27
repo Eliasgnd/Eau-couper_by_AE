@@ -325,116 +325,17 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 {
     if (!scene) return;
 
-    const qreal W = currentLargeur;
-    const qreal H = currentLongueur;
-    const QPointF basePos = pos;
+    // Snapshots (évite races)
+    const qreal   W = currentLargeur;
+    const qreal   H = currentLongueur;
+    const QPointF P = pos;
+    const bool    hasSize = (W > 0 && H > 0);
 
-    QElapsedTimer lodT; lodT.start(); qDebug() << "[LOD] enter"
+    QElapsedTimer lodT; lodT.start();
+    qDebug() << "[LOD] enter"
              << "elems=" << path.elementCount()
-             << "bbox=" << path.boundingRect()
-             << "W=" << W << "H=" << H << "basePos=" << basePos;
-
-
-    // If we already know the target size, skip the placeholder pixmap and
-    // spawn the final item immediately at the correct dimensions.
-    if (W > 0 && H > 0) {
-        auto *item = new LODPathItem(path);
-        item->setFlag(QGraphicsItem::ItemIsMovable,   true);
-        item->setFlag(QGraphicsItem::ItemIsSelectable,true);
-        item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-
-        applySize(item, W, H);
-        QRectF br = item->transform().mapRect(path.boundingRect());
-        item->setPos(basePos - br.topLeft());
-        scene->addItem(item);
-
-        // Cancellation shared between background tasks.
-        auto cancel = std::make_shared<std::atomic_bool>(false);
-        QObject::connect(this,  &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
-        QObject::connect(scene, &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
-
-        // Proxy/clean computation off the UI thread.
-        QGraphicsPathItem *guard = item;
-        QThreadPool::globalInstance()->start([this, path, guard, W, H, basePos, cancel, lodT]{
-            if (cancel->load(std::memory_order_acquire)) return;
-
-            QPainterPath clean = [&](){
-#ifdef QT_DEBUG
-                PhaseTag tag("normalizePath");
-#endif
-                return normalizePath(path);
-            }();
-            QPainterPath proxy = [&](){
-#ifdef QT_DEBUG
-                PhaseTag tag("buildProxyPath");
-#endif
-                return buildProxyPath(clean);
-            }();
-            qDebug() << "[LOD] worker1 done"
-                     << "normalize+proxy ms=" << lodT.elapsed()
-                     << "cleanElems=" << clean.elementCount()
-                     << "proxyPolysBbox=" << proxy.boundingRect();
-
-            if (cancel->load(std::memory_order_acquire)) return;
-
-            // (1) UI — CAPTURE aussi 'clean' par valeur
-            QMetaObject::invokeMethod(this, [this, guard, cancel, proxy, W, H, basePos, clean]{
-                if (cancel->load(std::memory_order_acquire) || !scene) return;
-                if (!scene->items().contains(guard)) return;
-
-                guard->setPath(proxy);
-                qDebug() << "[LOD] UI proxy" << "W=" << W << "H=" << H
-                         << "proxyBbox=" << proxy.boundingRect();
-
-                applySize(guard, W, H);
-                const QRectF br2 = guard->transform().mapRect(proxy.boundingRect());
-                guard->setPos(basePos - br2.topLeft());
-
-                auto cancel2 = std::make_shared<std::atomic_bool>(false);
-                QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
-
-                // (2) Worker — RECAPTURE 'clean' par valeur
-                QThreadPool::globalInstance()->start([this, clean, guard, W, H, basePos, cancel2]{
-                    if (cancel2->load(std::memory_order_acquire)) return;
-
-                    const QPainterPath exact = clean; // plus de simplified()
-                    if (cancel2->load(std::memory_order_acquire)) return;
-
-                    // (3) UI finale — CAPTURE 'exact' (pas 'clean'), et 'cancel2'
-                    QMetaObject::invokeMethod(this, [this, guard, cancel2, exact, W, H, basePos]{
-                        if (cancel2->load(std::memory_order_acquire) || !scene) return;
-                        if (!scene->items().contains(guard)) return;
-
-                        guard->setPath(exact);
-                        applySize(guard, W, H);
-                        const QRectF br3 = guard->transform().mapRect(exact.boundingRect());
-                        guard->setPos(basePos - br3.topLeft());
-
-                        const QTransform t = guard->sceneTransform();
-                        const QPainterPath mapped = t.map(exact);
-                        const QRectF bbox = mapped.boundingRect();
-                        m_cache[guard] = { exact, mapped, {}, bbox, t };
-                    }, Qt::QueuedConnection);
-                });
-            }, Qt::QueuedConnection);
-        });
-        return;
-    }
-
-    // No size yet: fall back to a temporary raster while the LOD pipeline runs.
-    const int rasterSize = qBound(512,
-                                  int(qMax(path.boundingRect().width(), path.boundingRect().height())),
-                                  1024);
-    QPixmap pm = rasterFallback(path, rasterSize);
-
-    const qreal   W0 = currentLargeur;
-    const qreal   H0 = currentLongueur;
-    const QPointF P0 = pos;
-    const bool    hasSize = (W0 > 0 && H0 > 0);
-
-    // Style contour-only
-    QPen outlinePen(Qt::black, 1.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
-    outlinePen.setCosmetic(true);
+             << "bbox="  << path.boundingRect()
+             << "W=" << W << "H=" << H << "pos=" << P;
 
     // ── A) Taille connue → pas de pixmap
     if (hasSize) {
@@ -442,24 +343,21 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         item->setFlag(QGraphicsItem::ItemIsMovable,    true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-        item->setPen(outlinePen);
-        item->setBrush(Qt::NoBrush);
 
-        applySize(item, W0, H0);
-        const QRectF br_t = item->transform().mapRect(path.boundingRect());
-        item->setPos(P0 - br_t.topLeft());
+        applySize(item, W, H);
+        const QRectF br = item->path().boundingRect();
+        item->setPos(P - br.topLeft());
         scene->addItem(item);
 
         auto cancel = std::make_shared<std::atomic_bool>(false);
         QObject::connect(this,  &QObject::destroyed, [cancel]{ cancel->store(true, std::memory_order_release); });
         QObject::connect(scene, &QObject::destroyed, [cancel]{ cancel->store(true, std::memory_order_release); });
 
-        QGraphicsPathItem* guard = item;
-
-        // Worker → calc clean & proxy
-        QThreadPool::globalInstance()->start([this, path, guard, W0, H0, P0, cancel, lodT]{
+        QGraphicsPathItem *guard = item;
+        QThreadPool::globalInstance()->start([this, path, guard, W, H, P, cancel, lodT]{
             if (cancel->load(std::memory_order_acquire)) return;
 
+            // Worker #1 : clean + proxy
             const QPainterPath clean = [&](){
 #ifdef QT_DEBUG
                 PhaseTag tag("normalizePath");
@@ -472,63 +370,67 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 #endif
                 return buildProxyPath(clean);
             }();
+            qDebug() << "[LOD] worker1 done"
+                     << "ms=" << lodT.elapsed()
+                     << "cleanElems=" << clean.elementCount()
+                     << "proxyBbox="  << proxy.boundingRect();
             if (cancel->load(std::memory_order_acquire)) return;
 
-            // UI: appliquer proxy (ne capture PAS clean)
-            QMetaObject::invokeMethod(this, [this, guard, cancel, proxy, W0, H0, P0](){
+            // UI : appliquer proxy
+            QMetaObject::invokeMethod(this, [this, guard, cancel, proxy, W, H, P, clean, lodT]{
                 if (cancel->load(std::memory_order_acquire) || !scene) return;
                 if (!scene->items().contains(guard)) return;
 
                 guard->setPath(proxy);
-                guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+                qDebug() << "[LOD] UI proxy" << "W=" << W << "H=" << H
+                         << "proxyBbox=" << proxy.boundingRect();
+                applySize(guard, W, H);
+                const QRectF br2 = guard->path().boundingRect();
+                guard->setPos(P - br2.topLeft());
 
-                applySize(guard, W0, H0);
-                const QRectF br_proxy_t = guard->transform().mapRect(proxy.boundingRect());
-                guard->setPos(P0 - br_proxy_t.topLeft());
-            }, Qt::QueuedConnection);
+                auto cancel2 = std::make_shared<std::atomic_bool>(false);
+                QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
 
-            if (cancel->load(std::memory_order_acquire)) return;
-            const QPainterPath exact = clean;
-            qDebug() << "[LOD] worker2 exact ready"
-                     << "exactElems=" << exact.elementCount()
-                     << "msSinceEnter=" << lodT.elapsed();
+                // Worker #2 : exact
+                QThreadPool::globalInstance()->start([this, clean, guard, W, H, P, cancel2, lodT]{
+                    if (cancel2->load(std::memory_order_acquire)) return;
+                    const QPainterPath exact = clean;
+                    qDebug() << "[LOD] worker2 exact ready"
+                             << "exactElems=" << exact.elementCount()
+                             << "ms=" << lodT.elapsed();
+                    if (cancel2->load(std::memory_order_acquire)) return;
 
-            if (cancel->load(std::memory_order_acquire)) return;
+                    // UI : appliquer exact
+                    QMetaObject::invokeMethod(this, [this, guard, cancel2, exact, W, H, P, lodT]{
+                        if (cancel2->load(std::memory_order_acquire) || !scene) return;
+                        if (!scene->items().contains(guard)) return;
 
+                        guard->setPath(exact);
+                        applySize(guard, W, H);
+                        const QRectF br3 = guard->path().boundingRect();
+                        guard->setPos(P - br3.topLeft());
+                        qDebug() << "[LOD] UI exact applied"
+                                 << "finalBbox=" << exact.boundingRect()
+                                 << "totalMs="  << lodT.elapsed();
 
-            // UI: appliquer exact
-            QMetaObject::invokeMethod(this, [this, guard, cancel, exact, W0, H0, P0, lodT](){
-                if (cancel->load(std::memory_order_acquire) || !scene) return;
-                if (!scene->items().contains(guard)) return;
-
-                guard->setPath(exact);
-                guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-
-                applySize(guard, W0, H0);
-                const QRectF br_exact_t = guard->transform().mapRect(exact.boundingRect());
-                guard->setPos(P0 - br_exact_t.topLeft());
-                qDebug() << "[LOD] UI exact applied"
-                         << "finalBbox=" << exact.boundingRect()
-                         << "totalMs=" << lodT.elapsed();
-
-                const QTransform t = guard->sceneTransform();
-                const QPainterPath mapped = t.map(exact);
-                const QRectF bbox = mapped.boundingRect();
-                m_cache[guard] = { exact, mapped, {}, bbox, t };
+                        const QTransform t = guard->sceneTransform();
+                        const QPainterPath mapped = t.map(exact);
+                        m_cache[guard] = { exact, mapped, {}, mapped.boundingRect(), t };
+                    }, Qt::QueuedConnection);
+                });
             }, Qt::QueuedConnection);
         });
-
-        return; // terminé pour la voie "avec taille"
+        return;
     }
 
-    // ── B) Pas de taille → pixmap fallback
-    const int rasterSize_fb = qBound(512,
-                                     int(qMax(path.boundingRect().width(), path.boundingRect().height())),
-                                     1024);
-    QPixmap pm_fb = rasterFallback(path, rasterSize_fb);
-    auto *pix = new QGraphicsPixmapItem(pm_fb);
+    // ── B) Pas de taille → pixmap fallback immédiat
+    const int rasterSize = qBound(512,
+                                  int(qMax(path.boundingRect().width(), path.boundingRect().height())),
+                                  1024);
+    QPixmap pm = rasterFallback(path, rasterSize);
+    auto *pix  = new QGraphicsPixmapItem(pm);
     pix->setTransformationMode(Qt::FastTransformation);
-    pix->setPos(P0);
+    pix->setPos(P);
     pix->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
     scene->addItem(pix);
 
@@ -536,10 +438,10 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     QObject::connect(this,  &QObject::destroyed, [cancel]{ cancel->store(true, std::memory_order_release); });
     QObject::connect(scene, &QObject::destroyed, [cancel]{ cancel->store(true, std::memory_order_release); });
 
-    // Worker: calc clean & proxy
-    QThreadPool::globalInstance()->start([this, path, P0, pix, cancel, W0, H0, outlinePen]{
+    QThreadPool::globalInstance()->start([this, path, P, pix, cancel, W, H, lodT]{
         if (cancel->load(std::memory_order_acquire)) return;
 
+        // Worker #1 : clean + proxy
         const QPainterPath clean = [&](){
 #ifdef QT_DEBUG
             PhaseTag tag("normalizePath");
@@ -554,67 +456,65 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         }();
         if (cancel->load(std::memory_order_acquire)) return;
 
-        // UI: remplacer pixmap par item(proxy)
-        QMetaObject::invokeMethod(this, [this, P0, pix, cancel, proxy, W0, H0, outlinePen, path, clean](){
+        // UI : remplacer le pixmap par l’item(proxy)
+        QMetaObject::invokeMethod(this, [this, P, pix, cancel, proxy, W, H, clean, lodT]{
             if (cancel->load(std::memory_order_acquire) || !scene) return;
 
             auto *item = new LODPathItem(proxy);
             item->setFlag(QGraphicsItem::ItemIsMovable,    true);
             item->setFlag(QGraphicsItem::ItemIsSelectable, true);
             item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-            item->setPen(outlinePen);
+            // contours noirs uniquement
+            QPen pen(Qt::black, 1.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+            pen.setCosmetic(true);
+            item->setPen(pen);
             item->setBrush(Qt::NoBrush);
-
-            applySize(item, currentLargeur, currentLongueur);
-
-
-            if (W0 > 0 && H0 > 0) {
-                applySize(item, W0, H0);
-                const QRectF br_proxy_t = item->transform().mapRect(proxy.boundingRect());
-                item->setPos(P0 - br_proxy_t.topLeft());
-            } else {
-                item->setPos(P0);
-            }
 
             scene->addItem(item);
             scene->removeItem(pix);
             delete pix;
 
+            if (W > 0 && H > 0) {
+                applySize(item, W, H);
+                const QRectF br2 = item->path().boundingRect();
+                item->setPos(P - br2.topLeft());
+            } else {
+                item->setPos(P);
+            }
+
             auto cancel2 = std::make_shared<std::atomic_bool>(false);
             QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
-            QGraphicsPathItem* guard = item;
+            QGraphicsPathItem *guard = item;
 
-            // Worker (relancé depuis l'UI) : REcalcule clean/exact à partir de "path"
-            QThreadPool::globalInstance()->start([this, path, guard, cancel2, W0, H0, P0, clean]{
+            // Worker #2 : exact
+            QThreadPool::globalInstance()->start([this, clean, guard, W, H, P, cancel2, lodT]{
                 if (cancel2->load(std::memory_order_acquire)) return;
-
                 const QPainterPath exact = clean;
-
                 if (cancel2->load(std::memory_order_acquire)) return;
 
-                // UI: appliquer exact (pas de "clean" capturé)
-                QMetaObject::invokeMethod(this, [this, guard, cancel2, exact, W0, H0, P0](){
+                // UI : appliquer exact
+                QMetaObject::invokeMethod(this, [this, guard, cancel2, exact, W, H, P, lodT]{
                     if (cancel2->load(std::memory_order_acquire) || !scene) return;
                     if (!scene->items().contains(guard)) return;
 
                     guard->setPath(exact);
                     guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 
-                    if (W0 > 0 && H0 > 0) {
-                        applySize(guard, W0, H0);
-                        const QRectF br_exact_t = guard->transform().mapRect(exact.boundingRect());
-                        guard->setPos(P0 - br_exact_t.topLeft());
+                    if (W > 0 && H > 0) {
+                        applySize(guard, W, H);
+                        const QRectF br3 = guard->path().boundingRect();
+                        guard->setPos(P - br3.topLeft());
                     }
 
                     const QTransform t = guard->sceneTransform();
                     const QPainterPath mapped = t.map(exact);
-                    const QRectF bbox = mapped.boundingRect();
-                    m_cache[guard] = { exact, mapped, {}, bbox, t };
+                    m_cache[guard] = { exact, mapped, {}, mapped.boundingRect(), t };
                 }, Qt::QueuedConnection);
             });
         }, Qt::QueuedConnection);
     });
 }
+
 
 
 
