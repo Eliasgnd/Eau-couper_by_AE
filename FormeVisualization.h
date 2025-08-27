@@ -4,10 +4,10 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QGraphicsScene>
-#include <QProgressBar>
-#include <QPainterPath>
 #include <QGraphicsPathItem>
 #include <QGraphicsRectItem>
+#include <QProgressBar>
+#include <QPainterPath>
 #include <QPolygonF>
 #include <QSizeF>
 #include "ShapeModel.h"
