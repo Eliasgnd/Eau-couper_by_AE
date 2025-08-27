@@ -34,6 +34,7 @@
 #include <QGuiApplication>
 #include <QShowEvent>
 #include <QTimer>
+#include <QGraphicsScene>
 #include <QWindow>
 #include <QPoint>
 #include <QWidgetAction>
@@ -311,17 +312,22 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
 
     ui->Play->setEnabled(formeVisualization->validateShapes());
-    auto *validationTimer = new QTimer(this);
-    validationTimer->setInterval(100);
-    connect(validationTimer, &QTimer::timeout, this, [this]() {
+    auto updatePlayButton = [this]() {
         if (!formeVisualization->isDecoupeEnCours()) {
             bool ok = formeVisualization->validateShapes();
             ui->Play->setEnabled(ok);
         }
-    });
-    validationTimer->start();
+    };
+
+    connect(formeVisualization->getScene(), &QGraphicsScene::changed, this,
+            [updatePlayButton](const QList<QRectF> &) { updatePlayButton(); });
+    connect(formeVisualization, &FormeVisualization::shapesPlacedCount, this,
+            [updatePlayButton](int) { updatePlayButton(); });
+    connect(formeVisualization, &FormeVisualization::spacingChanged, this,
+            [updatePlayButton](int) { updatePlayButton(); });
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
-            [this](bool optimized) {
+            [this, updatePlayButton](bool optimized) {
+                updatePlayButton();
                 if (!optimized) {
                     ui->optimizePlacementButton->setChecked(false);
                     ui->optimizePlacementButton2->setChecked(false);
