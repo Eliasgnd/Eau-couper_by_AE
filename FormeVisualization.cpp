@@ -1156,15 +1156,15 @@ bool FormeVisualization::validateShapes()
             cache.path.setFillRule(Qt::OddEvenFill);
             cache.bbox      = cache.path.boundingRect();
             cache.polys     = cache.path.toFillPolygons();
-            sanitizePolygons(cache.polys);
+            bool ok         = sanitizePolygons(cache.polys);
             cache.transform = t;
-        }
-        if (cache.polys.isEmpty()) {
-            shape->setPen(QPen(Qt::red, 1));
-            allValid = false;
-            if (qApp->property("invalidReason").toInt() == 0)
-                qApp->setProperty("invalidReason", OutOfBounds);
-            continue;
+            if (!ok || cache.polys.isEmpty()) {
+                shape->setPen(QPen(Qt::red, 1));
+                allValid = false;
+                if (qApp->property("invalidReason").toInt() == 0)
+                    qApp->setProperty("invalidReason", OutOfBounds);
+                continue;
+            }
         }
         paths << cache.path;
         bboxes << cache.bbox;
