@@ -526,8 +526,7 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
 
     //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
     if (formeVisualization) {
-        // Sanitize twice and replace with proxy if still invalid
-        sanitizePolygons(shapes);
+        // Sanitize and replace with proxy if still invalid
         sanitizePolygons(shapes);
         QString warn;
         validateAndProxyPolygons(shapes, true, &warn);
@@ -562,7 +561,6 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     QtConcurrent::run([=]() {
         QList<QPolygonF> cleaned = polygons;
         QString warn;
-        sanitizePolygons(cleaned, globalEpsilon());
         sanitizePolygons(cleaned, globalEpsilon());
         validateAndProxyPolygons(cleaned, true, &warn, globalEpsilon());
         QPainterPath combinedPath;
