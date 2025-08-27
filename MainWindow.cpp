@@ -307,19 +307,10 @@ MainWindow::MainWindow(QWidget *parent)
         saveLayout();
     });
 
-    // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
+    // Connecter bouton start à la détection des pixels noirs puis au contrôle des moteurs
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
-
-    ui->Play->setEnabled(formeVisualization->validateShapes());
-    auto *validationTimer = new QTimer(this);
-    validationTimer->setInterval(100);
-    connect(validationTimer, &QTimer::timeout, this, [this]() {
-        if (!formeVisualization->isDecoupeEnCours()) {
-            bool ok = formeVisualization->validateShapes();
-            ui->Play->setEnabled(ok);
-        }
-    });
-    validationTimer->start();
+    // La vérification des formes est réalisée uniquement au lancement de la découpe
+    ui->Play->setEnabled(true);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
                 if (!optimized) {
