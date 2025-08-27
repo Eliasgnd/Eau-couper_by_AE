@@ -34,6 +34,7 @@
 #include <QGuiApplication>
 #include <QShowEvent>
 #include <QTimer>
+#include <QGraphicsScene>
 #include <QWindow>
 #include <QPoint>
 #include <QWidgetAction>
