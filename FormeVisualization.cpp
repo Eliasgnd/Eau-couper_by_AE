@@ -34,33 +34,6 @@
 #include <memory>
 #include <atomic>
 
-#ifndef QT_NO_DEBUG
-#include <QLoggingCategory>
-#include <QThread>
-Q_LOGGING_CATEGORY(perf, "FormeViz.perf");
-constexpr bool kPerf = true;
-
-struct ScopedTimer {
-    const char *tag;
-    QElapsedTimer t;
-    qint64 *out{nullptr};
-    ScopedTimer(const char *t_, qint64 *o=nullptr) : tag(t_), out(o) { if (kPerf) t.start(); }
-    ~ScopedTimer() {
-        if (kPerf) {
-            qint64 ms = t.elapsed();
-            if (out) *out = ms;
-            qCDebug(perf) << tag << ms << "ms" << QThread::currentThreadId();
-        }
-    }
-};
-
-#define LOG_EVERY(n) if (kPerf && ([&](){ static std::atomic<int> _cnt{0}; return _cnt.fetch_add(1, std::memory_order_relaxed) % (n) == 0; }()))
-#else
-constexpr bool kPerf = false;
-struct ScopedTimer { ScopedTimer(const char*) {} };
-#define LOG_EVERY(n) if (false)
-#endif
-
 namespace {
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
@@ -178,10 +151,6 @@ protected:
         painter->setPen(pen);
 
         const qreal lod = option->levelOfDetailFromTransform(painter->worldTransform());
-        LOG_EVERY(200) {
-            const char *branch = !m_state.pixmap.isNull() ? "pixmap" : (lod < kLODBucketLow ? "lite" : "full");
-            qCDebug(perf) << "paint" << lod << exposed.size() << branch;
-        }
         painter->setRenderHint(QPainter::Antialiasing, lod >= kLODBucketLow);
         painter->drawPath(selectByLOD(m_state, lod));
     }
@@ -224,22 +193,11 @@ private:
 
     void updateGeometryCaches(const QPainterPath &p)
     {
-#ifndef QT_NO_DEBUG
-        ScopedTimer timer("updateGeometryCaches");
-        if (kPerf) qCDebug(perf) << "updateGeom enter" << p.elementCount() << p.boundingRect().size();
-#endif
         m_state.full = p;
         m_state.full.setFillRule(Qt::OddEvenFill);
         m_geomHash = hashPath(m_state.full, 0);
 
-#ifndef QT_NO_DEBUG
-        {
-            ScopedTimer t("simplify");
-            m_state.lite = simplify(m_state.full);
-        }
-#else
         m_state.lite = simplify(m_state.full);
-#endif
 
         const int ec = m_state.full.elementCount();
         if (ec > 20000)
@@ -247,11 +205,7 @@ private:
         else {
             StrokeMode mode = (pen().style()==Qt::NoPen ? StrokeMode::None :
                                (pen().isCosmetic()||pen().widthF()<=0.0 ? StrokeMode::Cosmetic : StrokeMode::Normal));
-#ifndef QT_NO_DEBUG
-            ScopedTimer t("createStroke");
-#endif
             kStrokeDispatch[static_cast<int>(mode)](this, m_state.full);
-            if (kPerf) qCDebug(perf) << "strokeMode" << static_cast<int>(mode);
         }
 
         m_state.bounds = m_state.full.boundingRect();
@@ -261,30 +215,19 @@ private:
 
         const QSizeF bs = m_state.bounds.size();
         const int MAX_DIM = 4096;
-        if (bs.width()>MAX_DIM || bs.height()>MAX_DIM) {
-            if (kPerf) qCDebug(perf) << "pixmap skip" << bs;
+        if (bs.width()>MAX_DIM || bs.height()>MAX_DIM)
             m_state.pixmap = QPixmap();
-        } else if (m_state.full.elementCount()>kSegmentSimplifyThreshold) {
-#ifndef QT_NO_DEBUG
-            ScopedTimer t("renderPixmap");
-#endif
+        else if (m_state.full.elementCount()>kSegmentSimplifyThreshold)
             m_state.pixmap = renderPixmap(m_state.full, pen(), brush(), 1.0);
-            if (kPerf) qCDebug(perf) << "pixmap size" << m_state.pixmap.size();
-        } else {
+        else
             m_state.pixmap = QPixmap();
-        }
 
         const qreal area = m_state.bounds.width()*m_state.bounds.height();
-        auto mode = area>250000.0 ? QGraphicsItem::ItemCoordinateCache : QGraphicsItem::DeviceCoordinateCache;
-        setCacheMode(mode);
-        if (kPerf) qCDebug(perf) << "updateGeom exit" << "cache" << (mode==QGraphicsItem::ItemCoordinateCache?"Item":"Device");
+        setCacheMode(area>250000.0 ? QGraphicsItem::ItemCoordinateCache : QGraphicsItem::DeviceCoordinateCache);
     }
 
     static QPainterPath simplify(const QPainterPath &p)
     {
-#ifndef QT_NO_DEBUG
-        ScopedTimer timer("LODPathItem::simplify");
-#endif
         QRectF br = p.boundingRect();
         if (p.elementCount() > kSegmentSimplifyThreshold ||
             br.width() * br.height() > 1e6)
@@ -294,41 +237,27 @@ private:
         tmp.setFillRule(Qt::OddEvenFill);
 
         QPainterPath simp;
-        auto polys = p.toFillPolygons();
-        int totalPts = 0;
-        for (const QPolygonF &poly : polys) {
-            totalPts += poly.size();
+        for (const QPolygonF &poly : p.toFillPolygons())
             if (poly.size()>=3)
                 simp.addPolygon(poly);
-        }
         simp.setFillRule(Qt::OddEvenFill);
-        if (kPerf) qCDebug(perf) << "simplify polygons" << polys.size() << "pts" << totalPts;
         return simp;
     }
 
 
     static QPixmap renderPixmap(const QPainterPath &path, const QPen &pen, const QBrush &brush, qreal dpr)
     {
-#ifndef QT_NO_DEBUG
-        if (kPerf) qCDebug(perf) << "renderPixmap bbox" << path.boundingRect();
-#endif
         QRectF br = path.boundingRect();
         QPixmap empty;
         if (!br.isValid() || br.isEmpty())
             return empty;
         QSize sz = (br.size()*dpr).toSize().expandedTo(QSize(1,1));
-#ifndef QT_NO_DEBUG
-        if (kPerf) qCDebug(perf) << "renderPixmap size" << sz;
-#endif
         if (sz.width()>4096 || sz.height()>4096)
             return empty;
         QPixmap pm(sz);
         pm.setDevicePixelRatio(dpr);
         pm.fill(Qt::transparent);
         QPainter painter(&pm);
-#ifndef QT_NO_DEBUG
-        ScopedTimer t("renderPixmap.paint");
-#endif
         PainterState guard(&painter);
         painter.translate(-br.topLeft());
         painter.setPen(pen);
@@ -354,8 +283,6 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     const qreal W = currentLargeur;
     const qreal H = currentLongueur;
     const QPointF basePos = pos;
-    const bool hasInitialSize = (W > 0 && H > 0);
-    if (kPerf) qCDebug(perf) << "addPathWithLOD" << hasInitialSize << W << H << path.elementCount() << path.boundingRect().size();
 
     // If we already know the target size, skip the placeholder pixmap and
     // spawn the final item immediately at the correct dimensions.
@@ -429,7 +356,6 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     const int rasterSize = qBound(512,
                                   int(qMax(path.boundingRect().width(), path.boundingRect().height())),
                                   1024);
-    if (kPerf) qCDebug(perf) << "rasterFallback" << rasterSize;
     QPixmap pm = rasterFallback(path, rasterSize);
 
     const qreal   W0 = currentLargeur;
@@ -513,7 +439,6 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     const int rasterSize_fb = qBound(512,
                                      int(qMax(path.boundingRect().width(), path.boundingRect().height())),
                                      1024);
-    if (kPerf) qCDebug(perf) << "rasterFallback" << rasterSize_fb;
     QPixmap pm_fb = rasterFallback(path, rasterSize_fb);
     auto *pix = new QGraphicsPixmapItem(pm_fb);
     pix->setTransformationMode(Qt::FastTransformation);
@@ -601,23 +526,19 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 
 void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
 {
-    ScopedTimer timer("applySize");
     if (!item)
         return;
 
     QSignalBlocker blocker(scene);
-    bool restyle = false;
     if (!(item->brush().style()==Qt::NoBrush &&
           item->pen().color()==Qt::black &&
           item->pen().isCosmetic() &&
           qFuzzyCompare(item->pen().widthF(),1.0))) {
-        restyle = true;
         item->setBrush(Qt::NoBrush);
         QPen pen(Qt::black, 1, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
         pen.setCosmetic(true);
         item->setPen(pen);
     }
-    if (kPerf && restyle) qCDebug(perf) << "applySize restyle";
 
     if (W <= 0 || H <= 0)
         return;
@@ -628,12 +549,9 @@ void FormeVisualization::applySize(QGraphicsPathItem *item, qreal W, qreal H)
     if (br.isEmpty())
         return;
 
-    if (W>0 && H>0 && std::fabs(br.width()-W)<=0.01 && std::fabs(br.height()-H)<=0.01) {
-        if (kPerf) qCDebug(perf) << "applySize early" << W << H;
+    if (W>0 && H>0 && std::fabs(br.width()-W)<=0.01 && std::fabs(br.height()-H)<=0.01)
         return;
-    }
 
-    if (kPerf) qCDebug(perf) << "applySize bbox" << br.size() << QSizeF(W,H);
     qreal sx = W / br.width();
     qreal sy = H / br.height();
     QPointF c = br.center();
@@ -754,13 +672,9 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
 
 void FormeVisualization::resizeEvent(QResizeEvent* e) {
     QWidget::resizeEvent(e);
-    static int calls = 0; ++calls;
-    static QElapsedTimer last; bool rapid = last.isValid() && last.elapsed()<50; last.restart();
     if (graphicsView && scene) {
-        ScopedTimer t("resizeEvent.fitInView");
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
     }
-    if (kPerf) qCDebug(perf) << "resizeEvent" << calls << (rapid?"rapid":"");
 }
 
 bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
@@ -844,8 +758,6 @@ void FormeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
 
 void FormeVisualization::setSpacing(int newSpacing)
 {
-    ScopedTimer t("setSpacing");
-    int before = scene ? scene->items().size() : 0;
     if (!editingEnabled)
         return;
     if (warnIfCutting())
@@ -859,7 +771,6 @@ void FormeVisualization::setSpacing(int newSpacing)
         displayCustomShapes(m_customShapes);
     else
         redraw();
-    if (kPerf && scene) qCDebug(perf) << "setSpacing items" << before << scene->items().size();
 }
 
 void FormeVisualization::setPredefinedMode()
@@ -880,8 +791,6 @@ void FormeVisualization::setPredefinedMode()
    ****** OPTIMIZE PLACEMENT 1 (avec caching et test rapide) ******
 */
 void FormeVisualization::optimizePlacement() {
-    ScopedTimer timer("optimizePlacement");
-    int before = scene ? scene->items().size() : 0;
     if (warnIfCutting())
         return;
 
@@ -893,7 +802,6 @@ void FormeVisualization::optimizePlacement() {
     emit optimizationStateChanged(true);
     scene->clear();
     scene->clearSelection();
-    if (kPerf && scene) qCDebug(perf) << "optimizePlacement clear" << before << scene->items().size();
     progressBar->setVisible(true);
     progressBar->setValue(0);
 
@@ -1047,8 +955,6 @@ void FormeVisualization::optimizePlacement() {
 }
 
 void FormeVisualization::optimizePlacement2() {
-    ScopedTimer timer("optimizePlacement2");
-    int before = scene ? scene->items().size() : 0;
     if (warnIfCutting())
         return;
 
@@ -1058,7 +964,6 @@ void FormeVisualization::optimizePlacement2() {
     scene->clear();
     scene->clearSelection();
     graphicsView->update();
-    if (kPerf && scene) qCDebug(perf) << "optimizePlacement2 clear" << before << scene->items().size();
 
     progressBar->setVisible(true);
     progressBar->setValue(0);
@@ -1208,8 +1113,6 @@ void FormeVisualization::optimizePlacement2() {
 
 void FormeVisualization::redraw()
 {
-    ScopedTimer timer("redraw");
-    int before = scene ? scene->items().size() : 0;
     auto *vp = graphicsView->viewport();
     scene->blockSignals(true);
     vp->setUpdatesEnabled(false);
@@ -1227,7 +1130,6 @@ void FormeVisualization::redraw()
         scene->blockSignals(false);
         vp->setUpdatesEnabled(true);
         vp->update();
-        if (kPerf && scene) qCDebug(perf) << "redraw items" << before << scene->items().size();
         return;
     }
 
@@ -1237,7 +1139,6 @@ void FormeVisualization::redraw()
         scene->blockSignals(false);
         vp->setUpdatesEnabled(true);
         vp->update();
-        if (kPerf && scene) qCDebug(perf) << "redraw items" << before << scene->items().size();
         return;
     }
 
@@ -1250,7 +1151,6 @@ void FormeVisualization::redraw()
         scene->blockSignals(false);
         vp->setUpdatesEnabled(true);
         vp->update();
-        if (kPerf && scene) qCDebug(perf) << "redraw items" << before << scene->items().size();
         return;
     }
 
@@ -1296,7 +1196,6 @@ void FormeVisualization::redraw()
     scene->blockSignals(false);
     vp->setUpdatesEnabled(true);
     vp->update();
-    if (kPerf && scene) qCDebug(perf) << "redraw items" << before << scene->items().size();
 }
 
 void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
@@ -1747,35 +1646,27 @@ bool FormeVisualization::validateShapes()
 
 void FormeVisualization::handleSelectionChanged()
 {
-    ScopedTimer t("handleSelectionChanged");
     m_rotationPivotValid = false;
-    int touched = 0;
     for (QGraphicsItem *item : scene->selectedItems()) {
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            ++touched;
             QPen pen(Qt::black, 1);
             pen.setCosmetic(true);
             shape->setPen(pen);
         }
     }
-    if (kPerf) qCDebug(perf) << "handleSelectionChanged" << touched;
 }
 
 void FormeVisualization::resetAllShapeColors()
 {
-    ScopedTimer t("resetAllShapeColors");
-    int touched = 0;
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            ++touched;
             QPen pen(Qt::black, 1);
             pen.setCosmetic(true);
             shape->setPen(pen);
         }
     }
-    if (kPerf) qCDebug(perf) << "resetAllShapeColors" << touched;
     graphicsView->viewport()->update();
 }
 
