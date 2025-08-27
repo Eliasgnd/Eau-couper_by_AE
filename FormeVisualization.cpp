@@ -304,38 +304,41 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
 
         // Proxy/clean computation off the UI thread.
         QGraphicsPathItem *guard = item;
-        QThreadPool::globalInstance()->start([this, path, guard, W, H, basePos, cancel] {
+        QThreadPool::globalInstance()->start([this, path, guard, W, H, basePos, cancel]{
             if (cancel->load(std::memory_order_acquire)) return;
 
             QPainterPath clean = normalizePath(path);
             QPainterPath proxy = buildProxyPath(clean);
             if (cancel->load(std::memory_order_acquire)) return;
 
-            QMetaObject::invokeMethod(this, [this, guard, cancel, proxy, W0, H0, P0] {
+            // (1) UI — CAPTURE aussi 'clean' par valeur
+            QMetaObject::invokeMethod(this, [this, guard, cancel, proxy, W, H, basePos, clean]{
                 if (cancel->load(std::memory_order_acquire) || !scene) return;
                 if (!scene->items().contains(guard)) return;
 
                 guard->setPath(proxy);
                 applySize(guard, W, H);
-                QRectF br2 = guard->transform().mapRect(proxy.boundingRect());
+                const QRectF br2 = guard->transform().mapRect(proxy.boundingRect());
                 guard->setPos(basePos - br2.topLeft());
 
                 auto cancel2 = std::make_shared<std::atomic_bool>(false);
                 QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
 
-                QThreadPool::globalInstance()->start([this, clean, guard, W, H, basePos, cancel2] {
+                // (2) Worker — RECAPTURE 'clean' par valeur
+                QThreadPool::globalInstance()->start([this, clean, guard, W, H, basePos, cancel2]{
                     if (cancel2->load(std::memory_order_acquire)) return;
 
-                    const QPainterPath exact = clean;
+                    const QPainterPath exact = clean; // plus de simplified()
                     if (cancel2->load(std::memory_order_acquire)) return;
 
-                    QMetaObject::invokeMethod(this, [this, guard, cancel, proxy, W0, H0, P0] {
+                    // (3) UI finale — CAPTURE 'exact' (pas 'clean'), et 'cancel2'
+                    QMetaObject::invokeMethod(this, [this, guard, cancel2, exact, W, H, basePos]{
                         if (cancel2->load(std::memory_order_acquire) || !scene) return;
                         if (!scene->items().contains(guard)) return;
 
                         guard->setPath(exact);
                         applySize(guard, W, H);
-                        QRectF br3 = guard->transform().mapRect(exact.boundingRect());
+                        const QRectF br3 = guard->transform().mapRect(exact.boundingRect());
                         guard->setPos(basePos - br3.topLeft());
 
                         const QTransform t = guard->sceneTransform();
@@ -456,7 +459,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
         if (cancel->load(std::memory_order_acquire)) return;
 
         // UI: remplacer pixmap par item(proxy)
-        QMetaObject::invokeMethod(this, [this, P0, pix, cancel, proxy, W0, H0, outlinePen, path](){
+        QMetaObject::invokeMethod(this, [this, P0, pix, cancel, proxy, W0, H0, outlinePen, path, clean](){
             if (cancel->load(std::memory_order_acquire) || !scene) return;
 
             auto *item = new LODPathItem(proxy);
@@ -486,7 +489,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             QGraphicsPathItem* guard = item;
 
             // Worker (relancé depuis l'UI) : REcalcule clean/exact à partir de "path"
-            QThreadPool::globalInstance()->start([this, path, guard, cancel2, W0, H0, P0]{
+            QThreadPool::globalInstance()->start([this, path, guard, cancel2, W0, H0, P0, clean]{
                 if (cancel2->load(std::memory_order_acquire)) return;
 
                 const QPainterPath exact = clean;
