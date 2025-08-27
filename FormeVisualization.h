@@ -13,6 +13,8 @@
 #include "ShapeModel.h"
 #include "inventaire.h"
 
+class MovablePathItem;
+
 class FormeVisualization : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QSizeF sheetSizeMm READ sheetSizeMm WRITE setSheetSizeMm NOTIFY sheetSizeMmChanged)
@@ -93,7 +95,7 @@ private:
     void redraw();
 
     void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
-    void applySize(QGraphicsPathItem *item, qreal W, qreal H);
+    void applySize(class MovablePathItem *item, qreal W, qreal H);
     void cleanup();
     static void messageForwarder(QtMsgType, const QMessageLogContext&, const QString&);
     QtMessageHandler previousHandler {nullptr};
