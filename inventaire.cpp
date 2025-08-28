@@ -599,8 +599,8 @@ void Inventaire::loadCustomShapes()
                 data.polygons.append(poly);
             }
 
-            bool ok = sanitizePolygons(data.polygons, globalEpsilon());
-            if (!ok)
+            bool ok = false;
+            if (!data.polygons.isEmpty())
                 ok = sanitizePolygons(data.polygons, globalEpsilon());
             if (!ok) {
                 qWarning() << "Invalid shape skipped:" << data.name;
