@@ -1227,7 +1227,7 @@ bool FormeVisualization::validateShapes()
             for (int b = a + 1; b < idxs.size(); ++b) {
                 int i = idxs[a];
                 int j = idxs[b];
-                if (invalid[i] && invalid[j])
+                if (invalid[i] || invalid[j])
                     continue;
                 const quint64 key = (static_cast<quint64>(qMin(i, j)) << 32) | qMax(i, j);
                 if (tested.contains(key))
