@@ -1,12 +1,9 @@
 #include "trajetmotor.h"
 #include "pathplanner.h"          // définitions de PathPlanner / Segment
 #include <QSet>
-#include <QLineF>
 #include <QThread>
 #include <QApplication>
 #include <QGraphicsEllipseItem>
-#include <algorithm>
-#include <limits>
 #include <QMessageBox>
 #include "MainWindow.h"
 #include <utility>
@@ -15,7 +12,11 @@ namespace {
 template <typename F>
 inline void invokeLater(QObject *obj, F &&func)
 {
-    QMetaObject::invokeMethod(obj, std::forward<F>(func), Qt::QueuedConnection);
+    // QMetaObject::invokeMethod n'accepte pas un pointeur nul. Si aucun objet n'est
+    // fourni, on se rabat sur l'instance de l'application afin d'éviter un crash.
+    QMetaObject::invokeMethod(obj ? obj : QApplication::instance(),
+                              std::forward<F>(func),
+                              Qt::QueuedConnection);
 }
 }
 
@@ -23,114 +24,39 @@ inline void invokeLater(QObject *obj, F &&func)
 // using Segment = PathPlanner::Segment;
 // ---------------------------------------------------------------------------
 
-static constexpr int    VIS_DELAY_MS  = 15;   // délai visualisation (ms)
-static constexpr double mmPerPx       = 1.0;  // calibration plateau
-static constexpr int    VIS_SAMPLE_PX = 1;    // pas entre deux points affichés
+// Le délai artificiel de visualisation ralentissait fortement la découpe.
+// On le supprime et on limite les mises à jour graphiques pour plus de fluidité.
+static constexpr int    VIS_DELAY_MS       = 0;   // délai visualisation (ms)
+static constexpr int    VIS_UPDATE_INTERVAL = 20; // fréquence des rafraîchissements
+static constexpr double mmPerPx            = 1.0; // calibration plateau
+static constexpr int    VIS_SAMPLE_PX      = 1;   // pas entre deux points affichés
 
 TrajetMotor::TrajetMotor(FormeVisualization* visu, QWidget* parent)
     : QWidget(parent), m_visu(visu)
 {}
 
 // -----------------------------------------------------------------------------
-// Estimation du nombre total d'opérations (déplacements + coupes)
-// -----------------------------------------------------------------------------
-static int estimateTotalOperations(const QList<Segment>& segs)
-{
-    if (segs.isEmpty())
-        return 0;
-
-    const auto key = [](const QPoint& a, const QPoint& b) {
-        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
-        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
-        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
-    };
-
-    QSet<quint64> done;
-    QPoint cur = segs.first().a;
-    int ops = 0;
-
-    while (done.size() < segs.size()) {
-        int    bestIdx = -1;
-        double bestDi  = std::numeric_limits<double>::max();
-        for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(key(segs[i].a, segs[i].b))) continue;
-            const double d = QLineF(cur, segs[i].a).length();
-            if (d < bestDi) { bestDi = d; bestIdx = i; }
-        }
-        if (bestIdx < 0) break;
-        const auto s = segs[bestIdx];
-
-        if (cur != s.a)
-            ++ops;                     // déplacement
-        ++ops;                         // coupe
-
-        done.insert(key(s.a, s.b));
-        cur = s.b;
-    }
-
-    return ops;
-}
-
-// -----------------------------------------------------------------------------
-// Estimation du nombre total de pas (pour une progression fluide)
+// Estimation du nombre total de pas (déplacements + coupes)
 // -----------------------------------------------------------------------------
 static int estimateTotalSteps(const QList<Segment>& segs)
 {
     if (segs.isEmpty())
         return 0;
 
-    const auto key = [](const QPoint& a, const QPoint& b) {
-        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
-        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
-        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
-    };
     const auto stepLen = [](const QPoint& a, const QPoint& b) {
         return std::max(std::abs(a.x() - b.x()), std::abs(a.y() - b.y()));
     };
 
-    QSet<quint64> done;
-    QPoint cur = segs.first().a;
+    // On construit un chemin eulérien qui visite chaque segment une fois.
+    const QVector<QPoint> path = PathPlanner::buildEulerPath(segs);
+    if (path.size() < 2)
+        return 0;
+
     int steps = 0;
-
-    while (done.size() < segs.size()) {
-        int    bestIdx = -1;
-        double bestDi  = std::numeric_limits<double>::max();
-        for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(key(segs[i].a, segs[i].b))) continue;
-            const double d = QLineF(cur, segs[i].a).length();
-            if (d < bestDi) { bestDi = d; bestIdx = i; }
-        }
-        if (bestIdx < 0) break;
-        const auto s = segs[bestIdx];
-
-        steps += stepLen(cur, s.a);
-        steps += stepLen(s.a, s.b);
-
-        done.insert(key(s.a, s.b));
-        cur = s.b;
-    }
+    for (int i = 0; i + 1 < path.size(); ++i)
+        steps += stepLen(path[i], path[i + 1]);
 
     return steps;
-}
-
-// -----------------------------------------------------------------------------
-// Helper pour colorier un segment
-// -----------------------------------------------------------------------------
-static void drawSegment(FormeVisualization* v,
-                        const QPoint& a, const QPoint& b,
-                        bool cut)
-{
-    const int dx    = b.x() - a.x();
-    const int dy    = b.y() - a.y();
-    const int steps = std::max(std::abs(dx), std::abs(dy));
-    if (steps == 0) return;
-
-    for (int s = 1; s <= steps; s += VIS_SAMPLE_PX) {
-        const double t = static_cast<double>(s) / steps;
-        const QPoint p(qRound(a.x() + t * dx),
-                       qRound(a.y() + t * dy));
-        cut ? v->colorPositionRed(p) : v->colorPositionBlue(p);
-    }
 }
 
 // -----------------------------------------------------------------------------
@@ -160,78 +86,68 @@ void TrajetMotor::executeTrajet()
         return;
     }
 
-    // 2) Progression -----------------------------------------------------------
+    // 2) Construction du chemin optimisé --------------------------------------
+    const QVector<QPoint> path = PathPlanner::buildEulerPath(segs);
+    if (path.size() < 2) {
+        qWarning() << "Chemin vide";
+        m_running = false;
+        return;
+    }
+
+    // Ensemble des segments réels pour distinguer déplacement et coupe
+    const auto key = [](const QPoint& a, const QPoint& b) {
+        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
+        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
+        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
+    };
+    QSet<quint64> realSegs;
+    for (const Segment &s : segs)
+        realSegs.insert(key(s.a, s.b));
+
+    // 3) Progression -----------------------------------------------------------
     m_totalSteps      = estimateTotalSteps(segs);
     m_progressCounter = 0;
     emit decoupeProgress(m_totalSteps, m_totalSteps);
-    
 
-    // 3) Curseur vert ----------------------------------------------------------
+    // 4) Curseur vert ----------------------------------------------------------
     auto *head = new QGraphicsEllipseItem(-3, -3, 6, 6);
     head->setBrush(Qt::green);
     head->setPen(Qt::NoPen);
     head->setZValue(60);
     m_visu->getScene()->addItem(head);
 
-    // 4) Boucle principale -----------------------------------------------------
-    const auto key = [](const QPoint& a, const QPoint& b) {
-        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
-        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
-        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
-    };
-    QSet<quint64> done;
-
-    QPoint cur = segs.first().a;
+    // 5) Parcours du chemin ----------------------------------------------------
+    QPoint cur = path.first();
     head->setPos(cur.x() - 3, cur.y() - 3);
     m_visu->colorPositionBlue(cur);
 
-    while (done.size() < segs.size()) {
+    for (int idx = 1; idx < path.size(); ++idx) {
+        if (m_stopRequested)
+            break;
 
-        // ---------- STOP -------------------------------------------------------
-        if (m_stopRequested) break;
-
-        // ---------- PAUSE ------------------------------------------------------
         while (m_paused && !m_stopRequested) {
             QApplication::processEvents();
             QThread::msleep(30);
         }
-        if (m_stopRequested) break;
+        if (m_stopRequested)
+            break;
 
-        // ---------- Cherche segment le plus proche ----------------------------
-        int    bestIdx = -1;
-        double bestDi  = std::numeric_limits<double>::max();
-        for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(key(segs[i].a, segs[i].b))) continue;
-            const double d = QLineF(cur, segs[i].a).length();
-            if (d < bestDi) { bestDi = d; bestIdx = i; }
-        }
-        if (bestIdx < 0) break;
-        const auto s = segs[bestIdx];
+        const QPoint next = path[idx];
+        const bool   cut  = realSegs.contains(key(cur, next));
 
-        // ---------- Déplacement rapide (bleu) ---------------------------------
-        if (cur != s.a) {
-
+        if (cut)
+            m_motor.startJet();
+        else
             m_motor.stopJet();
 
-           moveHeadProgressive(cur, s.a, head, false);
+        moveHeadProgressive(cur, next, head, cut);
 
-            // Ensuite, on commande le moteur pour aller à la position finale
-            m_motor.moveRapid(s.a.x() * mmPerPx, s.a.y() * mmPerPx);
+        if (cut)
+            m_motor.moveCut(next.x() * mmPerPx, next.y() * mmPerPx);
+        else
+            m_motor.moveRapid(next.x() * mmPerPx, next.y() * mmPerPx);
 
-        }
-        cur = s.a;
-
-
-        // ---------- Coupe (rouge) ---------------------------------------------
-        m_motor.startJet();
-       moveHeadProgressive(s.a, s.b, head, true);
-        // Puis déplacement réel du moteur à la position cible
-        m_motor.moveCut(s.b.x() * mmPerPx, s.b.y() * mmPerPx);
-
-        // ---------- Progression ------------------------------------------------
-        done.insert(key(s.a, s.b));
-
-        cur = s.b;
+        cur = next;
     }
 
     // 5) Nettoyage -------------------------------------------------------------
@@ -334,10 +250,14 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,QGr
                 : m_visu->colorPositionBlue(pos);
         }
 
-        QApplication::processEvents();
-        QThread::msleep(VIS_DELAY_MS);
+        if (step % VIS_UPDATE_INTERVAL == 0) {
+            QApplication::processEvents();
+            if (VIS_DELAY_MS > 0)
+                QThread::msleep(VIS_DELAY_MS);
+        }
 
         ++m_progressCounter;
         emit decoupeProgress(m_totalSteps - m_progressCounter, m_totalSteps);
     }
+    QApplication::processEvents();
 }
