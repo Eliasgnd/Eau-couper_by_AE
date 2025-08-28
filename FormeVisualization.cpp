@@ -903,6 +903,7 @@ void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
         item->moveBy(dx, dy);
     }
     m_rotationPivotValid = false;
+    emit shapesChanged();
 }
 
 
@@ -937,6 +938,7 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
 
     for (QGraphicsItem *item : selected)
         item->setRotation(item->rotation() + angleDelta);
+    emit shapesChanged();
 }
 
 void FormeVisualization::deleteSelectedShapes()
@@ -1014,6 +1016,7 @@ void FormeVisualization::addShapeBottomRight()
         scene->addItem(newItem);
         newItem->setSelected(false);
         emit shapesPlacedCount(countPlacedShapes());
+        emit shapesChanged();
     }
 }
 

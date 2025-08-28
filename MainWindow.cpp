@@ -278,6 +278,18 @@ MainWindow::MainWindow(QWidget *parent)
         formeVisualization->deleteSelectedShapes();
     });
 
+    // Validate shapes after any modification before enabling "Play"
+    auto validateTimer = new QTimer(this);
+    validateTimer->setSingleShot(true);
+    connect(validateTimer, &QTimer::timeout, this, [this]() {
+        ui->Play->setEnabled(formeVisualization->validateShapes());
+    });
+    connect(formeVisualization, &FormeVisualization::shapesChanged, this,
+            [this, validateTimer]() {
+                ui->Play->setEnabled(false);
+                validateTimer->start(0);
+            });
+
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
         auto saveLayout = [this]() {
             bool ok;
@@ -310,8 +322,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Connecter bouton start à la détection des pixels noirs puis au contrôle des moteurs
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
-    // La vérification des formes est réalisée uniquement au lancement de la découpe
-    ui->Play->setEnabled(true);
+    ui->Play->setEnabled(false);
+    validateTimer->start(0);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
                 if (!optimized) {
