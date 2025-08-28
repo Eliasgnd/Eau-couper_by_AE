@@ -222,6 +222,7 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
                 continue;
             QPointF b1 = cleaned[j], b2 = cleaned[j + 1];
             if (QLineF(a1, a2).intersects(QLineF(b1, b2), nullptr) == QLineF::BoundedIntersection) {
+
                 selfIntersect = true;
                 break;
             }
@@ -236,13 +237,19 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
 bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
 {
     QList<QPolygonF> result;
+    bool allValid = true;
     for (QPolygonF p : polys) {
-        sanitizePolygon(p, eps);
-        if (!p.isEmpty())
-            result << p;
+        if (sanitizePolygon(p, eps)) {
+            if (!p.isEmpty())
+                result << p;
+        }
+        else
+        {
+            allValid = false;
+        }
     }
     polys = result;
-    return true;
+    return allValid;
 }
 
 bool validateAndProxyPolygons(QList<QPolygonF> &polys,
@@ -257,7 +264,7 @@ bool validateAndProxyPolygons(QList<QPolygonF> &polys,
     } catch (...) {
         ok = false;
     }
-    if (!ok || copy.isEmpty()) {
+    if (copy.isEmpty()) {
         if (!safeMode)
             return false;
         QRectF bounds;
@@ -272,12 +279,12 @@ bool validateAndProxyPolygons(QList<QPolygonF> &polys,
         polys = {proxy};
         if (warning)
             *warning = QStringLiteral("Invalid geometry replaced with proxy");
-        return true;
+        return false;
     }
     polys = copy;
     if (warning)
         warning->clear();
-    return true;
+    return ok;
 }
 
 void setSafeMode(bool enabled){ gSafeMode = enabled; }

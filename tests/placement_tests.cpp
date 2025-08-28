@@ -76,6 +76,7 @@ void PlacementTests::selfIntersectingAccepted()
     star.setFillRule(Qt::OddEvenFill);
     QList<QPolygonF> polys = star.toFillPolygons();
     QVERIFY(sanitizePolygons(polys));
+    QVERIFY(!polys.isEmpty());
     QPainterPath far; far.addRect(40,40,10,10);
     QVERIFY(!pathsOverlap(star, far));
 }
