@@ -130,8 +130,9 @@ QPixmap rasterFallback(const QPainterPath &path, int res)
 PipelineMetrics lastPipelineMetrics(){ return gMetrics; }
 void setLowEndMode(bool enabled){ gLowEndMode = enabled; }
 
-bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
-    gMetrics = PipelineMetrics();
+bool pathsOverlap(const QPainterPath &a, const QPainterPath &b,
+                  const QPainterPath &pa, const QPainterPath &pb,
+                  double epsilon){    gMetrics = PipelineMetrics();
     gMetrics.pairsProcessed = 1;
     QElapsedTimer timer; timer.start();
     int budgetMs = 12;
@@ -142,8 +143,10 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
     gMetrics.tier0Ms = timer.nsecsElapsed()/1000000; // near-zero
 
     // Tier1: use pre-simplified proxies
-    QPainterPath sa = buildProxyPath(a);
-    QPainterPath sb = buildProxyPath(b);
+    QPainterPath sa = pa.isEmpty() ? buildProxyPath(a) : pa;
+    QPainterPath sb = pb.isEmpty() ? buildProxyPath(b) : pb;
+    if (sa.isEmpty()) sa = a;
+    if (sb.isEmpty()) sb = b;
     gMetrics.tier1Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms;
     if (!sa.boundingRect().intersects(sb.boundingRect())) return false;
 
@@ -152,20 +155,23 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
     gMetrics.rasterResolution = raster;
     bool ro = rasterOverlap(sa, sb, raster);
     gMetrics.tier2Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms - gMetrics.tier1Ms;
-    if (!ro)
-        return false;
 
     // Skip exact phase if we're over budget, paths are too complex or low-end mode is on
     const int segmentLimit = 4096;
-    if (gLowEndMode || timer.elapsed() > budgetMs ||
-        sa.elementCount() > segmentLimit || sb.elementCount() > segmentLimit) {
+    if (!ro) {
+        if (gLowEndMode || timer.elapsed() > budgetMs ||
+            sa.elementCount() > segmentLimit || sb.elementCount() > segmentLimit) {
+            return false;
+        }
+    } else if (gLowEndMode || timer.elapsed() > budgetMs ||
+               sa.elementCount() > segmentLimit || sb.elementCount() > segmentLimit) {
         return ro;
     }
 
     // Tier3: exact interior area test using proxies
-    QPainterPath pa = sa; pa.setFillRule(Qt::OddEvenFill);
-    QPainterPath pb = sb; pb.setFillRule(Qt::OddEvenFill);
-    QPainterPath inter = pa.intersected(pb);
+    QPainterPath paProxy = sa; paProxy.setFillRule(Qt::OddEvenFill);
+    QPainterPath pbProxy = sb; pbProxy.setFillRule(Qt::OddEvenFill);
+    QPainterPath inter = paProxy.intersected(pbProxy);
     inter.setFillRule(Qt::OddEvenFill);
     gMetrics.tier3Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms - gMetrics.tier1Ms - gMetrics.tier2Ms;
     QRectF ib = inter.boundingRect();

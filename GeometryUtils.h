@@ -36,9 +36,13 @@ struct PipelineMetrics {
 };
 
 // Adaptive multi-tier overlap test. Uses original geometry for final decision.
-// epsilon is a distance tolerance; interiors are considered overlapping only if
-// the intersected area exceeds epsilon*epsilon.
-bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon = 0.5);
+// Optional precomputed proxies may be supplied to bypass repeated
+// simplification. epsilon is a distance tolerance; interiors are considered
+// overlapping only if the intersected area exceeds epsilon*epsilon.
+bool pathsOverlap(const QPainterPath &a, const QPainterPath &b,
+                  const QPainterPath &pa = QPainterPath(),
+                  const QPainterPath &pb = QPainterPath(),
+                  double epsilon = 0.5);
 
 // Enable or disable low-end mode which relaxes tolerances,
 // lowers raster resolution and skips exact overlap checks.

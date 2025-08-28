@@ -132,8 +132,9 @@ private:
     bool m_rotationPivotValid {false};
 
     struct CachedShape {
-        QPainterPath base;      // simplified local path (cache)
+        QPainterPath base;      // original local path
         QPainterPath path;      // transformed path
+        QPainterPath proxy;     // precomputed local proxy
         QList<QPolygonF> polys; // cached fill polygons
         QRectF       bbox;      // cached bounding box
         QTransform   transform; // last transform used
