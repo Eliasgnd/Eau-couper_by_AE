@@ -35,6 +35,7 @@ namespace {
 constexpr double kBroadPhaseMargin = 0.1;   // bbox expansion for spatial query
 constexpr double kGridCellSize     = 50.0;  // uniform grid cell size in scene units
 enum InvalidReason { Valid = 0, OutOfBounds = 1, InteriorOverlap = 2 };
+constexpr int    kCutPathUpdateFreq = 25;   // refresh cut path item every N points
 
 QCache<quint64, QPainterPath> gPathCache(256);
 
@@ -188,6 +189,10 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     m_sheetBorder = scene->addRect(scene->sceneRect(),
                                    QPen(Qt::white, 2), QBrush(Qt::NoBrush));
     m_sheetBorder->setZValue(1000);
+
+    // Item pour afficher les marqueurs de découpe cumulés
+    m_cutPathItem = scene->addPath(QPainterPath(), QPen(Qt::NoPen));
+    m_cutPathItem->setZValue(1001);
     // Disable antialiasing during bulk updates to keep the UI responsive
     graphicsView->setRenderHint(QPainter::Antialiasing, false);
     graphicsView->setViewportUpdateMode(QGraphicsView::BoundingRectViewportUpdate);
@@ -261,7 +266,7 @@ bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
         if (me->button() == Qt::LeftButton) {
             QPointF scenePos = graphicsView->mapToScene(me->pos());
             QGraphicsItem *item = scene->itemAt(scenePos, graphicsView->transform());
-            if (item && !m_cutMarkers.contains(item)) {
+            if (item && item != m_cutPathItem) {
                 item->setSelected(!item->isSelected());
             }
             return true;
@@ -933,7 +938,7 @@ void FormeVisualization::deleteSelectedShapes()
     bool removed = false;
     const auto selected = scene->selectedItems();
     for (QGraphicsItem *item : selected) {
-        if (m_cutMarkers.contains(item))
+        if (item == m_cutPathItem)
             continue;
         scene->removeItem(item);
         delete item;
@@ -1009,22 +1014,16 @@ void FormeVisualization::setCustomMode() {
     emit optimizationStateChanged(false);
 }
 
-// -----------------------------------------------------------------------------
-// Ajout d’un point rouge
-// -----------------------------------------------------------------------------
-void FormeVisualization::addCutMarker(const QPoint& p, const QColor& color, bool center)
-{
-    int x = center ? p.x() - 1 : p.x();
-    int y = center ? p.y() - 1 : p.y();
-    auto *dot = scene->addEllipse(x, y, 2, 2,
-                                  QPen(Qt::NoPen), QBrush(color));
-    m_cutMarkers << dot;
-    graphicsView->viewport()->update();
-}
-
 void FormeVisualization::colorPositionRed(const QPoint& p)
 {
-    addCutMarker(p, Qt::red, true);
+    if (!m_cutPathItem)
+        return;
+    m_cutPath.addEllipse(p.x() - 1, p.y() - 1, 2, 2);
+    ++m_cutPathPoints;
+    if (m_lastCutColor != Qt::red || m_cutPathPoints % kCutPathUpdateFreq == 0)
+        m_cutPathItem->setPath(m_cutPath);
+    m_lastCutColor = Qt::red;
+    m_cutPathItem->setBrush(Qt::red);
 }
 
 // -----------------------------------------------------------------------------
@@ -1032,7 +1031,14 @@ void FormeVisualization::colorPositionRed(const QPoint& p)
 // -----------------------------------------------------------------------------
 void FormeVisualization::colorPositionBlue(const QPoint& p)
 {
-    addCutMarker(p, Qt::blue);
+    if (!m_cutPathItem)
+        return;
+    m_cutPath.addEllipse(p.x() - 1, p.y() - 1, 2, 2);
+    ++m_cutPathPoints;
+    if (m_lastCutColor != Qt::blue || m_cutPathPoints % kCutPathUpdateFreq == 0)
+        m_cutPathItem->setPath(m_cutPath);
+    m_lastCutColor = Qt::blue;
+    m_cutPathItem->setBrush(Qt::blue);
 }
 
 // -----------------------------------------------------------------------------
@@ -1040,11 +1046,11 @@ void FormeVisualization::colorPositionBlue(const QPoint& p)
 // -----------------------------------------------------------------------------
 void FormeVisualization::resetCutMarkers()
 {
-    for (auto *item : std::as_const(m_cutMarkers)) {
-        scene->removeItem(item);
-        delete item;
-    }
-    m_cutMarkers.clear();
+    m_cutPath = QPainterPath();
+    m_cutPathPoints = 0;
+    if (m_cutPathItem)
+        m_cutPathItem->setPath(m_cutPath);
+    m_lastCutColor = Qt::transparent;
 }
 
 // ======================================================================================================================
@@ -1099,6 +1105,8 @@ void FormeVisualization::setDecoupeEnCours(bool etat)
     m_decoupeEnCours = etat;
     // Interdire ou autoriser le déplacement manuel des items
     for (QGraphicsItem *item : scene->items()) {
+        if (item == m_cutPathItem)
+            continue;
         item->setFlag(QGraphicsItem::ItemIsMovable, !etat);
     }
 }
@@ -1107,7 +1115,7 @@ int FormeVisualization::countPlacedShapes() const
 {
     int count = 0;
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (item == m_cutPathItem)
             continue;
         if (dynamic_cast<QGraphicsPathItem*>(item) ||
             dynamic_cast<QGraphicsRectItem*>(item) ||
@@ -1131,7 +1139,7 @@ bool FormeVisualization::validateShapes()
     bool allValid = true;
     QList<QAbstractGraphicsShapeItem*> shapes;
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (item == m_cutPathItem)
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item))
             shapes << shape;
@@ -1248,7 +1256,7 @@ void FormeVisualization::handleSelectionChanged()
 void FormeVisualization::resetAllShapeColors()
 {
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (item == m_cutPathItem)
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
             shape->setPen(QPen(Qt::black, 1));
@@ -1264,6 +1272,16 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
         return;
 
     scene->clear();
+    // Recrée les éléments spéciaux de la scène
+    m_cutPath = QPainterPath();
+    m_cutPathPoints = 0;
+    m_lastCutColor = Qt::transparent;
+    m_cutPathItem = scene->addPath(QPainterPath(), QPen(Qt::NoPen));
+    m_cutPathItem->setZValue(1001);
+    m_sheetBorder = scene->addRect(scene->sceneRect(),
+                                   QPen(Qt::white, 2), QBrush(Qt::NoBrush));
+    m_sheetBorder->setZValue(1000);
+
     currentLargeur = layout.largeur;
     currentLongueur = layout.longueur;
     spacing = layout.spacing;
@@ -1312,7 +1330,7 @@ LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
     layout.spacing = spacing;
 
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (item == m_cutPathItem)
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
             QRectF bounds = shape->boundingRect();

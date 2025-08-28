@@ -7,6 +7,7 @@
 #include <QProgressBar>
 #include <QPainterPath>
 #include <QGraphicsRectItem>
+#include <QGraphicsPathItem>
 #include <QSizeF>                // <<< AJOUT
 #include <QPoint>
 #include <QColor>
@@ -104,7 +105,6 @@ private slots:
 
 private:
     bool warnIfCutting();
-    void addCutMarker(const QPoint& p, const QColor& color, bool center = false);
     int countPlacedShapes() const;
     void redraw();
 
@@ -123,7 +123,6 @@ private:
     bool                 m_isCustomMode {false};
     QList<QPolygonF>     m_customShapes;
     QString              m_currentCustomShapeName;
-    QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
     bool m_decoupeEnCours = false;
     bool m_optimizationRunning = false;
@@ -148,6 +147,12 @@ private:
     // Dimensions logiques du plateau (par défaut 600x400)
     QSizeF m_sheetMm {600.0, 400.0};        // X = largeur(mm), Y = hauteur(mm)
     double m_aspect = m_sheetMm.width() / m_sheetMm.height();
+
+    // Path cumulatif pour les marqueurs de découpe
+    QPainterPath       m_cutPath;
+    QGraphicsPathItem *m_cutPathItem {nullptr};
+    int                m_cutPathPoints {0};
+    Qt::GlobalColor    m_lastCutColor {Qt::transparent};
 };
 
 #endif // FORMEVISUALIZATION_H
