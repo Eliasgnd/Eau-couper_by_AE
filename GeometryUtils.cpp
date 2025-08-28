@@ -217,22 +217,16 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
     if (area < 0)
         std::reverse(cleaned.begin(), cleaned.end());
 
-    bool selfIntersect = false;
-    for (int i = 0; i < cleaned.size() - 1 && !selfIntersect; ++i) {
+    for (int i = 0; i < cleaned.size() - 1; ++i) {
         QPointF a1 = cleaned[i], a2 = cleaned[i + 1];
         for (int j = i + 1; j < cleaned.size() - 1; ++j) {
             if (std::abs(j - i) <= 1 || (i == 0 && j == cleaned.size() - 2))
                 continue;
             QPointF b1 = cleaned[j], b2 = cleaned[j + 1];
-            if (QLineF(a1, a2).intersects(QLineF(b1, b2), nullptr) == QLineF::BoundedIntersection) {
-
-                selfIntersect = true;
-                break;
-            }
+            if (QLineF(a1, a2).intersects(QLineF(b1, b2), nullptr) == QLineF::BoundedIntersection)
+                return false;
         }
     }
-    if (selfIntersect)
-        qInfo() << "Self-intersection detected in polygon";
     poly = cleaned;
     return true;
 }
@@ -245,13 +239,13 @@ bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
         if (sanitizePolygon(p, eps)) {
             if (!p.isEmpty())
                 result << p;
-        }
-        else
-        {
+        } else {
             allValid = false;
         }
     }
     polys = result;
+    if (!allValid)
+        qInfo() << "Self-intersection detected in polygon";
     return allValid;
 }
 

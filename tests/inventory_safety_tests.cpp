@@ -2,7 +2,7 @@
 #include "../GeometryUtils.h"
 #include "inventory_safety_tests.h"
 
-void InventorySafetyTests::malformedShapeAccepted()
+void InventorySafetyTests::malformedShapeProxied()
 {
     setSafeMode(true);
     QList<QPolygonF> polys;
@@ -10,13 +10,13 @@ void InventorySafetyTests::malformedShapeAccepted()
     p << QPointF(0,0) << QPointF(10,10) << QPointF(0,10) << QPointF(10,0) << QPointF(0,0);
     polys << p;
     QString warn;
-    QVERIFY(validateAndProxyPolygons(polys, true, &warn));
-    QVERIFY(warn.isEmpty());
+    QVERIFY(!validateAndProxyPolygons(polys, true, &warn));
+    QCOMPARE(warn, QStringLiteral("Invalid geometry replaced with proxy"));
     QCOMPARE(polys.size(), 1);
     setSafeMode(false);
 }
 
-void InventorySafetyTests::invalidShapeAccepted()
+void InventorySafetyTests::invalidShapeRejected()
 {
     setSafeMode(false);
     QList<QPolygonF> polys;
@@ -24,7 +24,7 @@ void InventorySafetyTests::invalidShapeAccepted()
     p << QPointF(0,0) << QPointF(10,10) << QPointF(0,10) << QPointF(10,0) << QPointF(0,0);
     polys << p;
     QString warn;
-    QVERIFY(validateAndProxyPolygons(polys, false, &warn));
+    QVERIFY(!validateAndProxyPolygons(polys, false, &warn));
     QVERIFY(warn.isEmpty());
 }
 
