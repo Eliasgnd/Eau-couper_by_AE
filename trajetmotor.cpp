@@ -328,9 +328,11 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,QGr
         QPoint pos(x, y);
         head->setPos(x - 3, y - 3);
 
-        // Coloration dynamique
-        cut ? m_visu->colorPositionRed(pos)
-            : m_visu->colorPositionBlue(pos);
+        // Coloration dynamique seulement toutes les VIS_SAMPLE_PX étapes
+        if (step % VIS_SAMPLE_PX == 0 || step == steps) {
+            cut ? m_visu->colorPositionRed(pos)
+                : m_visu->colorPositionBlue(pos);
+        }
 
         QApplication::processEvents();
         QThread::msleep(VIS_DELAY_MS);
