@@ -1158,13 +1158,6 @@ bool FormeVisualization::validateShapes()
             cache.polys     = cache.path.toFillPolygons();
             bool ok         = sanitizePolygons(cache.polys);
             cache.transform = t;
-            if (!ok || cache.polys.isEmpty()) {
-                shape->setPen(QPen(Qt::red, 1));
-                allValid = false;
-                if (qApp->property("invalidReason").toInt() == 0)
-                    qApp->setProperty("invalidReason", OutOfBounds);
-                continue;
-            }
         }
         paths << cache.path;
         bboxes << cache.bbox;
@@ -1219,30 +1212,14 @@ bool FormeVisualization::validateShapes()
                                                    kBroadPhaseMargin, kBroadPhaseMargin);
                 if (!b1.intersects(geoms[j].bbox))
                     continue;
-                QPainterPath pa = geoms[i].path;
-                QPainterPath pb = geoms[j].path;
-                Qt::FillRule rule = (pa.fillRule() == Qt::WindingFill || pb.fillRule() == Qt::WindingFill)
-                                    ? Qt::WindingFill : Qt::OddEvenFill;
-                pa.setFillRule(rule);
-                pb.setFillRule(rule);
-                QPainterPath inter = pa.intersected(pb);
-                inter.setFillRule(rule);
-                if (!inter.isEmpty()) {
-                    double area = 0.0;
-                    const auto polys = inter.toFillPolygons(QTransform());
-                    for (const QPolygonF &poly : polys)
-                        area += ::polygonArea(poly);
-                    QRectF ib = inter.boundingRect();
-                    double epsArea = qMax(1e-6 * ib.width() * ib.height(), 0.25);
-                    if (area > epsArea) {
-                        shapes[i]->setPen(QPen(Qt::red, 1));
-                        shapes[j]->setPen(QPen(Qt::red, 1));
-                        invalid[i] = true;
-                        invalid[j] = true;
-                        allValid = false;
-                        if (qApp->property("invalidReason").toInt() == 0)
-                            qApp->setProperty("invalidReason", InteriorOverlap);
-                    }
+                if (pathsOverlap(geoms[i].path, geoms[j].path)) {
+                    shapes[i]->setPen(QPen(Qt::red, 1));
+                    shapes[j]->setPen(QPen(Qt::red, 1));
+                    invalid[i] = true;
+                    invalid[j] = true;
+                    allValid = false;
+                    if (qApp->property("invalidReason").toInt() == 0)
+                        qApp->setProperty("invalidReason", InteriorOverlap);
                 }
             }
         }
