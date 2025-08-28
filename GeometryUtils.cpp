@@ -150,12 +150,16 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
     // Tier2: raster proxy
     int raster = gLowEndMode ? 512 : 1024;
     gMetrics.rasterResolution = raster;
-    if (!rasterOverlap(sa, sb, raster)) return false;
+    bool ro = rasterOverlap(sa, sb, raster);
     gMetrics.tier2Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms - gMetrics.tier1Ms;
-    if (timer.elapsed() > budgetMs){
-        QPainterPath ea = erodePath(sa, (sa.boundingRect().width()/raster)*2);
-        QPainterPath eb = erodePath(sb, (sb.boundingRect().width()/raster)*2);
-        return rasterOverlap(ea, eb, raster);
+    if (!ro)
+        return false;
+
+    // Skip exact phase if we're over budget, paths are too complex or low-end mode is on
+    const int segmentLimit = 4096;
+    if (gLowEndMode || timer.elapsed() > budgetMs ||
+        sa.elementCount() > segmentLimit || sb.elementCount() > segmentLimit) {
+        return ro;
     }
 
     // Tier3: exact interior area test using proxies

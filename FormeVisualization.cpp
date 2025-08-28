@@ -1029,10 +1029,12 @@ void FormeVisualization::colorPositionRed(const QPoint& p)
         return;
     m_cutPath.addEllipse(p.x() - 1, p.y() - 1, 2, 2);
     ++m_cutPathPoints;
-    if (m_lastCutColor != Qt::red || m_cutPathPoints % kCutPathUpdateFreq == 0)
+    if (m_cutPathPoints % kCutPathUpdateFreq == 0)
         m_cutPathItem->setPath(m_cutPath);
-    m_lastCutColor = Qt::red;
-    m_cutPathItem->setBrush(Qt::red);
+    if (m_lastCutColor != Qt::red) {
+        m_cutPathItem->setBrush(Qt::red);
+        m_lastCutColor = Qt::red;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1044,10 +1046,12 @@ void FormeVisualization::colorPositionBlue(const QPoint& p)
         return;
     m_cutPath.addEllipse(p.x() - 1, p.y() - 1, 2, 2);
     ++m_cutPathPoints;
-    if (m_lastCutColor != Qt::blue || m_cutPathPoints % kCutPathUpdateFreq == 0)
+    if (m_cutPathPoints % kCutPathUpdateFreq == 0)
         m_cutPathItem->setPath(m_cutPath);
-    m_lastCutColor = Qt::blue;
-    m_cutPathItem->setBrush(Qt::blue);
+    if (m_lastCutColor != Qt::blue) {
+        m_cutPathItem->setBrush(Qt::blue);
+        m_lastCutColor = Qt::blue;
+    }
 }
 
 // -----------------------------------------------------------------------------

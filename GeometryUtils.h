@@ -40,7 +40,8 @@ struct PipelineMetrics {
 // the intersected area exceeds epsilon*epsilon.
 bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon = 0.5);
 
-// Enable or disable low-end mode which relaxes tolerances and lowers raster resolution.
+// Enable or disable low-end mode which relaxes tolerances,
+// lowers raster resolution and skips exact overlap checks.
 void setLowEndMode(bool enabled);
 
 // Retrieve metrics collected during the most recent pathsOverlap invocation.
