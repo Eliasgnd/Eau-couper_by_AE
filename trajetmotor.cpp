@@ -36,21 +36,16 @@ TrajetMotor::TrajetMotor(FormeVisualization* visu, QWidget* parent)
 {}
 
 // -----------------------------------------------------------------------------
-// Estimation du nombre total de pas (déplacements + coupes)
+// Calcul du nombre total de pas à partir d'un chemin déjà optimisé
 // -----------------------------------------------------------------------------
-static int estimateTotalSteps(const QList<Segment>& segs)
+static int estimatePathSteps(const QVector<QPoint>& path)
 {
-    if (segs.isEmpty())
+    if (path.size() < 2)
         return 0;
 
     const auto stepLen = [](const QPoint& a, const QPoint& b) {
         return std::max(std::abs(a.x() - b.x()), std::abs(a.y() - b.y()));
     };
-
-    // On construit un chemin eulérien qui visite chaque segment une fois.
-    const QVector<QPoint> path = PathPlanner::buildEulerPath(segs);
-    if (path.size() < 2)
-        return 0;
 
     int steps = 0;
     for (int i = 0; i + 1 < path.size(); ++i)
@@ -105,7 +100,7 @@ void TrajetMotor::executeTrajet()
         realSegs.insert(key(s.a, s.b));
 
     // 3) Progression -----------------------------------------------------------
-    m_totalSteps      = estimateTotalSteps(segs);
+    m_totalSteps      = estimatePathSteps(path);
     m_progressCounter = 0;
     emit decoupeProgress(m_totalSteps, m_totalSteps);
 

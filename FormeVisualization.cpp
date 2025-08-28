@@ -19,6 +19,7 @@
 #include <QSet>
 #include <QElapsedTimer>
 #include <QCache>
+#include <QPointer>
 
 #include "GeometryUtils.h"
 
@@ -72,6 +73,9 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     if (!scene)
         return;
 
+    QPointer<FormeVisualization> self(this);
+    QPointer<QGraphicsScene>      scenePtr(scene);
+
     // 0) Affichage instantané : raster à partir du "path" brut (pas de normalisation bloquante sur l’UI)
     const int rasterSize = qBound(512,
                                   int(qMax(path.boundingRect().width(), path.boundingRect().height())),
@@ -81,25 +85,28 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
     pix->setTransformationMode(Qt::FastTransformation);
     pix->setPos(pos);
     pix->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-    scene->addItem(pix);
+    scenePtr->addItem(pix);
 
     // 1) Drapeau d’annulation partagé (annule si la vue/scene est détruite)
     auto cancel = std::make_shared<std::atomic_bool>(false);
-    QObject::connect(this,  &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
-    QObject::connect(scene, &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
+    QObject::connect(self,  &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
+    QObject::connect(scenePtr, &QObject::destroyed, [cancel]{ cancel->store(true,  std::memory_order_release); });
 
     // 2) Étape proxy/clean en arrière-plan (PAS de travail lourd dans paint() / visibilité)
-    QThreadPool::globalInstance()->start([this, path, pos, pix, cancel]{
-        if (cancel->load(std::memory_order_acquire)) return;
+    QThreadPool::globalInstance()->start([self, scenePtr, path, pos, pix, cancel]{
+        if (cancel->load(std::memory_order_acquire) || !self)
+            return;
 
         // Normalisation et proxy hors UI
         QPainterPath clean = normalizePath(path);
         QPainterPath proxy = buildProxyPath(clean);
-        if (cancel->load(std::memory_order_acquire)) return;
+        if (cancel->load(std::memory_order_acquire) || !self)
+            return;
 
         // 3) Remplacement du raster par l’item proxy sur l’UI thread
-        QMetaObject::invokeMethod(this, [=]() {
-            if (cancel->load(std::memory_order_acquire) || !scene) return;
+        QMetaObject::invokeMethod(self, [=]() {
+            if (cancel->load(std::memory_order_acquire) || !self || !scenePtr)
+                return;
 
             auto *item = new QGraphicsPathItem(proxy);
             item->setPen(QPen(Qt::black, 1));
@@ -108,27 +115,28 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
             item->setFlag(QGraphicsItem::ItemIsSelectable,true);
             item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
             item->setPos(pos);
-            scene->addItem(item);
+            scenePtr->addItem(item);
 
             // Remplacer le pixmap (et annuler tout travail qui s’y référait)
-            scene->removeItem(pix);
+            scenePtr->removeItem(pix);
             delete pix;
 
             // 4) Étape exacte : nouvelle annulation dédiée à l’item, avec garde de durée de vie
             auto cancel2 = std::make_shared<std::atomic_bool>(false);
-            QObject::connect(this, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
-            QGraphicsPathItem* guard = item;
+            QObject::connect(self, &QObject::destroyed, [cancel2]{ cancel2->store(true, std::memory_order_release); });
+            QPointer<QGraphicsPathItem> guard(item);
 
-            QThreadPool::globalInstance()->start([this, clean, guard, cancel2]{
-                if (cancel2->load(std::memory_order_acquire)) return;
+            QThreadPool::globalInstance()->start([self, guard, clean, cancel2]{
+                if (cancel2->load(std::memory_order_acquire) || !self || !guard)
+                    return;
 
                 QPainterPath exact = clean.simplified();
-                if (cancel2->load(std::memory_order_acquire)) return;
+                if (cancel2->load(std::memory_order_acquire) || !self || !guard)
+                    return;
 
-                QMetaObject::invokeMethod(this, [=](){
-                    if (cancel2->load(std::memory_order_acquire) || !scene) return;
-                    // Vérifie que le pointeur correspond encore à un item présent dans la scène
-                    if (!scene->items().contains(guard)) return;
+                QMetaObject::invokeMethod(self, [=](){
+                    if (cancel2->load(std::memory_order_acquire) || !self || !guard)
+                        return;
 
                     guard->setPath(exact);
                     guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
@@ -137,7 +145,7 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
                     const QTransform t = guard->sceneTransform();
                     const QPainterPath mappedExact = t.map(exact);
                     const QRectF bbox = mappedExact.boundingRect();
-                    m_cache[guard] = { exact, mappedExact, proxy, {}, bbox, t };
+                    self->m_cache[guard] = { exact, mappedExact, proxy, {}, bbox, t };
                 }, Qt::QueuedConnection);
             });
         }, Qt::QueuedConnection);
@@ -241,6 +249,10 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
         QPainterPath p = path; p.setFillRule(Qt::OddEvenFill); return p;
     }
 
+    const quint64 h = hashPath(path, spacing);
+    if (QPainterPath *cached = gPathCache.object(h))
+        return *cached;
+
     QPainterPathStroker stroker;
     // Ici, spacing est interprété comme la largeur totale désirée.
     // Le contour généré s'étend d'environ spacing/2 de chaque côté.
@@ -250,6 +262,7 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
     QPainterPath strokePath = stroker.createStroke(p);
     QPainterPath result = p.united(strokePath);
     result.setFillRule(Qt::OddEvenFill);
+    gPathCache.insert(h, new QPainterPath(result));
     return result;
 }
 
