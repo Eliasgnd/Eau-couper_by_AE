@@ -187,7 +187,6 @@ void CutQueue::process(int budgetMs){
 
 void CutQueue::cancel(){ m_cancelled = true; m_items.clear(); }
 
-
 bool sanitizePolygon(QPolygonF &poly, double eps)
 {
     QPolygonF cleaned;
@@ -222,7 +221,8 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
             if (std::abs(j - i) <= 1 || (i == 0 && j == cleaned.size() - 2))
                 continue;
             QPointF b1 = cleaned[j], b2 = cleaned[j + 1];
-            if (segmentsIntersect(a1, a2, b1, b2)) {
+            if (QLineF(a1, a2).intersects(QLineF(b1, b2), nullptr) == QLineF::BoundedIntersection) {
+
                 selfIntersect = true;
                 break;
             }
