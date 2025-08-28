@@ -3,6 +3,7 @@
 #include "../GeometryUtils.h"
 #include "../motorcontrol.h"
 #include "placement_tests.h"
+#include <memory>
 
 void PlacementTests::borderContactNotOverlap()
 {
@@ -65,7 +66,7 @@ void PlacementTests::lowEndModeAdjusts()
     setLowEndMode(false);
 }
 
-void PlacementTests::selfIntersectingAccepted()
+void PlacementTests::selfIntersectingRejected()
 {
     QPainterPath star;
     star.moveTo(0,0);
@@ -75,22 +76,23 @@ void PlacementTests::selfIntersectingAccepted()
     star.closeSubpath();
     star.setFillRule(Qt::OddEvenFill);
     QList<QPolygonF> polys = star.toFillPolygons();
-    QVERIFY(sanitizePolygons(polys));
-    QVERIFY(!polys.isEmpty());
+    QVERIFY(!sanitizePolygons(polys));
+    QVERIFY(polys.isEmpty());
     QPainterPath far; far.addRect(40,40,10,10);
     QVERIFY(!pathsOverlap(star, far));
 }
 
 void PlacementTests::selfIntersectingOverlapDetected()
 {
-    QPainterPath star;
-    star.moveTo(0,0);
-    star.lineTo(20,20);
-    star.lineTo(0,20);
-    star.lineTo(20,0);
-    star.closeSubpath();
-    star.setFillRule(Qt::OddEvenFill);
-    QPainterPath rect; rect.addRect(5,5,10,10);
-    QVERIFY(pathsOverlap(star, rect));
+    std::unique_ptr<QPainterPath> star(new QPainterPath);
+    star->moveTo(0,0);
+    star->lineTo(20,20);
+    star->lineTo(0,20);
+    star->lineTo(20,0);
+    star->closeSubpath();
+    star->setFillRule(Qt::OddEvenFill);
+    std::unique_ptr<QPainterPath> rect(new QPainterPath);
+    rect->addRect(5,5,10,10);
+    QVERIFY(pathsOverlap(*star, *rect));
 }
 
