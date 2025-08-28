@@ -2,7 +2,7 @@
 #include "../GeometryUtils.h"
 #include "inventory_safety_tests.h"
 
-void InventorySafetyTests::malformedShapeUsesProxy()
+void InventorySafetyTests::malformedShapeAccepted()
 {
     setSafeMode(true);
     QList<QPolygonF> polys;
@@ -16,7 +16,7 @@ void InventorySafetyTests::malformedShapeUsesProxy()
     setSafeMode(false);
 }
 
-void InventorySafetyTests::invalidShapeRejected()
+void InventorySafetyTests::invalidShapeAccepted()
 {
     setSafeMode(false);
     QList<QPolygonF> polys;
@@ -25,6 +25,7 @@ void InventorySafetyTests::invalidShapeRejected()
     polys << p;
     QString warn;
     QVERIFY(validateAndProxyPolygons(polys, false, &warn));
+    QVERIFY(warn.isEmpty());
 }
 
 void InventorySafetyTests::hugePolygonHandled()

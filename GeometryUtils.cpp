@@ -187,19 +187,6 @@ void CutQueue::process(int budgetMs){
 
 void CutQueue::cancel(){ m_cancelled = true; m_items.clear(); }
 
-static bool segmentsIntersect(const QPointF &a1, const QPointF &a2,
-                              const QPointF &b1, const QPointF &b2)
-{
-    auto cross = [](const QPointF &p, const QPointF &q){ return p.x()*q.y() - p.y()*q.x(); };
-    QPointF r = a2 - a1;
-    QPointF s = b2 - b1;
-    double denom = cross(r, s);
-    if (qFuzzyIsNull(denom)) return false;
-    QPointF diff = b1 - a1;
-    double t = cross(diff, s) / denom;
-    double u = cross(diff, r) / denom;
-    return t > 0 && t < 1 && u > 0 && u < 1;
-}
 
 bool sanitizePolygon(QPolygonF &poly, double eps)
 {
@@ -250,13 +237,19 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
 bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
 {
     QList<QPolygonF> result;
+    bool allValid = true;
     for (QPolygonF p : polys) {
-        sanitizePolygon(p, eps);
-        if (!p.isEmpty())
-            result << p;
+        if (sanitizePolygon(p, eps)) {
+            if (!p.isEmpty())
+                result << p;
+        }
+        else
+        {
+            allValid = false;
+        }
     }
     polys = result;
-    return true;
+    return allValid;
 }
 
 bool validateAndProxyPolygons(QList<QPolygonF> &polys,
@@ -271,7 +264,7 @@ bool validateAndProxyPolygons(QList<QPolygonF> &polys,
     } catch (...) {
         ok = false;
     }
-    if (!ok || copy.isEmpty()) {
+    if (copy.isEmpty()) {
         if (!safeMode)
             return false;
         QRectF bounds;
@@ -286,12 +279,12 @@ bool validateAndProxyPolygons(QList<QPolygonF> &polys,
         polys = {proxy};
         if (warning)
             *warning = QStringLiteral("Invalid geometry replaced with proxy");
-        return true;
+        return false;
     }
     polys = copy;
     if (warning)
         warning->clear();
-    return true;
+    return ok;
 }
 
 void setSafeMode(bool enabled){ gSafeMode = enabled; }

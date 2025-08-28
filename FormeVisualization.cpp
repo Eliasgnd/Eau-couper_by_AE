@@ -1156,7 +1156,7 @@ bool FormeVisualization::validateShapes()
             cache.path.setFillRule(Qt::OddEvenFill);
             cache.bbox      = cache.path.boundingRect();
             cache.polys     = cache.path.toFillPolygons();
-            sanitizePolygons(cache.polys);
+            bool ok         = sanitizePolygons(cache.polys);
             cache.transform = t;
         }
         paths << cache.path;
