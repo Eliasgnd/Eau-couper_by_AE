@@ -1159,10 +1159,6 @@ bool FormeVisualization::validateShapes()
             sanitizePolygons(cache.polys);
             cache.transform = t;
         }
-        if (cache.polys.isEmpty()) {
-            cache.polys = cache.path.toFillPolygons();
-            sanitizePolygons(cache.polys);
-        }
         paths << cache.path;
         bboxes << cache.bbox;
         if (!bounds.contains(cache.bbox)) {
@@ -1186,6 +1182,7 @@ bool FormeVisualization::validateShapes()
     QHash<QPair<int,int>, QVector<int>> grid;
     grid.reserve(geoms.size() * 2);
     QSet<quint64> tested;
+    QVector<bool> invalid(shapes.size(), false);
 
     for (int i = 0; i < geoms.size(); ++i) {
         const QRectF &b = geoms[i].bbox;
@@ -1198,12 +1195,14 @@ bool FormeVisualization::validateShapes()
                 grid[{x, y}].append(i);
     }
 
-    for (auto it = grid.constBegin(); it != grid.constEnd() && allValid; ++it) {
+    for (auto it = grid.constBegin(); it != grid.constEnd(); ++it) {
         const QVector<int> &idxs = it.value();
-        for (int a = 0; a < idxs.size() && allValid; ++a) {
+        for (int a = 0; a < idxs.size(); ++a) {
             for (int b = a + 1; b < idxs.size(); ++b) {
                 int i = idxs[a];
                 int j = idxs[b];
+                if (invalid[i] && invalid[j])
+                    continue;
                 const quint64 key = (static_cast<quint64>(qMin(i, j)) << 32) | qMax(i, j);
                 if (tested.contains(key))
                     continue;
@@ -1213,31 +1212,15 @@ bool FormeVisualization::validateShapes()
                                                    kBroadPhaseMargin, kBroadPhaseMargin);
                 if (!b1.intersects(geoms[j].bbox))
                     continue;
-                QPainterPath pa = geoms[i].path;
-                QPainterPath pb = geoms[j].path;
-                Qt::FillRule rule = (pa.fillRule() == Qt::WindingFill || pb.fillRule() == Qt::WindingFill)
-                                    ? Qt::WindingFill : Qt::OddEvenFill;
-                pa.setFillRule(rule);
-                pb.setFillRule(rule);
-                QPainterPath inter = pa.intersected(pb);
-                inter.setFillRule(rule);
-                if (!inter.isEmpty()) {
-                    double area = 0.0;
-                    const auto polys = inter.toFillPolygons(QTransform());
-                    for (const QPolygonF &poly : polys)
-                        area += ::polygonArea(poly);
-                    QRectF ib = inter.boundingRect();
-                    double epsArea = qMax(1e-6 * ib.width() * ib.height(), 0.25);
-                    if (area > epsArea) {
-                        shapes[i]->setPen(QPen(Qt::red, 1));
-                        shapes[j]->setPen(QPen(Qt::red, 1));
-                        allValid = false;
-                        if (qApp->property("invalidReason").toInt() == 0)
-                            qApp->setProperty("invalidReason", InteriorOverlap);
-                    }
+                if (pathsOverlap(geoms[i].path, geoms[j].path)) {
+                    shapes[i]->setPen(QPen(Qt::red, 1));
+                    shapes[j]->setPen(QPen(Qt::red, 1));
+                    invalid[i] = true;
+                    invalid[j] = true;
+                    allValid = false;
+                    if (qApp->property("invalidReason").toInt() == 0)
+                        qApp->setProperty("invalidReason", InteriorOverlap);
                 }
-                if (!allValid)
-                    break;
             }
         }
     }
