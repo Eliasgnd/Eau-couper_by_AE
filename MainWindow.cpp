@@ -30,6 +30,7 @@
 #include <QImage>
 #include <QPainterPath>
 #include <QDebug>
+#include <QtGlobal>
 #include <QScreen>
 #include <QGuiApplication>
 #include <QShowEvent>
@@ -746,8 +747,21 @@ void MainWindow::StartPixel()
 
 
 void MainWindow::updateProgressBar(int remaining, int total) {
-    if (total == 0) return;
+    // Évite toute division par zéro ou valeurs incohérentes
+    if (total <= 0) {
+        if (ui->progressBar)
+            ui->progressBar->setValue(0);
+        if (ui->timeRemainingLabel)
+            ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
+        decoupeTimer.invalidate();
+        smoothedTotalMs = -1.0;
+        return;
+    }
+
+    if (remaining < 0)
+        remaining = 0;
     int percent = (total - remaining) * 100 / total;
+    percent = qBound(0, percent, 100);
 
     // Démarrage du chrono à la première mise à jour
     if (!decoupeTimer.isValid() || remaining == total) {
@@ -756,7 +770,8 @@ void MainWindow::updateProgressBar(int remaining, int total) {
     }
 
     // Mise à jour de la barre
-    ui->progressBar->setValue(percent);
+    if (ui->progressBar)
+        ui->progressBar->setValue(percent);
 
     // Calcul de l'estimation du temps restant
     QString timeText;
