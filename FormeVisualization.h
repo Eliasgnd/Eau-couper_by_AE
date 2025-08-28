@@ -93,6 +93,7 @@ signals:
 
     // <<< AJOUT
     void sheetSizeMmChanged(const QSizeF&);
+    void shapesChanged();
 
 protected:
     // --- API existante ---
