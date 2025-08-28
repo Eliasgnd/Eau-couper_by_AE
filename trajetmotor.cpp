@@ -12,7 +12,11 @@ namespace {
 template <typename F>
 inline void invokeLater(QObject *obj, F &&func)
 {
-    QMetaObject::invokeMethod(obj, std::forward<F>(func), Qt::QueuedConnection);
+    // QMetaObject::invokeMethod n'accepte pas un pointeur nul. Si aucun objet n'est
+    // fourni, on se rabat sur l'instance de l'application afin d'éviter un crash.
+    QMetaObject::invokeMethod(obj ? obj : QApplication::instance(),
+                              std::forward<F>(func),
+                              Qt::QueuedConnection);
 }
 }
 
