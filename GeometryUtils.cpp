@@ -135,16 +135,15 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
     gMetrics.pairsProcessed = 1;
     QElapsedTimer timer; timer.start();
     int budgetMs = 12;
+    Q_UNUSED(epsilon);
 
     // Tier0: broad phase
     if (!a.boundingRect().intersects(b.boundingRect())) return false;
     gMetrics.tier0Ms = timer.nsecsElapsed()/1000000; // near-zero
 
-    // Tier1: simplification
-    double tau = gLowEndMode ? epsilon/2.0 : epsilon/10.0;
-    QPainterPath sa = simplifyForProxyInternal(a, tau);
-    QPainterPath sb = simplifyForProxyInternal(b, tau);
-    gMetrics.simplificationTolerance = tau;
+    // Tier1: use pre-simplified proxies
+    QPainterPath sa = buildProxyPath(a);
+    QPainterPath sb = buildProxyPath(b);
     gMetrics.tier1Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms;
     if (!sa.boundingRect().intersects(sb.boundingRect())) return false;
 
@@ -159,9 +158,9 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b, double epsilon){
         return rasterOverlap(ea, eb, raster);
     }
 
-    // Tier3: exact interior area test
-    QPainterPath pa = a; pa.setFillRule(Qt::OddEvenFill);
-    QPainterPath pb = b; pb.setFillRule(Qt::OddEvenFill);
+    // Tier3: exact interior area test using proxies
+    QPainterPath pa = sa; pa.setFillRule(Qt::OddEvenFill);
+    QPainterPath pb = sb; pb.setFillRule(Qt::OddEvenFill);
     QPainterPath inter = pa.intersected(pb);
     inter.setFillRule(Qt::OddEvenFill);
     gMetrics.tier3Ms = timer.nsecsElapsed()/1000000 - gMetrics.tier0Ms - gMetrics.tier1Ms - gMetrics.tier2Ms;
