@@ -134,7 +134,7 @@ private:
     struct CachedShape {
         QPainterPath base;      // original local path
         QPainterPath path;      // transformed path
-        QPainterPath proxy;     // precomputed local proxy
+        QPainterPath proxy;     // precomputed proxy in scene coords
         QList<QPolygonF> polys; // cached fill polygons
         QRectF       bbox;      // cached bounding box
         QTransform   transform; // last transform used

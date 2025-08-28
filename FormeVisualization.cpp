@@ -437,7 +437,7 @@ void FormeVisualization::optimizePlacement() {
     int count = shapeCount;
     QList<int> angles = {0, 180, 90};
 
-    struct PathInfo { QPainterPath path; QRectF bbox; };
+    struct PathInfo { QPainterPath proxy; QRectF bbox; };
     QHash<QGraphicsItem*, PathInfo> placedPaths;
     int shapesPlaced = 0;
     int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
@@ -491,7 +491,7 @@ void FormeVisualization::optimizePlacement() {
                     const PathInfo &existing = it.value();
                     if (!candBBox.intersects(existing.bbox))
                         continue;
-                    if (pathsOverlap(candidateProxy, existing.path)) {
+                    if (pathsOverlap(candidateProxy, existing.proxy, globalEpsilon())) {
                         collision = true;
                         break;
                     }
@@ -587,7 +587,7 @@ void FormeVisualization::optimizePlacement2() {
     prototypePath = normTransform.map(prototypePath);
     prototypePath.closeSubpath();
 
-    struct PathInfo { QPainterPath path; QRectF bbox; };
+    struct PathInfo { QPainterPath proxy; QRectF bbox; };
     QHash<QGraphicsItem*, PathInfo> placedPaths;
     int shapesPlaced = 0;
     int count = shapeCount;
@@ -646,7 +646,7 @@ void FormeVisualization::optimizePlacement2() {
                     const PathInfo &existing = it.value();
                     if (!candBBox.intersects(existing.bbox))
                         continue;
-                    if (pathsOverlap(candidateProxy, existing.path)) {
+                    if (pathsOverlap(candidateProxy, existing.proxy, globalEpsilon())) {
                         collision = true;
                         break;
                     }
@@ -1163,29 +1163,28 @@ bool FormeVisualization::validateShapes()
 
     double eps = globalEpsilon();
     QRectF bounds = scene->sceneRect().adjusted(-eps, -eps, eps, eps);
-    QVector<QPainterPath> paths;
     QVector<QPainterPath> proxies;
     QVector<QRectF> bboxes;
-    paths.reserve(shapes.size());
     proxies.reserve(shapes.size());
     bboxes.reserve(shapes.size());
 
     for (auto *shape : shapes) {
         auto &cache = m_cache[shape];
         QPainterPath local = shape->shape();
-        if (cache.base != local) {
+        bool baseChanged = (cache.base != local);
+        if (baseChanged)
             cache.base = local;
-            cache.proxy = buildProxyPath(cache.base);
-        }
+
         QTransform t = shape->sceneTransform();
-        if (cache.transform != t || cache.path.isEmpty()) {
+        bool transformChanged = baseChanged || cache.transform != t || cache.path.isEmpty();
+        if (transformChanged) {
             cache.path = t.map(cache.base);
+            cache.proxy = buildProxyPath(cache.path);
             cache.bbox = cache.path.boundingRect();
+            cache.transform = t;
         }
-        QPainterPath proxyMapped = t.map(cache.proxy);
-        proxyMapped.setFillRule(Qt::OddEvenFill);
-        paths << cache.path;
-        proxies << proxyMapped;
+
+        proxies << cache.proxy;
         bboxes << cache.bbox;
         if (!bounds.contains(cache.bbox)) {
             shape->setPen(QPen(Qt::red, 1));
@@ -1195,11 +1194,11 @@ bool FormeVisualization::validateShapes()
         }
     }
 
-    struct ShapeGeom { QPainterPath path; QPainterPath proxy; QRectF bbox; };
+    struct ShapeGeom { QPainterPath proxy; QRectF bbox; };
     QVector<ShapeGeom> geoms;
-    geoms.reserve(paths.size());
-    for (int i = 0; i < paths.size(); ++i)
-        geoms.push_back({paths[i], proxies[i], bboxes[i]});
+    geoms.reserve(proxies.size());
+    for (int i = 0; i < proxies.size(); ++i)
+        geoms.push_back({proxies[i], bboxes[i]});
 
     QElapsedTimer timer;
     timer.start();
@@ -1238,8 +1237,8 @@ bool FormeVisualization::validateShapes()
                                                    kBroadPhaseMargin, kBroadPhaseMargin);
                 if (!b1.intersects(geoms[j].bbox))
                     continue;
-                if (pathsOverlap(geoms[i].path, geoms[j].path,
-                                 geoms[i].proxy, geoms[j].proxy)) {                    shapes[i]->setPen(QPen(Qt::red, 1));
+                if (pathsOverlap(geoms[i].proxy, geoms[j].proxy, globalEpsilon())) {
+                    shapes[i]->setPen(QPen(Qt::red, 1));
                     shapes[j]->setPen(QPen(Qt::red, 1));
                     invalid[i] = true;
                     invalid[j] = true;
