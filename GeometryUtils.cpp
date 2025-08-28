@@ -232,8 +232,6 @@ bool sanitizePolygons(QList<QPolygonF> &polys, double eps)
             allValid = false;
         }
     }
-    if (!allValid)
-        qInfo() << "Self-intersection detected in polygon";
     polys = result;
     return allValid;
 }
