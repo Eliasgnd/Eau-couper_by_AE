@@ -44,6 +44,11 @@ bool pathsOverlap(const QPainterPath &a, const QPainterPath &b,
                   const QPainterPath &pb = QPainterPath(),
                   double epsilon = 0.5);
 
+// Overload accepting precomputed proxies directly.
+bool pathsOverlap(const QPainterPath &paProxy,
+                  const QPainterPath &pbProxy,
+                  double epsilon);
+
 // Enable or disable low-end mode which relaxes tolerances,
 // lowers raster resolution and skips exact overlap checks.
 void setLowEndMode(bool enabled);
