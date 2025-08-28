@@ -229,14 +229,16 @@ bool sanitizePolygon(QPolygonF &poly, double eps)
         std::reverse(cleaned.begin(), cleaned.end());
 
     bool selfIntersect = false;
-    for (int i=0;i<cleaned.size()-1;++i){
-        QPointF a1=cleaned[i], a2=cleaned[i+1];
-        for (int j=i+1;j<cleaned.size()-1;++j){
-            if (std::abs(j-i) <= 1 || (i==0 && j==cleaned.size()-2))
+    for (int i = 0; i < cleaned.size() - 1 && !selfIntersect; ++i) {
+        QPointF a1 = cleaned[i], a2 = cleaned[i + 1];
+        for (int j = i + 1; j < cleaned.size() - 1; ++j) {
+            if (std::abs(j - i) <= 1 || (i == 0 && j == cleaned.size() - 2))
                 continue;
-            QPointF b1=cleaned[j], b2=cleaned[j+1];
-            if (segmentsIntersect(a1,a2,b1,b2))
+            QPointF b1 = cleaned[j], b2 = cleaned[j + 1];
+            if (segmentsIntersect(a1, a2, b1, b2)) {
                 selfIntersect = true;
+                break;
+            }
         }
     }
     if (selfIntersect)
