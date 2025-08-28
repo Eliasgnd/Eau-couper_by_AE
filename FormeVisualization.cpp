@@ -133,10 +133,11 @@ void FormeVisualization::addPathWithLOD(const QPainterPath &path, const QPointF 
                     guard->setPath(exact);
                     guard->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 
+                    QPainterPath proxy = buildProxyPath(exact);
                     const QTransform t = guard->sceneTransform();
-                    const QPainterPath mapped = t.map(exact);
+                    const QPainterPath mapped = t.map(proxy);
                     const QRectF bbox = mapped.boundingRect();
-                    m_cache[guard] = { exact, mapped, {}, bbox, t };
+                    m_cache[guard] = { proxy, mapped, {}, bbox, t };
                 }, Qt::QueuedConnection);
             });
         }, Qt::QueuedConnection);
@@ -472,10 +473,11 @@ void FormeVisualization::optimizePlacement() {
                 candidate.closeSubpath();
 
                 QPainterPath candidatePath = normalizePath(candidate);
-                if (isPathTooComplex(candidatePath, kMaxPathElements))
+                QPainterPath candidateProxy = buildProxyPath(candidatePath);
+                if (isPathTooComplex(candidateProxy, kMaxPathElements))
                     continue;
 
-                QRectF candBBox = candidatePath.boundingRect();
+                QRectF candBBox = candidateProxy.boundingRect();
                 if (!containerRect.contains(candBBox))
                     continue;
                 QRectF searchRect = candBBox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
@@ -489,7 +491,7 @@ void FormeVisualization::optimizePlacement() {
                     const PathInfo &existing = it.value();
                     if (!candBBox.intersects(existing.bbox))
                         continue;
-                    if (pathsOverlap(candidatePath, existing.path)) {
+                    if (pathsOverlap(candidateProxy, existing.path)) {
                         collision = true;
                         break;
                     }
@@ -511,8 +513,8 @@ void FormeVisualization::optimizePlacement() {
 
                     // Enregistre la position corrigée pour les futurs tests de collision
                     candBBox.translate(offset);
-                    candidatePath.translate(offset);
-                    placedPaths.insert(item, {candidatePath, candBBox});
+                    candidateProxy.translate(offset);
+                    placedPaths.insert(item, {candidateProxy, candBBox});
                     shapesPlaced++;
                     break;
                 }
@@ -626,10 +628,11 @@ void FormeVisualization::optimizePlacement2() {
                 candidate.closeSubpath();
 
                 QPainterPath candidatePath = normalizePath(candidate);
-                if (isPathTooComplex(candidatePath, kMaxPathElements))
+                QPainterPath candidateProxy = buildProxyPath(candidatePath);
+                if (isPathTooComplex(candidateProxy, kMaxPathElements))
                     continue;
 
-                QRectF candBBox = candidatePath.boundingRect();
+                QRectF candBBox = candidateProxy.boundingRect();
                 if (!containerRect.contains(candBBox))
                     continue;
                 QRectF searchRect = candBBox.adjusted(-kBroadPhaseMargin, -kBroadPhaseMargin,
@@ -643,7 +646,7 @@ void FormeVisualization::optimizePlacement2() {
                     const PathInfo &existing = it.value();
                     if (!candBBox.intersects(existing.bbox))
                         continue;
-                    if (pathsOverlap(candidatePath, existing.path)) {
+                    if (pathsOverlap(candidateProxy, existing.path)) {
                         collision = true;
                         break;
                     }
@@ -662,8 +665,8 @@ void FormeVisualization::optimizePlacement2() {
                     scene->addItem(item);
 
                     candBBox.translate(offset);
-                    candidatePath.translate(offset);
-                    placedPaths.insert(item, {candidatePath, candBBox});
+                    candidateProxy.translate(offset);
+                    placedPaths.insert(item, {candidateProxy, candBBox});
                     shapesPlaced++;
                     if (shapesPlaced >= count) {
                         finished = true;
@@ -856,25 +859,31 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     const quint64 key = hashPath(scaledPath, spacing);
     if (QPainterPath *cached = gPathCache.object(key)) {
         QPainterPath exact = *cached; exact.setFillRule(Qt::OddEvenFill);
-        QRectF bbox = exact.boundingRect();
+        QPainterPath proxyLoc = buildProxyPath(exact);
         for (QGraphicsPathItem *item : items) {
             if (!item) continue;
             item->setPath(exact);
             item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-            m_cache[item] = {scaledPath, exact, {}, bbox, item->transform()};
+            const QTransform t = item->sceneTransform();
+            QPainterPath mapped = t.map(proxyLoc);
+            QRectF bbox = mapped.boundingRect();
+            m_cache[item] = {proxyLoc, mapped, {}, bbox, t};
         }
     } else {
         QtConcurrent::run([this, items, scaledPath, key]() {
             QPainterPath exact = scaledPath.simplified();
             exact.setFillRule(Qt::OddEvenFill);
-            QRectF bbox = exact.boundingRect();
-            QMetaObject::invokeMethod(this, [this, items, exact, bbox, scaledPath, key]() {
+            QPainterPath proxyLoc = buildProxyPath(exact);
+            QMetaObject::invokeMethod(this, [this, items, exact, proxyLoc, key]() {
                 gPathCache.insert(key, new QPainterPath(exact));
                 for (QGraphicsPathItem *item : items) {
                     if (!item) continue;
                     item->setPath(exact);
                     item->setCacheMode(QGraphicsItem::DeviceCoordinateCache);
-                    m_cache[item] = {scaledPath, exact, {}, bbox, item->transform()};
+                    const QTransform t = item->sceneTransform();
+                    QPainterPath mapped = t.map(proxyLoc);
+                    QRectF bbox = mapped.boundingRect();
+                    m_cache[item] = {proxyLoc, mapped, {}, bbox, t};
                 }
             }, Qt::QueuedConnection);
         });
@@ -1155,7 +1164,7 @@ bool FormeVisualization::validateShapes()
     for (auto *shape : shapes) {
         auto &cache = m_cache[shape];
         if (cache.base.isEmpty()) {
-            cache.base = shape->shape().simplified();
+            cache.base = buildProxyPath(shape->shape());
             cache.base.setFillRule(Qt::OddEvenFill);
         }
         QTransform t = shape->sceneTransform();
