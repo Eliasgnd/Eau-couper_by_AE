@@ -5,16 +5,12 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QProgressBar>
+#include <QLabel>
 #include <QPainterPath>
 #include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
-#include <QPoint>
-#include <QColor>
-#include <QPolygonF>
 #include "ShapeModel.h"
 #include "inventaire.h"
-#include <QHash>
-#include <QTransform>
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
@@ -41,15 +37,15 @@ public:
                              int drawingWidth, int drawingHeight);
     void colorPositionRed (const QPoint& position);
     void colorPositionBlue(const QPoint& position);
-    QGraphicsScene* getScene() const { return scene; }
+    QGraphicsScene* getScene() const;
     void setCustomMode();
-    void setEditingEnabled(bool enabled) { editingEnabled = enabled; }
-    bool isEditingEnabled() const { return editingEnabled; }
+    void setEditingEnabled(bool enabled);
+    bool isEditingEnabled() const;
     void setDecoupeEnCours(bool etat);
-    bool isDecoupeEnCours() const { return m_decoupeEnCours; }
-    void cancelOptimization() { if (m_optimizationRunning) m_cancelOptimization = true; }
+    bool isDecoupeEnCours() const;
+    void cancelOptimization();
     bool isOptimizationRunning() const { return m_optimizationRunning; }
-    QGraphicsView* getGraphicsView() const { return graphicsView; }
+    QGraphicsView* getGraphicsView() const;
 
     bool isCustomMode() const { return m_isCustomMode; }
     void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
@@ -103,13 +99,8 @@ private slots:
     void handleSelectionChanged();
 
 private:
-    bool warnIfCutting();
-    void addCutMarker(const QPoint& p, const QColor& color, bool center = false);
     int countPlacedShapes() const;
     void redraw();
-
-    // Build and display a path using the LOD pipeline.
-    void addPathWithLOD(const QPainterPath &path, const QPointF &pos);
 
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
@@ -130,15 +121,6 @@ private:
     bool m_cancelOptimization = false;
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
-
-    struct CachedShape {
-        QPainterPath base;      // simplified local path (cache)
-        QPainterPath path;      // transformed path
-        QList<QPolygonF> polys; // cached fill polygons
-        QRectF       bbox;      // cached bounding box
-        QTransform   transform; // last transform used
-    };
-    QHash<QAbstractGraphicsShapeItem*, CachedShape> m_cache;
 
     // Bordure représentant visuellement la limite du plateau
     // (placée au-dessus des formes pour rester visible)

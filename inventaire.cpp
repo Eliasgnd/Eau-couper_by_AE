@@ -4,7 +4,6 @@
 #include "MainWindow.h"
 #include "Language.h"
 #include "ScreenUtils.h"
-#include "GeometryUtils.h"
 
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -19,8 +18,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QtGlobal>
-#include <QtConcurrent>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -37,15 +34,6 @@
 #include <QDebug>
 #include <QSvgRenderer>
 #include <algorithm>
-#include <utility>
-
-namespace {
-template <typename F>
-inline void invokeLater(QObject *obj, F &&func)
-{
-    QMetaObject::invokeMethod(obj, std::forward<F>(func), Qt::QueuedConnection);
-}
-}
 
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
@@ -451,16 +439,14 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 // -----------------------------------------------------------------------------
 void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
 {
-    if (shapeNameExists(name))
+    if (shapeNameExists(name)) {
+        qDebug() << "Forme déjà enregistrée avec ce nom";
         return;
-
-    QList<QPolygonF> clean = polygons;
-    bool ok = sanitizePolygons(clean, globalEpsilon());
+    }
 
     CustomShapeData newData;
-    newData.polygons = clean;
+    newData.polygons = polygons;
     newData.name     = name;
-    newData.valid    = ok;
     m_customShapes.append(newData);
 
     saveCustomShapes();
@@ -518,321 +504,270 @@ bool Inventaire::shapeNameExists(const QString &name) const
 // -----------------------------------------------------------------------------
 void Inventaire::loadCustomShapes()
 {
-    const QString path = customShapesFilePath();
-    QtConcurrent::run([this, path]() {
-        m_customShapes.clear();
-        m_baseShapeLayouts.clear();
-        m_baseShapeFolders.clear();
-        m_baseShapeOrder.clear();
-        m_folders.clear();
+    m_customShapes.clear();
+    m_baseShapeLayouts.clear();
+    m_baseShapeFolders.clear();
+    m_baseShapeOrder.clear();
+    m_folders.clear();
 
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly)) {
-            invokeLater(this, [this] { displayShapes(); });
-            return;
+    QFile file(customShapesFilePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (!doc.isObject())
+        return;
+
+    const QJsonObject root = doc.object();
+
+    // ------------------------------
+    // Folders
+    // ------------------------------
+    const QJsonArray foldersArr = root.value("folders").toArray();
+    for (const QJsonValue &val : foldersArr) {
+        if (!val.isObject())
+            continue;
+        const QJsonObject obj = val.toObject();
+        InventaireFolder f;
+        f.name = obj.value("name").toString();
+        f.parentFolder = obj.value("parentFolder").toString();
+        f.usageCount = obj.value("usageCount").toInt();
+        qint64 ts = static_cast<qint64>(obj.value("lastUsed").toDouble());
+        if (ts > 0)
+            f.lastUsed = QDateTime::fromSecsSinceEpoch(ts);
+        m_folders.append(f);
+    }
+
+    // ------------------------------
+    // Custom shapes
+    // ------------------------------
+    const QJsonArray shapesArr = root.value("shapes").toArray();
+    for (const QJsonValue &val : shapesArr) {
+        if (!val.isObject())
+            continue;
+
+        const QJsonObject obj = val.toObject();
+        CustomShapeData data;
+        data.name = obj.value("name").toString();
+        data.folder = obj.value("folder").toString();
+        data.usageCount = obj.value("usageCount").toInt();
+        qint64 tsShape = static_cast<qint64>(obj.value("lastUsed").toDouble());
+        if (tsShape > 0)
+            data.lastUsed = QDateTime::fromSecsSinceEpoch(tsShape);
+
+        // Polygons
+        const QJsonArray polyArr = obj.value("polygons").toArray();
+        for (const QJsonValue &polyVal : polyArr) {
+            const QJsonArray ptArrList = polyVal.toArray();
+            QPolygonF poly;
+            for (const QJsonValue &ptVal : ptArrList) {
+                const QJsonArray p = ptVal.toArray();
+                if (p.size() >= 2)
+                    poly.append(QPointF(p.at(0).toDouble(), p.at(1).toDouble()));
+            }
+            data.polygons.append(poly);
         }
 
-        const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-        file.close();
-        if (!doc.isObject()) {
-            invokeLater(this, [this] { displayShapes(); });
-            return;
-        }
-
-        const QJsonObject root = doc.object();
-        const int version = root.value("version").toInt();
-        if (version < kInventorySchemaVersion)
-            qInfo() << "Migrating inventory schema" << version << "->" << kInventorySchemaVersion;
-
-        const QJsonArray foldersArr = root.value("folders").toArray();
-        for (const QJsonValue &val : foldersArr) {
-            if (!val.isObject())
+        // Layouts (optional)
+        const QJsonArray layoutsArr = obj.value("layouts").toArray();
+        for (const QJsonValue &layoutVal : layoutsArr) {
+            if (!layoutVal.isObject())
                 continue;
-            const QJsonObject obj = val.toObject();
-            InventaireFolder f;
-            f.name = obj.value("name").toString();
-            f.parentFolder = obj.value("parentFolder").toString();
-            f.usageCount = obj.value("usageCount").toInt();
-            qint64 ts = static_cast<qint64>(obj.value("lastUsed").toDouble());
-            if (ts > 0)
-                f.lastUsed = QDateTime::fromSecsSinceEpoch(ts);
-            m_folders.append(f);
+            const QJsonObject lo = layoutVal.toObject();
+            LayoutData ld;
+            ld.name      = lo.value("name").toString();
+            ld.largeur   = lo.value("largeur").toInt();
+            ld.longueur  = lo.value("longueur").toInt();
+            ld.spacing   = lo.value("spacing").toInt();
+            ld.usageCount = lo.value("usageCount").toInt();
+            qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
+            if (tsLayout > 0)
+                ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
+            const QJsonArray itemsArr = lo.value("items").toArray();
+            for (const QJsonValue &itemVal : itemsArr) {
+                const QJsonObject io = itemVal.toObject();
+                LayoutItem li;
+                li.x        = io.value("x").toDouble();
+                li.y        = io.value("y").toDouble();
+                li.rotation = io.value("rotation").toDouble();
+                ld.items.append(li);
+            }
+            data.layouts.append(ld);
         }
 
-        const QJsonArray shapesArr = root.value("shapes").toArray();
-        for (const QJsonValue &val : shapesArr) {
-            if (!val.isObject())
+        m_customShapes.append(data);
+    }
+
+    // ------------------------------
+    // Base shape layouts
+    // ------------------------------
+    const QJsonObject baseObj = root.value("baseLayouts").toObject();
+    for (auto it = baseObj.begin(); it != baseObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        const QJsonArray layoutsArr = it.value().toArray();
+        QList<LayoutData> list;
+        for (const QJsonValue &layoutVal : layoutsArr) {
+            if (!layoutVal.isObject())
                 continue;
-
-            const QJsonObject obj = val.toObject();
-            CustomShapeData data;
-            data.name = obj.value("name").toString();
-            data.folder = obj.value("folder").toString();
-            data.usageCount = obj.value("usageCount").toInt();
-            qint64 tsShape = static_cast<qint64>(obj.value("lastUsed").toDouble());
-            if (tsShape > 0)
-                data.lastUsed = QDateTime::fromSecsSinceEpoch(tsShape);
-            data.material = obj.value("material").toString("generic");
-            data.kerf = obj.value("kerf").toDouble(0.0);
-            QJsonArray tArr = obj.value("transform").toArray();
-            if (tArr.size() >= 6)
-                data.transform = QTransform(tArr[0].toDouble(), tArr[1].toDouble(), tArr[2].toDouble(),
-                                            tArr[3].toDouble(), tArr[4].toDouble(), tArr[5].toDouble());
-            auto checkTransform = [](const QTransform &t){
-                return qIsFinite(t.m11()) && qIsFinite(t.m12()) && qIsFinite(t.m21()) &&
-                       qIsFinite(t.m22()) && qIsFinite(t.dx()) && qIsFinite(t.dy());
-            };
-            if (!checkTransform(data.transform)) {
-                qWarning() << "Invalid transform reset for" << data.name;
-                data.transform.reset();
+            const QJsonObject lo = layoutVal.toObject();
+            LayoutData ld;
+            ld.name     = lo.value("name").toString();
+            ld.largeur  = lo.value("largeur").toInt();
+            ld.longueur = lo.value("longueur").toInt();
+            ld.spacing  = lo.value("spacing").toInt();
+            ld.usageCount = lo.value("usageCount").toInt();
+            qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
+            if (tsLayout > 0)
+                ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
+            const QJsonArray itemsArr = lo.value("items").toArray();
+            for (const QJsonValue &itemVal : itemsArr) {
+                const QJsonObject io = itemVal.toObject();
+                LayoutItem li;
+                li.x        = io.value("x").toDouble();
+                li.y        = io.value("y").toDouble();
+                li.rotation = io.value("rotation").toDouble();
+                ld.items.append(li);
             }
-
-            const QJsonArray polyArr = obj.value("polygons").toArray();
-            for (const QJsonValue &polyVal : polyArr) {
-                const QJsonArray ptArrList = polyVal.toArray();
-                QPolygonF poly;
-                for (const QJsonValue &ptVal : ptArrList) {
-                    const QJsonArray p = ptVal.toArray();
-                    if (p.size() >= 2)
-                        poly.append(QPointF(p.at(0).toDouble(), p.at(1).toDouble()));
-                }
-                data.polygons.append(poly);
-            }
-
-            bool ok = sanitizePolygons(data.polygons, globalEpsilon());
-            if (!ok)
-                ok = sanitizePolygons(data.polygons, globalEpsilon());
-            if (!ok) {
-                qWarning() << "Invalid shape skipped:" << data.name;
-                data.valid = false;
-            }
-
-            const QJsonArray layoutsArr = obj.value("layouts").toArray();
-            for (const QJsonValue &layoutVal : layoutsArr) {
-                if (!layoutVal.isObject())
-                    continue;
-                const QJsonObject lo = layoutVal.toObject();
-                LayoutData ld;
-                ld.name      = lo.value("name").toString();
-                ld.largeur   = lo.value("largeur").toInt();
-                ld.longueur  = lo.value("longueur").toInt();
-                ld.spacing   = lo.value("spacing").toInt();
-                ld.usageCount = lo.value("usageCount").toInt();
-                qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
-                if (tsLayout > 0)
-                    ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
-                const QJsonArray itemsArr = lo.value("items").toArray();
-                for (const QJsonValue &itemVal : itemsArr) {
-                    const QJsonObject io = itemVal.toObject();
-                    LayoutItem li;
-                    li.x        = io.value("x").toDouble();
-                    li.y        = io.value("y").toDouble();
-                    li.rotation = io.value("rotation").toDouble();
-                    ld.items.append(li);
-                }
-                data.layouts.append(ld);
-            }
-
-            if (data.valid)
-                m_customShapes.append(data);
+            list.append(ld);
         }
+        m_baseShapeLayouts[type] = list;
+    }
 
-        const QJsonObject baseObj = root.value("baseLayouts").toObject();
-        for (auto it = baseObj.begin(); it != baseObj.end(); ++it) {
-            const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-            const QJsonArray layoutsArr = it.value().toArray();
-            QList<LayoutData> list;
-            for (const QJsonValue &layoutVal : layoutsArr) {
-                if (!layoutVal.isObject())
-                    continue;
-                const QJsonObject lo = layoutVal.toObject();
-                LayoutData ld;
-                ld.name     = lo.value("name").toString();
-                ld.largeur  = lo.value("largeur").toInt();
-                ld.longueur = lo.value("longueur").toInt();
-                ld.spacing  = lo.value("spacing").toInt();
-                ld.usageCount = lo.value("usageCount").toInt();
-                qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
-                if (tsLayout > 0)
-                    ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
-                const QJsonArray itemsArr = lo.value("items").toArray();
-                for (const QJsonValue &itemVal : itemsArr) {
-                    const QJsonObject io = itemVal.toObject();
-                    LayoutItem li;
-                    li.x        = io.value("x").toDouble();
-                    li.y        = io.value("y").toDouble();
-                    li.rotation = io.value("rotation").toDouble();
-                    ld.items.append(li);
-                }
-                list.append(ld);
-            }
-            m_baseShapeLayouts[type] = list;
-        }
+    const QJsonObject baseFoldersObj = root.value("baseFolders").toObject();
+    for (auto it = baseFoldersObj.begin(); it != baseFoldersObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        m_baseShapeFolders[type] = it.value().toString();
+    }
 
-        const QJsonObject baseFoldersObj = root.value("baseFolders").toObject();
-        for (auto it = baseFoldersObj.begin(); it != baseFoldersObj.end(); ++it) {
-            const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-            m_baseShapeFolders[type] = it.value().toString();
-        }
+    const QJsonObject usageObj = root.value("baseUsageCount").toObject();
+    for (auto it = usageObj.begin(); it != usageObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        m_baseUsageCount[type] = it.value().toInt();
+    }
 
-        const QJsonObject usageObj = root.value("baseUsageCount").toObject();
-        for (auto it = usageObj.begin(); it != usageObj.end(); ++it) {
-            const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-            m_baseUsageCount[type] = it.value().toInt();
-        }
+    const QJsonObject lastUsedObj = root.value("baseLastUsed").toObject();
+    for (auto it = lastUsedObj.begin(); it != lastUsedObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        qint64 ts = static_cast<qint64>(it.value().toDouble());
+        if (ts > 0)
+            m_baseLastUsed[type] = QDateTime::fromSecsSinceEpoch(ts);
+    }
 
-        const QJsonObject lastUsedObj = root.value("baseLastUsed").toObject();
-        for (auto it = lastUsedObj.begin(); it != lastUsedObj.end(); ++it) {
-            const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-            qint64 ts = static_cast<qint64>(it.value().toDouble());
-            if (ts > 0)
-                m_baseLastUsed[type] = QDateTime::fromSecsSinceEpoch(ts);
-        }
-
-        invokeLater(this, [this] { displayShapes(); });
-    });
+    // Preserve default order of built-in shapes
 }
 
 void Inventaire::saveCustomShapes() const
 {
-    if (!m_saveTimer) {
-        m_saveTimer = new QTimer(const_cast<Inventaire*>(this));
-        m_saveTimer->setSingleShot(true);
-        QObject::connect(m_saveTimer, &QTimer::timeout, const_cast<Inventaire*>(this), &Inventaire::performSave);
+    QJsonArray shapesArr;
+    for (const CustomShapeData &data : m_customShapes) {
+        QJsonObject obj;
+        obj["name"] = data.name;
+        obj["folder"] = data.folder;
+        obj["usageCount"] = data.usageCount;
+        obj["lastUsed"] = data.lastUsed.isValid() ? static_cast<qint64>(data.lastUsed.toSecsSinceEpoch()) : 0;
+
+        // Polygons
+        QJsonArray polyArr;
+        for (const QPolygonF &poly : data.polygons) {
+            QJsonArray pointsArr;
+            for (const QPointF &pt : poly) {
+                QJsonArray ptArr;
+                ptArr.append(pt.x());
+                ptArr.append(pt.y());
+                pointsArr.append(ptArr);
+            }
+            polyArr.append(pointsArr);
+        }
+        obj["polygons"] = polyArr;
+
+        // Layouts
+        QJsonArray layoutsArr;
+        for (const LayoutData &ld : data.layouts) {
+            QJsonObject lo;
+            lo["name"]     = ld.name;
+            lo["largeur"]  = ld.largeur;
+            lo["longueur"] = ld.longueur;
+            lo["spacing"]  = ld.spacing;
+            lo["usageCount"] = ld.usageCount;
+            lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
+            QJsonArray itemsArr;
+            for (const LayoutItem &li : ld.items) {
+                QJsonObject io;
+                io["x"]        = li.x;
+                io["y"]        = li.y;
+                io["rotation"] = li.rotation;
+                itemsArr.append(io);
+            }
+            lo["items"] = itemsArr;
+            layoutsArr.append(lo);
+        }
+        obj["layouts"] = layoutsArr;
+
+        shapesArr.append(obj);
     }
-    // Debounce writes to avoid UI stalls during rapid updates
-    m_saveTimer->start(400);
-}
 
-void Inventaire::performSave() const
-{
-    QList<CustomShapeData> customShapes = m_customShapes;
-    auto baseLayouts = m_baseShapeLayouts;
-    auto baseFolders = m_baseShapeFolders;
-    auto usage = m_baseUsageCount;
-    auto lastUsed = m_baseLastUsed;
-    QList<InventaireFolder> folders = m_folders;
-    const QString path = customShapesFilePath();
-
-    QtConcurrent::run([customShapes, baseLayouts, baseFolders, usage, lastUsed, folders, path]() {
-        QJsonArray shapesArr;
-        for (const CustomShapeData &data : customShapes) {
-            QJsonObject obj;
-            obj["name"] = data.name;
-            obj["folder"] = data.folder;
-            obj["usageCount"] = data.usageCount;
-            obj["lastUsed"] = data.lastUsed.isValid() ? static_cast<qint64>(data.lastUsed.toSecsSinceEpoch()) : 0;
-            obj["material"] = data.material;
-            obj["kerf"] = data.kerf;
-            QJsonArray tArr;
-            tArr.append(data.transform.m11());
-            tArr.append(data.transform.m12());
-            tArr.append(data.transform.m21());
-            tArr.append(data.transform.m22());
-            tArr.append(data.transform.dx());
-            tArr.append(data.transform.dy());
-            obj["transform"] = tArr;
-
-            QJsonArray polyArr;
-            for (const QPolygonF &poly : data.polygons) {
-                QJsonArray pointsArr;
-                for (const QPointF &pt : poly) {
-                    QJsonArray ptArr;
-                    ptArr.append(pt.x());
-                    ptArr.append(pt.y());
-                    pointsArr.append(ptArr);
-                }
-                polyArr.append(pointsArr);
+    // Base layouts
+    QJsonObject baseObj;
+    for (auto it = m_baseShapeLayouts.constBegin(); it != m_baseShapeLayouts.constEnd(); ++it) {
+        QJsonArray layoutsArr;
+        for (const LayoutData &ld : it.value()) {
+            QJsonObject lo;
+            lo["name"]     = ld.name;
+            lo["largeur"]  = ld.largeur;
+            lo["longueur"] = ld.longueur;
+            lo["spacing"]  = ld.spacing;
+            lo["usageCount"] = ld.usageCount;
+            lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
+            QJsonArray itemsArr;
+            for (const LayoutItem &li : ld.items) {
+                QJsonObject io;
+                io["x"]        = li.x;
+                io["y"]        = li.y;
+                io["rotation"] = li.rotation;
+                itemsArr.append(io);
             }
-            obj["polygons"] = polyArr;
+            lo["items"] = itemsArr;
+            layoutsArr.append(lo);
+        }
+        baseObj[QString::number(static_cast<int>(it.key()))] = layoutsArr;
+    }
 
-            QJsonArray layoutsArr;
-            for (const LayoutData &ld : data.layouts) {
-                QJsonObject lo;
-                lo["name"]     = ld.name;
-                lo["largeur"]  = ld.largeur;
-                lo["longueur"] = ld.longueur;
-                lo["spacing"]  = ld.spacing;
-                lo["usageCount"] = ld.usageCount;
-                lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
-                QJsonArray itemsArr;
-                for (const LayoutItem &li : ld.items) {
-                    QJsonObject io;
-                    io["x"]        = li.x;
-                    io["y"]        = li.y;
-                    io["rotation"] = li.rotation;
-                    itemsArr.append(io);
-                }
-                lo["items"] = itemsArr;
-                layoutsArr.append(lo);
-            }
-            obj["layouts"] = layoutsArr;
+    QJsonObject baseFoldersObj;
+    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
+        baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
+    }
+    QJsonObject usageObj;
+    for (auto it = m_baseUsageCount.constBegin(); it != m_baseUsageCount.constEnd(); ++it) {
+        usageObj[QString::number(static_cast<int>(it.key()))] = it.value();
+    }
+    QJsonObject lastUsedObj;
+    for (auto it = m_baseLastUsed.constBegin(); it != m_baseLastUsed.constEnd(); ++it) {
+        lastUsedObj[QString::number(static_cast<int>(it.key()))] = static_cast<qint64>(it.value().toSecsSinceEpoch());
+    }
+    QJsonArray foldersArr;
+    for (const InventaireFolder &f : m_folders) {
+        QJsonObject fo;
+        fo["name"] = f.name;
+        fo["parentFolder"] = f.parentFolder;
+        fo["usageCount"] = f.usageCount;
+        fo["lastUsed"] = f.lastUsed.isValid() ? static_cast<qint64>(f.lastUsed.toSecsSinceEpoch()) : 0;
+        foldersArr.append(fo);
+    }
 
-            shapesArr.append(obj);
-        }
+    QJsonObject rootObj;
+    rootObj["shapes"]      = shapesArr;
+    rootObj["baseLayouts"] = baseObj;
+    rootObj["baseFolders"] = baseFoldersObj;
+    rootObj["baseUsageCount"] = usageObj;
+    rootObj["baseLastUsed"] = lastUsedObj;
+    rootObj["folders"]     = foldersArr;
 
-        QJsonObject baseObj;
-        for (auto it = baseLayouts.constBegin(); it != baseLayouts.constEnd(); ++it) {
-            QJsonArray layoutsArr;
-            for (const LayoutData &ld : it.value()) {
-                QJsonObject lo;
-                lo["name"]     = ld.name;
-                lo["largeur"]  = ld.largeur;
-                lo["longueur"] = ld.longueur;
-                lo["spacing"]  = ld.spacing;
-                lo["usageCount"] = ld.usageCount;
-                lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
-                QJsonArray itemsArr;
-                for (const LayoutItem &li : ld.items) {
-                    QJsonObject io;
-                    io["x"]        = li.x;
-                    io["y"]        = li.y;
-                    io["rotation"] = li.rotation;
-                    itemsArr.append(io);
-                }
-                lo["items"] = itemsArr;
-                layoutsArr.append(lo);
-            }
-            baseObj[QString::number(static_cast<int>(it.key()))] = layoutsArr;
-        }
-
-        QJsonObject baseFoldersObj;
-        for (auto it = baseFolders.constBegin(); it != baseFolders.constEnd(); ++it) {
-            baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
-        }
-        QJsonObject usageObj;
-        for (auto it = usage.constBegin(); it != usage.constEnd(); ++it) {
-            usageObj[QString::number(static_cast<int>(it.key()))] = it.value();
-        }
-        QJsonObject lastUsedObj;
-        for (auto it = lastUsed.constBegin(); it != lastUsed.constEnd(); ++it) {
-            lastUsedObj[QString::number(static_cast<int>(it.key()))] = static_cast<qint64>(it.value().toSecsSinceEpoch());
-        }
-        QJsonArray foldersArr;
-        for (const InventaireFolder &f : folders) {
-            QJsonObject fo;
-            fo["name"] = f.name;
-            fo["parentFolder"] = f.parentFolder;
-            fo["usageCount"] = f.usageCount;
-            fo["lastUsed"] = f.lastUsed.isValid() ? static_cast<qint64>(f.lastUsed.toSecsSinceEpoch()) : 0;
-            foldersArr.append(fo);
-        }
-
-        QJsonObject rootObj;
-        rootObj["version"]     = kInventorySchemaVersion;
-        rootObj["shapes"]      = shapesArr;
-        rootObj["baseLayouts"] = baseObj;
-        rootObj["baseFolders"] = baseFoldersObj;
-        rootObj["baseUsageCount"] = usageObj;
-        rootObj["baseLastUsed"] = lastUsedObj;
-        rootObj["folders"]     = foldersArr;
-
-        QFile file(path);
-        if (file.open(QIODevice::WriteOnly)) {
-            file.write(QJsonDocument(rootObj).toJson(QJsonDocument::Compact));
-            file.close();
-        }
-    });
+    QFile file(customShapesFilePath());
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(rootObj).toJson());
+        file.close();
+    }
 }
 
 // -----------------------------------------------------------------------------

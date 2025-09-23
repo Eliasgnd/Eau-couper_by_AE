@@ -9,15 +9,6 @@
 #include <limits>
 #include <QMessageBox>
 #include "MainWindow.h"
-#include <utility>
-
-namespace {
-template <typename F>
-inline void invokeLater(QObject *obj, F &&func)
-{
-    QMetaObject::invokeMethod(obj, std::forward<F>(func), Qt::QueuedConnection);
-}
-}
 
 // --- décommentez si Segment est imbriqué dans la classe PathPlanner ---------
 // using Segment = PathPlanner::Segment;
@@ -258,7 +249,7 @@ void TrajetMotor::executeTrajet()
         m_visu->setDecoupeEnCours(false);
 
     m_running = false;
-    invokeLater(m_mainWindow, [this]() {
+    QMetaObject::invokeMethod(m_mainWindow, [this]() {
         QString titre;
         QString message;
 
@@ -277,7 +268,7 @@ void TrajetMotor::executeTrajet()
                                            m_mainWindow);
         msg->setModal(false);
         msg->show();
-    });
+    }, Qt::QueuedConnection);
 
 
 }
