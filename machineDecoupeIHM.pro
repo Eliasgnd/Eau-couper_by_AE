@@ -1,12 +1,39 @@
-QT += core gui widgets svg network bluetooth httpserver openglwidgets
-QT += openglwidgets
+QT += core gui widgets svg network bluetooth openglwidgets
+DEFINES += DISABLE_GPIO
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET  = machineDecoupeIHM
+!contains(DEFINES, DISABLE_GPIO) {
+    SOURCES += raspberry.cpp
+}
+
+# ==== PLATEFORME macOS (M1/M2) ====
+macx {
+    INCLUDEPATH += /opt/homebrew/include/opencv4
+
+INCLUDEPATH += /opt/homebrew/include/opencv4
+LIBS += -L/opt/homebrew/lib \
+    -lopencv_core \
+    -lopencv_imgproc \
+    -lopencv_highgui \
+    -lopencv_imgcodecs \
+    -lopencv_videoio \
+    -lopencv_objdetect \
+    -lopencv_photo \
+    -lopencv_xphoto \
+    -lopencv_ximgproc \
+    -lopencv_features2d \
+    -lopencv_flann \
+    -lopencv_calib3d \
+    -lopencv_dnn \
+    -lopencv_ml \
+    -lopencv_stitching \
+    -lopencv_video
+}
 
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
-unix {
+unix:!macx {
     CONFIG += link_pkgconfig
     PKGCONFIG += opencv4 libgpiod Qt6HttpServer
 }
@@ -48,7 +75,6 @@ HEADERS += \
     qrcodegen.hpp \
     ImagePaths.h \
     WifiConfigDialog.h
-
 
 SOURCES += \
     MainWindow.cpp FormeVisualization.cpp main.cpp \

@@ -1,23 +1,28 @@
-#ifndef TESTGPIO_H
-#define TESTGPIO_H
-
+#pragma once
 #include <QWidget>
+
+#ifdef DISABLE_GPIO
+// ==== Stub TestGpio (no GPIO) ====
+class TestGpio : public QWidget {
+    Q_OBJECT
+public:
+    explicit TestGpio(QWidget *parent = nullptr) : QWidget(parent) {}
+    ~TestGpio() override {}
+
+protected:
+    void closeEvent(QCloseEvent *event) override { QWidget::closeEvent(event); }
+};
+#else
+// ==== Version Linux ====
 #include <QMap>
 #include <QTimer>
 #include <QCheckBox>
 #include <QLabel>
-#include "Language.h"
-
-#ifndef _WIN32
 #include <gpiod.h>
-#endif
 
-QT_BEGIN_NAMESPACE
 namespace Ui { class TestGpio; }
-QT_END_NAMESPACE
 
-class TestGpio : public QWidget
-{
+class TestGpio : public QWidget {
     Q_OBJECT
 public:
     explicit TestGpio(QWidget *parent = nullptr);
@@ -26,29 +31,10 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
 
-private slots:
-    void onPinToggled(bool checked);
-    void updatePinStates();
-    void goToMainWindow();
-
 private:
-    void initGpio();
-    void releaseGpio();
-    void setupUiPins();
-
     Ui::TestGpio *ui {nullptr};
-    QVector<int> outputPins;
-    QVector<int> inputPins {23,24,18};
-    QMap<int, QLabel*> stateLabels;
-    QMap<int, QCheckBox*> checkBoxes;
-    QMap<int, QLabel*> inputStateLabels;
-    QTimer updateTimer;
-
-#ifndef _WIN32
     gpiod_chip *chip {nullptr};
     QMap<int, gpiod_line*> outputLines;
     QMap<int, gpiod_line*> inputLines;
-#endif
 };
-
-#endif // TESTGPIO_H
+#endif

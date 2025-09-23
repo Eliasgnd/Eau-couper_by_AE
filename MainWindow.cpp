@@ -52,7 +52,6 @@
 #include <QRegularExpression>
 
 
-//Ceci est le Mainwindow,bienvenue dans le mainwindow
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
