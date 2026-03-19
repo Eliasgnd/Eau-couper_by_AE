@@ -27,6 +27,19 @@
 #include <QImageReader>
 #include <QtGlobal>
 
+namespace {
+MainWindow* resolveMainWindow()
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    for (QWidget *w : widgets) {
+        if (auto *mw = qobject_cast<MainWindow*>(w)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+}
+
 DossierWidget::DossierWidget(Language lang, QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::DossierWidget)
@@ -115,7 +128,7 @@ DossierWidget::~DossierWidget()
 void DossierWidget::onCloseClicked()
 {
     close();
-    if (auto mw = MainWindow::getInstance())
+    if (auto mw = resolveMainWindow())
         mw->showFullScreen();
 }
 
@@ -358,7 +371,7 @@ void DossierWidget::viewFile(const QFileInfo &fi)
 void DossierWidget::reuseFile(const QFileInfo &fi)
 {
     close();
-    if (auto mw = MainWindow::getInstance())
+    if (auto mw = resolveMainWindow())
         mw->openImageInCustom(fi.filePath());
 }
 

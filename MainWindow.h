@@ -4,7 +4,6 @@
 #include <QMainWindow>
 #include "ShapeModel.h"
 #include "Language.h"
-#include <QTranslator>
 #include <QList>
 #include <QPolygonF>
 
@@ -12,14 +11,11 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
-// Classe représentant la fenêtre principale de l'application
 class QAction;
 class QMenu;
 class QLabel;
 class FormeVisualization;
 class CustomDrawArea;
-class TrajetMotor;
-class OpenAIService;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -27,16 +23,34 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    static MainWindow* getInstance();
     FormeVisualization* getFormeVisualization() const;
+    Language displayLanguage() const { return m_displayLanguage; }
     void openImageInCustom(const QString &filePath,
                            bool internalContours = false,
                            bool colorEdges = false);
 
+signals:
+    void requestStartCut();
+    void requestPauseCut();
+    void requestStopCut();
+    void requestAiGeneration(const QString &prompt,
+                             const QString &model,
+                             const QString &quality,
+                             const QString &size,
+                             bool colorPrompt);
+    void requestLanguageChange(Language lang);
+    void requestWifiConfig();
+    void requestBluetoothReceiver();
+    void requestOpenTestGpio();
+    void requestOpenDossier();
+
 public slots:
-    // Reçoit un pourcentage + un texte déjà formaté par TrajetMotor.
     void updateProgressBar(int percentage, const QString &remainingTimeText);
     void setSpinboxSliderEnabled(bool enabled);
+    void onCutFinished(bool success);
+    void onAiGenerationStatus(const QString &msg);
+    void onAiImageReady(const QString &path);
+    void onLanguageApplied(Language lang, bool ok);
 
 private slots:
     void updateForme();
@@ -58,57 +72,42 @@ private slots:
     void updateSpinBoxLongueur(int value);
     void updateSliderLongueur(int value);
     void updateSliderLargeur(int value);
-    void updateShapeCount(); // Met à jour le nombre de formes affichées
-
-    // Nouveau slot pour recevoir le nombre de formes placées du widget
+    void updateShapeCount();
     void updateShapeCountLabel(int count);
     void updateSpacing(int value);
-    //pour les formes qui arrive de l'inventaire
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
     void openAIImagePromptDialog();
     void showDossier();
-    void onAiGenerationFinished(bool success, const QString &result);
 
     void setLanguageFrench();
     void setLanguageEnglish();
 
 protected:
     void changeEvent(QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void setupUI();
     void setupConnections();
     void setupModels();
-    bool loadLanguage(Language lang);
+    void retranslateDynamicUi();
+    void onShapeSelectedFromInventaire(ShapeModel::Type type);
+    void StartPixel();
+    bool promptAndSaveCurrentCustomShape();
 
-
-    Language currentLanguage = Language::French;
-    QTranslator translator;
+    Language m_displayLanguage = Language::French;
     QMenu *settingsMenu = nullptr;
     QMenu *languageMenu = nullptr;
     QAction *actionFrench = nullptr;
     QAction *actionEnglish = nullptr;
     QAction *actionWifiConfig = nullptr;
 
-    void onShapeSelectedFromInventaire(ShapeModel::Type type);
-
-private:
     Ui::MainWindow *ui;
     FormeVisualization *formeVisualization = nullptr;
     CustomDrawArea *drawArea = nullptr;
     ShapeModel::Type selectedShapeType = ShapeModel::Type::Circle;
-    QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
-    TrajetMotor* trajetMotor = nullptr;
-    void setFormEditingEnabled(bool enabled);
-    void StartPixel();
-    void retranslateDynamicUi();
-    bool promptAndSaveCurrentCustomShape();
-    OpenAIService *m_aiService = nullptr;
-
-protected:
-    void showEvent(QShowEvent *event) override;
-
+    QLabel *shapeCountLabel = nullptr;
 };
 
 #endif // MAINWINDOW_H

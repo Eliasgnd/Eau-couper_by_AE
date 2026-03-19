@@ -28,6 +28,19 @@
 #include <QClipboard>
 #include <QGuiApplication>  // requis pour accéder à QGuiApplication::clipboard()
 
+namespace {
+MainWindow* resolveMainWindow()
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    for (QWidget *w : widgets) {
+        if (auto *mw = qobject_cast<MainWindow*>(w)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+}
+
 // ---------------------- Helpers multipart ---------------------------
 struct MultipartPart {
     QString     filename;
@@ -176,7 +189,7 @@ WifiTransferWidget::WifiTransferWidget(QWidget *parent)
     // Retour
     connect(ui->backButton, &QPushButton::clicked, this, [this]{
         close();
-        if (auto mw = MainWindow::getInstance())
+        if (auto mw = resolveMainWindow())
             mw->showFullScreen();
     });
 

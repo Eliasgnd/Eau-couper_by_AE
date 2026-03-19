@@ -1,12 +1,26 @@
 #include "TestGpio.h"
 #include "ui_TestGpio.h"
 #include "MainWindow.h"
+#include <QApplication>
 #include "ScreenUtils.h"
 #include <QCheckBox>
 #include <QLabel>
 #include <QGridLayout>
 #include <QCloseEvent>
 #include <QDebug>
+
+namespace {
+MainWindow* resolveMainWindow()
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    for (QWidget *w : widgets) {
+        if (auto *mw = qobject_cast<MainWindow*>(w)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+}
 
 TestGpio::TestGpio(QWidget *parent)
     : QWidget(parent), ui(new Ui::TestGpio)
@@ -156,6 +170,6 @@ void TestGpio::updatePinStates()
 void TestGpio::goToMainWindow()
 {
     this->close();
-    MainWindow::getInstance()->showFullScreen();
+    if (auto mw = resolveMainWindow()) mw->showFullScreen();
 }
 

@@ -2,6 +2,7 @@
 #include "ui_BluetoothReceiverDialog.h"
 #include "ScreenUtils.h"
 #include "MainWindow.h"
+#include <QApplication>
 #include "ImagePaths.h"
 
 #include <QDir>
@@ -11,6 +12,19 @@
 #include <QIcon>
 #include <QTimer>
 #include <QDebug>
+
+namespace {
+MainWindow* resolveMainWindow()
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    for (QWidget *w : widgets) {
+        if (auto *mw = qobject_cast<MainWindow*>(w)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+}
 
 BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     : QWidget(parent), ui(new Ui::BluetoothReceiverDialog)
@@ -33,7 +47,7 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
     connect(ui->openFolderButton, &QPushButton::clicked, this, &BluetoothReceiverDialog::openFolder);
     connect(ui->backButton, &QPushButton::clicked, this, [this] {
         close();
-        MainWindow::getInstance()->showFullScreen();
+        if (auto mw = resolveMainWindow()) mw->showFullScreen();
     });
 
     startBluetoothService();
@@ -61,7 +75,7 @@ BluetoothReceiverDialog::BluetoothReceiverDialog(QWidget *parent)
             );
 
             this->close();  // Ferme le dialogue actuel
-            MainWindow::getInstance()->showFullScreen();  // Retourne à l'accueil
+            if (auto mw = resolveMainWindow()) mw->showFullScreen();  // Retourne à l'accueil
         }
     });
     m_statusTimer->start(5000); // Vérifie toutes les 5 secondes
