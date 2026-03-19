@@ -16,6 +16,8 @@ class QMenu;
 class QLabel;
 class FormeVisualization;
 class CustomDrawArea;
+class NavigationController;
+class AIServiceManager;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -90,6 +92,9 @@ protected:
 private:
     void setupUI();
     void setupConnections();
+    void setupNavigationConnections();
+    void setupShapeConnections();
+    void setupSystemConnections();
     void setupModels();
     void retranslateDynamicUi();
     void onShapeSelectedFromInventaire(ShapeModel::Type type);
@@ -106,6 +111,8 @@ private:
     Ui::MainWindow *ui;
     FormeVisualization *formeVisualization = nullptr;
     CustomDrawArea *drawArea = nullptr;
+    NavigationController *m_navigationController = nullptr;
+    AIServiceManager *m_aiServiceManager = nullptr;
     ShapeModel::Type selectedShapeType = ShapeModel::Type::Circle;
     QLabel *shapeCountLabel = nullptr;
 };

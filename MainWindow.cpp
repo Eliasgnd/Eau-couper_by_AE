@@ -15,6 +15,9 @@
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
 #include "AspectRatioWrapper.h"
+#include "NavigationController.h"
+#include "AIServiceManager.h"
+#include "ImportedImageGeometryHelper.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -43,6 +46,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    m_navigationController = new NavigationController(this);
+    m_aiServiceManager = new AIServiceManager(this);
     setupUI();
     setupModels();
     setupConnections();
@@ -159,6 +164,13 @@ void MainWindow::setupModels()
 
 void MainWindow::setupConnections()
 {
+    setupShapeConnections();
+    setupNavigationConnections();
+    setupSystemConnections();
+}
+
+void MainWindow::setupShapeConnections()
+{
     // Connection de l'inventaire à la forme
     QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
                      this, &MainWindow::onShapeSelectedFromInventaire);
@@ -181,7 +193,10 @@ void MainWindow::setupConnections()
     // connexion pour les formes de l'inventaire
     connect(Inventaire::getInstance(), &Inventaire::customShapeSelected,
             this,                       &MainWindow::onCustomShapeSelected);
+}
 
+void MainWindow::setupNavigationConnections()
+{
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
@@ -193,7 +208,10 @@ void MainWindow::setupConnections()
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::openTestGpio);
     connect(ui->buttonFileReceiver, &QPushButton::clicked, this, &MainWindow::on_receptionFichierButton_clicked);
     connect(ui->buttonWifiTransfer, &QPushButton::clicked, this, &MainWindow::openWifiTransfer);
+}
 
+void MainWindow::setupSystemConnections()
+{
     // Connecter les spinboxes aux sliders
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLongueur);
     connect(ui->Largeur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateSliderLargeur);
@@ -352,14 +370,11 @@ void MainWindow::changeToHeart() {
 }
 
 void MainWindow::showInventaire() {
-    this->hide();
-    Inventaire::getInstance()->showFullScreen();
+    m_navigationController->showInventaire(this, Inventaire::getInstance());
 }
 
 void MainWindow::showCustom() {
-    this->hide();
-    custom *customWindow = new custom(m_displayLanguage);
-    customWindow->setAttribute(Qt::WA_DeleteOnClose);
+    custom *customWindow = m_navigationController->openCustomEditor(this, m_displayLanguage);
 
     connect(customWindow, &custom::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
@@ -374,10 +389,7 @@ void MainWindow::openTestGpio() {
 }
 
 void MainWindow::openWifiTransfer() {
-    this->hide();
-    WifiTransferWidget *w = new WifiTransferWidget();
-    w->setAttribute(Qt::WA_DeleteOnClose);
-    w->showFullScreen();
+    m_navigationController->openWifiTransfer(this);
 }
 
 void MainWindow::openWifiConfig() {
@@ -424,28 +436,9 @@ void MainWindow::openImageInCustom(const QString &filePath,
     // ⚠️ On décale le centrage à "après mise en page"
     QTimer::singleShot(0, cw, [area, outline]() mutable {
         if (!area) return;
-
-        // --- fit & center simple (sans marge) ---
-        QRectF br = outline.boundingRect();
-        if (br.isEmpty()) return;
-
-        const double maxDim = std::max(br.width(), br.height());
-        if (maxDim <= 0.0) return;
-
-        // Ici, on garde ton idée d'une taille cible, mais basée sur le drawArea réel
-        const double target = 0.8; // occupe ~80% du côté le plus court
-        const double w = std::max(1, area->width());
-        const double h = std::max(1, area->height());
-        const double scale = target * std::min(w, h) / maxDim;
-
-        QTransform T;
-        T.translate(-br.x(), -br.y());
-        T.scale(scale, scale);
-        QPainterPath scaled = T.map(outline);
-
-        QRectF sb = scaled.boundingRect();
-        QPointF center(w / 2.0, h / 2.0);
-        scaled.translate(center - sb.center());
+        QPainterPath scaled = ImportedImageGeometryHelper::fitCentered(outline, area->size());
+        if (scaled.isEmpty())
+            return;
 
         const QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(scaled);
         for (const QPainterPath &sp : subs)
@@ -811,13 +804,14 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
 
 void MainWindow::openAIImagePromptDialog()
 {
-    AIImagePromptDialog dlg(this);
-    if (dlg.exec() == QDialog::Accepted) {
-        ui->progressBarAI->setVisible(true);
-        ui->progressBarAI->setMinimum(0);
-        ui->progressBarAI->setMaximum(0);
-        emit requestAiGeneration(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
-    }
+    AiGenerationRequest request;
+    if (!m_aiServiceManager->openGenerationPrompt(this, request))
+        return;
+
+    ui->progressBarAI->setVisible(true);
+    ui->progressBarAI->setMinimum(0);
+    ui->progressBarAI->setMaximum(0);
+    emit requestAiGeneration(request.prompt, request.model, request.quality, request.size, request.colorPrompt);
 }
 
 
@@ -836,28 +830,17 @@ void MainWindow::onAiImageReady(const QString &path)
 {
     ui->progressBarAI->setVisible(false);
 
-    QImage img(path);
-    if (img.isNull()) {
-        QMessageBox::critical(this, tr("Erreur image"), tr("L'image générée est invalide."));
+    AiImageProcessingOptions options;
+    QString error;
+    if (!m_aiServiceManager->resolveImageProcessingOptions(this, path, options, error)) {
+        if (!error.isEmpty())
+            QMessageBox::critical(this, tr("Erreur image"), error);
         QTimer::singleShot(3000, this, [this]() { ui->labelAIGenerationStatus->clear(); });
         return;
     }
 
-    AIImageProcessDialog dlg(img);
-    if (dlg.exec() != QDialog::Accepted) {
-        ui->labelAIGenerationStatus->clear();
-        return;
-    }
-
-    bool internal = false;
-    bool color = false;
-    if (dlg.selectedMethod() == AIImageProcessDialog::LogoWithInternal)
-        internal = true;
-    else if (dlg.selectedMethod() == AIImageProcessDialog::ColorEdges)
-        color = true;
-
     ui->labelAIGenerationStatus->clear();
-    openImageInCustom(path, internal, color);
+    openImageInCustom(path, options.internalContours, options.colorEdges);
 }
 
 void MainWindow::onLanguageApplied(Language lang, bool ok)
