@@ -13,8 +13,6 @@
 #include <QAction>
 #include <QTranslator>
 #include <QElapsedTimer>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QLineEdit>
 
 QT_BEGIN_NAMESPACE
@@ -22,6 +20,8 @@ namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 // Classe représentant la fenêtre principale de l'application
+class OpenAIService;
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -68,11 +68,7 @@ private slots:
 
     void openAIImagePromptDialog();
     void showDossier();
-    void generateAIImage(const QString &prompt,
-                         const QString &model,
-                         const QString &quality,
-                         const QString &size,
-                         bool colorPrompt);
+    void onAiGenerationFinished(bool success, const QString &result);
 
     void setLanguageFrench();
     void setLanguageEnglish();
@@ -107,7 +103,7 @@ private:
     double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
     bool promptAndSaveCurrentCustomShape();
-    QNetworkAccessManager *m_netManager = nullptr;
+    OpenAIService *m_aiService = nullptr;
 
 protected:
     void showEvent(QShowEvent *event) override;

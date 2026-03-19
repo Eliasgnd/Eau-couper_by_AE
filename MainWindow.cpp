@@ -15,11 +15,11 @@
 #include "LogoImporter.h"
 #include "AIImagePromptDialog.h"
 #include "DossierWidget.h"
-#include "ImagePaths.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
 #include "AspectRatioWrapper.h"
+#include "OpenAIService.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -40,16 +40,6 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QLineEdit>
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QStandardPaths>
-#include <QDir>
-#include <QDateTime>
-#include <QRegularExpression>
 
 
 //Ceci est le Mainwindow,bienvenue dans le mainwindow
@@ -353,7 +343,14 @@ MainWindow::MainWindow(QWidget *parent)
 
 
     if (ui->timeRemainingLabel)
-        ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
+        ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
+
+    m_aiService = new OpenAIService(this);
+    connect(m_aiService, &OpenAIService::statusUpdate, this, [this](const QString &message) {
+        ui->labelAIGenerationStatus->setText(message);
+    });
+    connect(m_aiService, &OpenAIService::generationFinished,
+            this, &MainWindow::onAiGenerationFinished);
 
 }
 
@@ -957,150 +954,47 @@ void MainWindow::openAIImagePromptDialog()
 {
     AIImagePromptDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
-        generateAIImage(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
+        ui->progressBarAI->setVisible(true);
+        ui->progressBarAI->setMinimum(0);
+        ui->progressBarAI->setMaximum(0);
+        m_aiService->requestImageGeneration(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
     }
 }
 
-void MainWindow::generateAIImage(const QString &userPrompt,
-                                 const QString &model,
-                                 const QString &quality,
-                                 const QString &size,
-                                 bool colorPrompt)
+void MainWindow::onAiGenerationFinished(bool success, const QString &result)
 {
-    if (userPrompt.isEmpty())
-        return;
+    ui->progressBarAI->setVisible(false);
 
-    QString finalPrompt;
-    if (colorPrompt) {
-        finalPrompt =
-            "A minimal flat icon of a " + userPrompt +
-            ", centered, on a white background. Clean shapes, no outlines, no text, no decorations, no shadow, no background. Suitable for icon design or sticker. Simple, geometric, and immediately recognizable.";
-    } else {
-        QString startPrompt = "A single black outline drawing of a ";
-        QString styleSuffix =
-            ", only the outer edge, no internal lines, no doors, no windows, no shading, no textures, white background, vector style, icon-like, extremely minimal";
-        finalPrompt = startPrompt + userPrompt + styleSuffix;
-    }
-    qDebug() << "[AI] Prompt final :" << finalPrompt;
-
-    if (!m_netManager)
-        m_netManager = new QNetworkAccessManager(this);
-
-    ui->labelAIGenerationStatus->setText("🧠 Génération en cours...");
-    ui->progressBarAI->setVisible(true);
-    ui->progressBarAI->setMinimum(0);
-    ui->progressBarAI->setMaximum(0);
-
-    // ✅ Modèle forcé : DALL-E 3
-    QString modelStr   = "dall-e-3";
-    QString qualityStr = "standard";      // ou "hd" selon ce que tu veux forcer
-    QString sizeStr    = size;            // tu peux aussi fixer ici "1024x1024"
-
-    // ✅ Estimation du prix uniquement pour DALL-E 3
-    double price = 0.0;
-    if (qualityStr == "standard") price = (sizeStr == "1024x1024") ? 0.04 : 0.08;
-    else if (qualityStr == "hd")  price = (sizeStr == "1024x1024") ? 0.08 : 0.12;
-    qDebug() << "[AI] Coût estimé de l'image : $" << price;
-
-    QNetworkRequest req(QUrl("https://api.openai.com/v1/images/generations"));
-    req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QByteArray apiKey = qEnvironmentVariable("OPENAI_API_KEY").toUtf8();
-    if (apiKey.isEmpty()) {
-        QMessageBox::critical(this, "Erreur API", "La clé API OpenAI est absente.\nDéfinissez OPENAI_API_KEY.");
-        ui->labelAIGenerationStatus->setText("❌ Clé API manquante");
-        ui->progressBarAI->setVisible(false);
-        return;
-    }
-    req.setRawHeader("Authorization", "Bearer " + apiKey);
-
-    QJsonObject body{
-        {"model", modelStr},
-        {"prompt", finalPrompt},
-        {"n", 1},
-        {"size", sizeStr},
-        {"quality", qualityStr}  // ✅ toujours présent avec DALL-E 3
-    };
-
-    qDebug() << "[AI] Envoi de la requête avec modèle:" << modelStr << ", taille:" << sizeStr << ", qualité:" << qualityStr;
-
-    QNetworkReply *reply = m_netManager->post(req, QJsonDocument(body).toJson());
-    connect(reply, &QNetworkReply::finished, this, [this, reply, userPrompt]() {
-        if (reply->error() != QNetworkReply::NoError) {
-            qWarning() << "[AI] ❌ Erreur API :" << reply->errorString();
-            ui->labelAIGenerationStatus->setText("❌ Erreur API");
-            ui->progressBarAI->setVisible(false);
-            QTimer::singleShot(3000, this, [this]() {
-                ui->labelAIGenerationStatus->clear();
-            });
-            reply->deleteLater();
-            return;
-        }
-
-        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        QString url = doc["data"].toArray().first().toObject()["url"].toString();
-        reply->deleteLater();
-
-        qDebug() << "[AI] ✅ Image URL :" << url;
-
-        QNetworkReply *imgReply = m_netManager->get(QNetworkRequest(QUrl(url)));
-        connect(imgReply, &QNetworkReply::finished, this, [this, imgReply, userPrompt]() {
-            ui->progressBarAI->setVisible(false);
-
-            if (imgReply->error() != QNetworkReply::NoError) {
-                qWarning() << "[AI] ❌ Échec téléchargement image :" << imgReply->errorString();
-                ui->labelAIGenerationStatus->setText("❌ Erreur image");
-                QTimer::singleShot(3000, this, [this]() {
-                    ui->labelAIGenerationStatus->clear();
-                });
-                imgReply->deleteLater();
-                return;
-            }
-
-            QImage img;
-            img.loadFromData(imgReply->readAll());
-            imgReply->deleteLater();
-
-            if (img.isNull()) {
-                qWarning() << "[AI] ❌ Image invalide.";
-                ui->labelAIGenerationStatus->setText("❌ Image invalide");
-                QTimer::singleShot(3000, this, [this]() {
-                    ui->labelAIGenerationStatus->clear();
-                });
-                return;
-            }
-
-            // Archive image in global IA directory and use that path for further processing
-            const QString imagesDirPath = ImagePaths::iaDir();
-            QDir imagesDir(imagesDirPath);
-            QString sanitized = userPrompt.normalized(QString::NormalizationForm_D);
-            sanitized.remove(QRegularExpression("[\\p{Mn}]"));
-            sanitized.replace(QRegularExpression("[^A-Za-z0-9]+"), "_");
-            sanitized = sanitized.trimmed();
-            if (sanitized.isEmpty())
-                sanitized = "image";
-            const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm");
-            QString archiveFile = imagesDir.filePath(timestamp + '_' + sanitized + ".png");
-            if (!img.save(archiveFile))
-                qWarning() << "[AI] ❌ Impossible d'enregistrer l'image IA";
-            else
-                qDebug() << "[AI] 💾 Image archivée dans :" << archiveFile;
-
-            AIImageProcessDialog dlg(img);
-            if (dlg.exec() != QDialog::Accepted) {
-                ui->labelAIGenerationStatus->clear();
-                return;
-            }
-
-            bool internal = false;
-            bool color    = false;
-            if (dlg.selectedMethod() == AIImageProcessDialog::LogoWithInternal)
-                internal = true;
-            else if (dlg.selectedMethod() == AIImageProcessDialog::ColorEdges)
-                color = true;
-
+    if (!success) {
+        QMessageBox::critical(this, tr("Erreur API"), result);
+        QTimer::singleShot(3000, this, [this]() {
             ui->labelAIGenerationStatus->clear();
-            openImageInCustom(archiveFile, internal, color);
         });
-    });
+        return;
+    }
+
+    QImage img(result);
+    if (img.isNull()) {
+        QMessageBox::critical(this, tr("Erreur image"), tr("L'image générée est invalide."));
+        QTimer::singleShot(3000, this, [this]() {
+            ui->labelAIGenerationStatus->clear();
+        });
+        return;
+    }
+
+    AIImageProcessDialog dlg(img);
+    if (dlg.exec() != QDialog::Accepted) {
+        ui->labelAIGenerationStatus->clear();
+        return;
+    }
+
+    bool internal = false;
+    bool color    = false;
+    if (dlg.selectedMethod() == AIImageProcessDialog::LogoWithInternal)
+        internal = true;
+    else if (dlg.selectedMethod() == AIImageProcessDialog::ColorEdges)
+        color = true;
+
+    ui->labelAIGenerationStatus->clear();
+    openImageInCustom(result, internal, color);
 }
