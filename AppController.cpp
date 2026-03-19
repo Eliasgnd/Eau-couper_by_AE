@@ -35,7 +35,7 @@ bool AppController::ensureServicesInitialized()
     }
 
     if (!m_trajetMotor) {
-        m_trajetMotor = new TrajetMotor(m_formeVisualization, this);
+        m_trajetMotor = new TrajetMotor(m_formeVisualization, m_mainWindow);
 
         connect(m_trajetMotor, &TrajetMotor::decoupeProgress, this,
                 [this](int remaining, int total) {

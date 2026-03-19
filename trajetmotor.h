@@ -4,7 +4,7 @@
 #include <QWidget>
 class MainWindow;
 #include "motorcontrol.h"
-#include "FormeVisualization.h" //rudy le boss
+#include "FormeVisualization.h"
 
 class TrajetMotor : public QWidget {
     Q_OBJECT
