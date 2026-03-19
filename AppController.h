@@ -31,10 +31,6 @@ public slots:
                              bool colorPrompt);
 
     void changeLanguage(Language lang);
-    void openWifiSettings();
-    void openBluetoothReceiver();
-    void openTestGpio();
-    void openDossier();
 
 signals:
     void cutProgressUpdated(int percent, const QString &timeTxt);

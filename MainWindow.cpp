@@ -18,6 +18,7 @@
 #include "NavigationController.h"
 #include "AIServiceManager.h"
 #include "ImportedImageGeometryHelper.h"
+#include "GeometryUtils.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -86,51 +87,8 @@ void MainWindow::setupUI()
                 if (mm.width() > 0.0 && mm.height() > 0.0)
                     wrapper->setAspect(mm.width() / mm.height());
             });
-
-    // 1) Crée le menu langue et ses actions (attributs)
-    languageMenu  = new QMenu(tr("Langue"), this);
-    actionFrench  = languageMenu->addAction(tr("Français"));
-    actionEnglish = languageMenu->addAction(tr("Anglais"));
-    connect(actionFrench ,  &QAction::triggered, this, &MainWindow::setLanguageFrench);
-    connect(actionEnglish,  &QAction::triggered, this, &MainWindow::setLanguageEnglish);
-
-    // Menu principal Paramètres
-    settingsMenu = new QMenu(tr("Paramètres"), this);
-    actionWifiConfig = settingsMenu->addAction(tr("Configurer le Wi-Fi"));
-    settingsMenu->addMenu(languageMenu);
-    connect(actionWifiConfig, &QAction::triggered, this, &MainWindow::openWifiConfig);
-
-    // 2) Crée un QToolButton stylé dans le coin droit de la barre de menus
-    QToolButton *settingsBtn = new QToolButton(this);
-    settingsBtn->setText(tr("Paramètres"));
-    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));          // engrenage (ajoute-le à resources.qrc)
-    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    settingsBtn->setPopupMode(QToolButton::InstantPopup);         // clic = ouvre le menu
-    settingsBtn->setMenu(settingsMenu);                           // rattache le menu
-
-    // 3) StyleSheet cohérent avec le reste de ton UI
-    settingsBtn->setStyleSheet(R"(
-    QToolButton {
-    background-color: #00BCD4;        /* Cyan primaire */
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-    padding: 6px 14px;
-    border: 2px solid #008C9E;
-    border-radius: 8px;
-    }
-    QToolButton::menu-indicator {
-    image: url(:/icons/chevron-down-white.svg);  /* petit chevron blanc (ajoute-le au .qrc) */
-    subcontrol-position: right center;
-    subcontrol-origin: padding;
-    padding-left: 6px;                           /* espace entre texte et chevron */
-    }
-    QToolButton:hover  { background-color: #26C6DA; }  /* plus clair au survol */
-    QToolButton:pressed{ background-color: #008C9E; }  /* plus foncé au clic  */
-    )");
-
-    // 4) Place le bouton dans le coin supérieur droit de la QMenuBar
-    menuBar()->setCornerWidget(settingsBtn, Qt::TopRightCorner);
+    setupMenus();
+    applyStyleSheets();
 
 
     // place la fenêtre sur le 2ᵉ écran
@@ -154,6 +112,54 @@ void MainWindow::setupUI()
 
     if (ui->timeRemainingLabel)
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
+}
+
+void MainWindow::setupMenus()
+{
+    languageMenu  = new QMenu(tr("Langue"), this);
+    actionFrench  = languageMenu->addAction(tr("Français"));
+    actionEnglish = languageMenu->addAction(tr("Anglais"));
+    connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
+    connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+
+    settingsMenu = new QMenu(tr("Paramètres"), this);
+    actionWifiConfig = settingsMenu->addAction(tr("Configurer le Wi-Fi"));
+    settingsMenu->addMenu(languageMenu);
+    connect(actionWifiConfig, &QAction::triggered, this, &MainWindow::openWifiConfig);
+
+    auto *settingsBtn = new QToolButton(this);
+    settingsBtn->setObjectName("settingsToolButton");
+    settingsBtn->setText(tr("Paramètres"));
+    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));
+    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    settingsBtn->setPopupMode(QToolButton::InstantPopup);
+    settingsBtn->setMenu(settingsMenu);
+    menuBar()->setCornerWidget(settingsBtn, Qt::TopRightCorner);
+}
+
+void MainWindow::applyStyleSheets()
+{
+    if (auto *settingsBtn = menuBar()->cornerWidget(Qt::TopRightCorner)) {
+        settingsBtn->setStyleSheet(R"(
+            QToolButton {
+                background-color: #00BCD4;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 6px 14px;
+                border: 2px solid #008C9E;
+                border-radius: 8px;
+            }
+            QToolButton::menu-indicator {
+                image: url(:/icons/chevron-down-white.svg);
+                subcontrol-position: right center;
+                subcontrol-origin: padding;
+                padding-left: 6px;
+            }
+            QToolButton:hover { background-color: #26C6DA; }
+            QToolButton:pressed { background-color: #008C9E; }
+        )");
+    }
 }
 
 void MainWindow::setupModels()
@@ -385,7 +391,7 @@ void MainWindow::showCustom() {
 }
 
 void MainWindow::openTestGpio() {
-    emit requestOpenTestGpio();
+    m_navigationController->openTestGpio(this);
 }
 
 void MainWindow::openWifiTransfer() {
@@ -393,17 +399,17 @@ void MainWindow::openWifiTransfer() {
 }
 
 void MainWindow::openWifiConfig() {
-    emit requestWifiConfig();
+    m_navigationController->openWifiSettings(this);
 }
 
 void MainWindow::showDossier()
 {
-    emit requestOpenDossier();
+    m_navigationController->openDossier(this, m_displayLanguage);
 }
 
 void MainWindow::on_receptionFichierButton_clicked()
 {
-    emit requestBluetoothReceiver();
+    m_navigationController->openBluetoothReceiver(this);
 }
 
 void MainWindow::openImageInCustom(const QString &filePath,
@@ -482,10 +488,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     formeVisualization->setCustomMode();
 
     /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
-    QPainterPath combinedPath;
-    for (const QPolygonF &poly : polygons)
-        combinedPath.addPolygon(poly);
-    QRectF bounds = combinedPath.boundingRect();
+    const QRectF bounds = combinedBoundingRect(polygons);
 
     int largeur = ui->Largeur->value();
     int hauteur = ui->Longueur->value();
@@ -501,35 +504,16 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     /* 4) Si des dispositions existent, ouvrir la fenêtre Dispositions */
     QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
     if (!layouts.isEmpty()) {
-        Dispositions *disp = new Dispositions(name, layouts,
-                                              polygons, m_displayLanguage);
+        Dispositions *disp = m_navigationController->openDispositions(this,
+                                                                      name,
+                                                                      layouts,
+                                                                      polygons,
+                                                                      m_displayLanguage);
 
         connect(disp, &Dispositions::layoutSelected, this,
                 [this](const LayoutData &ld) {
                     formeVisualization->applyLayout(ld);
-
-                    // verrouillage/déverrouillage propre des widgets
-                    const bool block = true;
-                    ui->Largeur->blockSignals(block);
-                    ui->Longueur->blockSignals(block);
-                    ui->shapeCountSpinBox->blockSignals(block);
-                    ui->spaceSpinBox->blockSignals(block);
-                    ui->Slider_largeur->blockSignals(block);
-                    ui->Slider_longueur->blockSignals(block);
-
-                    ui->Largeur->setValue(ld.largeur);
-                    ui->Longueur->setValue(ld.longueur);
-                    ui->Slider_largeur->setValue(ld.largeur);
-                    ui->Slider_longueur->setValue(ld.longueur);
-                    ui->shapeCountSpinBox->setValue(ld.items.size());
-                    ui->spaceSpinBox->setValue(ld.spacing);
-
-                    ui->Largeur->blockSignals(!block);
-                    ui->Longueur->blockSignals(!block);
-                    ui->shapeCountSpinBox->blockSignals(!block);
-                    ui->spaceSpinBox->blockSignals(!block);
-                    ui->Slider_largeur->blockSignals(!block);
-                    ui->Slider_longueur->blockSignals(!block);
+                    applySelectedLayoutToControls(ld);
                 });
 
         /* signaux de fermeture/retour */
@@ -544,8 +528,6 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                     Inventaire::getInstance()->showFullScreen();
                 });
 
-        this->hide();
-        disp->showFullScreen();
         return;
     }
 
@@ -691,7 +673,13 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
         QString name = Inventaire::baseShapeName(type, m_displayLanguage);
-        Dispositions *disp = new Dispositions(name, layouts, polys, m_displayLanguage, true, type);
+        Dispositions *disp = m_navigationController->openDispositions(this,
+                                                                      name,
+                                                                      layouts,
+                                                                      polys,
+                                                                      m_displayLanguage,
+                                                                      true,
+                                                                      type);
 
         connect(disp, &Dispositions::layoutSelected, this, [this, type](const LayoutData &ld){
             QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
@@ -699,27 +687,7 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
             formeVisualization->displayCustomShapes(shapePolys);
             formeVisualization->setCurrentCustomShapeName(Inventaire::baseShapeName(type, Language::French));
             formeVisualization->applyLayout(ld);
-
-            ui->Largeur->blockSignals(true);
-            ui->Longueur->blockSignals(true);
-            ui->shapeCountSpinBox->blockSignals(true);
-            ui->spaceSpinBox->blockSignals(true);
-            ui->Slider_largeur->blockSignals(true);
-            ui->Slider_longueur->blockSignals(true);
-
-            ui->Largeur->setValue(ld.largeur);
-            ui->Longueur->setValue(ld.longueur);
-            ui->Slider_largeur->setValue(ld.largeur);
-            ui->Slider_longueur->setValue(ld.longueur);
-            ui->shapeCountSpinBox->setValue(ld.items.size());
-            ui->spaceSpinBox->setValue(ld.spacing);
-
-            ui->Largeur->blockSignals(false);
-            ui->Longueur->blockSignals(false);
-            ui->shapeCountSpinBox->blockSignals(false);
-            ui->spaceSpinBox->blockSignals(false);
-            ui->Slider_largeur->blockSignals(false);
-            ui->Slider_longueur->blockSignals(false);
+            applySelectedLayoutToControls(ld);
         });
 
         connect(disp, &Dispositions::shapeOnlySelected, this, [this, type]() {
@@ -738,8 +706,6 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
             Inventaire::getInstance()->showFullScreen();
         });
 
-        this->hide();
-        disp->showFullScreen();
         return;
     }
 
@@ -850,4 +816,28 @@ void MainWindow::onLanguageApplied(Language lang, bool ok)
         QMessageBox::warning(this, tr("Langue"), tr("Impossible de charger la langue demandée."));
     }
     retranslateDynamicUi();
+}
+
+void MainWindow::applySelectedLayoutToControls(const LayoutData &layout)
+{
+    ui->Largeur->blockSignals(true);
+    ui->Longueur->blockSignals(true);
+    ui->shapeCountSpinBox->blockSignals(true);
+    ui->spaceSpinBox->blockSignals(true);
+    ui->Slider_largeur->blockSignals(true);
+    ui->Slider_longueur->blockSignals(true);
+
+    ui->Largeur->setValue(layout.largeur);
+    ui->Longueur->setValue(layout.longueur);
+    ui->Slider_largeur->setValue(layout.largeur);
+    ui->Slider_longueur->setValue(layout.longueur);
+    ui->shapeCountSpinBox->setValue(layout.items.size());
+    ui->spaceSpinBox->setValue(layout.spacing);
+
+    ui->Largeur->blockSignals(false);
+    ui->Longueur->blockSignals(false);
+    ui->shapeCountSpinBox->blockSignals(false);
+    ui->spaceSpinBox->blockSignals(false);
+    ui->Slider_largeur->blockSignals(false);
+    ui->Slider_longueur->blockSignals(false);
 }

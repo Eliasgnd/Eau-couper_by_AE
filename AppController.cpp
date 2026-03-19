@@ -4,13 +4,8 @@
 #include "FormeVisualization.h"
 #include "trajetmotor.h"
 #include "OpenAIService.h"
-#include "WifiConfigDialog.h"
-#include "BluetoothReceiverDialog.h"
-#include "TestGpio.h"
-#include "DossierWidget.h"
 
 #include <QApplication>
-#include <QWidget>
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -138,40 +133,4 @@ void AppController::changeLanguage(Language lang)
 {
     const bool ok = loadLanguage(lang);
     emit languageApplied(lang, ok);
-}
-
-void AppController::openWifiSettings()
-{
-    if (!m_mainWindow) return;
-    m_mainWindow->hide();
-    auto *dlg = new WifiConfigDialog();
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->showFullScreen();
-}
-
-void AppController::openBluetoothReceiver()
-{
-    if (!m_mainWindow) return;
-    m_mainWindow->hide();
-    auto *page = new BluetoothReceiverDialog();
-    page->setAttribute(Qt::WA_DeleteOnClose);
-    page->showFullScreen();
-}
-
-void AppController::openTestGpio()
-{
-    if (!m_mainWindow) return;
-    m_mainWindow->hide();
-    auto *test = new TestGpio();
-    test->setAttribute(Qt::WA_DeleteOnClose);
-    test->showFullScreen();
-}
-
-void AppController::openDossier()
-{
-    if (!m_mainWindow) return;
-    m_mainWindow->hide();
-    auto *page = new DossierWidget(m_currentLanguage);
-    page->setAttribute(Qt::WA_DeleteOnClose);
-    page->showFullScreen();
 }

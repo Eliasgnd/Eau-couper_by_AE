@@ -122,3 +122,4 @@ QPainterPath buildProxyPath(const QPainterPath &path);
 // Render a raster fallback of the path for instant preview.
 // The result is a square pixmap of size res x res in device coordinates.
 QPixmap rasterFallback(const QPainterPath &path, int res = 512);
+QRectF combinedBoundingRect(const QList<QPolygonF> &polygons);
