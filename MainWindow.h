@@ -2,24 +2,23 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include "FormeVisualization.h"
 #include "ShapeModel.h"
-#include "CustomDrawArea.h"
-#include "TestGpio.h"
-#include "trajetmotor.h"
 #include "Language.h"
-#include "DossierWidget.h"
-#include <QMenu>
-#include <QAction>
 #include <QTranslator>
-#include <QElapsedTimer>
-#include <QLineEdit>
+#include <QList>
+#include <QPolygonF>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 // Classe représentant la fenêtre principale de l'application
+class QAction;
+class QMenu;
+class QLabel;
+class FormeVisualization;
+class CustomDrawArea;
+class TrajetMotor;
 class OpenAIService;
 
 class MainWindow : public QMainWindow {
@@ -35,7 +34,8 @@ public:
                            bool colorEdges = false);
 
 public slots:
-    void updateProgressBar(int remaining, int total);
+    // Reçoit un pourcentage + un texte déjà formaté par TrajetMotor.
+    void updateProgressBar(int percentage, const QString &remainingTimeText);
     void setSpinboxSliderEnabled(bool enabled);
 
 private slots:
@@ -77,6 +77,9 @@ protected:
     void changeEvent(QEvent *event) override;
 
 private:
+    void setupUI();
+    void setupConnections();
+    void setupModels();
     bool loadLanguage(Language lang);
 
 
@@ -94,13 +97,11 @@ private:
     Ui::MainWindow *ui;
     FormeVisualization *formeVisualization = nullptr;
     CustomDrawArea *drawArea = nullptr;
-    ShapeModel::Type selectedShapeType;
+    ShapeModel::Type selectedShapeType = ShapeModel::Type::Circle;
     QLabel *shapeCountLabel = nullptr; // Membre pour le label du compteur
-    TrajetMotor* trajetMotor;
+    TrajetMotor* trajetMotor = nullptr;
     void setFormEditingEnabled(bool enabled);
     void StartPixel();
-    QElapsedTimer decoupeTimer;        // Pour estimer le temps restant
-    double smoothedTotalMs = -1.0;     // Lissage de l'estimation
     void retranslateDynamicUi();
     bool promptAndSaveCurrentCustomShape();
     OpenAIService *m_aiService = nullptr;
