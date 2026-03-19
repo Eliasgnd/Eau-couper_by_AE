@@ -2,6 +2,11 @@
 
 #include "custom.h"
 #include "WifiTransferWidget.h"
+#include "WifiConfigDialog.h"
+#include "BluetoothReceiverDialog.h"
+#include "TestGpio.h"
+#include "DossierWidget.h"
+#include "Dispositions.h"
 
 #include <QWidget>
 
@@ -38,4 +43,65 @@ WifiTransferWidget *NavigationController::openWifiTransfer(QWidget *from)
     window->setAttribute(Qt::WA_DeleteOnClose);
     window->showFullScreen();
     return window;
+}
+
+WifiConfigDialog *NavigationController::openWifiSettings(QWidget *from)
+{
+    if (from)
+        from->hide();
+
+    auto *dialog = new WifiConfigDialog();
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->showFullScreen();
+    return dialog;
+}
+
+BluetoothReceiverDialog *NavigationController::openBluetoothReceiver(QWidget *from)
+{
+    if (from)
+        from->hide();
+
+    auto *dialog = new BluetoothReceiverDialog();
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->showFullScreen();
+    return dialog;
+}
+
+TestGpio *NavigationController::openTestGpio(QWidget *from)
+{
+    if (from)
+        from->hide();
+
+    auto *dialog = new TestGpio();
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->showFullScreen();
+    return dialog;
+}
+
+DossierWidget *NavigationController::openDossier(QWidget *from, Language language)
+{
+    if (from)
+        from->hide();
+
+    auto *dialog = new DossierWidget(language);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->showFullScreen();
+    return dialog;
+}
+
+Dispositions *NavigationController::openDispositions(QWidget *from,
+                                                     const QString &shapeName,
+                                                     const QList<LayoutData> &layouts,
+                                                     const QList<QPolygonF> &shapePolygons,
+                                                     Language language,
+                                                     bool isBaseShape,
+                                                     ShapeModel::Type baseType)
+{
+    if (from)
+        from->hide();
+
+    auto *dialog = new Dispositions(shapeName, layouts, shapePolygons, language, isBaseShape, baseType);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->showFullScreen();
+    return dialog;
 }

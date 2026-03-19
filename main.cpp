@@ -27,14 +27,6 @@ int main(int argc, char *argv[])
                      &controller, &AppController::requestAiGeneration);
     QObject::connect(&w, &MainWindow::requestLanguageChange,
                      &controller, &AppController::changeLanguage);
-    QObject::connect(&w, &MainWindow::requestWifiConfig,
-                     &controller, &AppController::openWifiSettings);
-    QObject::connect(&w, &MainWindow::requestBluetoothReceiver,
-                     &controller, &AppController::openBluetoothReceiver);
-    QObject::connect(&w, &MainWindow::requestOpenTestGpio,
-                     &controller, &AppController::openTestGpio);
-    QObject::connect(&w, &MainWindow::requestOpenDossier,
-                     &controller, &AppController::openDossier);
 
     QObject::connect(&controller, &AppController::cutProgressUpdated,
                      &w, &MainWindow::updateProgressBar);

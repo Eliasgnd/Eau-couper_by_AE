@@ -127,6 +127,14 @@ QPixmap rasterFallback(const QPainterPath &path, int res)
     return pm;
 }
 
+QRectF combinedBoundingRect(const QList<QPolygonF> &polygons)
+{
+    QPainterPath combinedPath;
+    for (const QPolygonF &poly : polygons)
+        combinedPath.addPolygon(poly);
+    return combinedPath.boundingRect();
+}
+
 PipelineMetrics lastPipelineMetrics(){ return gMetrics; }
 void setLowEndMode(bool enabled){ gLowEndMode = enabled; }
 

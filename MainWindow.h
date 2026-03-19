@@ -14,6 +14,7 @@ QT_END_NAMESPACE
 class QAction;
 class QMenu;
 class QLabel;
+struct LayoutData;
 class FormeVisualization;
 class CustomDrawArea;
 class NavigationController;
@@ -41,10 +42,6 @@ signals:
                              const QString &size,
                              bool colorPrompt);
     void requestLanguageChange(Language lang);
-    void requestWifiConfig();
-    void requestBluetoothReceiver();
-    void requestOpenTestGpio();
-    void requestOpenDossier();
 
 public slots:
     void updateProgressBar(int percentage, const QString &remainingTimeText);
@@ -91,6 +88,8 @@ protected:
 
 private:
     void setupUI();
+    void setupMenus();
+    void applyStyleSheets();
     void setupConnections();
     void setupNavigationConnections();
     void setupShapeConnections();
@@ -100,6 +99,7 @@ private:
     void onShapeSelectedFromInventaire(ShapeModel::Type type);
     void StartPixel();
     bool promptAndSaveCurrentCustomShape();
+    void applySelectedLayoutToControls(const LayoutData &layout);
 
     Language m_displayLanguage = Language::French;
     QMenu *settingsMenu = nullptr;
