@@ -49,7 +49,10 @@ HEADERS += \
     ImagePaths.h \
     WifiConfigDialog.h \
     OpenAIService.h \
-    AppController.h
+    AppController.h \
+    NavigationController.h \
+    AIServiceManager.h \
+    ImportedImageGeometryHelper.h
 
 
 SOURCES += \
@@ -70,7 +73,10 @@ SOURCES += \
     WifiConfigDialog.cpp \
     qrcodegen.cpp \
     OpenAIService.cpp \
-    AppController.cpp
+    AppController.cpp \
+    NavigationController.cpp \
+    AIServiceManager.cpp \
+    ImportedImageGeometryHelper.cpp
 
 FORMS += \
     BluetoothReceiverDialog.ui \
