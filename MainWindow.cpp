@@ -338,8 +338,15 @@ void MainWindow::setupConnections()
     // À ajouter dans TrajetMotor (h/.cpp):
     //   signal: void decoupeProgressUi(int percentage, const QString &remainingTimeText);
     //   emit decoupeProgressUi(percent, formattedText);  // dans votre boucle de progression.
-    connect(trajetMotor, &TrajetMotor::decoupeProgressUi,
-            this, &MainWindow::updateProgressBar);
+    connect(trajetMotor, &TrajetMotor::decoupeProgress, this, [this](int remaining, int total) {
+        int percent = (total > 0) ? ((total - remaining) * 100) / total : 0;
+
+        // Estimation du temps basée sur le délai de 15ms (VIS_DELAY_MS) par étape
+        int timeSec = (remaining * 15) / 1000;
+        QString text = tr("Temps restant estimé : %1s").arg(timeSec);
+
+        updateProgressBar(percent, text);
+    });
 
     connect(m_aiService, &OpenAIService::statusUpdate, this, [this](const QString &message) {
         ui->labelAIGenerationStatus->setText(message);

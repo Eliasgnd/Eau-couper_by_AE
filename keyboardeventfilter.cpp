@@ -2,6 +2,7 @@
 #include "claviernumerique.h"
 #include "clavier.h"
 #include "MainWindow.h"
+#include "FormeVisualization.h"
 
 #include <QLineEdit>
 #include <QSpinBox>
