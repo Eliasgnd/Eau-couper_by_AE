@@ -48,7 +48,8 @@ HEADERS += \
     qrcodegen.hpp \
     ImagePaths.h \
     WifiConfigDialog.h \
-    OpenAIService.h
+    OpenAIService.h \
+    AppController.h
 
 
 SOURCES += \
@@ -68,7 +69,8 @@ SOURCES += \
     WifiTransferWidget.cpp \
     WifiConfigDialog.cpp \
     qrcodegen.cpp \
-    OpenAIService.cpp
+    OpenAIService.cpp \
+    AppController.cpp
 
 FORMS += \
     BluetoothReceiverDialog.ui \

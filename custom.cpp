@@ -35,6 +35,19 @@
 #include "ScreenUtils.h"
 #include <QStatusBar>
 
+namespace {
+MainWindow* resolveMainWindow()
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    for (QWidget *w : widgets) {
+        if (auto *mw = qobject_cast<MainWindow*>(w)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+}
+
 static QString modeToString(CustomDrawArea::DrawMode mode)
 {
     using DM = CustomDrawArea::DrawMode;
@@ -646,7 +659,7 @@ custom::~custom()
 void custom::goToMainWindow()
 {
     this->close();
-    MainWindow::getInstance()->showFullScreen();
+    if (auto mw = resolveMainWindow()) mw->showFullScreen();
 }
 
 void custom::closeCustom()

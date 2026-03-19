@@ -8,18 +8,13 @@
 #include "Dispositions.h"
 #include "FormeVisualization.h"
 #include "clavier.h"
-#include "TestGpio.h"
-#include "BluetoothReceiverDialog.h"
-#include "trajetmotor.h"
 #include "Language.h"
 #include "LogoImporter.h"
+#include "ImageEdgeImporter.h"
 #include "AIImagePromptDialog.h"
-#include "DossierWidget.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
-#include "WifiConfigDialog.h"
 #include "AspectRatioWrapper.h"
-#include "OpenAIService.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -160,13 +155,6 @@ void MainWindow::setupModels()
 {
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
-
-    // Création du contrôleur de découpe avant toute connexion
-    trajetMotor = new TrajetMotor(formeVisualization, this);
-    trajetMotor->setMainWindow(this);
-
-    // Service IA (parenté à MainWindow => nettoyage automatique).
-    m_aiService = new OpenAIService(this);
 }
 
 void MainWindow::setupConnections()
@@ -305,8 +293,10 @@ void MainWindow::setupConnections()
         saveLayout();
     });
 
-    // Connecter bouton start à la détection des pixels noirs puis au contrôle moteur
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
+    connect(ui->Pause, &QPushButton::clicked, this, [this]() { emit requestPauseCut(); });
+    connect(ui->Stop, &QPushButton::clicked, this, [this]() { emit requestStopCut(); });
+
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
                 if (!optimized) {
@@ -314,45 +304,6 @@ void MainWindow::setupConnections()
                     ui->optimizePlacementButton2->setChecked(false);
                 }
             });
-
-    // Pause ↔ Reprendre
-    connect(ui->Pause, &QPushButton::clicked, this, [this]() {
-        static bool paused = false;
-        if (!paused) {
-            trajetMotor->pause();
-        } else {
-            trajetMotor->resume();
-        }
-        paused = !paused;
-    });
-
-    // Stop
-    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
-        trajetMotor->stopCut();
-        ui->progressBar->setValue(0);
-        formeVisualization->setDecoupeEnCours(false);
-        setSpinboxSliderEnabled(true);
-    });
-
-    // SRP: TrajetMotor calcule déjà le pourcentage + texte de temps restant formaté.
-    // À ajouter dans TrajetMotor (h/.cpp):
-    //   signal: void decoupeProgressUi(int percentage, const QString &remainingTimeText);
-    //   emit decoupeProgressUi(percent, formattedText);  // dans votre boucle de progression.
-    connect(trajetMotor, &TrajetMotor::decoupeProgress, this, [this](int remaining, int total) {
-        int percent = (total > 0) ? ((total - remaining) * 100) / total : 0;
-
-        // Estimation du temps basée sur le délai de 15ms (VIS_DELAY_MS) par étape
-        int timeSec = (remaining * 15) / 1000;
-        QString text = tr("Temps restant estimé : %1s").arg(timeSec);
-
-        updateProgressBar(percent, text);
-    });
-
-    connect(m_aiService, &OpenAIService::statusUpdate, this, [this](const QString &message) {
-        ui->labelAIGenerationStatus->setText(message);
-    });
-    connect(m_aiService, &OpenAIService::generationFinished,
-            this, &MainWindow::onAiGenerationFinished);
 }
 
 MainWindow::~MainWindow() {
@@ -407,7 +358,7 @@ void MainWindow::showInventaire() {
 
 void MainWindow::showCustom() {
     this->hide();
-    custom *customWindow = new custom(currentLanguage);
+    custom *customWindow = new custom(m_displayLanguage);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
 
     connect(customWindow, &custom::applyCustomShapeSignal,
@@ -419,10 +370,7 @@ void MainWindow::showCustom() {
 }
 
 void MainWindow::openTestGpio() {
-    this->hide();
-    TestGpio *test = new TestGpio();
-    test->setAttribute(Qt::WA_DeleteOnClose);
-    test->showFullScreen();
+    emit requestOpenTestGpio();
 }
 
 void MainWindow::openWifiTransfer() {
@@ -433,26 +381,17 @@ void MainWindow::openWifiTransfer() {
 }
 
 void MainWindow::openWifiConfig() {
-    this->hide();
-    WifiConfigDialog *dlg = new WifiConfigDialog();
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->showFullScreen();
+    emit requestWifiConfig();
 }
 
 void MainWindow::showDossier()
 {
-    this->hide();
-    DossierWidget *page = new DossierWidget(currentLanguage);
-    page->setAttribute(Qt::WA_DeleteOnClose);
-    page->showFullScreen();
+    emit requestOpenDossier();
 }
 
 void MainWindow::on_receptionFichierButton_clicked()
 {
-    this->hide();
-    BluetoothReceiverDialog *page = new BluetoothReceiverDialog();
-    page->setAttribute(Qt::WA_DeleteOnClose);
-    page->showFullScreen();
+    emit requestBluetoothReceiver();
 }
 
 void MainWindow::openImageInCustom(const QString &filePath,
@@ -473,7 +412,7 @@ void MainWindow::openImageInCustom(const QString &filePath,
             return;
     }
 
-    custom *cw = new custom(currentLanguage);
+    custom *cw = new custom(m_displayLanguage);
     cw->setAttribute(Qt::WA_DeleteOnClose);
 
     connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
@@ -570,7 +509,7 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
     if (!layouts.isEmpty()) {
         Dispositions *disp = new Dispositions(name, layouts,
-                                              polygons, currentLanguage);
+                                              polygons, m_displayLanguage);
 
         connect(disp, &Dispositions::layoutSelected, this,
                 [this](const LayoutData &ld) {
@@ -676,29 +615,7 @@ void afficherClavier() {
 
 void MainWindow::StartPixel()
 {
-    if (trajetMotor->isPaused()) {
-        // La découpe existe déjà mais est en pause → on la reprend
-        trajetMotor->resume();
-        return;
-    }
-
-    formeVisualization->resetAllShapeColors();
-
-    if (!formeVisualization->validateShapes()) {
-        QMessageBox::warning(this, tr("Formes invalides"),
-                             tr("Certaines formes dépassent la zone ou se chevauchent."));
-        return;
-    }
-
-    formeVisualization->setDecoupeEnCours(true);
-    formeVisualization->resetAllShapeColors();
-
-    // Sinon, aucune découpe en cours → on en (re)lance une nouvelle
-    //qDebug() << "Demarrage Découpe";
-    setSpinboxSliderEnabled(false);
-    trajetMotor->executeTrajet();
-    // Blocage des paramètres UI pendant la découpe
-
+    emit requestStartCut();
 }
 
 
@@ -710,11 +627,6 @@ void MainWindow::updateProgressBar(int percentage, const QString &remainingTimeT
 }
 
 
-MainWindow* MainWindow::getInstance()
-{
-    static MainWindow instance; // L'instance statique sera créée une seule fois
-    return &instance;
-}
 
 void MainWindow::showEvent(QShowEvent *event)
 {
@@ -744,36 +656,12 @@ void MainWindow::showEvent(QShowEvent *event)
 
 void MainWindow::setLanguageFrench()
 {
-    loadLanguage(Language::French);
+    emit requestLanguageChange(Language::French);
 }
 
 void MainWindow::setLanguageEnglish()
 {
-    loadLanguage(Language::English);
-}
-
-bool MainWindow::loadLanguage(Language lang)
-{
-    qApp->removeTranslator(&translator);
-    currentLanguage = lang;
-
-    const QString locale = (lang == Language::French) ? "fr" : "en";
-    const QString path = qApp->applicationDirPath()
-                         + "/translations/machineDecoupeIHM_" + locale + ".qm";
-
-    if (!translator.load(path)) {
-        qWarning() << "❌ Impossible de charger la langue :" << path;
-    } else {
-        qApp->installTranslator(&translator);
-        //qDebug() << "✅ Langue chargée :" << path;
-    }
-
-    // Mettre à jour tous les textes
-    QEvent event(QEvent::LanguageChange);
-    QCoreApplication::sendEvent(this, &event);  // Déclenche changeEvent
-    retranslateDynamicUi();                     // Retraduit menus + labels créés dynamiquement
-
-    return true;
+    emit requestLanguageChange(Language::English);
 }
 
 void MainWindow::retranslateDynamicUi()
@@ -809,8 +697,8 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
     QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForBaseShape(type);
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
-        QString name = Inventaire::baseShapeName(type, currentLanguage);
-        Dispositions *disp = new Dispositions(name, layouts, polys, currentLanguage, true, type);
+        QString name = Inventaire::baseShapeName(type, m_displayLanguage);
+        Dispositions *disp = new Dispositions(name, layouts, polys, m_displayLanguage, true, type);
 
         connect(disp, &Dispositions::layoutSelected, this, [this, type](const LayoutData &ld){
             QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
@@ -928,28 +816,30 @@ void MainWindow::openAIImagePromptDialog()
         ui->progressBarAI->setVisible(true);
         ui->progressBarAI->setMinimum(0);
         ui->progressBarAI->setMaximum(0);
-        m_aiService->requestImageGeneration(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
+        emit requestAiGeneration(dlg.getPrompt(), dlg.getModel(), dlg.getQuality(), dlg.getSize(), dlg.isColor());
     }
 }
 
-void MainWindow::onAiGenerationFinished(bool success, const QString &result)
+
+
+void MainWindow::onCutFinished(bool /*success*/)
+{
+    ui->progressBar->setValue(0);
+}
+
+void MainWindow::onAiGenerationStatus(const QString &msg)
+{
+    ui->labelAIGenerationStatus->setText(msg);
+}
+
+void MainWindow::onAiImageReady(const QString &path)
 {
     ui->progressBarAI->setVisible(false);
 
-    if (!success) {
-        QMessageBox::critical(this, tr("Erreur API"), result);
-        QTimer::singleShot(3000, this, [this]() {
-            ui->labelAIGenerationStatus->clear();
-        });
-        return;
-    }
-
-    QImage img(result);
+    QImage img(path);
     if (img.isNull()) {
         QMessageBox::critical(this, tr("Erreur image"), tr("L'image générée est invalide."));
-        QTimer::singleShot(3000, this, [this]() {
-            ui->labelAIGenerationStatus->clear();
-        });
+        QTimer::singleShot(3000, this, [this]() { ui->labelAIGenerationStatus->clear(); });
         return;
     }
 
@@ -960,12 +850,21 @@ void MainWindow::onAiGenerationFinished(bool success, const QString &result)
     }
 
     bool internal = false;
-    bool color    = false;
+    bool color = false;
     if (dlg.selectedMethod() == AIImageProcessDialog::LogoWithInternal)
         internal = true;
     else if (dlg.selectedMethod() == AIImageProcessDialog::ColorEdges)
         color = true;
 
     ui->labelAIGenerationStatus->clear();
-    openImageInCustom(result, internal, color);
+    openImageInCustom(path, internal, color);
+}
+
+void MainWindow::onLanguageApplied(Language lang, bool ok)
+{
+    m_displayLanguage = lang;
+    if (!ok) {
+        QMessageBox::warning(this, tr("Langue"), tr("Impossible de charger la langue demandée."));
+    }
+    retranslateDynamicUi();
 }

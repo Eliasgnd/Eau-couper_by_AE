@@ -2,6 +2,7 @@
 #include "ui_inventaire.h"
 #include "ShapeModel.h"
 #include "MainWindow.h"
+#include <QApplication>
 #include "Language.h"
 #include "ScreenUtils.h"
 
@@ -34,6 +35,19 @@
 #include <QDebug>
 #include <QSvgRenderer>
 #include <algorithm>
+
+namespace {
+MainWindow* resolveMainWindow()
+{
+    const auto widgets = QApplication::topLevelWidgets();
+    for (QWidget *w : widgets) {
+        if (auto *mw = qobject_cast<MainWindow*>(w)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+}
 
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
@@ -144,7 +158,7 @@ QPixmap Inventaire::renderColoredSvg(const QString &filePath, const QColor &colo
 void Inventaire::goToMainWindow()
 {
     hide();
-    MainWindow::getInstance()->showFullScreen();
+    if (auto mw = resolveMainWindow()) mw->showFullScreen();
 }
 
 // -----------------------------------------------------------------------------
