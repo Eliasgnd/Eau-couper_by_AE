@@ -48,6 +48,13 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    setupUI();
+    setupModels();
+    setupConnections();
+}
+
+void MainWindow::setupUI()
+{
     // La barre de titre (index 0) ne prend pas de stretch, la vue (index 1) prend tout, le bas (index 2) reste compact.
     ui->centerVBox->setStretch(0, 0);  // topBarLayout
     ui->centerVBox->setStretch(1, 1);  // horizontalLayout contenant formeVisualizationWidget
@@ -130,15 +137,43 @@ MainWindow::MainWindow(QWidget *parent)
     // ScreenUtils::placeOnSecondaryScreen(this);
 
     // Connection de l'inventaire à la forme
-    QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
-                     this, &MainWindow::onShapeSelectedFromInventaire);
+    // Bon : on récupère directement les valeurs actuelles des spinboxes longueur/largeur
+    updateSliderLongueur(ui->Longueur->value());
+    updateSliderLargeur (ui->Largeur ->value());
+    // activation et desactivation de l'optimisation
+
+    ui->optimizePlacementButton->setCheckable(true);
+    ui->optimizePlacementButton2->setCheckable(true);
+
+    // Configuration de la barre de progression
+    ui->progressBar->setRange(0, 100);
+    ui->progressBar->setValue(0);
+    ui->progressBar->setFormat("%p%");
+    ui->progressBar->setAlignment(Qt::AlignCenter);
 
 
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
+}
+
+void MainWindow::setupModels()
+{
     // Initialiser la classe FormeVisualization à partir du widget de l'UI
     formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
+
     // Création du contrôleur de découpe avant toute connexion
     trajetMotor = new TrajetMotor(formeVisualization, this);
     trajetMotor->setMainWindow(this);
+
+    // Service IA (parenté à MainWindow => nettoyage automatique).
+    m_aiService = new OpenAIService(this);
+}
+
+void MainWindow::setupConnections()
+{
+    // Connection de l'inventaire à la forme
+    QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
+                     this, &MainWindow::onShapeSelectedFromInventaire);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
@@ -155,10 +190,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->Etoile, &QPushButton::clicked, this, &MainWindow::changeToStar);
     connect(ui->Coeur, &QPushButton::clicked, this, &MainWindow::changeToHeart);
 
-    //connexion pour les formes de l'inventaire
+    // connexion pour les formes de l'inventaire
     connect(Inventaire::getInstance(), &Inventaire::customShapeSelected,
             this,                       &MainWindow::onCustomShapeSelected);
-
 
     // Naviguer entre les pages
     connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
@@ -178,20 +212,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->Slider_longueur, &QSlider::valueChanged, this, &MainWindow::updateSpinBoxLongueur);
     connect(ui->Slider_largeur, &QSlider::valueChanged, this, &MainWindow::updateSpinBoxLargeur);
 
-    // Bon : on récupère directement les valeurs actuelles des spinboxes longueur/largeur
-    updateSliderLongueur(ui->Longueur->value());
-    updateSliderLargeur (ui->Largeur ->value());
-
-
     // Connection entre spinbox nombre de formes et FormeVisualization
     connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShapeCount);
-    // Connection bouton optimisation
-
-
-   // activation et desactivation de l'optimisation
-
-    ui->optimizePlacementButton->setCheckable(true);
-    ui->optimizePlacementButton2->setCheckable(true);
 
     connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [=]() {
         if (ui->optimizePlacementButton->isChecked()) {
@@ -201,8 +223,6 @@ MainWindow::MainWindow(QWidget *parent)
             int largeur = ui->Largeur->value();
             int longueur = ui->Longueur->value();
             formeVisualization->updateDimensions(largeur, longueur);
-
-            // Optionnel : logique si on veut désactiver aussi
         }
     });
 
@@ -214,28 +234,19 @@ MainWindow::MainWindow(QWidget *parent)
             int largeur = ui->Largeur->value();
             int longueur = ui->Longueur->value();
             formeVisualization->updateDimensions(largeur, longueur);
-
-            // Optionnel
         }
     });
 
-
-
-
-
-
-
-    //spinBox pour l'espacement
+    // spinBox pour l'espacement
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::updateSpacing);
 
-    // Dans le constructeur de MainWindow, par exemple après l'initialisation de l'UI :
     connect(formeVisualization, &FormeVisualization::spacingChanged,
             this, [this](int newSpacing) {
                 ui->spaceSpinBox->setValue(newSpacing);
             });
 
-    // Déplacement : 1 pixel par clic (dx et dy peuvent être modifiés selon vos préférences)
+    // Déplacement : 1 pixel par clic
     connect(ui->ButtonUp, &QPushButton::clicked, this, [this]() {
         formeVisualization->moveSelectedShapes(0, -1); // vers le haut
     });
@@ -249,7 +260,6 @@ MainWindow::MainWindow(QWidget *parent)
         formeVisualization->moveSelectedShapes(1, 0);  // vers la droite
     });
 
-    // Rotation : par exemple, 5° par clic. Vous pouvez ajuster la valeur.
     connect(ui->ButtonRotationLeft, &QPushButton::clicked, this, [this]() {
         formeVisualization->rotateSelectedShapes(-90); // rotation vers la gauche
     });
@@ -269,11 +279,11 @@ MainWindow::MainWindow(QWidget *parent)
         auto saveLayout = [this]() {
             bool ok;
             QString name = QInputDialog::getText(this,
-                                                tr("Nom de la disposition"),
-                                                tr("Entrez un nom"),
-                                                QLineEdit::Normal,
-                                                "",
-                                                &ok);
+                                                 tr("Nom de la disposition"),
+                                                 tr("Entrez un nom"),
+                                                 QLineEdit::Normal,
+                                                 "",
+                                                 &ok);
             if (!ok || name.isEmpty())
                 return;
             LayoutData layout = formeVisualization->captureCurrentLayout(name);
@@ -295,7 +305,7 @@ MainWindow::MainWindow(QWidget *parent)
         saveLayout();
     });
 
-    // Connecter bouton start a la detection des pixel noirs puis le controle des moteur en fonction
+    // Connecter bouton start à la détection des pixels noirs puis au contrôle moteur
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
@@ -304,7 +314,6 @@ MainWindow::MainWindow(QWidget *parent)
                     ui->optimizePlacementButton2->setChecked(false);
                 }
             });
-
 
     // Pause ↔ Reprendre
     connect(ui->Pause, &QPushButton::clicked, this, [this]() {
@@ -321,37 +330,22 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->Stop, &QPushButton::clicked, this, [this]() {
         trajetMotor->stopCut();
         ui->progressBar->setValue(0);
-    });
-
-    // **NOUVELLE CONNEXION** pour la barre de progression de la découpe
-    connect(trajetMotor, &TrajetMotor::decoupeProgress,
-            this, &MainWindow::updateProgressBar);
-
-    connect(ui->Stop, &QPushButton::clicked, this, [this]() {
-        trajetMotor->stopCut();
         formeVisualization->setDecoupeEnCours(false);
         setSpinboxSliderEnabled(true);
     });
 
+    // SRP: TrajetMotor calcule déjà le pourcentage + texte de temps restant formaté.
+    // À ajouter dans TrajetMotor (h/.cpp):
+    //   signal: void decoupeProgressUi(int percentage, const QString &remainingTimeText);
+    //   emit decoupeProgressUi(percent, formattedText);  // dans votre boucle de progression.
+    connect(trajetMotor, &TrajetMotor::decoupeProgressUi,
+            this, &MainWindow::updateProgressBar);
 
-
-    // Configuration de la barre de progression
-    ui->progressBar->setRange(0, 100);
-    ui->progressBar->setValue(0);
-    ui->progressBar->setFormat("%p%");
-    ui->progressBar->setAlignment(Qt::AlignCenter);
-
-
-    if (ui->timeRemainingLabel)
-        ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
-
-    m_aiService = new OpenAIService(this);
     connect(m_aiService, &OpenAIService::statusUpdate, this, [this](const QString &message) {
         ui->labelAIGenerationStatus->setText(message);
     });
     connect(m_aiService, &OpenAIService::generationFinished,
             this, &MainWindow::onAiGenerationFinished);
-
 }
 
 MainWindow::~MainWindow() {
@@ -407,6 +401,7 @@ void MainWindow::showInventaire() {
 void MainWindow::showCustom() {
     this->hide();
     custom *customWindow = new custom(currentLanguage);
+    customWindow->setAttribute(Qt::WA_DeleteOnClose);
 
     connect(customWindow, &custom::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
@@ -419,18 +414,21 @@ void MainWindow::showCustom() {
 void MainWindow::openTestGpio() {
     this->hide();
     TestGpio *test = new TestGpio();
+    test->setAttribute(Qt::WA_DeleteOnClose);
     test->showFullScreen();
 }
 
 void MainWindow::openWifiTransfer() {
     this->hide();
     WifiTransferWidget *w = new WifiTransferWidget();
+    w->setAttribute(Qt::WA_DeleteOnClose);
     w->showFullScreen();
 }
 
 void MainWindow::openWifiConfig() {
     this->hide();
     WifiConfigDialog *dlg = new WifiConfigDialog();
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
     dlg->showFullScreen();
 }
 
@@ -438,6 +436,7 @@ void MainWindow::showDossier()
 {
     this->hide();
     DossierWidget *page = new DossierWidget(currentLanguage);
+    page->setAttribute(Qt::WA_DeleteOnClose);
     page->showFullScreen();
 }
 
@@ -445,6 +444,7 @@ void MainWindow::on_receptionFichierButton_clicked()
 {
     this->hide();
     BluetoothReceiverDialog *page = new BluetoothReceiverDialog();
+    page->setAttribute(Qt::WA_DeleteOnClose);
     page->showFullScreen();
 }
 
@@ -467,6 +467,7 @@ void MainWindow::openImageInCustom(const QString &filePath,
     }
 
     custom *cw = new custom(currentLanguage);
+    cw->setAttribute(Qt::WA_DeleteOnClose);
 
     connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
     connect(cw, &custom::resetDrawingSignal,     this, &MainWindow::resetDrawing);
@@ -694,47 +695,10 @@ void MainWindow::StartPixel()
 }
 
 
-void MainWindow::updateProgressBar(int remaining, int total) {
-    if (total == 0) return;
-    int percent = (total - remaining) * 100 / total;
-
-    // Démarrage du chrono à la première mise à jour
-    if (!decoupeTimer.isValid() || remaining == total) {
-        decoupeTimer.start();
-        smoothedTotalMs = -1.0; // réinitialise l'estimation
-    }
-
-    // Mise à jour de la barre
-    ui->progressBar->setValue(percent);
-
-    // Calcul de l'estimation du temps restant
-    QString timeText;
-    if (percent > 0 && remaining > 0) {
-        qint64 elapsedMs      = decoupeTimer.elapsed();
-        double instantTotalMs = static_cast<double>(elapsedMs) / (percent / 100.0);
-        if (smoothedTotalMs < 0)
-            smoothedTotalMs = instantTotalMs;
-        else
-            smoothedTotalMs = 0.9 * smoothedTotalMs + 0.1 * instantTotalMs;
-        qint64 remainingMs = static_cast<qint64>(smoothedTotalMs - elapsedMs);
-        if (remainingMs < 0) remainingMs = 0;
-        int seconds = remainingMs / 1000;
-        int minutes = seconds / 60;
-        seconds %= 60;
-        if (minutes > 0)
-            timeText = tr("Temps restant estim\u00e9 : %1m %2s").arg(minutes).arg(seconds);
-        else
-            timeText = tr("Temps restant estim\u00e9 : %1s").arg(seconds);
-    } else {
-        timeText = tr("Temps restant estim\u00e9 : 0s");
-    }
-    if (ui->timeRemainingLabel)
-        ui->timeRemainingLabel->setText(timeText);
-
-    // Remise à zéro à la fin
-    if (remaining == 0) {
-        decoupeTimer.invalidate();
-        smoothedTotalMs = -1.0;
+void MainWindow::updateProgressBar(int percentage, const QString &remainingTimeText) {
+    ui->progressBar->setValue(percentage);
+    if (ui->timeRemainingLabel) {
+        ui->timeRemainingLabel->setText(remainingTimeText);
     }
 }
 
