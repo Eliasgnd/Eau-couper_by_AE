@@ -40,6 +40,21 @@ QList<QPointF> PathGenerator::applyChaikinAlgorithm(const QList<QPointF> &inputP
     return points;
 }
 
+QList<QPainterPath> PathGenerator::separateIntoSubpaths(const QPainterPath &path)
+{
+    QList<QPainterPath> subpaths;
+    const QList<QPolygonF> polygons = path.toSubpathPolygons();
+    subpaths.reserve(polygons.size());
+    for (const QPolygonF &poly : polygons) {
+        if (poly.isEmpty()) continue;
+        QPainterPath subpath;
+        subpath.addPolygon(poly);
+        // On simplifie pour nettoyer les points redondants
+        subpaths.append(subpath.simplified());
+    }
+    return subpaths;
+}
+
 double PathGenerator::distance(const QPointF &p1, const QPointF &p2)
 {
     return QLineF(p1, p2).length();

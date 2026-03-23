@@ -34,6 +34,7 @@
 #include <cmath>
 #include "ScreenUtils.h"
 #include <QStatusBar>
+#include "drawing/PathGenerator.h"
 
 namespace {
 MainWindow* resolveMainWindow()
@@ -68,6 +69,7 @@ custom::custom(Language lang, QWidget *parent)
     : QWidget(parent),
     ui(new Ui::custom)
 {
+    Q_UNUSED(lang);
     ui->setupUi(this);
 
     // ----- Splitter : facteurs de stretch et tailles initiales (après show) -----
@@ -771,8 +773,7 @@ void custom::importerLogo()
     scaledOutline.translate(offset);
     //qDebug() << "Bounding rect final (centré):" << scaledOutline.boundingRect();
 
-    QList<QPainterPath> subpaths = CustomDrawArea::separateIntoSubpaths(scaledOutline);
-    //qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
+    QList<QPainterPath> subpaths = PathGenerator::separateIntoSubpaths(scaledOutline);    //qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
     for (const QPainterPath &sp : subpaths) {
         drawArea->addImportedLogoSubpath(sp);
     }
@@ -803,8 +804,7 @@ void custom::importerImageCouleur()
                              drawArea->height()/2.0) -
                      scaled.boundingRect().center());
 
-    QList<QPainterPath> subs =
-        CustomDrawArea::separateIntoSubpaths(scaled);
+    QList<QPainterPath> subs = PathGenerator::separateIntoSubpaths(scaled);
     for (const QPainterPath &sp : subs)
         drawArea->addImportedLogoSubpath(sp);
 }

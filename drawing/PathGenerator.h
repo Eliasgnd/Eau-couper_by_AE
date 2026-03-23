@@ -17,6 +17,7 @@ public:
                                           double maxAlpha,
                                           int maxLevel,
                                           double lowSpeedThreshold);
+    static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
 };
 
 #endif // PATHGENERATOR_H

@@ -19,6 +19,7 @@
 #include "AIServiceManager.h"
 #include "ImportedImageGeometryHelper.h"
 #include "GeometryUtils.h"
+#include "drawing/PathGenerator.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -446,7 +447,7 @@ void MainWindow::openImageInCustom(const QString &filePath,
         if (scaled.isEmpty())
             return;
 
-        const QList<QPainterPath> subs = CustomDrawArea::separateIntoSubpaths(scaled);
+        QList<QPainterPath> subs = PathGenerator::separateIntoSubpaths(scaled);
         for (const QPainterPath &sp : subs)
             area->addImportedLogoSubpath(sp);
     });

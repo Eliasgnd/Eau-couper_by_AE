@@ -28,20 +28,6 @@ void ShapeRenderer::render(QPainter &painter, const ShapeManager &shapeManager, 
     drawSelectionHandles(painter, shapeManager);
 }
 
-void ShapeRenderer::drawGrid(QPainter &painter, const QRectF &visibleArea) const
-{
-    const QRect clip = visibleArea.toAlignedRect();
-    painter.save();
-    painter.setPen(QPen(QColor(230, 230, 230), 1));
-    for (int x = clip.left(); x <= clip.right(); x += m_gridSpacing) {
-        painter.drawLine(x, clip.top(), x, clip.bottom());
-    }
-    for (int y = clip.top(); y <= clip.bottom(); y += m_gridSpacing) {
-        painter.drawLine(clip.left(), y, clip.right(), y);
-    }
-    painter.restore();
-}
-
 void ShapeRenderer::drawShapes(QPainter &painter, const ShapeManager &shapeManager) const
 {
     QPen pen(Qt::black, 2);
@@ -75,5 +61,27 @@ void ShapeRenderer::drawSelectionHandles(QPainter &painter, const ShapeManager &
         painter.drawEllipse(b.bottomRight(), h, h);
     }
 
+    painter.restore();
+}
+
+void ShapeRenderer::drawGrid(QPainter &painter, const QRectF &visibleArea) const
+{
+    // 1. Création d'une texture de cellule unique si besoin
+    static QPixmap tile(m_gridSpacing, m_gridSpacing);
+    static int lastSpacing = -1;
+
+    if (m_gridSpacing != lastSpacing) {
+        tile = QPixmap(m_gridSpacing, m_gridSpacing);
+        tile.fill(Qt::transparent);
+        QPainter p(&tile);
+        p.setPen(QPen(QColor(230, 230, 230), 1));
+        p.drawLine(0, 0, m_gridSpacing, 0); // Ligne horizontale
+        p.drawLine(0, 0, 0, m_gridSpacing); // Ligne verticale
+        lastSpacing = m_gridSpacing;
+    }
+
+    // 2. Utilisation de la texture répétée (très rapide)
+    painter.save();
+    painter.drawTiledPixmap(visibleArea, tile, visibleArea.topLeft());
     painter.restore();
 }

@@ -75,8 +75,6 @@ public:
     bool isGommeMode()     const;
     bool isConnectMode()   const;
 
-    static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path);
-
 signals:
     void zoomChanged(double newScale);
     void closeModeChanged(bool enabled);

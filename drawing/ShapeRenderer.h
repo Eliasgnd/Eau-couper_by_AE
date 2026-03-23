@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QRectF>
+#include <QPixmap>
 
 class QPainter;
 class ShapeManager;
@@ -27,6 +28,8 @@ private:
     void drawShapes(QPainter &painter, const ShapeManager &shapeManager) const;
     void drawSelectionHandles(QPainter &painter, const ShapeManager &shapeManager) const;
 
+    mutable QPixmap m_gridCache; // Cache pour la texture de la grille
+    void updateGridCache() const;
     bool m_showGrid = true;
     bool m_snapToGrid = false;
     int m_gridSpacing = 20;
