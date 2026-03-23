@@ -18,6 +18,15 @@
 #include <QPinchGesture>
 #include <QElapsedTimer>
 
+class ShapeManager;
+class ShapeRenderer;
+class DrawModeManager;
+class HistoryManager;
+class MouseInteractionHandler;
+class ViewTransformer;
+class EraserTool;
+class GestureHandler;
+
 class CustomDrawArea : public QWidget
 {
     Q_OBJECT
@@ -257,6 +266,16 @@ private:
 
     void eraseAlong(const QPointF& from, const QPointF& to);
     void commitEraseIfNeeded(bool force);
+
+    // Composants spécialisés (refactor progressif de la God Class)
+    ShapeManager *m_shapeManager = nullptr;
+    ShapeRenderer *m_shapeRenderer = nullptr;
+    DrawModeManager *m_modeManager = nullptr;
+    HistoryManager *m_historyManager = nullptr;
+    MouseInteractionHandler *m_mouseHandler = nullptr;
+    ViewTransformer *m_transformer = nullptr;
+    EraserTool *m_eraserTool = nullptr;
+    GestureHandler *m_gestureHandler = nullptr;
 
     void drawGrid(QPainter &painter);
 signals:

@@ -51,7 +51,15 @@ HEADERS += \
     AppController.h \
     NavigationController.h \
     AIServiceManager.h \
-    ImportedImageGeometryHelper.h
+    ImportedImageGeometryHelper.h \
+    ShapeManager.h \
+    ShapeRenderer.h \
+    DrawModeManager.h \
+    HistoryManager.h \
+    MouseInteractionHandler.h \
+    ViewTransformer.h \
+    EraserTool.h \
+    GestureHandler.h
 
 
 SOURCES += \
@@ -75,7 +83,15 @@ SOURCES += \
     AppController.cpp \
     NavigationController.cpp \
     AIServiceManager.cpp \
-    ImportedImageGeometryHelper.cpp
+    ImportedImageGeometryHelper.cpp \
+    ShapeManager.cpp \
+    ShapeRenderer.cpp \
+    DrawModeManager.cpp \
+    HistoryManager.cpp \
+    MouseInteractionHandler.cpp \
+    ViewTransformer.cpp \
+    EraserTool.cpp \
+    GestureHandler.cpp
 
 FORMS += \
     BluetoothReceiverDialog.ui \
