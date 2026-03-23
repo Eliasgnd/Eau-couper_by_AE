@@ -33,6 +33,7 @@ HEADERS += \
     ScreenUtils.h \
     AspectRatioWrapper.h \
     clavier.h claviernumerique.h custom.h inventaire.h Dispositions.h \
+    drawing/DrawingState.h \
     keyboardeventfilter.h motorcontrol.h pathplanner.h \
     raspberry.h TestGpio.h \
     skeletonizer.h \
