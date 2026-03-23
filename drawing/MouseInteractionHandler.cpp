@@ -6,6 +6,7 @@
 #include <QtGlobal>
 
 #include <QMouseEvent>
+#include <QPainterPathStroker>
 #include <QtGlobal>
 
 MouseInteractionHandler::MouseInteractionHandler(ShapeManager *shapeManager,
@@ -38,8 +39,10 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
 
     if (m_modeManager->drawMode() == DrawModeManager::DrawMode::Supprimer) {
         const auto &shapes = m_shapeManager->shapes();
+        QPainterPathStroker stroker;
+        stroker.setWidth(5.0);
         for (int i = shapes.size() - 1; i >= 0; --i) {
-            if (shapes[i].path.contains(logicalPos)) {
+            if (shapes[i].path.contains(logicalPos) || stroker.createStroke(shapes[i].path).contains(logicalPos)) {
                 m_shapeManager->removeShape(i);
                 break;
             }

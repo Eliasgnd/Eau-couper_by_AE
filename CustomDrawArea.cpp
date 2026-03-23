@@ -13,6 +13,7 @@
 #include <QInputDialog>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPathStroker>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -51,7 +52,12 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_historyManager->pushState();
 }
 
-void CustomDrawArea::setDrawMode(DrawMode mode) { m_modeManager->setDrawMode(mode); }
+void CustomDrawArea::setDrawMode(DrawMode mode)
+{
+    if (m_selectMode) cancelSelection();
+    if (m_closeMode) cancelCloseMode();
+    m_modeManager->setDrawMode(mode);
+}
 CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_modeManager->drawMode(); }
 void CustomDrawArea::restorePreviousMode() { m_modeManager->restorePreviousMode(); }
 
@@ -71,9 +77,46 @@ void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath) { m_sha
 void CustomDrawArea::setTextFont(const QFont &font) { m_textTool->setTextFont(font); }
 QFont CustomDrawArea::getTextFont() const { return m_textTool->getTextFont(); }
 
-void CustomDrawArea::startShapeSelection() { emit shapeSelection(true); }
-void CustomDrawArea::cancelSelection() { m_shapeManager->clearSelection(); emit shapeSelection(false); }
-void CustomDrawArea::toggleMultiSelectMode() { m_multiSelect = !m_multiSelect; emit multiSelectionModeChanged(m_multiSelect); }
+void CustomDrawArea::startShapeSelection()
+{
+    cancelCloseMode();
+    cancelDeplacerMode();
+    cancelSupprimerMode();
+    cancelGommeMode();
+    m_selectMode = true;
+    m_connectSelectionMode = true;
+    m_shapeManager->clearSelection();
+    emit shapeSelection(true);
+    update();
+}
+
+void CustomDrawArea::cancelSelection()
+{
+    if (!m_selectMode) return;
+    m_selectMode = false;
+    m_shapeManager->clearSelection();
+    if (m_connectSelectionMode) emit shapeSelection(false);
+    else emit multiSelectionModeChanged(false);
+    m_connectSelectionMode = false;
+    update();
+}
+
+void CustomDrawArea::toggleMultiSelectMode()
+{
+    if (!m_selectMode) {
+        cancelCloseMode();
+        cancelSupprimerMode();
+        cancelDeplacerMode();
+        cancelGommeMode();
+        m_selectMode = true;
+        m_connectSelectionMode = false;
+        m_shapeManager->clearSelection();
+        emit multiSelectionModeChanged(true);
+    } else if (!m_connectSelectionMode) {
+        cancelSelection();
+    }
+    update();
+}
 bool CustomDrawArea::hasSelection() const { return !m_shapeManager->selectedShapes().isEmpty(); }
 
 void CustomDrawArea::deleteSelectedShapes()
@@ -82,6 +125,9 @@ void CustomDrawArea::deleteSelectedShapes()
     std::sort(selected.begin(), selected.end(), std::greater<int>());
     for (int index : selected) m_shapeManager->removeShape(index);
     m_shapeManager->clearSelection();
+    if (m_selectMode && !m_connectSelectionMode) emit multiSelectionModeChanged(false);
+    m_selectMode = false;
+    m_connectSelectionMode = false;
     m_historyManager->pushState();
 }
 
@@ -105,7 +151,7 @@ int CustomDrawArea::gridSpacing() const { return m_renderer->gridSpacing(); }
 bool CustomDrawArea::isDeplacerMode() const { return getDrawMode() == DrawMode::Deplacer; }
 bool CustomDrawArea::isSupprimerMode() const { return getDrawMode() == DrawMode::Supprimer; }
 bool CustomDrawArea::isGommeMode() const { return getDrawMode() == DrawMode::Gomme; }
-bool CustomDrawArea::isConnectMode() const { return false; }
+bool CustomDrawArea::isConnectMode() const { return m_selectMode && m_connectSelectionMode; }
 
 QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &path)
 {
@@ -125,13 +171,47 @@ QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &pat
     return subpaths;
 }
 
-void CustomDrawArea::startCloseMode() { m_modeManager->startCloseMode(); }
-void CustomDrawArea::cancelCloseMode() { m_modeManager->cancelCloseMode(); }
-void CustomDrawArea::startDeplacerMode() { m_modeManager->startDeplacerMode(); }
+void CustomDrawArea::startCloseMode()
+{
+    cancelSelection();
+    cancelDeplacerMode();
+    cancelSupprimerMode();
+    cancelGommeMode();
+    m_closeMode = true;
+    m_modeManager->startCloseMode();
+}
+void CustomDrawArea::cancelCloseMode()
+{
+    if (!m_closeMode) return;
+    m_closeMode = false;
+    m_modeManager->cancelCloseMode();
+}
+void CustomDrawArea::startDeplacerMode()
+{
+    cancelSelection();
+    cancelCloseMode();
+    cancelSupprimerMode();
+    cancelGommeMode();
+    m_modeManager->startDeplacerMode();
+}
 void CustomDrawArea::cancelDeplacerMode() { m_modeManager->cancelDeplacerMode(); }
-void CustomDrawArea::startSupprimerMode() { m_modeManager->startSupprimerMode(); }
+void CustomDrawArea::startSupprimerMode()
+{
+    cancelSelection();
+    cancelCloseMode();
+    cancelDeplacerMode();
+    cancelGommeMode();
+    m_modeManager->startSupprimerMode();
+}
 void CustomDrawArea::cancelSupprimerMode() { m_modeManager->cancelSupprimerMode(); }
-void CustomDrawArea::startGommeMode() { m_modeManager->startGommeMode(); }
+void CustomDrawArea::startGommeMode()
+{
+    cancelSelection();
+    cancelCloseMode();
+    cancelDeplacerMode();
+    cancelSupprimerMode();
+    m_modeManager->startGommeMode();
+}
 void CustomDrawArea::cancelGommeMode() { m_modeManager->cancelGommeMode(); }
 void CustomDrawArea::setSmoothingLevel(int level) { m_smoothingLevel = qMax(0, level); emit smoothingLevelChanged(m_smoothingLevel); }
 void CustomDrawArea::setTwoFingersOn(bool active) { m_twoFingersOn = active; }
@@ -157,6 +237,17 @@ QPointF CustomDrawArea::snapToGridIfNeeded(const QPointF &logicalPoint) const
                    std::round(logicalPoint.y() / spacing) * spacing);
 }
 
+int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) const
+{
+    const auto &shapes = m_shapeManager->shapes();
+    QPainterPathStroker stroker;
+    stroker.setWidth(tolerance);
+    for (int i = shapes.size() - 1; i >= 0; --i) {
+        if (stroker.createStroke(shapes[i].path).contains(logicalPoint)) return i;
+    }
+    return -1;
+}
+
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
@@ -169,6 +260,22 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)), toLogical(QPointF(width(), height()))).normalized();
     m_renderer->render(painter, *m_shapeManager, visibleArea);
 
+    if (!m_shapeManager->selectedShapes().isEmpty()) {
+        QPen halo(Qt::cyan, 6);
+        halo.setCosmetic(true);
+        QPen normal(Qt::black, 2);
+        normal.setCosmetic(true);
+        for (int idx : m_shapeManager->selectedShapes()) {
+            if (idx < 0 || idx >= m_shapeManager->shapes().size()) continue;
+            const QPainterPath &path = m_shapeManager->shapes()[idx].path;
+            painter.setPen(halo);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(path);
+            painter.setPen(normal);
+            painter.drawPath(path);
+        }
+    }
+
     if (m_drawing && m_strokePoints.size() > 1) {
         painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
         painter.drawPath(PathGenerator::generateBezierPath(m_strokePoints));
@@ -178,7 +285,24 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
-    m_mouseHandler->handleMousePress(event, logical);
+
+    if (m_closeMode) {
+        const int hit = hitTestShape(logical);
+        if (hit >= 0) {
+            auto shapes = m_shapeManager->shapes();
+            QPainterPath &path = shapes[hit].path;
+            if (path.elementCount() > 1) {
+                const auto first = path.elementAt(0);
+                path.lineTo(QPointF(first.x, first.y));
+                m_historyManager->pushState();
+                m_shapeManager->setShapes(shapes);
+            }
+        }
+        m_closeMode = false;
+        emit closeModeChanged(false);
+        update();
+        return;
+    }
 
     if (event->button() == Qt::RightButton && m_pasteMode) {
         pasteCopiedShapes(logical);
@@ -186,12 +310,40 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         return;
     }
 
-    m_drawing = true;
+    if (m_selectMode && getDrawMode() != DrawMode::Deplacer) {
+        const int hit = hitTestShape(logical);
+        if (hit >= 0) {
+            m_lastSelectClick = logical;
+            QVector<int> selected = m_shapeManager->selectedShapes();
+            const bool alreadySelected = selected.contains(hit);
+            if (alreadySelected) selected.removeAll(hit);
+            else selected.append(hit);
+            m_shapeManager->setSelectedShapes(selected);
+
+            if (m_connectSelectionMode && selected.size() == 2) {
+                m_shapeManager->connectNearestEndpoints(selected[0], selected[1]);
+                m_shapeManager->mergeShapesAndConnector(selected[0], selected[1]);
+                m_selectMode = false;
+                m_connectSelectionMode = false;
+                m_shapeManager->clearSelection();
+                emit shapeSelection(false);
+            } else if (!m_connectSelectionMode) {
+                emit multiSelectionModeChanged(true);
+            }
+            update();
+        }
+        return;
+    }
+
+    m_mouseHandler->handleMousePress(event, logical);
+
+    m_drawing = (event->button() == Qt::LeftButton);
     m_startPoint = logical;
     m_currentPoint = logical;
     m_strokePoints = {logical};
 
-    if (getDrawMode() == DrawMode::Gomme) {
+    if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Gomme) {
+        m_historyManager->pushState();
         m_eraserTool->applyEraserAt(logical);
     }
 }
@@ -230,7 +382,6 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     }
 
     if (getDrawMode() == DrawMode::Gomme) {
-        m_historyManager->pushState();
         return;
     }
 
