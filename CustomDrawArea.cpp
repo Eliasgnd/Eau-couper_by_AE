@@ -11,6 +11,8 @@
 #include "drawing/ViewTransformer.h"
 
 #include <QInputDialog>
+#include <QLineF>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPathStroker>
@@ -57,6 +59,8 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     if (m_selectMode) cancelSelection();
     if (m_closeMode) cancelCloseMode();
     m_gommeErasing = false;
+    m_pointByPointPoints.clear();
+    m_drawing = false;
     m_modeManager->setDrawMode(mode);
 }
 CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_modeManager->drawMode(); }
@@ -281,9 +285,31 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
         }
     }
 
-    if (m_drawing && m_strokePoints.size() > 1) {
+    if (getDrawMode() == DrawMode::Freehand && m_drawing && m_strokePoints.size() > 1) {
         painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
         painter.drawPath(PathGenerator::generateBezierPath(m_strokePoints));
+    }
+
+    if (m_drawing && (getDrawMode() == DrawMode::Line || getDrawMode() == DrawMode::Rectangle ||
+                      getDrawMode() == DrawMode::Circle)) {
+        painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        if (getDrawMode() == DrawMode::Line) {
+            painter.drawLine(m_startPoint, m_currentPoint);
+        } else if (getDrawMode() == DrawMode::Rectangle) {
+            painter.drawRect(QRectF(m_startPoint, m_currentPoint).normalized());
+        } else if (getDrawMode() == DrawMode::Circle) {
+            painter.drawEllipse(QRectF(m_startPoint, m_currentPoint).normalized());
+        }
+    }
+
+    if (getDrawMode() == DrawMode::PointParPoint && !m_pointByPointPoints.isEmpty()) {
+        painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
+        QPainterPath previewPath;
+        previewPath.moveTo(m_pointByPointPoints.first());
+        for (int i = 1; i < m_pointByPointPoints.size(); ++i) previewPath.lineTo(m_pointByPointPoints[i]);
+        previewPath.lineTo(m_currentPoint);
+        painter.drawPath(previewPath);
     }
 
     if (getDrawMode() == DrawMode::Gomme && m_gommeErasing) {
@@ -296,6 +322,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+    m_currentPoint = logical;
 
     if (m_closeMode) {
         const int hit = hitTestShape(logical);
@@ -318,6 +345,13 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     if (event->button() == Qt::RightButton && m_pasteMode) {
         pasteCopiedShapes(logical);
         m_pasteMode = false;
+        return;
+    }
+
+    if (event->button() == Qt::RightButton && getDrawMode() == DrawMode::PointParPoint) {
+        m_pointByPointPoints.clear();
+        m_drawing = false;
+        update();
         return;
     }
 
@@ -346,11 +380,32 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    if (event->button() == Qt::LeftButton &&
+        (getDrawMode() == DrawMode::Text || getDrawMode() == DrawMode::ThinText)) {
+        bool ok = false;
+        const QString text = QInputDialog::getText(this, tr("Texte"), tr("Saisir le texte"), QLineEdit::Normal,
+                                                   m_textTool->getCurrentText(), &ok);
+        if (ok && !text.isEmpty()) {
+            m_textTool->setCurrentText(text);
+            QPainterPath textPath;
+            textPath.addText(logical, m_textTool->getTextFont(), text);
+            m_shapeManager->addShape(textPath, m_nextShapeId++);
+            m_historyManager->pushState();
+        }
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
+        m_pointByPointPoints.append(logical);
+        m_drawing = true;
+        update();
+        return;
+    }
+
     m_mouseHandler->handleMousePress(event, logical);
 
     m_drawing = (event->button() == Qt::LeftButton);
     m_startPoint = logical;
-    m_currentPoint = logical;
     m_strokePoints = {logical};
 
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Gomme) {
@@ -363,9 +418,43 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
 }
 
+void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
+        const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+        if (m_pointByPointPoints.isEmpty()) return;
+
+        const qreal minDistance = 0.5;
+        if (QLineF(m_pointByPointPoints.last(), logical).length() > minDistance) {
+            m_pointByPointPoints.append(logical);
+        }
+
+        if (m_pointByPointPoints.size() >= 2) {
+            QPainterPath path;
+            path.moveTo(m_pointByPointPoints.first());
+            for (int i = 1; i < m_pointByPointPoints.size(); ++i) path.lineTo(m_pointByPointPoints[i]);
+            m_shapeManager->addShape(path, m_nextShapeId++);
+            m_historyManager->pushState();
+        }
+
+        m_pointByPointPoints.clear();
+        m_drawing = false;
+        update();
+        return;
+    }
+
+    QWidget::mouseDoubleClickEvent(event);
+}
+
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+
+    if (getDrawMode() == DrawMode::PointParPoint && !m_pointByPointPoints.isEmpty()) {
+        m_currentPoint = logical;
+        update();
+    }
+
     m_mouseHandler->handleMouseMove(event, logical);
     if (!m_drawing) return;
 
@@ -380,7 +469,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         m_gommeCenter = logical;
         m_eraserTool->eraseAlong(m_lastEraserPos, logical);
         m_lastEraserPos = logical;
-    } else {
+    } else if (getDrawMode() == DrawMode::Freehand) {
         m_strokePoints.append(logical);
     }
     update();
@@ -389,6 +478,13 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+
+    if (getDrawMode() == DrawMode::PointParPoint) {
+        m_currentPoint = logical;
+        update();
+        return;
+    }
+
     m_mouseHandler->handleMouseRelease(event, logical);
     if (!m_drawing) return;
 
@@ -412,14 +508,6 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         path.addRect(QRectF(m_startPoint, logical).normalized());
     } else if (getDrawMode() == DrawMode::Circle) {
         path.addEllipse(QRectF(m_startPoint, logical).normalized());
-    } else if (getDrawMode() == DrawMode::Text || getDrawMode() == DrawMode::ThinText) {
-        bool ok = false;
-        const QString text = QInputDialog::getText(this, tr("Texte"), tr("Saisir le texte"), QLineEdit::Normal,
-                                                   m_textTool->getCurrentText(), &ok);
-        if (ok && !text.isEmpty()) {
-            m_textTool->setCurrentText(text);
-            path.addText(logical, m_textTool->getTextFont(), text);
-        }
     } else {
         path = PathGenerator::generateBezierPath(
             PathGenerator::applyChaikinAlgorithm(m_strokePoints, m_smoothingLevel));
