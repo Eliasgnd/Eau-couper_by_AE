@@ -11,20 +11,22 @@ class ViewTransformer : public QObject
 public:
     explicit ViewTransformer(QObject *parent = nullptr);
 
-    qreal scale() const;
-    QPointF offset() const;
+    void setScale(double scale);
+    double scale() const { return m_scale; }
 
-    void setScale(qreal newScale);
     void applyPanDelta(const QPointF &delta);
-    QPointF clampToCanvas(const QPointF &offset, const QSizeF &widgetSize, const QSizeF &canvasSize) const;
+    void setOffset(const QPointF &offset);
+    const QPointF &offset() const { return m_offset; }
+
+    QPointF clampToCanvas(const QPointF &p, const QSizeF &canvasSize) const;
 
 signals:
-    void zoomChanged(qreal newScale);
+    void zoomChanged(double newScale);
     void viewTransformed();
 
 private:
-    qreal m_scale = 1.0;
-    QPointF m_offset;
+    double m_scale = 1.0;
+    QPointF m_offset = QPointF(0, 0);
 };
 
 #endif // VIEWTRANSFORMER_H

@@ -24,9 +24,8 @@ public:
 
     explicit DrawModeManager(QObject *parent = nullptr);
 
-    DrawMode drawMode() const;
-    DrawMode lastPrimaryMode() const;
     void setDrawMode(DrawMode mode);
+    DrawMode drawMode() const;
     void restorePreviousMode();
 
     void startCloseMode();
@@ -46,12 +45,8 @@ signals:
     void gommeModeChanged(bool enabled);
 
 private:
-    DrawMode m_drawMode = DrawMode::Freehand;
+    DrawMode m_currentMode = DrawMode::Freehand;
     DrawMode m_lastPrimaryMode = DrawMode::Freehand;
-    bool m_closeMode = false;
-    bool m_deplacerMode = false;
-    bool m_supprimerMode = false;
-    bool m_gommeMode = false;
 };
 
 #endif // DRAWMODEMANAGER_H

@@ -22,7 +22,9 @@ public:
     void render(QPainter &painter, const ShapeManager &shapeManager) const;
 
 private:
-    void drawGrid(QPainter &painter) const;
+    void drawGrid(QPainter &painter, const QRectF &visibleArea) const;
+    void drawShapes(QPainter &painter, const ShapeManager &shapeManager) const;
+    void drawSelectionHandles(QPainter &painter, const ShapeManager &shapeManager) const;
 
     bool m_showGrid = true;
     bool m_snapToGrid = false;

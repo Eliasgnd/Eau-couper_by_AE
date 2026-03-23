@@ -1,0 +1,21 @@
+#ifndef HISTORYMANAGER_H
+#define HISTORYMANAGER_H
+
+#include <QObject>
+
+class ShapeManager;
+
+class HistoryManager : public QObject
+{
+    Q_OBJECT
+public:
+    explicit HistoryManager(ShapeManager *shapeManager, QObject *parent = nullptr);
+
+    void pushState();
+    void undoLastAction();
+
+private:
+    ShapeManager *m_shapeManager = nullptr;
+};
+
+#endif // HISTORYMANAGER_H
