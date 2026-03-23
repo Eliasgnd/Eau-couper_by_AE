@@ -88,6 +88,7 @@ protected:
 
 private:
     QPointF toLogical(const QPointF &widgetPoint) const;
+    QPointF snapToGridIfNeeded(const QPointF &logicalPoint) const;
 
     ShapeManager *m_shapeManager; ShapeRenderer *m_renderer; DrawModeManager *m_modeManager;
     HistoryManager *m_historyManager; ViewTransformer *m_transformer;
