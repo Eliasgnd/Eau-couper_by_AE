@@ -161,18 +161,17 @@ bool CustomDrawArea::isConnectMode() const { return m_selectMode && m_connectSel
 QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &path)
 {
     QList<QPainterPath> subpaths;
-    QPainterPath current;
-    for (int i = 0; i < path.elementCount(); ++i) {
-        const auto e = path.elementAt(i);
-        if (e.isMoveTo()) {
-            if (!current.isEmpty()) subpaths.append(current);
-            current = QPainterPath();
-            current.moveTo(e.x, e.y);
-        } else {
-            current.lineTo(e.x, e.y);
-        }
+    const QList<QPolygonF> polygons = path.toSubpathPolygons();
+    subpaths.reserve(polygons.size());
+
+    for (const QPolygonF &poly : polygons) {
+        if (poly.isEmpty()) continue;
+
+        QPainterPath subpath;
+        subpath.addPolygon(poly);
+        subpaths.append(subpath.simplified());
     }
-    if (!current.isEmpty()) subpaths.append(current);
+
     return subpaths;
 }
 
