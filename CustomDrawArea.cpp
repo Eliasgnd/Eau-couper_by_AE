@@ -56,6 +56,7 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
 {
     if (m_selectMode) cancelSelection();
     if (m_closeMode) cancelCloseMode();
+    m_gommeErasing = false;
     m_modeManager->setDrawMode(mode);
 }
 CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_modeManager->drawMode(); }
@@ -214,7 +215,11 @@ void CustomDrawArea::startGommeMode()
 }
 void CustomDrawArea::cancelGommeMode() { m_modeManager->cancelGommeMode(); }
 void CustomDrawArea::setSmoothingLevel(int level) { m_smoothingLevel = qMax(0, level); emit smoothingLevelChanged(m_smoothingLevel); }
-void CustomDrawArea::setTwoFingersOn(bool active) { m_twoFingersOn = active; }
+void CustomDrawArea::setTwoFingersOn(bool active)
+{
+    m_twoFingersOn = active;
+    if (active) m_gommeErasing = false;
+}
 
 void CustomDrawArea::handlePinchZoom(QPointF center, qreal factor)
 {
@@ -280,6 +285,12 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
         painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
         painter.drawPath(PathGenerator::generateBezierPath(m_strokePoints));
     }
+
+    if (getDrawMode() == DrawMode::Gomme && m_gommeErasing) {
+        painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(m_gommeCenter, m_eraserTool->eraserRadius(), m_eraserTool->eraserRadius());
+    }
 }
 
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
@@ -344,7 +355,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Gomme) {
         m_historyManager->pushState();
+        m_gommeErasing = true;
+        m_gommeCenter = logical;
+        m_lastEraserPos = logical;
         m_eraserTool->applyEraserAt(logical);
+        update();
     }
 }
 
@@ -361,7 +376,10 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
     m_currentPoint = logical;
     if (getDrawMode() == DrawMode::Gomme) {
-        m_eraserTool->eraseAlong(m_strokePoints.last(), logical);
+        if (!m_gommeErasing) return;
+        m_gommeCenter = logical;
+        m_eraserTool->eraseAlong(m_lastEraserPos, logical);
+        m_lastEraserPos = logical;
     } else {
         m_strokePoints.append(logical);
     }
@@ -382,6 +400,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     }
 
     if (getDrawMode() == DrawMode::Gomme) {
+        m_gommeErasing = false;
         return;
     }
 
