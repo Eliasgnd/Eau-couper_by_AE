@@ -89,6 +89,7 @@ protected:
 private:
     QPointF toLogical(const QPointF &widgetPoint) const;
     QPointF snapToGridIfNeeded(const QPointF &logicalPoint) const;
+    int hitTestShape(const QPointF &logicalPoint, qreal tolerance = 25.0) const;
 
     ShapeManager *m_shapeManager; ShapeRenderer *m_renderer; DrawModeManager *m_modeManager;
     HistoryManager *m_historyManager; ViewTransformer *m_transformer;
@@ -96,5 +97,7 @@ private:
     QList<QPointF> m_strokePoints; QPointF m_startPoint; QPointF m_currentPoint;
     int m_nextShapeId = 1; int m_smoothingLevel = 1; bool m_multiSelect = false;
     bool m_pasteMode = false; bool m_drawing = false; bool m_twoFingersOn = false;
+    bool m_selectMode = false; bool m_connectSelectionMode = false; bool m_closeMode = false;
+    QPointF m_lastSelectClick;
 };
 #endif // CUSTOMDRAWAREA_H
