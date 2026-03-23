@@ -2,11 +2,18 @@
 #define SHAPEMANAGER_H
 
 #include <QObject>
-#include <QList>
 #include <QPainterPath>
 #include <QRectF>
-#include <QVector>
+#include <vector>
 
+/**
+ * @class ShapeManager
+ * @brief Gère la liste des formes dessinées, la sélection et l'historique d'édition.
+ *
+ * @note Cette classe émet des signaux pour notifier les changements de formes
+ * et de sélection.
+ * @see CustomDrawArea
+ */
 class ShapeManager : public QObject
 {
     Q_OBJECT
@@ -24,15 +31,15 @@ public:
     void addShape(const Shape &shape);
     bool removeShape(int index);
     void clearShapes();
-    void setShapes(const QList<Shape> &shapes);
-    const QList<Shape> &shapes() const;
+    void setShapes(const std::vector<Shape> &shapes);
+    const std::vector<Shape> &shapes() const;
 
     // Selection lifecycle.
     void selectShape(int index);
     void deselectShape(int index);
-    void setSelectedShapes(const QVector<int> &indices);
+    void setSelectedShapes(const std::vector<int> &indices);
     void clearSelection();
-    const QVector<int> &selectedShapes() const;
+    const std::vector<int> &selectedShapes() const;
     QRectF selectedShapesBounds() const;
 
     // Undo/redo snapshot stack (state-only for now).
@@ -45,7 +52,7 @@ public:
 
     // Selection copy/paste helpers.
     void copySelectedShapes();
-    QList<Shape> pastedShapes(const QPointF &dest) const;
+    std::vector<Shape> pastedShapes(const QPointF &dest) const;
 
     // Connection helpers.
     void connectNearestEndpoints(int idx1, int idx2);
@@ -56,10 +63,10 @@ signals:
     void selectionChanged();
 
 private:
-    QList<Shape> m_shapes;
-    QVector<int> m_selectedShapes;
-    QList<QList<Shape>> m_undoStack;
-    QList<Shape> m_copiedShapes;
+    std::vector<Shape> m_shapes;
+    std::vector<int> m_selectedShapes;
+    std::vector<std::vector<Shape>> m_undoStack;
+    std::vector<Shape> m_copiedShapes;
     QPointF m_copyAnchor;
 };
 

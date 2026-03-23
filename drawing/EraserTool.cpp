@@ -87,7 +87,7 @@ void EraserTool::applyEraserAt(const QPointF &center)
 {
     if (!m_shapeManager) return;
 
-    QList<ShapeManager::Shape> newShapes;
+    std::vector<ShapeManager::Shape> newShapes;
     newShapes.reserve(m_shapeManager->shapes().size());
 
     const qreal r = m_eraseRadius;
@@ -101,13 +101,13 @@ void EraserTool::applyEraserAt(const QPointF &center)
 
     for (const auto &shape : m_shapeManager->shapes()) {
         if (shape.path.isEmpty()) {
-            newShapes.append(shape);
+            newShapes.push_back(shape);
             continue;
         }
 
         const QVector<QLineF> lines = pathToLines(shape.path);
         if (lines.isEmpty()) {
-            newShapes.append(shape);
+            newShapes.push_back(shape);
             continue;
         }
 
@@ -171,7 +171,7 @@ void EraserTool::applyEraserAt(const QPointF &center)
         }
 
         if (!changed) {
-            newShapes.append(shape);
+            newShapes.push_back(shape);
             continue;
         }
 
@@ -180,7 +180,7 @@ void EraserTool::applyEraserAt(const QPointF &center)
             ShapeManager::Shape rebuilt = shape;
             rebuilt.path = path;
             rebuilt.originalId = nextOriginalId++;
-            newShapes.append(rebuilt);
+            newShapes.push_back(rebuilt);
         }
     }
 

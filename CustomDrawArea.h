@@ -4,6 +4,7 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QWidget>
+#include <memory>
 #include "drawing/DrawModeManager.h"
 
 class QMouseEvent;
@@ -16,6 +17,14 @@ class ShapeManager;
 class ShapeRenderer;
 class TextTool;
 class ViewTransformer;
+
+/**
+ * @class CustomDrawArea
+ * @brief Surface de dessin interactive qui orchestre les managers de rendu, d'édition et d'historique.
+ *
+ * @note Cette classe centralise les interactions souris/clavier et relaie les signaux d'état de dessin.
+ * @see ShapeManager
+ */
 class CustomDrawArea : public QWidget
 {
     Q_OBJECT
@@ -88,13 +97,19 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
+    void onDrawModeChanged(DrawMode mode);
     QPointF toLogical(const QPointF &widgetPoint) const;
     QPointF snapToGridIfNeeded(const QPointF &logicalPoint) const;
     int hitTestShape(const QPointF &logicalPoint, qreal tolerance = 25.0) const;
 
-    ShapeManager *m_shapeManager; ShapeRenderer *m_renderer; DrawModeManager *m_modeManager;
-    HistoryManager *m_historyManager; ViewTransformer *m_transformer;
-    MouseInteractionHandler *m_mouseHandler; EraserTool *m_eraserTool; TextTool *m_textTool;
+    std::unique_ptr<ShapeManager> m_shapeManager;
+    std::unique_ptr<ShapeRenderer> m_renderer;
+    std::unique_ptr<DrawModeManager> m_modeManager;
+    std::unique_ptr<HistoryManager> m_historyManager;
+    std::unique_ptr<ViewTransformer> m_transformer;
+    std::unique_ptr<MouseInteractionHandler> m_mouseHandler;
+    std::unique_ptr<EraserTool> m_eraserTool;
+    std::unique_ptr<TextTool> m_textTool;
     QList<QPointF> m_strokePoints; QPointF m_startPoint; QPointF m_currentPoint;
     QList<QPointF> m_pointByPointPoints;
     int m_nextShapeId = 1; int m_smoothingLevel = 1; bool m_multiSelect = false;
