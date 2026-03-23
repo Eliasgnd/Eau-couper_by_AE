@@ -98,6 +98,9 @@ private:
     int m_nextShapeId = 1; int m_smoothingLevel = 1; bool m_multiSelect = false;
     bool m_pasteMode = false; bool m_drawing = false; bool m_twoFingersOn = false;
     bool m_selectMode = false; bool m_connectSelectionMode = false; bool m_closeMode = false;
+    bool m_gommeErasing = false;
+    QPointF m_gommeCenter;
+    QPointF m_lastEraserPos;
     QPointF m_lastSelectClick;
 };
 #endif // CUSTOMDRAWAREA_H
