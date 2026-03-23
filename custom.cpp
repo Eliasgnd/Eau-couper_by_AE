@@ -730,28 +730,6 @@ void custom::saveCustomShape() {
     Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
 }
 
-static QList<QPainterPath> separateIntoSubpaths(const QPainterPath &path)
-{
-    QList<QPainterPath> subpaths;
-    QPainterPath current;
-    int count = path.elementCount();
-    for (int i = 0; i < count; ++i) {
-        QPainterPath::Element e = path.elementAt(i);
-        if (e.isMoveTo()) {
-            if (!current.isEmpty())
-                subpaths.append(current);
-            current = QPainterPath();
-            current.moveTo(e.x, e.y);
-        } else {
-            current.lineTo(e.x, e.y);
-        }
-    }
-    if (!current.isEmpty())
-        subpaths.append(current);
-    return subpaths;
-}
-
-
 void custom::importerLogo()
 {
     QString filePath = QFileDialog::getOpenFileName(
@@ -793,7 +771,7 @@ void custom::importerLogo()
     scaledOutline.translate(offset);
     //qDebug() << "Bounding rect final (centré):" << scaledOutline.boundingRect();
 
-    QList<QPainterPath> subpaths = separateIntoSubpaths(scaledOutline);
+    QList<QPainterPath> subpaths = CustomDrawArea::separateIntoSubpaths(scaledOutline);
     //qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
     for (const QPainterPath &sp : subpaths) {
         drawArea->addImportedLogoSubpath(sp);
@@ -871,4 +849,3 @@ void custom::changeEvent(QEvent *event)
     }
     QWidget::changeEvent(event);
 }
-
