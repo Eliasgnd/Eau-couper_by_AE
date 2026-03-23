@@ -3,8 +3,8 @@
 #include "DrawModeManager.h"
 #include "ShapeManager.h"
 #include "ViewTransformer.h"
+#include <QtGlobal>
 
-#include <Q_ASSERT>
 #include <QMouseEvent>
 
 MouseInteractionHandler::MouseInteractionHandler(ShapeManager *shapeManager,

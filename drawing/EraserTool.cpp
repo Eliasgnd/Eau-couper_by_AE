@@ -1,8 +1,8 @@
 #include "EraserTool.h"
 
 #include "ShapeManager.h"
+#include <QtGlobal>
 
-#include <Q_ASSERT>
 #include <QLineF>
 #include <QPainterPath>
 #include <QtGlobal>

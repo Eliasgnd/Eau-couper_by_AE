@@ -52,6 +52,7 @@ HEADERS += \
     NavigationController.h \
     AIServiceManager.h \
     ImportedImageGeometryHelper.h \
+    GeometryUtils.h \
     drawing/ShapeManager.h \
     drawing/ShapeRenderer.h \
     drawing/DrawModeManager.h \
@@ -86,6 +87,7 @@ SOURCES += \
     NavigationController.cpp \
     AIServiceManager.cpp \
     ImportedImageGeometryHelper.cpp \
+    GeometryUtils.cpp \
     drawing/ShapeManager.cpp \
     drawing/ShapeRenderer.cpp \
     drawing/DrawModeManager.cpp \

@@ -1,8 +1,7 @@
 #include "HistoryManager.h"
 
 #include "ShapeManager.h"
-
-#include <Q_ASSERT>
+#include <QtGlobal>
 
 HistoryManager::HistoryManager(ShapeManager *shapeManager, QObject *parent)
     : QObject(parent)

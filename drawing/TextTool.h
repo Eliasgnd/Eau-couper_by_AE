@@ -2,8 +2,8 @@
 #define TEXTTOOL_H
 
 #include <QObject>
+#include <QFont>
 
-class QFont;
 class QString;
 
 class TextTool : public QObject
