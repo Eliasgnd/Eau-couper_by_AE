@@ -82,6 +82,7 @@ public slots:
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -95,6 +96,7 @@ private:
     HistoryManager *m_historyManager; ViewTransformer *m_transformer;
     MouseInteractionHandler *m_mouseHandler; EraserTool *m_eraserTool; TextTool *m_textTool;
     QList<QPointF> m_strokePoints; QPointF m_startPoint; QPointF m_currentPoint;
+    QList<QPointF> m_pointByPointPoints;
     int m_nextShapeId = 1; int m_smoothingLevel = 1; bool m_multiSelect = false;
     bool m_pasteMode = false; bool m_drawing = false; bool m_twoFingersOn = false;
     bool m_selectMode = false; bool m_connectSelectionMode = false; bool m_closeMode = false;
