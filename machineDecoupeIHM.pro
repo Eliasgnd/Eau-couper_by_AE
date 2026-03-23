@@ -1,5 +1,4 @@
 QT += core gui widgets svg network bluetooth httpserver openglwidgets
-QT += openglwidgets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -8,7 +7,7 @@ TARGET  = machineDecoupeIHM
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
     CONFIG += link_pkgconfig
-    PKGCONFIG += opencv4 libgpiod Qt6HttpServer
+    PKGCONFIG += opencv4 libgpiod
 }
 
 # ==== PLATEFORME WINDOWS ====
