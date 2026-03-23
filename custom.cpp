@@ -278,13 +278,6 @@ custom::custom(Language lang, QWidget *parent)
 
     // ----------------- Fonctions complémentaires -----------------
 
-    // Bouton "Gomme" : active le mode gomme
-    connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
-        drawArea->setDrawMode(CustomDrawArea::DrawMode::Gomme);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::Gomme);
-        //qDebug() << "Mode Gomme sélectionné";
-    });
-
     // Configuration du slider de lissage
     ui->smoothingSlider->setMinimum(0);
     ui->smoothingSlider->setMaximum(10);
@@ -438,15 +431,6 @@ custom::custom(Language lang, QWidget *parent)
     });
 
     // --- Connexions pour les autres boutons ---
-    connect(ui->buttonSupprimer, &QPushButton::clicked, this, [this]() {
-        if (drawArea->hasSelection()) {
-            drawArea->deleteSelectedShapes();
-        } else {
-            drawArea->setDrawMode(CustomDrawArea::DrawMode::Supprimer);
-            updateFormeButtonIcon(CustomDrawArea::DrawMode::Supprimer);
-            //qDebug() << "Mode Supprimer sélectionné";
-        }
-    });
     connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
         if (drawArea->isDeplacerMode()) {
             // ✅ Si déjà activé → désactive
@@ -464,16 +448,22 @@ custom::custom(Language lang, QWidget *parent)
 
         ui->buttonDeplacer->setProperty("deplacerMode", enabled);
         qDebug() << "[UI] Property appliquée à buttonDeplacer ="
-                 << ui->buttonDeplacer->property("closeMode").toBool();
+                 << ui->buttonDeplacer->property("deplacerMode").toBool();
 //        ui->buttonDeplacer->setText(enabled ? "DÉPLACER ✅" : "DÉPLACER");
         ui->buttonDeplacer->setStyleSheet(ui->buttonDeplacer->styleSheet());
 
         ui->buttonDeplacer->update();
+        if (enabled) updateFormeButtonIcon(CustomDrawArea::DrawMode::Deplacer);
     });
 
     qDebug() << "[DEBUG] Connexion faite avec deplacerModeChanged";
 
     connect(ui->buttonSupprimer, &QPushButton::clicked, this, [this]() {
+        if (drawArea->hasSelection()) {
+            drawArea->deleteSelectedShapes();
+            return;
+        }
+
         if (drawArea->isSupprimerMode()) {
             drawArea->cancelSupprimerMode();
         } else {
@@ -490,6 +480,7 @@ custom::custom(Language lang, QWidget *parent)
 
                 ui->buttonSupprimer->setStyleSheet(ui->buttonSupprimer->styleSheet());
                 ui->buttonSupprimer->update();
+                if (enabled) updateFormeButtonIcon(CustomDrawArea::DrawMode::Supprimer);
             });
 
     connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
@@ -510,6 +501,7 @@ custom::custom(Language lang, QWidget *parent)
 
                 ui->buttonGomme->setStyleSheet(ui->buttonGomme->styleSheet());
                 ui->buttonGomme->update();
+                if (enabled) updateFormeButtonIcon(CustomDrawArea::DrawMode::Gomme);
             });
 
 

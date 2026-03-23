@@ -18,10 +18,10 @@ bool ShapeRenderer::isSnapToGridEnabled() const { return m_snapToGrid; }
 void ShapeRenderer::setGridSpacing(int spacing) { m_gridSpacing = qMax(1, spacing); }
 int ShapeRenderer::gridSpacing() const { return m_gridSpacing; }
 
-void ShapeRenderer::render(QPainter &painter, const ShapeManager &shapeManager) const
+void ShapeRenderer::render(QPainter &painter, const ShapeManager &shapeManager, const QRectF &visibleArea) const
 {
     if (m_showGrid) {
-        drawGrid(painter, painter.clipBoundingRect());
+        drawGrid(painter, visibleArea);
     }
 
     drawShapes(painter, shapeManager);

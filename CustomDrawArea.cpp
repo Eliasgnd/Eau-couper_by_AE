@@ -16,6 +16,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent)
@@ -132,18 +133,28 @@ void CustomDrawArea::startSupprimerMode() { m_modeManager->startSupprimerMode();
 void CustomDrawArea::cancelSupprimerMode() { m_modeManager->cancelSupprimerMode(); }
 void CustomDrawArea::startGommeMode() { m_modeManager->startGommeMode(); }
 void CustomDrawArea::cancelGommeMode() { m_modeManager->cancelGommeMode(); }
-void CustomDrawArea::setSmoothingLevel(int level) { m_smoothingLevel = qMax(1, level); emit smoothingLevelChanged(m_smoothingLevel); }
+void CustomDrawArea::setSmoothingLevel(int level) { m_smoothingLevel = qMax(0, level); emit smoothingLevelChanged(m_smoothingLevel); }
 void CustomDrawArea::setTwoFingersOn(bool active) { m_twoFingersOn = active; }
 
 void CustomDrawArea::handlePinchZoom(QPointF center, qreal factor)
 {
-    Q_UNUSED(center)
-    m_transformer->setScale(m_transformer->scale() * factor);
+    const qreal oldScale = m_transformer->scale();
+    const QPointF logicalCenter = toLogical(center);
+    m_transformer->setScale(oldScale * factor);
+    m_transformer->setOffset(center - logicalCenter * m_transformer->scale());
 }
 
 QPointF CustomDrawArea::toLogical(const QPointF &widgetPoint) const
 {
     return (widgetPoint - m_transformer->offset()) / m_transformer->scale();
+}
+
+QPointF CustomDrawArea::snapToGridIfNeeded(const QPointF &logicalPoint) const
+{
+    if (!m_renderer->isSnapToGridEnabled()) return logicalPoint;
+    const int spacing = qMax(1, m_renderer->gridSpacing());
+    return QPointF(std::round(logicalPoint.x() / spacing) * spacing,
+                   std::round(logicalPoint.y() / spacing) * spacing);
 }
 
 void CustomDrawArea::paintEvent(QPaintEvent *event)
@@ -155,7 +166,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     painter.translate(m_transformer->offset());
     painter.scale(m_transformer->scale(), m_transformer->scale());
 
-    m_renderer->render(painter, *m_shapeManager);
+    const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)), toLogical(QPointF(width(), height()))).normalized();
+    m_renderer->render(painter, *m_shapeManager, visibleArea);
 
     if (m_drawing && m_strokePoints.size() > 1) {
         painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
@@ -165,7 +177,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
-    const QPointF logical = toLogical(event->position());
+    const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
     m_mouseHandler->handleMousePress(event, logical);
 
     if (event->button() == Qt::RightButton && m_pasteMode) {
@@ -186,9 +198,14 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
-    const QPointF logical = toLogical(event->position());
+    const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
     m_mouseHandler->handleMouseMove(event, logical);
     if (!m_drawing) return;
+
+    if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer ||
+        getDrawMode() == DrawMode::Pan) {
+        return;
+    }
 
     m_currentPoint = logical;
     if (getDrawMode() == DrawMode::Gomme) {
@@ -201,11 +218,17 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
-    const QPointF logical = toLogical(event->position());
+    const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
     m_mouseHandler->handleMouseRelease(event, logical);
     if (!m_drawing) return;
 
     m_drawing = false;
+    if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer ||
+        getDrawMode() == DrawMode::Pan) {
+        m_historyManager->pushState();
+        return;
+    }
+
     if (getDrawMode() == DrawMode::Gomme) {
         m_historyManager->pushState();
         return;
@@ -241,6 +264,10 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 void CustomDrawArea::wheelEvent(QWheelEvent *event)
 {
     const qreal factor = event->angleDelta().y() > 0 ? 1.1 : 0.9;
+    const QPointF cursor = event->position();
+    const QPointF logicalAtCursor = toLogical(cursor);
+
     m_transformer->setScale(m_transformer->scale() * factor);
+    m_transformer->setOffset(cursor - logicalAtCursor * m_transformer->scale());
     event->accept();
 }

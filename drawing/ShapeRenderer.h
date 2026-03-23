@@ -2,6 +2,7 @@
 #define SHAPERENDERER_H
 
 #include <QObject>
+#include <QRectF>
 
 class QPainter;
 class ShapeManager;
@@ -19,7 +20,7 @@ public:
     void setGridSpacing(int spacing);
     int gridSpacing() const;
 
-    void render(QPainter &painter, const ShapeManager &shapeManager) const;
+    void render(QPainter &painter, const ShapeManager &shapeManager, const QRectF &visibleArea) const;
 
 private:
     void drawGrid(QPainter &painter, const QRectF &visibleArea) const;
