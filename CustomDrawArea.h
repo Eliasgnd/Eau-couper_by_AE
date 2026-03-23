@@ -5,10 +5,12 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QWidget>
+#include <vector>
 #include <memory>
 
 #include "drawing/DrawModeManager.h"
 #include "drawing/DrawingState.h"
+#include "drawing/ShapeManager.h"
 
 class QMouseEvent;
 class QPaintEvent;
@@ -16,7 +18,6 @@ class QWheelEvent;
 class EraserTool;
 class HistoryManager;
 class MouseInteractionHandler;
-class ShapeManager;
 class ShapeRenderer;
 class TextTool;
 class ViewTransformer;
@@ -136,6 +137,10 @@ private:
     bool     m_connectSelectionMode= false;
     bool     m_closeMode           = false;
     QPointF  m_lastSelectClick;
+
+    // Snapshot pour permettre Undo/Redo d'un déplacement de forme.
+    std::vector<ShapeManager::Shape> m_moveStartState;
+    bool                             m_moveInProgress = false;
 };
 
 #endif // CUSTOMDRAWAREA_H
