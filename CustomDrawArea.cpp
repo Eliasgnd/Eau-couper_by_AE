@@ -1,4 +1,12 @@
 #include "CustomDrawArea.h"
+#include "DrawModeManager.h"
+#include "EraserTool.h"
+#include "GestureHandler.h"
+#include "HistoryManager.h"
+#include "MouseInteractionHandler.h"
+#include "ShapeManager.h"
+#include "ShapeRenderer.h"
+#include "ViewTransformer.h"
 #include "skeletonizer.h"
 
 #include <QPainter>
@@ -63,7 +71,15 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     m_snapToGrid(false),
     m_showGrid(true),
     m_gridSpacing(20),
-    m_minPointDistance(2.0)
+    m_minPointDistance(2.0),
+    m_shapeManager(new ShapeManager(this)),
+    m_shapeRenderer(new ShapeRenderer(this)),
+    m_modeManager(new DrawModeManager(this)),
+    m_historyManager(new HistoryManager(this)),
+    m_mouseHandler(new MouseInteractionHandler(this)),
+    m_transformer(new ViewTransformer(this)),
+    m_eraserTool(new EraserTool(this)),
+    m_gestureHandler(new GestureHandler(this))
 
 {
     setMouseTracking(true);
@@ -96,6 +112,24 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
 
     m_touchReader->start();          // ← on lance le thread UNE seule fois
     m_handleRenderer.load(QStringLiteral(":/icons/rotate.svg"));
+
+    connect(m_shapeManager, &ShapeManager::shapesChanged, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_shapeManager, &ShapeManager::selectionChanged, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_modeManager, &DrawModeManager::drawModeChanged, this, [this](DrawModeManager::DrawMode mode) {
+        m_drawMode = static_cast<DrawMode>(mode);
+        emit drawModeChanged(m_drawMode);
+        update();
+    });
+    connect(m_eraserTool, &EraserTool::eraseRequested, this, &CustomDrawArea::applyEraserAt);
+    connect(m_transformer, &ViewTransformer::zoomChanged, this, [this](qreal newScale) {
+        m_scale = newScale;
+        emit zoomChanged(m_scale);
+    });
+    connect(m_transformer, &ViewTransformer::viewTransformed, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_mouseHandler, &MouseInteractionHandler::mousePressed, this, [this](const QPointF &) { update(); });
+    connect(m_mouseHandler, &MouseInteractionHandler::mouseMoved, this, [this](const QPointF &) { update(); });
+    connect(m_mouseHandler, &MouseInteractionHandler::mouseReleased, this, [this](const QPointF &) { update(); });
+    connect(m_gestureHandler, &GestureHandler::pinchZoomRequested, this, &CustomDrawArea::onPinchZoom);
 
 }
 
@@ -530,6 +564,8 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
         setSmoothingLevel(0);
 
     update();
+    if (m_modeManager && m_modeManager->drawMode() != static_cast<DrawModeManager::DrawMode>(m_drawMode))
+        m_modeManager->setDrawMode(static_cast<DrawModeManager::DrawMode>(m_drawMode));
     emit drawModeChanged(mode);
 }
 
@@ -564,6 +600,7 @@ QList<QPolygonF> CustomDrawArea::getCustomShapes() const
 void CustomDrawArea::clearDrawing()
 {
     m_shapes.clear();
+    if (m_shapeManager) m_shapeManager->clearShapes();
     m_freehandPoints.clear();
     m_undoStack.clear();
     updateCanvas();
@@ -574,6 +611,7 @@ void CustomDrawArea::clearDrawing()
 void CustomDrawArea::setEraserRadius(qreal radius)
 {
     m_gommeRadius = radius;
+    if (m_eraserTool) m_eraserTool->setEraserRadius(radius);
     update();
 }
 
@@ -681,6 +719,10 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
     if (m_twoFingersOn)
         return;
+    if (m_mouseHandler) {
+        const QPointF logicalPos = (event->pos() - m_offset) / m_scale;
+        m_mouseHandler->handleMousePress(event, logicalPos);
+    }
 
     QPointF raw = (event->pos() - m_offset) / m_scale;
     QPointF pos = clampToCanvas(snapIfNeeded(raw));
@@ -1092,6 +1134,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
+    if (m_mouseHandler) {
+        const QPointF logicalPos = (event->pos() - m_offset) / m_scale;
+        m_mouseHandler->handleMouseMove(event, logicalPos);
+    }
+
     QPointF raw = (event->pos() - m_offset) / m_scale;
     QPointF pos = clampToCanvas(snapIfNeeded(raw));
 
@@ -1217,6 +1264,11 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (m_mouseHandler) {
+        const QPointF logicalPos = (event->pos() - m_offset) / m_scale;
+        m_mouseHandler->handleMouseRelease(event, logicalPos);
+    }
+
     if (m_rotating) {
         m_rotating = false;
         m_lastAngle = 0;  // Important : reset l'angle de référence
@@ -1371,14 +1423,16 @@ void CustomDrawArea::wheelEvent(QWheelEvent *event)
 {
     double oldScale = m_scale;
     QPointF mousePos = event->position();
-    if (event->angleDelta().y() > 0)
-        m_scale *= 1.1;
-    else
-        m_scale /= 1.1;
-    if (m_scale < 1.0)
-        m_scale = 1.0;
-    if (m_scale > 10.0)
-        m_scale = 10.0;
+    const qreal scaleFactor = event->angleDelta().y() > 0 ? 1.1 : (1.0 / 1.1);
+    const qreal requestedScale = m_scale * scaleFactor;
+    if (m_transformer) {
+        m_transformer->setScale(requestedScale);
+        m_scale = m_transformer->scale();
+    } else {
+        m_scale = requestedScale;
+        if (m_scale < 1.0) m_scale = 1.0;
+        if (m_scale > 10.0) m_scale = 10.0;
+    }
     m_offset = mousePos - (m_scale / oldScale) * (mousePos - m_offset);
     if (m_scale == 1.0)
         m_offset = QPointF(0,0);
@@ -1423,12 +1477,22 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     painter.translate(m_offset);
     painter.scale(m_scale, m_scale);
 
-    // 1) Grille (dessinée en-dessous)
-    if (m_showGrid) {
+    // 1) Rendu délégué (grid + formes), puis canvas historique
+    if (m_shapeRenderer && m_shapeManager) {
+        m_shapeRenderer->setGridVisible(m_showGrid);
+        m_shapeRenderer->setSnapToGridEnabled(m_snapToGrid);
+        m_shapeRenderer->setGridSpacing(m_gridSpacing);
+        QList<ShapeManager::Shape> managedShapes;
+        managedShapes.reserve(m_shapes.size());
+        for (const Shape &shape : std::as_const(m_shapes))
+            managedShapes.append({shape.path, shape.originalId, shape.rotationAngle});
+        m_shapeManager->setShapes(managedShapes);
+        m_shapeManager->setSelectedShapes(m_selectedShapes);
+        m_shapeRenderer->render(painter, *m_shapeManager);
+    } else if (m_showGrid) {
         drawGrid(painter);
     }
 
-    // Le canvas contient déjà le résultat réel (formes moins la gomme vectorielle)
     painter.drawImage(0, 0, m_canvas);
 
     // 3) Overlay de sélection (UNIQUEMENT les formes sélectionnées)
@@ -1549,6 +1613,7 @@ void CustomDrawArea::addImportedLogo(const QPainterPath &logoPath) {
     s.path = logoPath;
     s.originalId = m_nextShapeId++; // Génère un identifiant unique
     m_shapes.append(s);
+    if (m_shapeManager) m_shapeManager->addImportedLogo(logoPath, s.originalId);
     pushState();
     const QRectF dirtyLogical = s.path.boundingRect();
     updateCanvas(dirtyLogical);
@@ -1561,6 +1626,7 @@ void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath)
     s.path = subpath;
     s.originalId = m_nextShapeId++;  // Génère un identifiant unique pour ce trait
     m_shapes.append(s);
+    if (m_shapeManager) m_shapeManager->addImportedLogoSubpath(subpath, s.originalId);
     pushState();
     const QRectF dirtyLogical = s.path.boundingRect();
     updateCanvas(dirtyLogical);
@@ -1909,6 +1975,9 @@ void CustomDrawArea::onPinchZoom(const QPointF &center, qreal scaleFactor)
 
 bool CustomDrawArea::gestureEvent(QGestureEvent *event)
 {
+    if (m_gestureHandler && m_gestureHandler->handleGestureEvent(event))
+        return true;
+
     if (QGesture *pinch = event->gesture(Qt::PinchGesture)) {
         return pinchTriggered(static_cast<QPinchGesture *>(pinch));
     }
