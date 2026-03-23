@@ -52,14 +52,16 @@ HEADERS += \
     NavigationController.h \
     AIServiceManager.h \
     ImportedImageGeometryHelper.h \
-    ShapeManager.h \
-    ShapeRenderer.h \
-    DrawModeManager.h \
-    HistoryManager.h \
-    MouseInteractionHandler.h \
-    ViewTransformer.h \
-    EraserTool.h \
-    GestureHandler.h
+    drawing/ShapeManager.h \
+    drawing/ShapeRenderer.h \
+    drawing/DrawModeManager.h \
+    drawing/HistoryManager.h \
+    drawing/MouseInteractionHandler.h \
+    drawing/ViewTransformer.h \
+    drawing/EraserTool.h \
+    GestureHandler.h \
+    drawing/TextTool.h \
+    drawing/PathGenerator.h
 
 
 SOURCES += \
@@ -84,14 +86,16 @@ SOURCES += \
     NavigationController.cpp \
     AIServiceManager.cpp \
     ImportedImageGeometryHelper.cpp \
-    ShapeManager.cpp \
-    ShapeRenderer.cpp \
-    DrawModeManager.cpp \
-    HistoryManager.cpp \
-    MouseInteractionHandler.cpp \
-    ViewTransformer.cpp \
-    EraserTool.cpp \
-    GestureHandler.cpp
+    drawing/ShapeManager.cpp \
+    drawing/ShapeRenderer.cpp \
+    drawing/DrawModeManager.cpp \
+    drawing/HistoryManager.cpp \
+    drawing/MouseInteractionHandler.cpp \
+    drawing/ViewTransformer.cpp \
+    drawing/EraserTool.cpp \
+    GestureHandler.cpp \
+    drawing/TextTool.cpp \
+    drawing/PathGenerator.cpp
 
 FORMS += \
     BluetoothReceiverDialog.ui \

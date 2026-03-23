@@ -1,6 +1,7 @@
 #include <QtTest>
 #include "placement_tests.h"
 #include "inventory_safety_tests.h"
+#include "shape_manager_tests.h"
 
 int main(int argc, char **argv)
 {
@@ -11,6 +12,10 @@ int main(int argc, char **argv)
     }
     {
         InventorySafetyTests tc;
+        status |= QTest::qExec(&tc, argc, argv);
+    }
+    {
+        ShapeManagerTests tc;
         status |= QTest::qExec(&tc, argc, argv);
     }
     return status;
