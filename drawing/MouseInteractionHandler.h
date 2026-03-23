@@ -9,6 +9,13 @@ class DrawModeManager;
 class ShapeManager;
 class ViewTransformer;
 
+/**
+ * @class MouseInteractionHandler
+ * @brief Gère les interactions souris bas niveau (pan, déplacement, suppression).
+ *
+ * @note Cette classe délègue les modifications de données à ShapeManager.
+ * @see CustomDrawArea
+ */
 class MouseInteractionHandler : public QObject
 {
     Q_OBJECT

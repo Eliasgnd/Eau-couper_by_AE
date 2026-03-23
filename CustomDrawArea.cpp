@@ -17,45 +17,48 @@
 #include <QPainter>
 #include <QPainterPathStroker>
 #include <QWheelEvent>
+#include <QtGlobal>
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <vector>
 
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent)
-    , m_shapeManager(new ShapeManager(this))
-    , m_renderer(new ShapeRenderer(this))
-    , m_modeManager(new DrawModeManager(this))
-    , m_historyManager(new HistoryManager(m_shapeManager, this))
-    , m_transformer(new ViewTransformer(this))
-    , m_mouseHandler(new MouseInteractionHandler(m_shapeManager, m_modeManager, m_transformer, this))
-    , m_eraserTool(new EraserTool(m_shapeManager, this))
-    , m_textTool(new TextTool(this))
+    , m_shapeManager(std::make_unique<ShapeManager>(this))
+    , m_renderer(std::make_unique<ShapeRenderer>(this))
+    , m_modeManager(std::make_unique<DrawModeManager>(this))
+    , m_historyManager(std::make_unique<HistoryManager>(m_shapeManager.get(), this))
+    , m_transformer(std::make_unique<ViewTransformer>(this))
+    , m_mouseHandler(std::make_unique<MouseInteractionHandler>(
+          m_shapeManager.get(), m_modeManager.get(), m_transformer.get(), this))
+    , m_eraserTool(std::make_unique<EraserTool>(m_shapeManager.get(), this))
+    , m_textTool(std::make_unique<TextTool>(this))
 {
     setMouseTracking(true);
     setAutoFillBackground(true);
 
-    connect(m_shapeManager, &ShapeManager::shapesChanged, this, QOverload<>::of(&CustomDrawArea::update));
-    connect(m_shapeManager, &ShapeManager::selectionChanged, this, QOverload<>::of(&CustomDrawArea::update));
-    connect(m_mouseHandler, &MouseInteractionHandler::requestUpdate, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_shapeManager.get(), &ShapeManager::shapesChanged, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_shapeManager.get(), &ShapeManager::selectionChanged, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_mouseHandler.get(), &MouseInteractionHandler::requestUpdate, this, QOverload<>::of(&CustomDrawArea::update));
 
-    connect(m_modeManager, &DrawModeManager::drawModeChanged, this, [this](DrawModeManager::DrawMode mode) {
-        emit drawModeChanged(mode);
-        update();
-    });
-    connect(m_modeManager, &DrawModeManager::closeModeChanged, this, &CustomDrawArea::closeModeChanged);
-    connect(m_modeManager, &DrawModeManager::deplacerModeChanged, this, &CustomDrawArea::deplacerModeChanged);
-    connect(m_modeManager, &DrawModeManager::supprimerModeChanged, this, &CustomDrawArea::supprimerModeChanged);
-    connect(m_modeManager, &DrawModeManager::gommeModeChanged, this, &CustomDrawArea::gommeModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::drawModeChanged, this, &CustomDrawArea::onDrawModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::closeModeChanged, this, &CustomDrawArea::closeModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::deplacerModeChanged, this, &CustomDrawArea::deplacerModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::supprimerModeChanged, this, &CustomDrawArea::supprimerModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::gommeModeChanged, this, &CustomDrawArea::gommeModeChanged);
 
-    connect(m_transformer, &ViewTransformer::zoomChanged, this, &CustomDrawArea::zoomChanged);
-    connect(m_transformer, &ViewTransformer::viewTransformed, this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_transformer.get(), &ViewTransformer::zoomChanged, this, &CustomDrawArea::zoomChanged);
+    connect(m_transformer.get(), &ViewTransformer::viewTransformed, this, QOverload<>::of(&CustomDrawArea::update));
 
+    Q_ASSERT(m_historyManager != nullptr);
     m_historyManager->pushState();
 }
 
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
+    Q_ASSERT(m_modeManager != nullptr);
     if (m_selectMode) cancelSelection();
     if (m_closeMode) cancelCloseMode();
     m_gommeErasing = false;
@@ -63,24 +66,69 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
     m_drawing = false;
     m_modeManager->setDrawMode(mode);
 }
-CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const { return m_modeManager->drawMode(); }
-void CustomDrawArea::restorePreviousMode() { m_modeManager->restorePreviousMode(); }
+CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const
+{
+    Q_ASSERT(m_modeManager != nullptr);
+    return m_modeManager->drawMode();
+}
+void CustomDrawArea::restorePreviousMode()
+{
+    Q_ASSERT(m_modeManager != nullptr);
+    m_modeManager->restorePreviousMode();
+}
 
 QList<QPolygonF> CustomDrawArea::getCustomShapes() const
 {
+    Q_ASSERT(m_shapeManager != nullptr);
     QList<QPolygonF> polygons;
     polygons.reserve(m_shapeManager->shapes().size());
     for (const auto &shape : m_shapeManager->shapes()) polygons.append(shape.path.toFillPolygon());
     return polygons;
 }
 
-void CustomDrawArea::clearDrawing() { m_shapeManager->clearShapes(); m_historyManager->pushState(); }
-void CustomDrawArea::undoLastAction() { m_historyManager->undoLastAction(); }
-void CustomDrawArea::setEraserRadius(qreal radius) { m_eraserTool->setEraserRadius(radius); }
-void CustomDrawArea::addImportedLogo(const QPainterPath &logoPath) { m_shapeManager->addImportedLogo(logoPath, m_nextShapeId++); }
-void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath) { m_shapeManager->addImportedLogoSubpath(subpath, m_nextShapeId++); }
-void CustomDrawArea::setTextFont(const QFont &font) { m_textTool->setTextFont(font); }
-QFont CustomDrawArea::getTextFont() const { return m_textTool->getTextFont(); }
+void CustomDrawArea::clearDrawing()
+{
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
+    m_shapeManager->clearShapes();
+    m_historyManager->pushState();
+}
+void CustomDrawArea::undoLastAction()
+{
+    Q_ASSERT(m_historyManager != nullptr);
+    m_historyManager->undoLastAction();
+}
+void CustomDrawArea::setEraserRadius(qreal radius)
+{
+    Q_ASSERT(m_eraserTool != nullptr);
+    m_eraserTool->setEraserRadius(radius);
+}
+void CustomDrawArea::addImportedLogo(const QPainterPath &logoPath)
+{
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
+    m_shapeManager->addImportedLogo(logoPath, m_nextShapeId++);
+    m_historyManager->pushState();
+    update();
+}
+void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath)
+{
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
+    m_shapeManager->addImportedLogoSubpath(subpath, m_nextShapeId++);
+    m_historyManager->pushState();
+    update();
+}
+void CustomDrawArea::setTextFont(const QFont &font)
+{
+    Q_ASSERT(m_textTool != nullptr);
+    m_textTool->setTextFont(font);
+}
+QFont CustomDrawArea::getTextFont() const
+{
+    Q_ASSERT(m_textTool != nullptr);
+    return m_textTool->getTextFont();
+}
 
 void CustomDrawArea::startShapeSelection()
 {
@@ -122,10 +170,16 @@ void CustomDrawArea::toggleMultiSelectMode()
     }
     update();
 }
-bool CustomDrawArea::hasSelection() const { return !m_shapeManager->selectedShapes().isEmpty(); }
+bool CustomDrawArea::hasSelection() const
+{
+    Q_ASSERT(m_shapeManager != nullptr);
+    return !m_shapeManager->selectedShapes().empty();
+}
 
 void CustomDrawArea::deleteSelectedShapes()
 {
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
     auto selected = m_shapeManager->selectedShapes();
     std::sort(selected.begin(), selected.end(), std::greater<int>());
     for (int index : selected) m_shapeManager->removeShape(index);
@@ -136,27 +190,39 @@ void CustomDrawArea::deleteSelectedShapes()
     m_historyManager->pushState();
 }
 
-void CustomDrawArea::copySelectedShapes() { m_shapeManager->copySelectedShapes(); }
+void CustomDrawArea::copySelectedShapes()
+{
+    Q_ASSERT(m_shapeManager != nullptr);
+    m_shapeManager->copySelectedShapes();
+}
 void CustomDrawArea::enablePasteMode() { m_pasteMode = true; }
 
 void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
 {
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
     const auto pasted = m_shapeManager->pastedShapes(dest);
     for (const auto &shape : pasted) m_shapeManager->addShape(shape.path, m_nextShapeId++);
     m_historyManager->pushState();
 }
 
-void CustomDrawArea::setSnapToGridEnabled(bool enabled) { m_renderer->setSnapToGridEnabled(enabled); update(); }
-bool CustomDrawArea::isSnapToGridEnabled() const { return m_renderer->isSnapToGridEnabled(); }
-void CustomDrawArea::setGridVisible(bool visible) { m_renderer->setGridVisible(visible); update(); }
-bool CustomDrawArea::isGridVisible() const { return m_renderer->isGridVisible(); }
-void CustomDrawArea::setGridSpacing(int px) { m_renderer->setGridSpacing(px); update(); }
-int CustomDrawArea::gridSpacing() const { return m_renderer->gridSpacing(); }
+void CustomDrawArea::setSnapToGridEnabled(bool enabled) { Q_ASSERT(m_renderer != nullptr); m_renderer->setSnapToGridEnabled(enabled); update(); }
+bool CustomDrawArea::isSnapToGridEnabled() const { Q_ASSERT(m_renderer != nullptr); return m_renderer->isSnapToGridEnabled(); }
+void CustomDrawArea::setGridVisible(bool visible) { Q_ASSERT(m_renderer != nullptr); m_renderer->setGridVisible(visible); update(); }
+bool CustomDrawArea::isGridVisible() const { Q_ASSERT(m_renderer != nullptr); return m_renderer->isGridVisible(); }
+void CustomDrawArea::setGridSpacing(int px) { Q_ASSERT(m_renderer != nullptr); m_renderer->setGridSpacing(px); update(); }
+int CustomDrawArea::gridSpacing() const { Q_ASSERT(m_renderer != nullptr); return m_renderer->gridSpacing(); }
 
 bool CustomDrawArea::isDeplacerMode() const { return getDrawMode() == DrawMode::Deplacer; }
 bool CustomDrawArea::isSupprimerMode() const { return getDrawMode() == DrawMode::Supprimer; }
 bool CustomDrawArea::isGommeMode() const { return getDrawMode() == DrawMode::Gomme; }
 bool CustomDrawArea::isConnectMode() const { return m_selectMode && m_connectSelectionMode; }
+
+void CustomDrawArea::onDrawModeChanged(DrawModeManager::DrawMode mode)
+{
+    emit drawModeChanged(mode);
+    update();
+}
 
 QList<QPainterPath> CustomDrawArea::separateIntoSubpaths(const QPainterPath &path)
 {
@@ -234,11 +300,13 @@ void CustomDrawArea::handlePinchZoom(QPointF center, qreal factor)
 
 QPointF CustomDrawArea::toLogical(const QPointF &widgetPoint) const
 {
+    Q_ASSERT(m_transformer != nullptr);
     return (widgetPoint - m_transformer->offset()) / m_transformer->scale();
 }
 
 QPointF CustomDrawArea::snapToGridIfNeeded(const QPointF &logicalPoint) const
 {
+    Q_ASSERT(m_renderer != nullptr);
     if (!m_renderer->isSnapToGridEnabled()) return logicalPoint;
     const int spacing = qMax(1, m_renderer->gridSpacing());
     return QPointF(std::round(logicalPoint.x() / spacing) * spacing,
@@ -247,10 +315,11 @@ QPointF CustomDrawArea::snapToGridIfNeeded(const QPointF &logicalPoint) const
 
 int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) const
 {
+    Q_ASSERT(m_shapeManager != nullptr);
     const auto &shapes = m_shapeManager->shapes();
     QPainterPathStroker stroker;
     stroker.setWidth(tolerance);
-    for (int i = shapes.size() - 1; i >= 0; --i) {
+    for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
         if (stroker.createStroke(shapes[i].path).contains(logicalPoint)) return i;
     }
     return -1;
@@ -259,6 +328,10 @@ int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) c
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_renderer != nullptr);
+    Q_ASSERT(m_transformer != nullptr);
+    Q_ASSERT(m_eraserTool != nullptr);
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
@@ -268,7 +341,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)), toLogical(QPointF(width(), height()))).normalized();
     m_renderer->render(painter, *m_shapeManager, visibleArea);
 
-    if (!m_shapeManager->selectedShapes().isEmpty()) {
+    if (!m_shapeManager->selectedShapes().empty()) {
         QPen halo(Qt::cyan, 6);
         halo.setCosmetic(true);
         QPen normal(Qt::black, 2);
@@ -320,6 +393,11 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
+    Q_ASSERT(m_mouseHandler != nullptr);
+    Q_ASSERT(m_textTool != nullptr);
+    Q_ASSERT(m_eraserTool != nullptr);
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
     m_currentPoint = logical;
 
@@ -358,10 +436,13 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         const int hit = hitTestShape(logical);
         if (hit >= 0) {
             m_lastSelectClick = logical;
-            QVector<int> selected = m_shapeManager->selectedShapes();
-            const bool alreadySelected = selected.contains(hit);
-            if (alreadySelected) selected.removeAll(hit);
-            else selected.append(hit);
+            std::vector<int> selected = m_shapeManager->selectedShapes();
+            const bool alreadySelected = std::find(selected.begin(), selected.end(), hit) != selected.end();
+            if (alreadySelected) {
+                selected.erase(std::remove(selected.begin(), selected.end(), hit), selected.end());
+            } else {
+                selected.push_back(hit);
+            }
             m_shapeManager->setSelectedShapes(selected);
 
             if (m_connectSelectionMode && selected.size() == 2) {
@@ -419,6 +500,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
 {
+    Q_ASSERT(m_shapeManager != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
         const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
         if (m_pointByPointPoints.isEmpty()) return;
@@ -447,6 +530,8 @@ void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
+    Q_ASSERT(m_mouseHandler != nullptr);
+    Q_ASSERT(m_eraserTool != nullptr);
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
 
     if (getDrawMode() == DrawMode::PointParPoint && !m_pointByPointPoints.isEmpty()) {
@@ -476,6 +561,9 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
+    Q_ASSERT(m_mouseHandler != nullptr);
+    Q_ASSERT(m_historyManager != nullptr);
+    Q_ASSERT(m_shapeManager != nullptr);
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
 
     if (getDrawMode() == DrawMode::PointParPoint) {
@@ -520,6 +608,7 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 
 void CustomDrawArea::wheelEvent(QWheelEvent *event)
 {
+    Q_ASSERT(m_transformer != nullptr);
     const qreal factor = event->angleDelta().y() > 0 ? 1.1 : 0.9;
     const QPointF cursor = event->position();
     const QPointF logicalAtCursor = toLogical(cursor);

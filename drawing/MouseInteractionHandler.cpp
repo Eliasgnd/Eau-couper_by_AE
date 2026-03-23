@@ -9,6 +9,8 @@
 #include <QPainterPathStroker>
 #include <QtGlobal>
 
+#include <algorithm>
+
 MouseInteractionHandler::MouseInteractionHandler(ShapeManager *shapeManager,
                                                  DrawModeManager *modeManager,
                                                  ViewTransformer *transformer,
@@ -41,7 +43,7 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         const auto &shapes = m_shapeManager->shapes();
         QPainterPathStroker stroker;
         stroker.setWidth(5.0);
-        for (int i = shapes.size() - 1; i >= 0; --i) {
+        for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
             if (shapes[i].path.contains(logicalPos) || stroker.createStroke(shapes[i].path).contains(logicalPos)) {
                 m_shapeManager->removeShape(i);
                 break;
@@ -54,7 +56,7 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
     if (m_modeManager->drawMode() == DrawModeManager::DrawMode::Deplacer) {
         const auto &shapes = m_shapeManager->shapes();
         int clickedIndex = -1;
-        for (int i = shapes.size() - 1; i >= 0; --i) {
+        for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
             if (shapes[i].path.contains(logicalPos)) {
                 clickedIndex = i;
                 break;
@@ -62,7 +64,8 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         }
 
         if (clickedIndex >= 0) {
-            if (!m_shapeManager->selectedShapes().contains(clickedIndex)) {
+            const auto &selectedShapes = m_shapeManager->selectedShapes();
+            if (std::find(selectedShapes.begin(), selectedShapes.end(), clickedIndex) == selectedShapes.end()) {
                 m_shapeManager->setSelectedShapes({clickedIndex});
             }
             m_drawing = true;
@@ -95,8 +98,8 @@ void MouseInteractionHandler::handleMouseMove(QMouseEvent *event, const QPointF 
         (event->buttons() & Qt::LeftButton)) {
         const QPointF delta = logicalPos - m_currentPoint;
         if (!qFuzzyIsNull(delta.x()) || !qFuzzyIsNull(delta.y())) {
-            const QVector<int> selected = m_shapeManager->selectedShapes();
-            QList<ShapeManager::Shape> updated = m_shapeManager->shapes();
+            const std::vector<int> selected = m_shapeManager->selectedShapes();
+            std::vector<ShapeManager::Shape> updated = m_shapeManager->shapes();
             for (int idx : selected) {
                 if (idx >= 0 && idx < updated.size()) {
                     updated[idx].path.translate(delta);

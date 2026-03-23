@@ -36,14 +36,14 @@ void ShapeManager::addShape(const QPainterPath &path, int originalId)
 
 void ShapeManager::addShape(const Shape &shape)
 {
-    m_shapes.append(shape);
+    m_shapes.push_back(shape);
     emit shapesChanged();
 }
 
 bool ShapeManager::removeShape(int index)
 {
     if (index < 0 || index >= m_shapes.size()) return false;
-    m_shapes.removeAt(index);
+    m_shapes.erase(m_shapes.begin() + index);
     m_selectedShapes.erase(std::remove_if(m_selectedShapes.begin(), m_selectedShapes.end(),
                                           [index](int i) { return i == index; }),
                            m_selectedShapes.end());
@@ -60,7 +60,7 @@ void ShapeManager::clearShapes()
     emit selectionChanged();
 }
 
-void ShapeManager::setShapes(const QList<Shape> &shapes)
+void ShapeManager::setShapes(const std::vector<Shape> &shapes)
 {
     m_shapes = shapes;
     m_selectedShapes.clear();
@@ -68,30 +68,31 @@ void ShapeManager::setShapes(const QList<Shape> &shapes)
     emit selectionChanged();
 }
 
-const QList<ShapeManager::Shape> &ShapeManager::shapes() const { return m_shapes; }
+const std::vector<ShapeManager::Shape> &ShapeManager::shapes() const { return m_shapes; }
 
 void ShapeManager::selectShape(int index)
 {
     if (index < 0 || index >= m_shapes.size()) return;
-    if (m_selectedShapes.contains(index)) return;
-    m_selectedShapes.append(index);
+    if (std::find(m_selectedShapes.begin(), m_selectedShapes.end(), index) != m_selectedShapes.end()) return;
+    m_selectedShapes.push_back(index);
     emit selectionChanged();
 }
 
 void ShapeManager::deselectShape(int index)
 {
     const int oldSize = m_selectedShapes.size();
-    m_selectedShapes.removeAll(index);
+    m_selectedShapes.erase(std::remove(m_selectedShapes.begin(), m_selectedShapes.end(), index), m_selectedShapes.end());
     if (oldSize != m_selectedShapes.size()) emit selectionChanged();
 }
 
-void ShapeManager::setSelectedShapes(const QVector<int> &indices)
+void ShapeManager::setSelectedShapes(const std::vector<int> &indices)
 {
     m_selectedShapes.clear();
     m_selectedShapes.reserve(indices.size());
     for (const int idx : indices) {
-        if (idx >= 0 && idx < m_shapes.size() && !m_selectedShapes.contains(idx)) {
-            m_selectedShapes.append(idx);
+        if (idx >= 0 && idx < m_shapes.size()
+            && std::find(m_selectedShapes.begin(), m_selectedShapes.end(), idx) == m_selectedShapes.end()) {
+            m_selectedShapes.push_back(idx);
         }
     }
     emit selectionChanged();
@@ -99,12 +100,12 @@ void ShapeManager::setSelectedShapes(const QVector<int> &indices)
 
 void ShapeManager::clearSelection()
 {
-    if (m_selectedShapes.isEmpty()) return;
+    if (m_selectedShapes.empty()) return;
     m_selectedShapes.clear();
     emit selectionChanged();
 }
 
-const QVector<int> &ShapeManager::selectedShapes() const { return m_selectedShapes; }
+const std::vector<int> &ShapeManager::selectedShapes() const { return m_selectedShapes; }
 
 QRectF ShapeManager::selectedShapesBounds() const
 {
@@ -120,13 +121,14 @@ QRectF ShapeManager::selectedShapesBounds() const
 
 void ShapeManager::pushState()
 {
-    m_undoStack.append(m_shapes);
+    m_undoStack.push_back(m_shapes);
 }
 
 void ShapeManager::undoLastAction()
 {
-    if (m_undoStack.isEmpty()) return;
-    m_shapes = m_undoStack.takeLast();
+    if (m_undoStack.empty()) return;
+    m_shapes = m_undoStack.back();
+    m_undoStack.pop_back();
     m_selectedShapes.clear();
     emit shapesChanged();
     emit selectionChanged();
@@ -145,24 +147,24 @@ void ShapeManager::addImportedLogoSubpath(const QPainterPath &subpath, int origi
 void ShapeManager::copySelectedShapes()
 {
     m_copiedShapes.clear();
-    if (m_selectedShapes.isEmpty()) return;
+    if (m_selectedShapes.empty()) return;
 
     m_copyAnchor = selectedShapesBounds().topLeft();
     m_copiedShapes.reserve(m_selectedShapes.size());
     for (int idx : m_selectedShapes) {
-        if (idx >= 0 && idx < m_shapes.size()) m_copiedShapes.append(m_shapes[idx]);
+        if (idx >= 0 && idx < m_shapes.size()) m_copiedShapes.push_back(m_shapes[idx]);
     }
 }
 
-QList<ShapeManager::Shape> ShapeManager::pastedShapes(const QPointF &dest) const
+std::vector<ShapeManager::Shape> ShapeManager::pastedShapes(const QPointF &dest) const
 {
-    QList<Shape> pasted;
+    std::vector<Shape> pasted;
     pasted.reserve(m_copiedShapes.size());
     const QPointF delta = dest - m_copyAnchor;
     for (const Shape &shape : m_copiedShapes) {
         Shape clone = shape;
         clone.path.translate(delta);
-        pasted.append(clone);
+        pasted.push_back(clone);
     }
     return pasted;
 }
@@ -180,7 +182,7 @@ void ShapeManager::connectNearestEndpoints(int idx1, int idx2)
     const QPointF bStart = pathStart(b);
     const QPointF bEnd = pathEnd(b);
 
-    const QList<QPair<QPointF, QPointF>> candidatePairs = {
+    const std::vector<QPair<QPointF, QPointF>> candidatePairs = {
         {aStart, bStart}, {aStart, bEnd}, {aEnd, bStart}, {aEnd, bEnd}
     };
 
@@ -212,9 +214,9 @@ void ShapeManager::mergeShapesAndConnector(int idx1, int idx2)
     QPainterPath merged = m_shapes[first].path;
     merged.connectPath(m_shapes[second].path);
 
-    m_shapes.removeAt(second);
-    m_shapes.removeAt(first);
-    m_shapes.append({merged, -1, 0.0});
+    m_shapes.erase(m_shapes.begin() + second);
+    m_shapes.erase(m_shapes.begin() + first);
+    m_shapes.push_back({merged, -1, 0.0});
 
     m_selectedShapes.clear();
     emit shapesChanged();

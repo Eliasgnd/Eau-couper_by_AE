@@ -5,6 +5,13 @@
 
 class ShapeManager;
 
+/**
+ * @class HistoryManager
+ * @brief Encapsule les opérations d'annulation/rétablissement basées sur l'état des formes.
+ *
+ * @note Le stockage effectif des snapshots est maintenu dans ShapeManager.
+ * @see ShapeManager
+ */
 class HistoryManager : public QObject
 {
     Q_OBJECT
