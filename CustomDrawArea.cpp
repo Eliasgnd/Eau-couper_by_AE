@@ -506,7 +506,6 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             QPainterPath textPath;
             textPath.addText(logical, m_textTool->getTextFont(), text);
             int id = m_nextShapeId++;
-            m_shapeManager->addShape(textPath, id);
             m_historyManager->commitAddShape(textPath, id, tr("Ajouter texte"));
         }
         return;
@@ -521,6 +520,12 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
     m_mouseHandler->handleMousePress(event, logical);
     m_drawing = (event->button() == Qt::LeftButton);
+    if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Deplacer) {
+        m_moveStartState = m_historyManager->getCurrentState();
+        m_moveInProgress = true;
+    } else {
+        m_moveInProgress = false;
+    }
     m_drawingState->startPoint = logical;
     m_drawingState->strokePoints = {logical};
 
@@ -547,7 +552,6 @@ void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
             for (int i = 1; i < m_drawingState->pointByPointPoints.size(); ++i)
                 path.lineTo(m_drawingState->pointByPointPoints[i]);
             int id = m_nextShapeId++;
-            m_shapeManager->addShape(path, id);
             m_historyManager->commitAddShape(path, id, tr("Tracé Point-par-point"));
         }
         m_drawingState->pointByPointPoints.clear();
@@ -597,8 +601,23 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     m_drawing = false;
 
     if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan) {
-        // Ces modes sont gérés par le handler. Idéalement, le handler devrait
-        // notifier CustomDrawArea du changement pour faire un commitSnapshot.
+        if (getDrawMode() == DrawMode::Deplacer && m_moveInProgress) {
+            const auto movedState = m_historyManager->getCurrentState();
+            const bool changed = [&]() {
+                if (movedState.size() != m_moveStartState.size()) return true;
+                for (size_t i = 0; i < movedState.size(); ++i) {
+                    const auto &a = movedState[i];
+                    const auto &b = m_moveStartState[i];
+                    if (a.originalId != b.originalId) return true;
+                    if (std::abs(a.rotationAngle - b.rotationAngle) > 1e-9) return true;
+                    if (a.path != b.path) return true;
+                }
+                return false;
+            }();
+            if (changed)
+                m_historyManager->commitSnapshot(m_moveStartState, movedState, tr("Déplacer forme"));
+            m_moveInProgress = false;
+        }
         return;
     }
 
@@ -622,7 +641,6 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 
     if (!path.isEmpty()) {
         int id = m_nextShapeId++;
-        m_shapeManager->addShape(path, id);
         m_historyManager->commitAddShape(path, id);
     }
 }
