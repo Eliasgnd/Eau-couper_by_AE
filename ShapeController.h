@@ -9,6 +9,7 @@
 #include "ShapeModel.h"
 
 class ShapeVisualization;
+class ShapeProjectModel;
 
 class ShapeController : public QObject
 {
@@ -41,7 +42,13 @@ public slots:
                           int currentUiLargeur,
                           int currentUiLongueur);
 
+signals:
+    void progressUpdated(int current, int total);
+    void optimizationStateChanged(bool optimized);
+
 private:
+    void runOptimization(const QList<int> &angles);
+
     ShapeVisualization *m_visualization = nullptr;
     ShapeModel::Type m_selectedShapeType = ShapeModel::Type::Circle;
 };

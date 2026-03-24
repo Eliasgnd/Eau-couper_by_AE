@@ -28,6 +28,8 @@ HEADERS += \
     ShapeController.h \
     ImageImportService.h \
     ui/widgets/ShapeVisualization.h \
+    ui/widgets/shapevisualization/ShapeProjectModel.h \
+    ui/widgets/shapevisualization/LayoutManager.h \
     # --- Drawing ---
     drawing/shapes/CustomDrawArea.h \
     drawing/tools/LogoImporter.h \
@@ -69,6 +71,9 @@ HEADERS += \
     managers/ai/AIServiceManager.h \
     drawing/tools/ImportedImageGeometryHelper.h \
     drawing/utils/GeometryUtils.h \
+    drawing/utils/shapevisualization/GridPlacementService.h \
+    drawing/utils/shapevisualization/GeometryTransformHelper.h \
+    drawing/utils/shapevisualization/ShapeValidationService.h \
     drawing/utils/ImageExporter.h \
     drawing/utils/PlacementOptimizer.h \
     drawing/ShapeManager.h \
@@ -89,6 +94,8 @@ SOURCES += \
     ShapeController.cpp \
     ImageImportService.cpp \
     ui/widgets/ShapeVisualization.cpp \
+    ui/widgets/shapevisualization/ShapeProjectModel.cpp \
+    ui/widgets/shapevisualization/LayoutManager.cpp \
     main.cpp \
     # --- Drawing ---
     drawing/shapes/CustomDrawArea.cpp \
@@ -126,6 +133,9 @@ SOURCES += \
     managers/ai/AIServiceManager.cpp \
     drawing/tools/ImportedImageGeometryHelper.cpp \
     drawing/utils/GeometryUtils.cpp \
+    drawing/utils/shapevisualization/GridPlacementService.cpp \
+    drawing/utils/shapevisualization/GeometryTransformHelper.cpp \
+    drawing/utils/shapevisualization/ShapeValidationService.cpp \
     drawing/utils/ImageExporter.cpp \
     drawing/utils/PlacementOptimizer.cpp \
     drawing/ShapeManager.cpp \

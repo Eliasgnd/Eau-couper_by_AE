@@ -1,8 +1,11 @@
 #include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
 #include "GeometryUtils.h"
+#include "drawing/utils/shapevisualization/GeometryTransformHelper.h"
+#include "drawing/utils/shapevisualization/GridPlacementService.h"
 #include "ImageExporter.h"
-#include "PlacementOptimizer.h"
+#include "shapevisualization/LayoutManager.h"
+#include "drawing/utils/shapevisualization/ShapeValidationService.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
@@ -14,7 +17,6 @@
 #include <QDebug>
 #include <QtMath>
 #include <QTransform>
-#include <QApplication>
 #include <QAbstractGraphicsShapeItem>
 #include <QSizePolicy>        // <<< important pour QSizePolicy
 #include <cmath>              // <<< pour std::round (si utilisé)
@@ -64,12 +66,8 @@ QPainterPath buildPrototypePath(ShapeModel::Type model,
 
 ShapeVisualization::ShapeVisualization(QWidget *parent)
     : QWidget(parent),
-    currentModel(ShapeModel::Type::Circle),
-    currentLargeur(0),
-    currentLongueur(0),
-    shapeCount(0),
-    spacing(0),
-    m_isCustomMode(false)
+    m_isCustomMode(false),
+    m_projectModel(new ShapeProjectModel(this))
 {
     // >>> ICI (dans le corps), on peut écrire du code :
     // Le widget garde un ratio fixe (B : ratio au niveau du widget)
@@ -116,6 +114,14 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &ShapeVisualization::handleSelectionChanged);
 
+    connect(m_projectModel, &ShapeProjectModel::dataChanged,
+            this, [this]() {
+                if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+                    displayCustomShapes(m_projectModel->customShapes());
+                else
+                    redraw();
+            });
+
     // Fit initial
     QTimer::singleShot(0, this, [this](){
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
@@ -156,7 +162,7 @@ void ShapeVisualization::setModel(ShapeModel::Type model)
         return;
     cancelOptimization();
 
-    currentModel = model;
+    m_projectModel->setCurrentModel(model);
     setPredefinedMode();
     redraw();
     update();
@@ -171,10 +177,9 @@ void ShapeVisualization::updateDimensions(int largeur, int longueur)
         return;
     }
     cancelOptimization();
-    currentLargeur = largeur;
-    currentLongueur = longueur;
-    if (m_isCustomMode && !m_customShapes.isEmpty())
-        displayCustomShapes(m_customShapes);
+    m_projectModel->setDimensions(largeur, longueur);
+    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+        displayCustomShapes(m_projectModel->customShapes());
     else
         redraw();
 }
@@ -190,12 +195,11 @@ void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
 
     cancelOptimization();
 
-    shapeCount = count;
-    currentModel = type;
-    currentLargeur = width;
-    currentLongueur = height;
-    if (m_isCustomMode && !m_customShapes.isEmpty())
-        displayCustomShapes(m_customShapes);
+    m_projectModel->setShapeCount(count);
+    m_projectModel->setCurrentModel(type);
+    m_projectModel->setDimensions(width, height);
+    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+        displayCustomShapes(m_projectModel->customShapes());
     else
         redraw();
 }
@@ -211,10 +215,10 @@ void ShapeVisualization::setSpacing(int newSpacing)
 
     cancelOptimization();
 
-    spacing = newSpacing;
+    m_projectModel->setSpacing(newSpacing);
     emit spacingChanged(newSpacing);
-    if (m_isCustomMode && !m_customShapes.isEmpty())
-        displayCustomShapes(m_customShapes);
+    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+        displayCustomShapes(m_projectModel->customShapes());
     else
         redraw();
 }
@@ -232,148 +236,10 @@ void ShapeVisualization::setPredefinedMode()
 
     m_isCustomMode = false;
     m_currentCustomShapeName.clear();
-    m_customShapes.clear();
+    m_projectModel->clearCustomShapes();
     emit optimizationStateChanged(false);
     redraw();
 }
-
-/*
-   ****** OPTIMIZE PLACEMENT 1 (avec caching et test rapide) ******
-*/
-void ShapeVisualization::optimizePlacement() {
-    if (!m_interactionEnabled || m_optimizationRunning) {
-        emit actionRefused(kInteractionLockedReason);
-        return;
-    }
-
-    // Remise à zéro de l'espacement
-    setSpacing(0);
-
-    m_optimizationRunning = true;
-    m_cancelOptimization = false;
-    emit optimizationStateChanged(true);
-    scene->clear();
-    scene->clearSelection();
-    const QPainterPath prototypePath = buildPrototypePath(currentModel,
-                                                          currentLargeur,
-                                                          currentLongueur,
-                                                          m_isCustomMode,
-                                                          m_customShapes);
-    if (prototypePath.isEmpty()) {
-        m_optimizationRunning = false;
-        emit progressUpdated(0, 0);
-        return;
-    }
-
-    PlacementParams params;
-    params.prototypePath = prototypePath;
-    params.containerRect = scene->sceneRect();
-    params.shapeCount = shapeCount;
-    params.spacing = spacing;
-    params.step = 5;
-    params.angles = {0, 180, 90};
-
-    const PlacementResult result = PlacementOptimizer::run(
-        params,
-        [this](int current, int total) {
-            emit progressUpdated(current, total);
-            qApp->processEvents();
-            if (m_cancelOptimization) {
-                m_cancelOptimization = false;
-                return false;
-            }
-            return true;
-        });
-
-    if (result.cancelled) {
-        m_optimizationRunning = false;
-        emit optimizationStateChanged(false);
-        emit progressUpdated(0, 0);
-        return;
-    }
-
-    for (const QPainterPath &path : result.placedPaths) {
-        QGraphicsPathItem *item = new QGraphicsPathItem(path);
-        item->setPen(QPen(Qt::black, 1));
-        item->setBrush(Qt::NoBrush);
-        item->setFlag(QGraphicsItem::ItemIsMovable, true);
-        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        scene->addItem(item);
-        item->setSelected(false);
-    }
-
-    m_optimizationRunning = false;
-    emit shapesPlacedCount(result.placedPaths.size());
-    emit optimizationStateChanged(true);
-    emit progressUpdated(result.totalPositions, result.totalPositions);
-}
-
-void ShapeVisualization::optimizePlacement2() {
-    if (!m_interactionEnabled || m_optimizationRunning) {
-        emit actionRefused(kInteractionLockedReason);
-        return;
-    }
-
-    setSpacing(0);
-    m_optimizationRunning = true;
-    m_cancelOptimization = false;
-    scene->clear();
-    scene->clearSelection();
-    graphicsView->update();
-
-    const QPainterPath prototypePath = buildPrototypePath(currentModel,
-                                                          currentLargeur,
-                                                          currentLongueur,
-                                                          m_isCustomMode,
-                                                          m_customShapes);
-    if (prototypePath.isEmpty()) {
-        m_optimizationRunning = false;
-        emit progressUpdated(0, 0);
-        return;
-    }
-
-    PlacementParams params;
-    params.prototypePath = prototypePath;
-    params.containerRect = scene->sceneRect();
-    params.shapeCount = shapeCount;
-    params.spacing = spacing;
-    params.step = 5;
-    params.angles = {0, 180};
-
-    const PlacementResult result = PlacementOptimizer::run(
-        params,
-        [this](int current, int total) {
-            emit progressUpdated(current, total);
-            qApp->processEvents();
-            if (m_cancelOptimization) {
-                m_cancelOptimization = false;
-                return false;
-            }
-            return true;
-        });
-
-    if (result.cancelled) {
-        m_optimizationRunning = false;
-        emit optimizationStateChanged(false);
-        emit progressUpdated(0, 0);
-        return;
-    }
-
-    for (const QPainterPath &path : result.placedPaths) {
-        QGraphicsPathItem *item = new QGraphicsPathItem(path);
-        item->setPen(QPen(Qt::black, 1));
-        item->setBrush(Qt::NoBrush);
-        item->setFlag(QGraphicsItem::ItemIsMovable, true);
-        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        scene->addItem(item);
-    }
-
-    m_optimizationRunning = false;
-    emit shapesPlacedCount(result.placedPaths.size());
-    emit progressUpdated(result.totalPositions, result.totalPositions);
-}
-
-
 
 
 void ShapeVisualization::redraw()
@@ -384,16 +250,16 @@ void ShapeVisualization::redraw()
     const int drawingHeight = int(sr.height());
 
     m_isCustomMode = false;
-    m_customShapes.clear();
+    m_projectModel->clearCustomShapes();
 
-    if (shapeCount <= 0)
+    if (m_projectModel->shapeCount() <= 0)
         return;
 
 
-    int adaptedLargeur = currentLargeur;
-    int adaptedLongueur = currentLongueur;
+    int adaptedLargeur = m_projectModel->currentLargeur();
+    int adaptedLongueur = m_projectModel->currentLongueur();
 
-    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
+    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(m_projectModel->currentModel(), adaptedLargeur, adaptedLongueur);
     if (shapes.isEmpty()) {
         //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
         emit shapesPlacedCount(0);
@@ -409,22 +275,14 @@ void ShapeVisualization::redraw()
         emit shapesPlacedCount(0);
         return;
     }
-    qreal cellWidth = effectiveWidth + spacing;
-    qreal cellHeight = effectiveHeight + spacing;
+    GridPlacementRequest request;
+    request.containerSize = QSizeF(drawingWidth, drawingHeight);
+    request.shapeSize = QSizeF(effectiveWidth, effectiveHeight);
+    request.shapeCount = m_projectModel->shapeCount();
+    request.spacing = m_projectModel->spacing();
+    const QList<QPointF> positions = GridPlacementService::computePositions(request);
 
-    int maxCols = qFloor(drawingWidth / cellWidth);
-    int maxRows = qFloor(drawingHeight / cellHeight);
-    int totalCells = maxCols * maxRows;
-    int shapesToPlace = qMin(shapeCount, totalCells);
-
-    //qDebug() << "Grille :" << maxCols << "colonnes x" << maxRows << "lignes ="
-    //         << totalCells << "cellules. Placement de" << shapesToPlace << "formes.";
-
-    for (int i = 0; i < shapesToPlace; ++i) {
-        int col = i % maxCols;
-        int row = i / maxCols;
-        qreal xPos = col * cellWidth;
-        qreal yPos = row * cellHeight;
+    for (const QPointF &position : positions) {
 
         QGraphicsItem *shapeCopy = nullptr;
         if (auto rect = dynamic_cast<QGraphicsRectItem*>(prototype))
@@ -441,13 +299,14 @@ void ShapeVisualization::redraw()
             continue;
         }
         QPointF offsetCorrection(-bounds.x(), -bounds.y());
-        shapeCopy->setPos(xPos + offsetCorrection.x(), yPos + offsetCorrection.y());
+        shapeCopy->setPos(position.x() + offsetCorrection.x(),
+                          position.y() + offsetCorrection.y());
         shapeCopy->setFlag(QGraphicsItem::ItemIsMovable, true);
         shapeCopy->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(shapeCopy);
     }
-    //qDebug() << "Formes prédéfinies placées:" << shapesToPlace;
-    emit shapesPlacedCount(shapesToPlace);
+    //qDebug() << "Formes prédéfinies placées:" << positions.size();
+    emit shapesPlacedCount(positions.size());
 }
 
 void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
@@ -467,7 +326,7 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     }
 
     m_isCustomMode = true;
-    m_customShapes = shapes;
+    m_projectModel->setCustomShapes(shapes);
 
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
@@ -483,8 +342,8 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         return;
     }
 
-    qreal desiredWidthInScene = currentLargeur;
-    qreal desiredHeightInScene = currentLongueur;
+    qreal desiredWidthInScene = m_projectModel->currentLargeur();
+    qreal desiredHeightInScene = m_projectModel->currentLongueur();
     qreal scaleX = desiredWidthInScene / polyBounds.width();
     qreal scaleY = desiredHeightInScene / polyBounds.height();
     QTransform transform;
@@ -492,18 +351,14 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     QPainterPath scaledPath = transform.map(combinedPath);
     QRectF scaledBounds = scaledPath.boundingRect();
 
-    qreal cellWidth = scaledBounds.width() + spacing;
-    qreal cellHeight = scaledBounds.height() + spacing;
-    int maxCols = qFloor(drawingWidth / cellWidth);
-    int maxRows = qFloor(drawingHeight / cellHeight);
-    int totalCells = maxCols * maxRows;
-    int shapesToPlace = qMin(shapeCount, totalCells);
+    GridPlacementRequest request;
+    request.containerSize = QSizeF(drawingWidth, drawingHeight);
+    request.shapeSize = scaledBounds.size();
+    request.shapeCount = m_projectModel->shapeCount();
+    request.spacing = m_projectModel->spacing();
+    const QList<QPointF> positions = GridPlacementService::computePositions(request);
 
-    for (int i = 0; i < shapesToPlace; ++i) {
-        int col = i % maxCols;
-        int row = i / maxCols;
-        qreal xPos = col * cellWidth;
-        qreal yPos = row * cellHeight;
+    for (const QPointF &position : positions) {
 
         QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
         item->setPen(QPen(Qt::black, 1));
@@ -515,14 +370,14 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         // vertical observé avec les formes personnalisées.
         QRectF bounds = item->boundingRect();
         QPointF offset(-bounds.x(), -bounds.y());
-        item->setPos(xPos + offset.x(), yPos + offset.y());
+        item->setPos(position.x() + offset.x(), position.y() + offset.y());
         scene->addItem(item);
         item->setSelected(false);
 
     }
 
     //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans ShapeVisualization.";
-    emit shapesPlacedCount(shapesToPlace);
+    emit shapesPlacedCount(positions.size());
 }
 
 void ShapeVisualization::moveSelectedShapes(qreal dx, qreal dy)
@@ -536,6 +391,7 @@ void ShapeVisualization::moveSelectedShapes(qreal dx, qreal dy)
         item->moveBy(dx, dy);
     }
     m_rotationPivotValid = false;
+    emit shapeMoved(QPointF(dx, dy));
 }
 
 
@@ -550,21 +406,7 @@ void ShapeVisualization::rotateSelectedShapes(qreal angleDelta)
         return;
 
     if (!m_rotationPivotValid) {
-        if (selected.size() == 1) {
-            m_rotationPivot = selected.first()->sceneBoundingRect().center();
-        } else {
-            QRectF unitedRect;
-            bool first = true;
-            for (QGraphicsItem *item : selected) {
-                if (first) {
-                    unitedRect = item->sceneBoundingRect();
-                    first = false;
-                } else {
-                    unitedRect = unitedRect.united(item->sceneBoundingRect());
-                }
-            }
-            m_rotationPivot = unitedRect.center();
-        }
+        m_rotationPivot = GeometryTransformHelper::computeUnifiedPivot(selected);
         for (QGraphicsItem *item : selected)
             item->setTransformOriginPoint(item->mapFromScene(m_rotationPivot));
         m_rotationPivotValid = true;
@@ -583,6 +425,7 @@ void ShapeVisualization::deleteSelectedShapes()
     }
 
     bool removed = false;
+    int deletedCount = 0;
     const auto selected = scene->selectedItems();
     for (QGraphicsItem *item : selected) {
         if (m_cutMarkers.contains(item))
@@ -590,9 +433,12 @@ void ShapeVisualization::deleteSelectedShapes()
         scene->removeItem(item);
         delete item;
         removed = true;
+        ++deletedCount;
     }
-    if (removed)
+    if (removed) {
         emit shapesPlacedCount(countPlacedShapes());
+        emit shapesDeleted(deletedCount);
+    }
 }
 
 void ShapeVisualization::addShapeBottomRight()
@@ -609,16 +455,16 @@ void ShapeVisualization::addShapeBottomRight()
 
     QGraphicsItem *newItem = nullptr;
 
-    if (m_isCustomMode && !m_customShapes.isEmpty()) {
+    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty()) {
         QPainterPath combinedPath;
-        for (const QPolygonF &poly : m_customShapes)
+        for (const QPolygonF &poly : m_projectModel->customShapes())
             combinedPath.addPolygon(poly);
         QRectF polyBounds = combinedPath.boundingRect();
         if (polyBounds.width() <= 0 || polyBounds.height() <= 0)
             return;
 
-        qreal desiredWidth = currentLargeur;
-        qreal desiredHeight = currentLongueur;
+        qreal desiredWidth = m_projectModel->currentLargeur();
+        qreal desiredHeight = m_projectModel->currentLongueur();
 
         qreal scaleX = desiredWidth / polyBounds.width();
         qreal scaleY = desiredHeight / polyBounds.height();
@@ -637,7 +483,7 @@ void ShapeVisualization::addShapeBottomRight()
         newItem->setPos(drawingWidth - bounds.width() + offset.x(),
                         drawingHeight - bounds.height() + offset.y());
     } else {
-        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, currentLargeur, currentLongueur);
+        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(m_projectModel->currentModel(), m_projectModel->currentLargeur(), m_projectModel->currentLongueur());
         if (shapesList.isEmpty())
             return;
 
@@ -711,23 +557,6 @@ QList<QPoint> ShapeVisualization::getBlackPixels() {
     return ImageExporter::extractBlackPixels(scene);
 }
 
-// Démarre la barre de progression avec un maximum de étapes
-void ShapeVisualization::startDecoupeProgress(int maxSteps) {
-    m_decoupeProgressMax = maxSteps;
-    emit progressUpdated(0, maxSteps);
-}
-
-// Met à jour la valeur courante de la barre de progression
-void ShapeVisualization::updateDecoupeProgress(int currentStep) {
-    emit progressUpdated(currentStep, m_decoupeProgressMax);
-}
-
-// Cache la barre de progression en fin de découpe
-void ShapeVisualization::endDecoupeProgress() {
-    m_decoupeProgressMax = 0;
-    emit progressUpdated(0, 0);
-}
-
 void ShapeVisualization::setEditingEnabled(bool enabled)
 {
     editingEnabled = enabled;
@@ -754,8 +583,32 @@ bool ShapeVisualization::isInteractionEnabled() const
 
 void ShapeVisualization::cancelOptimization()
 {
-    if (m_optimizationRunning)
-        m_cancelOptimization = true;
+    m_optimizationRunning = false;
+}
+
+void ShapeVisualization::setOptimizationRunning(bool running)
+{
+    m_optimizationRunning = running;
+}
+
+
+void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placedPaths, bool optimized)
+{
+    scene->clear();
+    scene->clearSelection();
+
+    for (const QPainterPath &path : placedPaths) {
+        auto *item = new QGraphicsPathItem(path);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        scene->addItem(item);
+        item->setSelected(false);
+    }
+
+    emit shapesPlacedCount(placedPaths.size());
+    emit optimizationStateChanged(optimized);
 }
 
 QGraphicsView* ShapeVisualization::getGraphicsView() const
@@ -795,7 +648,7 @@ bool ShapeVisualization::validateShapes()
     }
 
     const QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
-    const ShapeValidationResult validation = validatePlacedPaths(paths, bounds, 1.0);
+    const ShapeValidationResult validation = ShapeValidationService::validate(paths, bounds, 1.0);
 
     for (int idx : validation.outOfBoundsIndices) {
         if (idx >= 0 && idx < shapes.size())
@@ -813,6 +666,7 @@ bool ShapeVisualization::validateShapes()
 void ShapeVisualization::handleSelectionChanged()
 {
     m_rotationPivotValid = false;
+    emit shapeSelectionChanged(scene->selectedItems().size());
     for (QGraphicsItem *item : scene->selectedItems()) {
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
             shape->setPen(QPen(Qt::black, 1));
@@ -838,68 +692,25 @@ void ShapeVisualization::applyLayout(const LayoutData &layout)
     if (!m_isCustomMode)
         return;
 
-    scene->clear();
-    currentLargeur = layout.largeur;
-    currentLongueur = layout.longueur;
-    spacing = layout.spacing;
-    shapeCount = layout.items.size();
-
-    QPainterPath combinedPath;
-    for (const QPolygonF &poly : m_customShapes)
-        combinedPath.addPolygon(poly);
-    QRectF bounds = combinedPath.boundingRect();
-    qreal scaleX = (bounds.width() > 0) ? static_cast<qreal>(layout.largeur) / bounds.width() : 1.0;
-    qreal scaleY = (bounds.height() > 0) ? static_cast<qreal>(layout.longueur) / bounds.height() : 1.0;
-    QTransform scale;
-    scale.scale(scaleX, scaleY);
-    QPainterPath scaledPath = scale.map(combinedPath);
-    QRectF scaledBounds = scaledPath.boundingRect();
-
-    for (const LayoutItem &li : layout.items) {
-        QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
-        item->setPen(QPen(Qt::black, 1));
-        item->setBrush(Qt::NoBrush);
-        item->setFlag(QGraphicsItem::ItemIsMovable, true);
-        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        item->setTransformOriginPoint(item->boundingRect().center());
-
-        QRectF bounds = item->boundingRect();
-        QPointF offset(-bounds.x(), -bounds.y());
-
-        item->setRotation(li.rotation);
-        item->setPos(li.x + offset.x(), li.y + offset.y());
-        scene->addItem(item);
-        item->setSelected(false);
-    }
-
-    scene->clearSelection();
+    m_projectModel->setDimensions(layout.largeur, layout.longueur);
+    m_projectModel->setSpacing(layout.spacing);
+    m_projectModel->setShapeCount(layout.items.size());
+    LayoutManager::applyLayout(scene,
+                               layout,
+                               m_projectModel->customShapes(),
+                               m_interactionEnabled);
     emit shapesPlacedCount(layout.items.size());
     graphicsView->viewport()->update();
 }
 
 LayoutData ShapeVisualization::captureCurrentLayout(const QString &name) const
 {
-    LayoutData layout;
-    layout.name = name;
-    layout.largeur = currentLargeur;
-    layout.longueur = currentLongueur;
-    layout.spacing = spacing;
-
-    for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
-            continue;
-        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            QRectF bounds = shape->boundingRect();
-            QPointF offset(-bounds.x(), -bounds.y());
-
-            LayoutItem li;
-            li.x = shape->pos().x() - offset.x();
-            li.y = shape->pos().y() - offset.y();
-            li.rotation = shape->rotation();
-            layout.items.append(li);
-        }
-    }
-    return layout;
+    return LayoutManager::captureLayout(scene,
+                                        name,
+                                        m_projectModel->currentLargeur(),
+                                        m_projectModel->currentLongueur(),
+                                        m_projectModel->spacing(),
+                                        m_cutMarkers);
 }
 
 int ShapeVisualization::heightForWidth(int w) const
@@ -919,6 +730,34 @@ QSize ShapeVisualization::minimumSizeHint() const
 {
     int w = 300;
     return { w, heightForWidth(w) };
+}
+
+QList<QPolygonF> ShapeVisualization::currentCustomShapes() const
+{
+    return m_projectModel ? m_projectModel->customShapes() : QList<QPolygonF>{};
+}
+
+void ShapeVisualization::setProjectModel(ShapeProjectModel *model)
+{
+    if (!model || model == m_projectModel)
+        return;
+
+    if (m_projectModel)
+        disconnect(m_projectModel, nullptr, this, nullptr);
+
+    m_projectModel = model;
+    if (!m_projectModel->parent())
+        m_projectModel->setParent(this);
+
+    connect(m_projectModel, &ShapeProjectModel::dataChanged,
+            this, [this]() {
+                if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+                    displayCustomShapes(m_projectModel->customShapes());
+                else
+                    redraw();
+            });
+
+    redraw();
 }
 
 void ShapeVisualization::setSheetSizeMm(const QSizeF& mm)

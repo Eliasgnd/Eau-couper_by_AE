@@ -10,6 +10,7 @@
 #include <QSizeF>                // <<< AJOUT
 #include "ShapeModel.h"
 #include "Inventory.h"
+#include "shapevisualization/ShapeProjectModel.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
@@ -29,9 +30,6 @@ public:
     void setShapeCount(int count, ShapeModel::Type, int, int);
     void setSpacing(int newSpacing);
     void setPredefinedMode();
-    void optimizePlacement();
-    void optimizePlacement2();
-    void optimizePlacementComplex();
     void colorPositionRed (const QPoint& position);
     void colorPositionBlue(const QPoint& position);
     QGraphicsScene* getScene() const;
@@ -42,14 +40,19 @@ public:
     bool isInteractionEnabled() const;
     void cancelOptimization();
     bool isOptimizationRunning() const { return m_optimizationRunning; }
+    void setOptimizationRunning(bool running);
+    void setOptimizationResult(const QList<QPainterPath> &placedPaths, bool optimized);
     QGraphicsView* getGraphicsView() const;
 
     bool isCustomMode() const { return m_isCustomMode; }
     void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
     QString currentCustomShapeName() const { return m_currentCustomShapeName; }
-    QList<QPolygonF> currentCustomShapes() const { return m_customShapes; }
+    QList<QPolygonF> currentCustomShapes() const;
     void applyLayout(const LayoutData &layout);
     LayoutData captureCurrentLayout(const QString &name) const;
+
+    ShapeProjectModel* projectModel() const { return m_projectModel; }
+    void setProjectModel(ShapeProjectModel *model);
 
     // <<< AJOUT : accès à la taille en mm
     QSizeF sheetSizeMm() const { return m_sheetMm; }
@@ -69,9 +72,6 @@ public slots:
     bool validateShapes();
     void resetAllShapeColors();
     QList<QPoint> getBlackPixels();
-    void startDecoupeProgress(int maxSteps);
-    void updateDecoupeProgress(int currentStep);
-    void endDecoupeProgress();
     void resetCutMarkers();
 
     // <<< AJOUT : setter taille en mm
@@ -83,7 +83,9 @@ signals:
     void spacingChanged(int newSpacing);
     void blackPixelsProgress(int remaining, int total);
     void actionRefused(const QString &reason);
-    void progressUpdated(int current, int total);
+    void shapeSelectionChanged(int selectedCount);
+    void shapeMoved(const QPointF &delta);
+    void shapesDeleted(int deletedCount);
 
     // <<< AJOUT
     void sheetSizeMmChanged(const QSizeF&);
@@ -103,20 +105,13 @@ private:
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
-    ShapeModel::Type     currentModel {ShapeModel::Type::Circle};
-    int  currentLargeur  {0};
-    int  currentLongueur {0};
-    int  shapeCount      {0};
-    int  spacing         {0};
     bool                 m_isCustomMode {false};
-    QList<QPolygonF>     m_customShapes;
+    ShapeProjectModel    *m_projectModel {nullptr};
     QString              m_currentCustomShapeName;
     QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
     bool m_interactionEnabled = true;
     bool m_optimizationRunning = false;
-    bool m_cancelOptimization = false;
-    int m_decoupeProgressMax {0};
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
 
