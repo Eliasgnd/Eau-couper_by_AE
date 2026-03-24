@@ -13,12 +13,11 @@ QT_END_NAMESPACE
 
 class QAction;
 class QMenu;
-class QLabel;
 struct LayoutData;
 class ShapeVisualization;
-class CustomDrawArea;
 class NavigationController;
 class AIServiceManager;
+class ShapeController;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -27,6 +26,7 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     ShapeVisualization* getShapeVisualization() const;
+    AIServiceManager* aiServiceManager() const { return m_aiServiceManager; }
     Language displayLanguage() const { return m_displayLanguage; }
     void openImageInCustom(const QString &filePath,
                            bool internalContours = false,
@@ -47,39 +47,15 @@ public slots:
     void updateProgressBar(int percentage, const QString &remainingTimeText);
     void setSpinboxSliderEnabled(bool enabled);
     void onCutFinished(bool success);
-    void onAiGenerationStatus(const QString &msg);
-    void onAiImageReady(const QString &path);
     void onLanguageApplied(Language lang, bool ok);
 
 private slots:
-    void updateShape();
-    void onSaveLayoutClicked();
-    void onMoveUpClicked();
-    void onMoveDownClicked();
-    void onMoveLeftClicked();
-    void onMoveRightClicked();
-    void onOptimizePlacementClicked();
-    void onOptimizePlacement2Clicked();
-    void showInventory();
-    void showCustom();
-    void openTestGpio();
-    void on_receptionFichierButton_clicked();
-    void openWifiTransfer();
-    void openWifiConfig();
     void applyCustomShape(QList<QPolygonF>);
     void resetDrawing();
-
-    void updateSpinBoxLargeur(int value);
-    void updateSpinBoxLongueur(int value);
-    void updateSliderLongueur(int value);
-    void updateSliderLargeur(int value);
     void updateShapeCount();
     void updateShapeCountLabel(int count);
     void updateSpacing(int value);
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
-
-    void openAIImagePromptDialog();
-    void showFolder();
 
     void setLanguageFrench();
     void setLanguageEnglish();
@@ -90,6 +66,7 @@ protected:
 
 private:
     void setupUI();
+    void setupWorkspaceLayout();
     void setupMenus();
     void applyStyleSheets();
     void setupConnections();
@@ -99,26 +76,26 @@ private:
     void setupModels();
     void retranslateDynamicUi();
     void onShapeSelectedFromInventory(ShapeModel::Type type);
-    void setPredefinedShape(ShapeModel::Type type);
-    void moveSelectedShape(int dx, int dy);
-    void StartPixel();
-    bool promptAndSaveCurrentCustomShape();
     void applySelectedLayoutToControls(const LayoutData &layout);
 
-    Language m_displayLanguage = Language::French;
+    // --- UI state ---
     QMenu *settingsMenu = nullptr;
     QMenu *languageMenu = nullptr;
     QAction *actionFrench = nullptr;
     QAction *actionEnglish = nullptr;
     QAction *actionWifiConfig = nullptr;
 
+    // --- UI pointers ---
     Ui::MainWindow *ui;
     ShapeVisualization *shapeVisualization = nullptr;
-    CustomDrawArea *drawArea = nullptr;
+
+    // --- Controllers ---
     NavigationController *m_navigationController = nullptr;
     AIServiceManager *m_aiServiceManager = nullptr;
-    ShapeModel::Type selectedShapeType = ShapeModel::Type::Circle;
-    QLabel *shapeCountLabel = nullptr;
+    ShapeController *m_shapeController = nullptr;
+
+    // --- Runtime state ---
+    Language m_displayLanguage = Language::French;
 };
 
 #endif // MAINWINDOW_H

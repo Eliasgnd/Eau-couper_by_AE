@@ -24,12 +24,22 @@ class AIServiceManager : public QObject
     Q_OBJECT
 public:
     explicit AIServiceManager(QObject *parent = nullptr);
+    void setDialogParent(QWidget *parent);
 
     bool openGenerationPrompt(QWidget *parent, AiGenerationRequest &request) const;
-    bool resolveImageProcessingOptions(QWidget *parent,
-                                       const QString &imagePath,
-                                       AiImageProcessingOptions &options,
-                                       QString &errorMessage) const;
+
+public slots:
+    void onGenerationStatus(const QString &msg);
+    void onAiImageReady(const QString &imagePath);
+
+signals:
+    void generationStatusChanged(const QString &msg);
+    void imageReadyForImport(const QString &path,
+                             bool internalContours,
+                             bool colorEdges);
+
+private:
+    QWidget *m_dialogParent = nullptr;
 };
 
 #endif // AISERVICEMANAGER_H

@@ -7,6 +7,7 @@
 #include "TestGpio.h"
 #include "FolderWidget.h"
 #include "LayoutsDialog.h"
+#include "ShapeVisualization.h"
 #include "drawing/tools/ImportedImageGeometryHelper.h"
 #include "drawing/PathGenerator.h"
 
@@ -14,6 +15,7 @@
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QTimer>
+#include <QMessageBox>
 
 NavigationController::NavigationController(QObject *parent)
     : QObject(parent)
@@ -193,4 +195,72 @@ QString NavigationController::promptForName(QWidget *parent,
     if (ok)
         *ok = accepted;
     return text;
+}
+
+void NavigationController::handleSaveLayoutRequest(QWidget *parent,
+                                                   ShapeVisualization *shapeVisualization,
+                                                   ShapeModel::Type selectedShapeType)
+{
+    if (!shapeVisualization)
+        return;
+
+    auto promptAndSaveCurrentCustomShape = [this, parent, shapeVisualization]() -> bool {
+        QList<QPolygonF> shapes = shapeVisualization->currentCustomShapes();
+        if (shapes.isEmpty())
+            return false;
+
+        bool ok = false;
+        QString shapeName;
+        do {
+            shapeName = promptForName(parent,
+                                      tr("Nom de la forme"),
+                                      tr("Entrez un nom pour votre forme :"),
+                                      &ok);
+            if (!ok)
+                return false;
+            if (shapeName.isEmpty())
+                continue;
+            if (Inventory::getInstance()->shapeNameExists(shapeName)) {
+                QMessageBox msg(QMessageBox::Warning,
+                                tr("Nom déjà utilisé"),
+                                tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
+                                QMessageBox::NoButton,
+                                parent);
+                QTimer::singleShot(2300, &msg, &QMessageBox::accept);
+                msg.exec();
+                ok = false;
+            }
+        } while (!ok);
+
+        Inventory::getInstance()->addSavedCustomShape(shapes, shapeName);
+        shapeVisualization->setCurrentCustomShapeName(shapeName);
+        return true;
+    };
+
+    auto saveLayout = [this, parent, shapeVisualization, selectedShapeType]() {
+        bool ok = false;
+        QString name = promptForName(parent,
+                                     tr("Nom de la disposition"),
+                                     tr("Entrez un nom"),
+                                     &ok);
+        if (!ok || name.isEmpty())
+            return;
+
+        LayoutData layout = shapeVisualization->captureCurrentLayout(name);
+        if (shapeVisualization->isCustomMode())
+            Inventory::getInstance()->addLayoutToShape(shapeVisualization->currentCustomShapeName(), layout);
+        else
+            Inventory::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+    };
+
+    if (shapeVisualization->isCustomMode() && shapeVisualization->currentCustomShapeName().isEmpty()) {
+        QMessageBox::warning(parent,
+                             tr("Disposition"),
+                             tr("Forme non sauvegardée — veuillez la sauvegarder d'abord."));
+        if (promptAndSaveCurrentCustomShape())
+            saveLayout();
+        return;
+    }
+
+    saveLayout();
 }
