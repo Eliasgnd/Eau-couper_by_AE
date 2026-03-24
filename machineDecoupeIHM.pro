@@ -39,6 +39,10 @@ INCLUDEPATH += \
 HEADERS += \
     # --- MainWindow et UI principale ---
     MainWindow.h \
+    MainWindowSystemBinder.h \
+    MainWindowMenuBuilder.h \
+    MainWindowNavigationBinder.h \
+    MainWindowCoordinator.h \
     ShapeController.h \
     ImageImportService.h \
     ui/widgets/ShapeVisualization.h \
@@ -49,6 +53,11 @@ HEADERS += \
     drawing/tools/LogoImporter.h \
     drawing/tools/ImageEdgeImporter.h \
     models/ShapeModel.h \
+    models/InventoryStorage.h \
+    models/InventoryQueryService.h \
+    models/InventoryMutationService.h \
+    models/InventoryModel.h \
+    models/InventoryController.h \
     # --- UI (Widgets) ---
     ui/widgets/FolderWidget.h \
     drawing/utils/ScreenUtils.h \
@@ -98,6 +107,9 @@ HEADERS += \
     drawing/ViewTransformer.h \
     drawing/EraserTool.h \
     managers/system/GestureHandler.h \
+    managers/system/WifiNmcliClient.h \
+    managers/system/WifiNmcliParsers.h \
+    managers/system/WifiProfileService.h \
     drawing/TextTool.h \
     drawing/PathGenerator.h
 
@@ -105,6 +117,10 @@ HEADERS += \
 SOURCES += \
     # --- MainWindow et UI principale ---
     MainWindow.cpp \
+    MainWindowSystemBinder.cpp \
+    MainWindowMenuBuilder.cpp \
+    MainWindowNavigationBinder.cpp \
+    MainWindowCoordinator.cpp \
     ShapeController.cpp \
     ImageImportService.cpp \
     ui/widgets/ShapeVisualization.cpp \
@@ -116,6 +132,11 @@ SOURCES += \
     drawing/tools/LogoImporter.cpp \
     drawing/tools/ImageEdgeImporter.cpp \
     models/ShapeModel.cpp \
+    models/InventoryStorage.cpp \
+    models/InventoryQueryService.cpp \
+    models/InventoryMutationService.cpp \
+    models/InventoryModel.cpp \
+    models/InventoryController.cpp \
     # --- UI (Widgets) ---
     ui/widgets/FolderWidget.cpp \
     drawing/utils/AspectRatioWrapper.cpp \
@@ -160,6 +181,9 @@ SOURCES += \
     drawing/ViewTransformer.cpp \
     drawing/EraserTool.cpp \
     managers/system/GestureHandler.cpp \
+    managers/system/WifiNmcliClient.cpp \
+    managers/system/WifiNmcliParsers.cpp \
+    managers/system/WifiProfileService.cpp \
     drawing/TextTool.cpp \
     drawing/PathGenerator.cpp
 

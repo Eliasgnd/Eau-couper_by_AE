@@ -7,6 +7,10 @@
 #include "NavigationController.h"
 #include "AIServiceManager.h"
 #include "ShapeController.h"
+#include "MainWindowSystemBinder.h"
+#include "MainWindowMenuBuilder.h"
+#include "MainWindowNavigationBinder.h"
+#include "MainWindowCoordinator.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -24,14 +28,26 @@
 
 // --- Construction / Destruction ---
 
-MainWindow::MainWindow(QWidget *parent)
+MainWindow::MainWindow(QWidget *parent, MainWindowCoordinator *coordinator)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    m_navigationController = new NavigationController(this);
-    m_aiServiceManager = new AIServiceManager(this);
-    m_aiServiceManager->setDialogParent(this);
-    m_shapeController = new ShapeController(ui->shapeVisualizationWidget, this);
+
+    if (coordinator) {
+        m_coordinator = coordinator;
+        m_ownsCoordinator = false;
+    } else {
+        auto *navigation = new NavigationController(this);
+        auto *ai = new AIServiceManager(this);
+        auto *shape = new ShapeController(ui->shapeVisualizationWidget, this);
+        m_coordinator = new MainWindowCoordinator(navigation, ai, shape, this);
+        m_ownsCoordinator = true;
+    }
+
+    m_navigationController = m_coordinator->navigationController();
+    m_aiServiceManager = m_coordinator->aiServiceManager();
+    m_shapeController = m_coordinator->shapeController();
+    m_coordinator->setDialogParent(this);
     setupUI();
     setupModels();
     setupConnections();
@@ -99,26 +115,23 @@ void MainWindow::setupWorkspaceLayout()
 
 void MainWindow::setupMenus()
 {
-    languageMenu  = new QMenu(tr("Langue"), this);
-    actionFrench  = languageMenu->addAction(tr("Français"));
-    actionEnglish = languageMenu->addAction(tr("Anglais"));
-    connect(actionFrench, &QAction::triggered, this, &MainWindow::setLanguageFrench);
-    connect(actionEnglish, &QAction::triggered, this, &MainWindow::setLanguageEnglish);
+    const auto handles = MainWindowMenuBuilder::build(
+        menuBar(),
+        this,
+        tr("Paramètres"),
+        tr("Langue"),
+        tr("Français"),
+        tr("Anglais"),
+        tr("Configurer le Wi-Fi"),
+        [this]() { setLanguageFrench(); },
+        [this]() { setLanguageEnglish(); },
+        [this]() { m_coordinator->openWifiSettings(this); });
 
-    settingsMenu = new QMenu(tr("Paramètres"), this);
-    actionWifiConfig = settingsMenu->addAction(tr("Configurer le Wi-Fi"));
-    settingsMenu->addMenu(languageMenu);
-    connect(actionWifiConfig, &QAction::triggered, this,
-            [this]() { m_navigationController->openWifiSettings(this); });
-
-    auto *settingsBtn = new QToolButton(this);
-    settingsBtn->setObjectName("settingsToolButton");
-    settingsBtn->setText(tr("Paramètres"));
-    settingsBtn->setIcon(QIcon(":/icons/settings.svg"));
-    settingsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    settingsBtn->setPopupMode(QToolButton::InstantPopup);
-    settingsBtn->setMenu(settingsMenu);
-    menuBar()->setCornerWidget(settingsBtn, Qt::TopRightCorner);
+    settingsMenu = handles.settingsMenu;
+    languageMenu = handles.languageMenu;
+    actionFrench = handles.actionFrench;
+    actionEnglish = handles.actionEnglish;
+    actionWifiConfig = handles.actionWifiConfig;
 }
 
 void MainWindow::applyStyleSheets()
@@ -143,9 +156,9 @@ void MainWindow::setupConnections()
     setupShapeConnections();
     setupNavigationConnections();
     setupSystemConnections();
-    connect(m_aiServiceManager, &AIServiceManager::generationStatusChanged,
+    connect(m_coordinator, &MainWindowCoordinator::generationStatusChanged,
             ui->labelAIGenerationStatus, &QLabel::setText);
-    connect(m_aiServiceManager, &AIServiceManager::imageReadyForImport, this,
+    connect(m_coordinator, &MainWindowCoordinator::imageReadyForImport, this,
             [this](const QString &path, bool internalContours, bool colorEdges) {
                 ui->progressBarAI->setVisible(false);
                 openImageInCustom(path, internalContours, colorEdges);
@@ -250,17 +263,14 @@ void MainWindow::setupNavigationConnections()
             });
 
     // Naviguer entre les pages
-    connect(ui->buttonInventory, &QPushButton::clicked, this,
-            [this]() { m_navigationController->showInventory(this, Inventory::getInstance()); });
-    connect(ui->buttonCustom, &QPushButton::clicked, this,
-            [this]() { m_navigationController->openCustomEditor(this, m_displayLanguage); });
-    // "Images générées" should open the gallery of generated images
-    connect(ui->buttonTestGpio, &QPushButton::clicked, this,
-            [this]() { m_navigationController->openFolder(this, m_displayLanguage); });
+    MainWindowNavigationBinder::bindNavigationButtons(ui,
+                                                      m_coordinator,
+                                                      this,
+                                                      [this]() { return m_displayLanguage; });
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, [this]() {
         AiGenerationRequest request;
-        if (!m_aiServiceManager->openGenerationPrompt(this, request))
+        if (!m_coordinator->openAiGenerationPrompt(this, request))
             return;
 
         ui->progressBarAI->setVisible(true);
@@ -272,75 +282,19 @@ void MainWindow::setupNavigationConnections()
                                  request.size,
                                  request.colorPrompt);
     });
-    // Small button with the download icon opens the GPIO test page
-    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this,
-            [this]() { m_navigationController->openTestGpio(this); });
-    connect(ui->buttonFileReceiver, &QPushButton::clicked, this,
-            [this]() { m_navigationController->openBluetoothReceiver(this); });
-    connect(ui->buttonWifiTransfer, &QPushButton::clicked, this,
-            [this]() { m_navigationController->openWifiTransfer(this); });
 }
 
 void MainWindow::setupSystemConnections()
 {
-    // Connecter les spinboxes aux sliders
-    connect(ui->Longueur, &QSpinBox::valueChanged, ui->Slider_longueur, &QSlider::setValue);
-    connect(ui->Slider_longueur, &QSlider::valueChanged, ui->Longueur, &QSpinBox::setValue);
-    connect(ui->Largeur, &QSpinBox::valueChanged, ui->Slider_largeur, &QSlider::setValue);
-    connect(ui->Slider_largeur, &QSlider::valueChanged, ui->Largeur, &QSpinBox::setValue);
-
-    // Connection entre spinbox nombre de formes et ShapeController
-    connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            [this](int count) {
-                m_shapeController->updateShapeCount(count,
-                                                    ui->Largeur->value(),
-                                                    ui->Longueur->value());
-            });
-
-    connect(ui->optimizePlacementButton, &QPushButton::clicked, this,
-            [this](bool checked) {
-                ui->optimizePlacementButton2->setChecked(false);
-                m_shapeController->onOptimizePlacementClicked(checked,
-                                                              ui->Largeur->value(),
-                                                              ui->Longueur->value());
-            });
-
-    connect(ui->optimizePlacementButton2, &QPushButton::clicked, this,
-            [this](bool checked) {
-                ui->optimizePlacementButton->setChecked(false);
-                m_shapeController->onOptimizePlacement2Clicked(checked,
-                                                               ui->Largeur->value(),
-                                                               ui->Longueur->value());
-            });
-
-    // spinBox pour l'espacement
-    connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-            m_shapeController, &ShapeController::updateSpacing);
-
-    connect(shapeVisualization, &ShapeVisualization::spacingChanged,
-            this, [this](int newSpacing) {
-                ui->spaceSpinBox->setValue(newSpacing);
-            });
-
-    // Déplacement : 1 pixel par clic
-    connect(ui->ButtonUp, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveUpClicked);
-    connect(ui->ButtonDown, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveDownClicked);
-    connect(ui->ButtonLeft, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveLeftClicked);
-    connect(ui->ButtonRight, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveRightClicked);
-
-    connect(ui->ButtonRotationLeft, &QPushButton::clicked,
-            m_shapeController, &ShapeController::rotateLeft);
-    connect(ui->ButtonRotationRight, &QPushButton::clicked,
-            m_shapeController, &ShapeController::rotateRight);
-    connect(ui->ButtonAddShape, &QPushButton::clicked,
-            m_shapeController, &ShapeController::addShape);
-    connect(ui->ButtonDeleteShape, &QPushButton::clicked,
-            m_shapeController, &ShapeController::deleteShape);
+    MainWindowSystemBinder::bind(ui,
+                                 m_shapeController,
+                                 shapeVisualization,
+                                 this);
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
-        m_navigationController->handleSaveLayoutRequest(this,
-                                                        shapeVisualization,
-                                                        m_shapeController->selectedShapeType());
+        m_coordinator->handleSaveLayoutRequest(this,
+                                                   shapeVisualization,
+                                                   m_shapeController->selectedShapeType());
     });
 
     connect(ui->Play, &QPushButton::clicked, this, [this]() { emit requestStartCut(); });
@@ -357,6 +311,8 @@ void MainWindow::setupSystemConnections()
 }
 
 MainWindow::~MainWindow() {
+    if (!m_ownsCoordinator)
+        m_coordinator = nullptr;
     delete ui;
 }
 

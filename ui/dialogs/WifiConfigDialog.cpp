@@ -2,9 +2,8 @@
 #include "ui_WifiConfigDialog.h"
 #include "MainWindow.h"
 
-#include <QProcess>
+#include "managers/system/WifiNmcliParsers.h"
 #include <QMessageBox>
-#include <QRegularExpression>
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QHeaderView>
@@ -52,6 +51,7 @@ static void showToast(QWidget *parent, const QString &text, int ms = 1800) {
 WifiConfigDialog::WifiConfigDialog(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::WifiConfigDialog)
+    , m_wifiProfileService(m_nmcli)
 {
     ui->setupUi(this);
 
@@ -147,53 +147,6 @@ void WifiConfigDialog::closeEvent(QCloseEvent *event)
 
 // ================== NMCLI helpers ==================
 
-WifiConfigDialog::NmResult WifiConfigDialog::runNmcli(const QStringList &args, int timeoutMs)
-{
-    QProcess p;
-    p.start(QStringLiteral("nmcli"), args);
-    if (!p.waitForStarted(3000)) {
-        return {-1, QString(), tr("Impossible de démarrer nmcli")};
-    }
-    p.waitForFinished(timeoutMs);
-    NmResult r;
-    r.exitCode = p.exitCode();
-    r.out = QString::fromLocal8Bit(p.readAllStandardOutput());
-    r.err = QString::fromLocal8Bit(p.readAllStandardError());
-    return r;
-}
-
-QString WifiConfigDialog::detectWifiDevice()
-{
-    if (!_wifiDev.isEmpty())
-        return _wifiDev;
-
-    NmResult r = runNmcli({ "-t", "-f", "DEVICE,TYPE,STATE", "device", "status" });
-    if (!r.ok()) return QString();
-
-    // format: DEVICE:TYPE:STATE
-    const auto lines = r.out.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        const auto parts = ln.split(':');
-        if (parts.size() >= 3 && parts[1] == "wifi") {
-            _wifiDev = parts[0].trimmed();
-            break;
-        }
-    }
-    return _wifiDev;
-}
-
-bool WifiConfigDialog::ensureWifiRadioOn()
-{
-    NmResult r = runNmcli({ "radio", "wifi" });
-    if (!r.ok()) return false;
-
-    const QString st = r.out.trimmed().toLower();
-    if (st == "enabled" || st == "on") return true;
-
-    NmResult r2 = runNmcli({ "radio", "wifi", "on" });
-    return r2.ok();
-}
-
 void WifiConfigDialog::populateNetworksFromScan(const QString &nmcliOutput)
 {
     // nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list
@@ -204,12 +157,12 @@ void WifiConfigDialog::populateNetworksFromScan(const QString &nmcliOutput)
     const auto lines = nmcliOutput.split('\n', Qt::SkipEmptyParts);
     for (const auto &lnRaw : lines) {
         const QString ln = lnRaw.trimmed();
-        const QString ssid = extractSsid(ln);
+        const QString ssid = WifiNmcliParsers::extractSsid(ln);
         if (ssid.isEmpty() || seen.contains(ssid)) continue;
         seen << ssid;
 
-        const int signal = parseSignalPercent(ln);
-        const QString sec = parseSecurity(ln);
+        const int signal = WifiNmcliParsers::parseSignalPercent(ln);
+        const QString sec = WifiNmcliParsers::parseSecurity(ln);
         const QString secDisplay = sec.isEmpty() ? tr("Ouvert") : sec;
 
         // Combo (compat)
@@ -264,224 +217,16 @@ void WifiConfigDialog::updateStatusLabel(const QString &msg, bool ok)
     ui->statusLabel->setPalette(pal);
 }
 
-void WifiConfigDialog::applyAutoConnectPolicy(const QString &connectionName, bool autoconnect)
-{
-    if (connectionName.isEmpty()) return;
-    // connection.autoconnect yes|no
-    runNmcli({ "connection", "modify", connectionName,
-               "connection.autoconnect", autoconnect ? "yes" : "no" });
-}
-
-// ================== Parsing / persistance ==================
-
-QString WifiConfigDialog::parseCurrentSsid(const QString &devStatusOut, const QString &devName)
-{
-    // nmcli -t -f DEVICE,STATE,CONNECTION dev status
-    // line: wlp2s0:connected:<ConnectionName>  (souvent == SSID, mais pas toujours)
-    const auto lines = devStatusOut.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        const auto parts = ln.split(':');
-        if (parts.size() >= 3 && parts[0] == devName && parts[1] == "connected") {
-            return parts[2].trimmed();
-        }
-    }
-    return QString();
-}
-
-QString WifiConfigDialog::parseIpV4(const QString &deviceShowOut)
-{
-    // nmcli -t -f IP4.ADDRESS device show <dev>
-    // returns e.g. "192.168.1.42/24"
-    const auto lines = deviceShowOut.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        if (ln.startsWith("IP4.ADDRESS", Qt::CaseInsensitive)) {
-            const int idx = ln.indexOf(':');
-            if (idx >= 0) return ln.mid(idx+1).trimmed();
-        }
-    }
-    return QString();
-}
-
-int WifiConfigDialog::parseSignalPercent(const QString &nmcliScanLine)
-{
-    // format: SSID:SIGNAL:SECURITY
-    const auto parts = nmcliScanLine.split(':');
-    if (parts.size() >= 2) {
-        bool ok = false;
-        int v = parts[1].toInt(&ok);
-        return ok ? qBound(0, v, 100) : 0;
-    }
-    return 0;
-}
-
-QString WifiConfigDialog::parseSecurity(const QString &nmcliScanLine)
-{
-    const auto parts = nmcliScanLine.split(':');
-    if (parts.size() >= 3) return parts[2].trimmed();
-    return QString();
-}
-
-QString WifiConfigDialog::extractSsid(const QString &nmcliScanLine)
-{
-    // ATTENTION : SSID peut contenir des ":" => nmcli tronque/échappe rarement l'SSID.
-    // nmcli -t garantit le séparateur ":", mais l'SSID vide -> réseau caché.
-    const int firstColon = nmcliScanLine.indexOf(':');
-    if (firstColon <= 0) return nmcliScanLine.trimmed(); // cas dégradé (ou SSID vide)
-    return nmcliScanLine.left(firstColon).trimmed();
-}
-
-QString WifiConfigDialog::findConnectionNameForSsid(const QString &ssid)
-{
-    if (ssid.trimmed().isEmpty()) return QString();
-
-    // On interroge toutes les connexions connues.
-    // Format -t: NAME:TYPE:SSID (le 3e champ peut être vide/absent)
-    NmResult r = runNmcli({ "-t", "-f", "NAME,TYPE,802-11-wireless.ssid", "connection", "show" });
-    if (!r.ok()) return QString();
-
-    const auto lines = r.out.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        const auto parts = ln.split(':');
-        if (parts.size() < 2) continue;
-        const QString name = parts.value(0).trimmed();
-        const QString type = parts.value(1).trimmed();
-        const QString ssidVal = parts.size() >= 3 ? parts.mid(2).join(":").trimmed() : QString();
-
-        if (type == "wifi") {
-            // 1) match par SSID stocké dans le profil
-            if (!ssidVal.isEmpty() && ssidVal == ssid) return name;
-            // 2) match par nom de connexion (souvent égal au SSID)
-            if (name == ssid) return name;
-        }
-    }
-    return QString();
-}
-
-void WifiConfigDialog::persistPsk(const QString &connectionName, const QString &password)
-{
-    if (connectionName.isEmpty() || password.isEmpty()) return;
-
-    // Vérifie la méthode d’authent
-    NmResult s = runNmcli({ "-t", "-f", "802-11-wireless-security.key-mgmt",
-                            "connection", "show", connectionName });
-    if (!s.ok()) return;
-
-    const QString kmgmt = s.out.trimmed().toLower();
-    const bool isPskLike = kmgmt.contains("wpa-psk") || kmgmt.contains("sae");
-    if (!isPskLike) return; // évite d'écrire sur un profil 802.1X
-
-    runNmcli({ "connection", "modify", connectionName,
-               "802-11-wireless-security.psk", password });
-    runNmcli({ "connection", "modify", connectionName,
-               "802-11-wireless-security.psk-flags", "0" });
-}
-
-bool WifiConfigDialog::isPasswordSavedForConnection(const QString &connectionName)
-{
-    if (connectionName.isEmpty()) return false;
-
-    NmResult r = runNmcli({ "-t", "-f",
-                            "802-11-wireless-security.key-mgmt,"
-                            "802-11-wireless-security.psk,"
-                            "802-11-wireless-security.psk-flags",
-                            "connection", "show", connectionName });
-    if (!r.ok()) return false;
-
-    bool hasPsk = false;
-    int flags = -1;
-    QString kmgmt;
-
-    const auto lines = r.out.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        if (ln.startsWith("802-11-wireless-security.key-mgmt:", Qt::CaseInsensitive)) {
-            kmgmt = ln.section(':', 1).trimmed();
-        } else if (ln.startsWith("802-11-wireless-security.psk:", Qt::CaseInsensitive)) {
-            const QString p = ln.section(':', 1);
-            hasPsk = !p.trimmed().isEmpty();
-        } else if (ln.startsWith("802-11-wireless-security.psk-flags:", Qt::CaseInsensitive)) {
-            bool ok = false;
-            flags = ln.section(':', 1).trimmed().toInt(&ok);
-            if (!ok) flags = -1;
-        }
-    }
-
-    // WPA2-PSK et WPA3-SAE
-    if (kmgmt.contains("wpa-psk", Qt::CaseInsensitive) || kmgmt.contains("sae", Qt::CaseInsensitive)) {
-        if (hasPsk) return true;
-        if (flags == 0) return true;   // 0 = secret stocké
-    }
-    return false;
-}
-
-QString WifiConfigDialog::getSecurityForSsid(const QString &ssid, const QString &dev)
-{
-    if (ssid.isEmpty() || dev.isEmpty()) return QString();
-
-    NmResult scan = runNmcli({ "-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "ifname", dev });
-    if (!scan.ok()) return QString();
-
-    const auto lines = scan.out.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        const int c = ln.indexOf(':');
-        if (c <= 0) continue;
-        const QString s = ln.left(c).trimmed();
-        const QString sec = ln.mid(c+1).trimmed();
-        if (s == ssid) return sec; // "" (ouvert) ou "WPA2"/"WPA3"/"WPA1 WPA2"...
-    }
-    return QString();
-}
-
-QString WifiConfigDialog::activeWifiConnectionNameForDevice(const QString &dev)
-{
-    if (dev.isEmpty()) return QString();
-    // NAME:TYPE:DEVICE
-    NmResult r = runNmcli({ "-t", "-f", "NAME,TYPE,DEVICE", "connection", "show", "--active" });
-    if (!r.ok()) return QString();
-
-    const auto lines = r.out.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        const auto parts = ln.split(':');
-        if (parts.size() >= 3) {
-            const QString name = parts[0].trimmed();
-            const QString type = parts[1].trimmed();
-            const QString devName = parts[2].trimmed();
-            if (type == "wifi" && devName == dev)
-                return name;
-        }
-    }
-    return QString();
-}
-
-// Retourne l'SSID actuellement utilisé via IN-USE (plus fiable que device status)
-QString WifiConfigDialog::currentSsidFromScan(const QString &dev)
-{
-    if (dev.isEmpty()) return QString();
-    // IN-USE,SSID : ligne marquée "*:" (ou parfois "yes:")
-    NmResult r = runNmcli({ "-t", "-f", "IN-USE,SSID", "device", "wifi", "list", "ifname", dev });
-    if (!r.ok()) return QString();
-    const auto lines = r.out.split('\n', Qt::SkipEmptyParts);
-    for (const auto &ln : lines) {
-        int c = ln.indexOf(':');
-        if (c < 0) continue;
-        const QString inuse = ln.left(c).trimmed();
-        const QString ssid  = ln.mid(c+1).trimmed();
-        if (inuse == "*" || inuse.compare("yes", Qt::CaseInsensitive) == 0 || inuse == "1") {
-            return ssid;
-        }
-    }
-    return QString();
-}
-
 // ================== Slots ==================
 
 void WifiConfigDialog::scanNetworks()
 {
-    if (!ensureWifiRadioOn()) {
+    if (!m_nmcli.ensureWifiRadioOn()) {
         updateStatusLabel(tr("Wi‑Fi désactivé — tentative d’activation impossible."), false);
         return;
     }
 
-    const QString dev = detectWifiDevice();
+    const QString dev = m_nmcli.detectWifiDevice();
     if (dev.isEmpty()) {
         updateStatusLabel(tr("Aucune interface Wi‑Fi détectée."), false);
         return;
@@ -489,7 +234,7 @@ void WifiConfigDialog::scanNetworks()
 
     setBusy(true);
     // Liste SSID:SIGNAL:SECURITY
-    NmResult r = runNmcli({ "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", dev });
+    WifiNmcliClient::Result r = m_nmcli.run({ "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", dev });
     setBusy(false);
 
     if (!r.ok()) {
@@ -502,12 +247,12 @@ void WifiConfigDialog::scanNetworks()
 
 void WifiConfigDialog::connectSelected()
 {
-    if (!ensureWifiRadioOn()) {
+    if (!m_nmcli.ensureWifiRadioOn()) {
         updateStatusLabel(tr("Wi‑Fi désactivé — impossible de se connecter."), false);
         return;
     }
 
-    const QString dev = detectWifiDevice();
+    const QString dev = m_nmcli.detectWifiDevice();
     if (dev.isEmpty()) {
         updateStatusLabel(tr("Aucune interface Wi‑Fi détectée."), false);
         return;
@@ -565,7 +310,7 @@ void WifiConfigDialog::connectSelected()
 
     showToast(this, tr("Connexion à %1 en cours…").arg(ssid), 1600);
 
-    NmResult r = runNmcli(args, 20000);
+    WifiNmcliClient::Result r = m_nmcli.run(args, 20000);
 
     /* --- NOUVEAU : restaurer l'état UI --- */
     if (ui->connectButton) ui->connectButton->setText(oldBtnText);
@@ -590,7 +335,7 @@ void WifiConfigDialog::connectSelected()
             msg = tr("Délai dépassé. Réessayez en vous rapprochant du point d’accès.");
 
         QMessageBox::warning(this, tr("Connexion Wi‑Fi"), QString("❌ %1").arg(msg));
-        showToast(this, tr("✅ Connecté à %1").arg(ssid), 1600);
+        showToast(this, tr("❌ Échec de connexion à %1").arg(ssid), 1600);
         updateStatusLabel(tr("❌ Échec de la connexion à %1").arg(ssid), false);
         return;
     }
@@ -602,12 +347,12 @@ void WifiConfigDialog::connectSelected()
     }
 
     // Trouver le vrai nom de profil et appliquer les politiques
-    const QString connName = findConnectionNameForSsid(ssid);
+    const QString connName = m_wifiProfileService.findConnectionNameForSsid(ssid);
     const bool autoconnect = (ui->autoConnectCheck && ui->autoConnectCheck->isChecked());
     if (!connName.isEmpty()) {
-        applyAutoConnectPolicy(connName, autoconnect);
+        m_wifiProfileService.applyAutoConnectPolicy(connName, autoconnect);
         if (!password.isEmpty()) {
-            persistPsk(connName, password); // mémorise le mot de passe
+            m_wifiProfileService.persistPsk(connName, password); // mémorise le mot de passe
         }
     }
 
@@ -619,7 +364,7 @@ void WifiConfigDialog::connectSelected()
 
 void WifiConfigDialog::checkConnectionStatus()
 {
-    const QString dev = detectWifiDevice();
+    const QString dev = m_nmcli.detectWifiDevice();
     if (dev.isEmpty()) {
         if (ui->currentNetworkValue) ui->currentNetworkValue->setText("-");
         if (ui->ipValue)             ui->ipValue->setText("-");
@@ -629,10 +374,10 @@ void WifiConfigDialog::checkConnectionStatus()
     }
 
     // SSID actuel (fiable) + IP
-    const QString currentSsid = currentSsidFromScan(dev);
+    const QString currentSsid = m_wifiProfileService.currentSsidFromScan(dev);
 
-    NmResult ip = runNmcli({ "-t", "-f", "IP4.ADDRESS", "device", "show", dev });
-    const QString ip4 = parseIpV4(ip.out);
+    WifiNmcliClient::Result ip = m_nmcli.run({ "-t", "-f", "IP4.ADDRESS", "device", "show", dev });
+    const QString ip4 = WifiNmcliParsers::parseIpV4(ip.out);
 
     if (ui->currentNetworkValue) {
         ui->currentNetworkValue->setText(currentSsid.isEmpty() ? tr("(non connecté)") : currentSsid);
@@ -648,13 +393,13 @@ void WifiConfigDialog::checkConnectionStatus()
     // Force du signal (si connecté)
     int signal = -1;
     if (!currentSsid.isEmpty()) {
-        NmResult scan = runNmcli({ "-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "device", "wifi", "list", "ifname", dev });
+        WifiNmcliClient::Result scan = m_nmcli.run({ "-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "device", "wifi", "list", "ifname", dev });
         if (scan.ok()) {
             const auto lines = scan.out.split('\n', Qt::SkipEmptyParts);
             for (const auto &ln : lines) {
-                const QString ssid = extractSsid(ln);
+                const QString ssid = WifiNmcliParsers::extractSsid(ln);
                 if (ssid == currentSsid) {
-                    signal = parseSignalPercent(ln);
+                    signal = WifiNmcliParsers::parseSignalPercent(ln);
                     break;
                 }
             }
@@ -694,18 +439,18 @@ void WifiConfigDialog::onHiddenSsidToggled(bool on)
 
 void WifiConfigDialog::showDiagnostics()
 {
-    const QString dev = detectWifiDevice();
+    const QString dev = m_nmcli.detectWifiDevice();
 
     QString diag;
     diag += "=== nmcli device status ===\n";
-    diag += runNmcli({ "device", "status" }).out + "\n";
+    diag += m_nmcli.run({ "device", "status" }).out + "\n";
     diag += "=== nmcli connection show --active ===\n";
-    diag += runNmcli({ "connection", "show", "--active" }).out + "\n";
+    diag += m_nmcli.run({ "connection", "show", "--active" }).out + "\n";
     if (!dev.isEmpty()) {
         diag += QString("=== nmcli device show %1 ===\n").arg(dev);
-        diag += runNmcli({ "device", "show", dev }).out + "\n";
+        diag += m_nmcli.run({ "device", "show", dev }).out + "\n";
         diag += QString("=== nmcli -t -f SSID,SIGNAL,SECURITY device wifi list ifname %1 ===\n").arg(dev);
-        diag += runNmcli({ "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", dev }).out + "\n";
+        diag += m_nmcli.run({ "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", dev }).out + "\n";
     }
 
     QGuiApplication::clipboard()->setText(diag);
@@ -721,7 +466,7 @@ void WifiConfigDialog::onAutoScanToggled(bool on)
 
 void WifiConfigDialog::updateCredentialStateForCurrentSsid()
 {
-    const QString dev  = detectWifiDevice();
+    const QString dev  = m_nmcli.detectWifiDevice();
     const bool hidden  = ui->hiddenSsidCheck && ui->hiddenSsidCheck->isChecked();
 
     // --- Quel SSID est sélectionné ?
@@ -754,21 +499,21 @@ void WifiConfigDialog::updateCredentialStateForCurrentSsid()
     }
 
     // --- Boutons Connexion / Déconnexion
-    const QString currentSsid = currentSsidFromScan(dev);
+    const QString currentSsid = m_wifiProfileService.currentSsidFromScan(dev);
     const bool selectedIsCurrent = (!ssid.isEmpty() && !currentSsid.isEmpty() && ssid == currentSsid);
     if (ui->connectButton)    ui->connectButton->setVisible(!selectedIsCurrent);
     if (ui->disconnectButton) ui->disconnectButton->setVisible(selectedIsCurrent);
 
     // --- Détection sécurité + profil
-    const QString sec = getSecurityForSsid(ssid, dev);
+    const QString sec = m_wifiProfileService.getSecurityForSsid(ssid, dev);
     const bool isOpen = sec.trimmed().isEmpty();
 
-    QString connName = findConnectionNameForSsid(ssid);
+    QString connName = m_wifiProfileService.findConnectionNameForSsid(ssid);
     if (connName.isEmpty() && selectedIsCurrent)
-        connName = activeWifiConnectionNameForDevice(dev);
+        connName = m_wifiProfileService.activeWifiConnectionNameForDevice(dev);
 
     const bool hasProfile  = !connName.isEmpty();
-    const bool hasSavedPwd = hasProfile && isPasswordSavedForConnection(connName);
+    const bool hasSavedPwd = hasProfile && m_wifiProfileService.isPasswordSavedForConnection(connName);
 
     const bool shouldHidePwd = isOpen || hasSavedPwd;
 
@@ -816,7 +561,7 @@ void WifiConfigDialog::forgetCurrentNetwork()
                                      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (ret != QMessageBox::Yes) return;
 
-    NmResult del = runNmcli({ "connection", "delete", connName });
+    WifiNmcliClient::Result del = m_nmcli.run({ "connection", "delete", connName });
     if (!del.ok()) {
         QMessageBox::warning(this, tr("Oublier le réseau"),
                              tr("Impossible de supprimer le profil : %1").arg(del.err.trimmed().isEmpty() ? del.out.trimmed() : del.err.trimmed()));
@@ -834,7 +579,7 @@ void WifiConfigDialog::forgetCurrentNetwork()
 
 void WifiConfigDialog::disconnectFromSelected()
 {
-    const QString dev  = detectWifiDevice();
+    const QString dev  = m_nmcli.detectWifiDevice();
     if (dev.isEmpty()) return;
 
     // Quel SSID est sélectionné ?
@@ -849,13 +594,13 @@ void WifiConfigDialog::disconnectFromSelected()
     }
 
     // On tente "connection down" sur le bon profil; sinon "device disconnect"
-    QString connName = findConnectionNameForSsid(ssid);
+    QString connName = m_wifiProfileService.findConnectionNameForSsid(ssid);
     if (connName.isEmpty())
-        connName = activeWifiConnectionNameForDevice(dev);
+        connName = m_wifiProfileService.activeWifiConnectionNameForDevice(dev);
 
-    NmResult r = connName.isEmpty()
-               ? runNmcli({ "device", "disconnect", dev })
-               : runNmcli({ "connection", "down", connName });
+    WifiNmcliClient::Result r = connName.isEmpty()
+               ? m_nmcli.run({ "device", "disconnect", dev })
+               : m_nmcli.run({ "connection", "down", connName });
 
     if (!r.ok()) {
         QMessageBox::warning(this, tr("Déconnexion Wi‑Fi"),

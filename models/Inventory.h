@@ -61,6 +61,9 @@ struct InventoryFolder {
 // -----------------------------------------------------------------------------
 // Inventory widget
 // -----------------------------------------------------------------------------
+class InventoryModel;
+class InventoryController;
+
 class Inventory : public QWidget
 {
     Q_OBJECT
@@ -142,14 +145,8 @@ private:
     Ui::Inventory *ui {nullptr};
     static Inventory *instance;
 
-    QList<CustomShapeData> m_customShapes;
-    QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
-    QMap<ShapeModel::Type, QString> m_baseShapeFolders;
-    QMap<ShapeModel::Type, int> m_baseUsageCount;
-    QMap<ShapeModel::Type, QDateTime> m_baseLastUsed;
-    QList<ShapeModel::Type> m_baseShapeOrder;
-    Language currentLanguage {Language::French};
-    QList<InventoryFolder> m_folders;
+    InventoryModel *m_model {nullptr};
+    InventoryController *m_controller {nullptr};
 
     QFrame *createFolderCard(const QString &folderName);
     QFrame *createBaseShapeCard(ShapeModel::Type type, const QString &name);

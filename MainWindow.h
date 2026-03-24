@@ -18,12 +18,13 @@ class ShapeVisualization;
 class NavigationController;
 class AIServiceManager;
 class ShapeController;
+class MainWindowCoordinator;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr, MainWindowCoordinator *coordinator = nullptr);
     ~MainWindow();
     ShapeVisualization* getShapeVisualization() const;
     AIServiceManager* aiServiceManager() const { return m_aiServiceManager; }
@@ -85,9 +86,11 @@ private:
     ShapeVisualization *shapeVisualization = nullptr;
 
     // --- Controllers ---
+    MainWindowCoordinator *m_coordinator = nullptr;
     NavigationController *m_navigationController = nullptr;
     AIServiceManager *m_aiServiceManager = nullptr;
     ShapeController *m_shapeController = nullptr;
+    bool m_ownsCoordinator = false;
 
     // --- Runtime state ---
     Language m_displayLanguage = Language::French;
