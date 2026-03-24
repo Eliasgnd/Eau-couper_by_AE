@@ -5,6 +5,11 @@
 #include <QApplication>
 #include "Language.h"
 #include "ScreenUtils.h"
+#include "InventoryStorage.h"
+#include "InventoryQueryService.h"
+#include "InventoryMutationService.h"
+#include "InventoryModel.h"
+#include "InventoryController.h"
 
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -13,12 +18,6 @@
 #include <QPainterPath>
 
 #include <QFile>
-#include <QDir>
-#include <QStandardPaths>
-
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -35,6 +34,15 @@
 #include <QDebug>
 #include <QSvgRenderer>
 #include <algorithm>
+
+#define m_customShapes (m_model->customShapes())
+#define m_baseShapeLayouts (m_model->baseShapeLayouts())
+#define m_baseShapeFolders (m_model->baseShapeFolders())
+#define m_baseUsageCount (m_model->baseUsageCount())
+#define m_baseLastUsed (m_model->baseLastUsed())
+#define m_baseShapeOrder (m_model->baseShapeOrder())
+#define m_folders (m_model->folders())
+#define currentLanguage (m_model->languageRef())
 
 namespace {
 MainWindow* resolveMainWindow()
@@ -61,6 +69,9 @@ Inventory::Inventory(QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventory)
 {
     ui->setupUi(this);
+
+    m_model = new InventoryModel();
+    m_controller = new InventoryController(*m_model);
 
     loadCustomShapes();
 
@@ -109,6 +120,8 @@ Inventory::Inventory(QWidget *parent)
 Inventory::~Inventory()
 {
     qDebug() << "Fermeture de l'Inventory (l'instance reste vivante via le singleton)";
+    delete m_controller;
+    delete m_model;
     delete ui;
 }
 
@@ -123,7 +136,6 @@ Inventory* Inventory::getInstance()
     }
     return instance;
 }
-
 
 QPixmap Inventory::renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size)
 {
@@ -150,7 +162,6 @@ QPixmap Inventory::renderColoredSvg(const QString &filePath, const QColor &color
 
     return pixmap;
 }
-
 
 // -----------------------------------------------------------------------------
 // Navigation helpers
@@ -308,7 +319,6 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
     frame->setFixedSize(150, 220);
     //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
 
-
     auto *label = new QLabel(data.name);
     label->setAlignment(Qt::AlignCenter);
     label->setStyleSheet("color: black; font-size: 16px;");
@@ -343,7 +353,6 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
 
             // Réaffecte le dossier parent à la forme (ou rien si on est à la racine)
             m_customShapes[index].folder = parentFolder;
-
 
             saveCustomShapes();
 
@@ -493,12 +502,7 @@ void Inventory::changeEvent(QEvent *event)
 // -----------------------------------------------------------------------------
 QString Inventory::customShapesFilePath() const
 {
-    QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if (dir.isEmpty())
-        dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-
-    QDir().mkpath(dir);
-    return dir + "/custom_shapes.json";
+    return m_model->customShapesFilePath();
 }
 
 // -----------------------------------------------------------------------------
@@ -506,11 +510,7 @@ QString Inventory::customShapesFilePath() const
 // -----------------------------------------------------------------------------
 bool Inventory::shapeNameExists(const QString &name) const
 {
-    for (const auto &shapeData : m_customShapes) {
-        if (shapeData.name.compare(name, Qt::CaseSensitive) == 0)
-            return true;
-    }
-    return false;
+    return InventoryQueryService::shapeNameExists(m_customShapes, name);
 }
 
 // -----------------------------------------------------------------------------
@@ -518,270 +518,12 @@ bool Inventory::shapeNameExists(const QString &name) const
 // -----------------------------------------------------------------------------
 void Inventory::loadCustomShapes()
 {
-    m_customShapes.clear();
-    m_baseShapeLayouts.clear();
-    m_baseShapeFolders.clear();
-    m_baseShapeOrder.clear();
-    m_folders.clear();
-
-    QFile file(customShapesFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    file.close();
-    if (!doc.isObject())
-        return;
-
-    const QJsonObject root = doc.object();
-
-    // ------------------------------
-    // Folders
-    // ------------------------------
-    const QJsonArray foldersArr = root.value("folders").toArray();
-    for (const QJsonValue &val : foldersArr) {
-        if (!val.isObject())
-            continue;
-        const QJsonObject obj = val.toObject();
-        InventoryFolder f;
-        f.name = obj.value("name").toString();
-        f.parentFolder = obj.value("parentFolder").toString();
-        f.usageCount = obj.value("usageCount").toInt();
-        qint64 ts = static_cast<qint64>(obj.value("lastUsed").toDouble());
-        if (ts > 0)
-            f.lastUsed = QDateTime::fromSecsSinceEpoch(ts);
-        m_folders.append(f);
-    }
-
-    // ------------------------------
-    // Custom shapes
-    // ------------------------------
-    const QJsonArray shapesArr = root.value("shapes").toArray();
-    for (const QJsonValue &val : shapesArr) {
-        if (!val.isObject())
-            continue;
-
-        const QJsonObject obj = val.toObject();
-        CustomShapeData data;
-        data.name = obj.value("name").toString();
-        data.folder = obj.value("folder").toString();
-        data.usageCount = obj.value("usageCount").toInt();
-        qint64 tsShape = static_cast<qint64>(obj.value("lastUsed").toDouble());
-        if (tsShape > 0)
-            data.lastUsed = QDateTime::fromSecsSinceEpoch(tsShape);
-
-        // Polygons
-        const QJsonArray polyArr = obj.value("polygons").toArray();
-        for (const QJsonValue &polyVal : polyArr) {
-            const QJsonArray ptArrList = polyVal.toArray();
-            QPolygonF poly;
-            for (const QJsonValue &ptVal : ptArrList) {
-                const QJsonArray p = ptVal.toArray();
-                if (p.size() >= 2)
-                    poly.append(QPointF(p.at(0).toDouble(), p.at(1).toDouble()));
-            }
-            data.polygons.append(poly);
-        }
-
-        // Layouts (optional)
-        const QJsonArray layoutsArr = obj.value("layouts").toArray();
-        for (const QJsonValue &layoutVal : layoutsArr) {
-            if (!layoutVal.isObject())
-                continue;
-            const QJsonObject lo = layoutVal.toObject();
-            LayoutData ld;
-            ld.name      = lo.value("name").toString();
-            ld.largeur   = lo.value("largeur").toInt();
-            ld.longueur  = lo.value("longueur").toInt();
-            ld.spacing   = lo.value("spacing").toInt();
-            ld.usageCount = lo.value("usageCount").toInt();
-            qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
-            if (tsLayout > 0)
-                ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
-            const QJsonArray itemsArr = lo.value("items").toArray();
-            for (const QJsonValue &itemVal : itemsArr) {
-                const QJsonObject io = itemVal.toObject();
-                LayoutItem li;
-                li.x        = io.value("x").toDouble();
-                li.y        = io.value("y").toDouble();
-                li.rotation = io.value("rotation").toDouble();
-                ld.items.append(li);
-            }
-            data.layouts.append(ld);
-        }
-
-        m_customShapes.append(data);
-    }
-
-    // ------------------------------
-    // Base shape layouts
-    // ------------------------------
-    const QJsonObject baseObj = root.value("baseLayouts").toObject();
-    for (auto it = baseObj.begin(); it != baseObj.end(); ++it) {
-        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-        const QJsonArray layoutsArr = it.value().toArray();
-        QList<LayoutData> list;
-        for (const QJsonValue &layoutVal : layoutsArr) {
-            if (!layoutVal.isObject())
-                continue;
-            const QJsonObject lo = layoutVal.toObject();
-            LayoutData ld;
-            ld.name     = lo.value("name").toString();
-            ld.largeur  = lo.value("largeur").toInt();
-            ld.longueur = lo.value("longueur").toInt();
-            ld.spacing  = lo.value("spacing").toInt();
-            ld.usageCount = lo.value("usageCount").toInt();
-            qint64 tsLayout = static_cast<qint64>(lo.value("lastUsed").toDouble());
-            if (tsLayout > 0)
-                ld.lastUsed = QDateTime::fromSecsSinceEpoch(tsLayout);
-            const QJsonArray itemsArr = lo.value("items").toArray();
-            for (const QJsonValue &itemVal : itemsArr) {
-                const QJsonObject io = itemVal.toObject();
-                LayoutItem li;
-                li.x        = io.value("x").toDouble();
-                li.y        = io.value("y").toDouble();
-                li.rotation = io.value("rotation").toDouble();
-                ld.items.append(li);
-            }
-            list.append(ld);
-        }
-        m_baseShapeLayouts[type] = list;
-    }
-
-    const QJsonObject baseFoldersObj = root.value("baseFolders").toObject();
-    for (auto it = baseFoldersObj.begin(); it != baseFoldersObj.end(); ++it) {
-        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-        m_baseShapeFolders[type] = it.value().toString();
-    }
-
-    const QJsonObject usageObj = root.value("baseUsageCount").toObject();
-    for (auto it = usageObj.begin(); it != usageObj.end(); ++it) {
-        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-        m_baseUsageCount[type] = it.value().toInt();
-    }
-
-    const QJsonObject lastUsedObj = root.value("baseLastUsed").toObject();
-    for (auto it = lastUsedObj.begin(); it != lastUsedObj.end(); ++it) {
-        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
-        qint64 ts = static_cast<qint64>(it.value().toDouble());
-        if (ts > 0)
-            m_baseLastUsed[type] = QDateTime::fromSecsSinceEpoch(ts);
-    }
-
-    // Preserve default order of built-in shapes
+    m_model->load();
 }
 
 void Inventory::saveCustomShapes() const
 {
-    QJsonArray shapesArr;
-    for (const CustomShapeData &data : m_customShapes) {
-        QJsonObject obj;
-        obj["name"] = data.name;
-        obj["folder"] = data.folder;
-        obj["usageCount"] = data.usageCount;
-        obj["lastUsed"] = data.lastUsed.isValid() ? static_cast<qint64>(data.lastUsed.toSecsSinceEpoch()) : 0;
-
-        // Polygons
-        QJsonArray polyArr;
-        for (const QPolygonF &poly : data.polygons) {
-            QJsonArray pointsArr;
-            for (const QPointF &pt : poly) {
-                QJsonArray ptArr;
-                ptArr.append(pt.x());
-                ptArr.append(pt.y());
-                pointsArr.append(ptArr);
-            }
-            polyArr.append(pointsArr);
-        }
-        obj["polygons"] = polyArr;
-
-        // Layouts
-        QJsonArray layoutsArr;
-        for (const LayoutData &ld : data.layouts) {
-            QJsonObject lo;
-            lo["name"]     = ld.name;
-            lo["largeur"]  = ld.largeur;
-            lo["longueur"] = ld.longueur;
-            lo["spacing"]  = ld.spacing;
-            lo["usageCount"] = ld.usageCount;
-            lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
-            QJsonArray itemsArr;
-            for (const LayoutItem &li : ld.items) {
-                QJsonObject io;
-                io["x"]        = li.x;
-                io["y"]        = li.y;
-                io["rotation"] = li.rotation;
-                itemsArr.append(io);
-            }
-            lo["items"] = itemsArr;
-            layoutsArr.append(lo);
-        }
-        obj["layouts"] = layoutsArr;
-
-        shapesArr.append(obj);
-    }
-
-    // Base layouts
-    QJsonObject baseObj;
-    for (auto it = m_baseShapeLayouts.constBegin(); it != m_baseShapeLayouts.constEnd(); ++it) {
-        QJsonArray layoutsArr;
-        for (const LayoutData &ld : it.value()) {
-            QJsonObject lo;
-            lo["name"]     = ld.name;
-            lo["largeur"]  = ld.largeur;
-            lo["longueur"] = ld.longueur;
-            lo["spacing"]  = ld.spacing;
-            lo["usageCount"] = ld.usageCount;
-            lo["lastUsed"] = ld.lastUsed.isValid() ? static_cast<qint64>(ld.lastUsed.toSecsSinceEpoch()) : 0;
-            QJsonArray itemsArr;
-            for (const LayoutItem &li : ld.items) {
-                QJsonObject io;
-                io["x"]        = li.x;
-                io["y"]        = li.y;
-                io["rotation"] = li.rotation;
-                itemsArr.append(io);
-            }
-            lo["items"] = itemsArr;
-            layoutsArr.append(lo);
-        }
-        baseObj[QString::number(static_cast<int>(it.key()))] = layoutsArr;
-    }
-
-    QJsonObject baseFoldersObj;
-    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
-        baseFoldersObj[QString::number(static_cast<int>(it.key()))] = it.value();
-    }
-    QJsonObject usageObj;
-    for (auto it = m_baseUsageCount.constBegin(); it != m_baseUsageCount.constEnd(); ++it) {
-        usageObj[QString::number(static_cast<int>(it.key()))] = it.value();
-    }
-    QJsonObject lastUsedObj;
-    for (auto it = m_baseLastUsed.constBegin(); it != m_baseLastUsed.constEnd(); ++it) {
-        lastUsedObj[QString::number(static_cast<int>(it.key()))] = static_cast<qint64>(it.value().toSecsSinceEpoch());
-    }
-    QJsonArray foldersArr;
-    for (const InventoryFolder &f : m_folders) {
-        QJsonObject fo;
-        fo["name"] = f.name;
-        fo["parentFolder"] = f.parentFolder;
-        fo["usageCount"] = f.usageCount;
-        fo["lastUsed"] = f.lastUsed.isValid() ? static_cast<qint64>(f.lastUsed.toSecsSinceEpoch()) : 0;
-        foldersArr.append(fo);
-    }
-
-    QJsonObject rootObj;
-    rootObj["shapes"]      = shapesArr;
-    rootObj["baseLayouts"] = baseObj;
-    rootObj["baseFolders"] = baseFoldersObj;
-    rootObj["baseUsageCount"] = usageObj;
-    rootObj["baseLastUsed"] = lastUsedObj;
-    rootObj["folders"]     = foldersArr;
-
-    QFile file(customShapesFilePath());
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(QJsonDocument(rootObj).toJson());
-        file.close();
-    }
+    m_model->save();
 }
 
 // -----------------------------------------------------------------------------
@@ -795,7 +537,6 @@ void Inventory::onSearchTextChanged(const QString &text)
         displayShapes(text);
     }
 }
-
 
 void Inventory::onClearSearchClicked()
 {
@@ -816,13 +557,13 @@ void Inventory::onCreateFolderClicked()
     if (ok && !name.trimmed().isEmpty()) {
         QString clean = name.trimmed();
         QString parent = inFolderView ? currentFolder : QString();
-        m_folders.append({clean, parent});
-        saveCustomShapes();
+        if (m_controller->createFolder(clean, parent)) {
 
-        if (inFolderView)
-            displayShapesInFolder(currentFolder, ui->searchBar->text());
-        else
-            displayShapes(ui->searchBar->text());
+            if (inFolderView)
+                displayShapesInFolder(currentFolder, ui->searchBar->text());
+            else
+                displayShapes(ui->searchBar->text());
+        }
     }
 }
 
@@ -844,20 +585,7 @@ void Inventory::onFilterChanged(int)
 
 QStringList Inventory::getAllShapeNames() const
 {
-    QStringList names;
-
-    // Built-in shapes
-    if (currentLanguage == Language::French) {
-        names << "Cercle" << "Rectangle" << "Triangle" << "Étoile" << "Cœur";
-    } else {
-        names << "Circle" << "Rectangle" << "Triangle" << "Star" << "Heart";
-    }
-
-    // Custom shapes
-    for (const CustomShapeData &data : m_customShapes)
-        names << data.name;
-
-    return names;
+    return InventoryQueryService::getAllShapeNames(m_customShapes, currentLanguage);
 }
 
 // -----------------------------------------------------------------------------
@@ -865,44 +593,25 @@ QStringList Inventory::getAllShapeNames() const
 // -----------------------------------------------------------------------------
 void Inventory::addLayoutToShape(const QString &shapeName, const LayoutData &layout)
 {
-    for (CustomShapeData &data : m_customShapes) {
-        if (data.name == shapeName) {
-            data.layouts.append(layout);
-            saveCustomShapes();
-            return;
-        }
-    }
+    if (InventoryMutationService::addLayoutToShape(m_customShapes, shapeName, layout))
+        saveCustomShapes();
 }
 
 void Inventory::renameLayout(const QString &shapeName, int index, const QString &newName)
 {
-    for (CustomShapeData &data : m_customShapes) {
-        if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
-            data.layouts[index].name = newName;
-            saveCustomShapes();
-            return;
-        }
-    }
+    if (InventoryMutationService::renameLayout(m_customShapes, shapeName, index, newName))
+        saveCustomShapes();
 }
 
 void Inventory::deleteLayout(const QString &shapeName, int index)
 {
-    for (CustomShapeData &data : m_customShapes) {
-        if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
-            data.layouts.removeAt(index);
-            saveCustomShapes();
-            return;
-        }
-    }
+    if (InventoryMutationService::deleteLayout(m_customShapes, shapeName, index))
+        saveCustomShapes();
 }
 
 QList<LayoutData> Inventory::getLayoutsForShape(const QString &shapeName) const
 {
-    for (const CustomShapeData &data : m_customShapes) {
-        if (data.name == shapeName)
-            return data.layouts;
-    }
-    return {};
+    return InventoryMutationService::getLayoutsForShape(m_customShapes, shapeName);
 }
 
 // -----------------------------------------------------------------------------
@@ -910,51 +619,43 @@ QList<LayoutData> Inventory::getLayoutsForShape(const QString &shapeName) const
 // -----------------------------------------------------------------------------
 void Inventory::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
 {
-    m_baseShapeLayouts[type].append(layout);
-    saveCustomShapes();
+    if (InventoryMutationService::addLayoutToBaseShape(m_baseShapeLayouts, type, layout))
+        saveCustomShapes();
 }
 
 void Inventory::renameBaseLayout(ShapeModel::Type type, int index, const QString &newName)
 {
-    auto it = m_baseShapeLayouts.find(type);
-    if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
-        it.value()[index].name = newName;
+    if (InventoryMutationService::renameBaseLayout(m_baseShapeLayouts, type, index, newName))
         saveCustomShapes();
-    }
 }
 
 void Inventory::deleteBaseLayout(ShapeModel::Type type, int index)
 {
-    auto it = m_baseShapeLayouts.find(type);
-    if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
-        it.value().removeAt(index);
+    if (InventoryMutationService::deleteBaseLayout(m_baseShapeLayouts, type, index))
         saveCustomShapes();
-    }
 }
 
 QList<LayoutData> Inventory::getLayoutsForBaseShape(ShapeModel::Type type) const
 {
-    return m_baseShapeLayouts.value(type);
+    return InventoryMutationService::getLayoutsForBaseShape(m_baseShapeLayouts, type);
 }
 
 void Inventory::incrementLayoutUsage(const QString &shapeName, int index)
 {
-    for (CustomShapeData &data : m_customShapes) {
-        if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
-            data.layouts[index].usageCount++;
-            data.layouts[index].lastUsed = QDateTime::currentDateTime();
-            saveCustomShapes();
-            return;
-        }
+    if (InventoryMutationService::incrementLayoutUsage(m_customShapes,
+                                                       shapeName,
+                                                       index,
+                                                       QDateTime::currentDateTime())) {
+        saveCustomShapes();
     }
 }
 
 void Inventory::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
 {
-    auto it = m_baseShapeLayouts.find(type);
-    if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
-        it.value()[index].usageCount++;
-        it.value()[index].lastUsed = QDateTime::currentDateTime();
+    if (InventoryMutationService::incrementBaseLayoutUsage(m_baseShapeLayouts,
+                                                           type,
+                                                           index,
+                                                           QDateTime::currentDateTime())) {
         saveCustomShapes();
     }
 }
@@ -1070,7 +771,6 @@ QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &nam
             });
 }
 
-
     connect(menuButton, &QPushButton::clicked, [menu, menuButton]() {
         menu->exec(menuButton->mapToGlobal(QPoint(0, menuButton->height())));
     });
@@ -1131,7 +831,6 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
     frame->setFixedSize(150, 220);
     //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
 
-
     QVBoxLayout *mainLayout = new QVBoxLayout(frame);
    // mainLayout->setContentsMargins(5, 5, 5, 5);
    // mainLayout->setSpacing(5);
@@ -1153,29 +852,18 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
         bool ok;
         QString newName = QInputDialog::getText(this, "Renommer le dossier", "Nouveau nom :", QLineEdit::Normal, folderName, &ok);
         if (ok && !newName.trimmed().isEmpty()) {
-            for (InventoryFolder &f : m_folders) {
-                if (f.name == folderName) {
-                    f.name = newName.trimmed();
-                    break;
-                }
+            if (InventoryMutationService::renameFolder(m_folders, folderName, newName.trimmed())) {
+                saveCustomShapes();
+                displayShapes();
             }
-            saveCustomShapes(); // facultatif ici
-            displayShapes();
         }
     });
 
     connect(deleteAction, &QAction::triggered, this, [this, folderName]() {
-        m_folders.erase(std::remove_if(m_folders.begin(), m_folders.end(),
-                                       [=](const InventoryFolder &f) { return f.name == folderName; }),
-                        m_folders.end());
-
-        // Supprime les formes associées au dossier si besoin
-        for (CustomShapeData &shape : m_customShapes)
-            if (shape.folder == folderName)
-                shape.folder.clear();
-
-        saveCustomShapes();
-        displayShapes();
+        if (InventoryMutationService::deleteFolder(m_folders, m_customShapes, folderName)) {
+            saveCustomShapes();
+            displayShapes();
+        }
     });
 
     connect(menuButton, &QPushButton::clicked, this, [menu, menuButton]() {
@@ -1184,7 +872,6 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
 
     return frame;
 }
-
 
 void Inventory::displayShapesInFolder(const QString &folderName, const QString &filter)
 {
@@ -1281,20 +968,12 @@ void Inventory::displayShapesInFolder(const QString &folderName, const QString &
         listWidget->setItemWidget(qi,it.frame);
     }
 
-
     // 👉 ajouter un bouton retour
     QPushButton *retourButton = new QPushButton("← Retour");
     retourButton->setStyleSheet("color: white; background-color: red; font-size: 14px;");
     retourButton->setFixedSize(120, 40);
     connect(retourButton, &QPushButton::clicked, this, [this]() {
-        // Cherche le dossier courant
-        QString parent;
-        for (const InventoryFolder &f : m_folders) {
-            if (f.name == currentFolder) {
-                parent = f.parentFolder;
-                break;
-            }
-        }
+        QString parent = InventoryQueryService::parentFolderOf(m_folders, currentFolder);
 
         if (parent.isEmpty()) {
             // Aucun parent ⇒ revenir à l'inventory principal
@@ -1316,91 +995,52 @@ void Inventory::displayShapesInFolder(const QString &folderName, const QString &
 
 bool Inventory::folderIsEmpty(const QString& folderName) const
 {
-    // Sous-dossiers
-    for (const InventoryFolder& folder : m_folders)
-        if (folder.parentFolder == folderName)
-            return false;
-
-    // Formes custom
-    for (const CustomShapeData& shape : m_customShapes)
-        if (shape.folder == folderName)
-            return false;
-
-    // Formes de base
-    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it)
-        if (it.value() == folderName)
-            return false;
-
-    return true;
+    return InventoryQueryService::folderIsEmpty(folderName,
+                                                m_folders,
+                                                m_customShapes,
+                                                m_baseShapeFolders);
 }
 
 bool Inventory::folderContainsMatchingShape(const QString &folderName, const QString &text) const
 {
-    const QString search = text.trimmed().toLower();
-    if (search.isEmpty())
-        return false;
-
-    // Check subfolders recursively
-    for (const InventoryFolder &folder : m_folders) {
-        if (folder.parentFolder == folderName) {
-            if (folder.name.toLower().contains(search))
-                return true;
-            if (folderContainsMatchingShape(folder.name, search))
-                return true;
-        }
-    }
-
-    // Custom shapes in this folder
-    for (const CustomShapeData &shape : m_customShapes)
-        if (shape.folder == folderName && shape.name.toLower().contains(search))
-            return true;
-
-    // Built-in shapes assigned to this folder
-    for (auto it = m_baseShapeFolders.constBegin(); it != m_baseShapeFolders.constEnd(); ++it) {
-        if (it.value() == folderName) {
-            QString name = baseShapeName(it.key(), currentLanguage);
-            if (name.toLower().contains(search))
-                return true;
-        }
-    }
-
-    return false;
+    return InventoryQueryService::folderContainsMatchingShape(folderName,
+                                                              text,
+                                                              m_folders,
+                                                              m_customShapes,
+                                                              m_baseShapeFolders,
+                                                              currentLanguage);
 }
 
 void Inventory::onItemClicked(QListWidgetItem *item)
 {
     if (!item) return;
+
     int t = item->data(Qt::UserRole).toInt();
     if (t == 0) {
         QString name = item->data(Qt::UserRole + 1).toString();
-        for (InventoryFolder &f : m_folders) {
-            if (f.name == name) {
-                f.usageCount++;
-                f.lastUsed = QDateTime::currentDateTime();
-                break;
-            }
-        }
-        saveCustomShapes();
+        m_controller->onFolderSelected(name);
         displayShapesInFolder(name, ui->searchBar->text());
     } else if (t == 1) {
         ShapeModel::Type type = static_cast<ShapeModel::Type>(item->data(Qt::UserRole + 1).toInt());
-        m_baseUsageCount[type]++;
-        m_baseLastUsed[type] = QDateTime::currentDateTime();
-        saveCustomShapes();
+        m_controller->onBaseShapeSelected(type);
         emit shapeSelected(type, 150, 220);
         goToMainWindow();
     } else if (t == 2) {
         QString name = item->data(Qt::UserRole + 1).toString();
-        for (CustomShapeData &c : m_customShapes) {
-            if (c.name == name) {
-                c.usageCount++;
-                c.lastUsed = QDateTime::currentDateTime();
-                saveCustomShapes();
-                emit customShapeSelected(c.polygons, c.name);
-                goToMainWindow();
-                break;
-            }
+        QList<QPolygonF> polygons;
+        QString resolvedName;
+        if (m_controller->onCustomShapeSelected(name, polygons, resolvedName)) {
+            emit customShapeSelected(polygons, resolvedName);
+            goToMainWindow();
         }
     }
 }
 
+#undef m_customShapes
+#undef m_baseShapeLayouts
+#undef m_baseShapeFolders
+#undef m_baseUsageCount
+#undef m_baseLastUsed
+#undef m_baseShapeOrder
+#undef m_folders
+#undef currentLanguage
