@@ -5,6 +5,7 @@
 #include <QList>
 #include <QPolygonF>
 #include <QString>
+#include <QPainterPath>
 #include "Language.h"
 #include "Inventory.h"
 #include "ShapeModel.h"
@@ -25,19 +26,33 @@ public:
     explicit NavigationController(QObject *parent = nullptr);
 
     void showInventory(QWidget *from, QWidget *inventory);
-    CustomEditor *openCustomEditor(QWidget *from, Language language);
-    WifiTransferWidget *openWifiTransfer(QWidget *from);
-    WifiConfigDialog *openWifiSettings(QWidget *from);
-    BluetoothReceiverDialog *openBluetoothReceiver(QWidget *from);
-    TestGpio *openTestGpio(QWidget *from);
-    FolderWidget *openFolder(QWidget *from, Language language);
-    LayoutsDialog *openLayoutsDialog(QWidget *from,
-                                   const QString &shapeName,
-                                   const QList<LayoutData> &layouts,
-                                   const QList<QPolygonF> &shapePolygons,
-                                   Language language,
-                                   bool isBaseShape = false,
-                                   ShapeModel::Type baseType = ShapeModel::Type::Circle);
+    void openCustomEditor(QWidget *from, Language language);
+    void openCustomEditorWithImportedPath(QWidget *from, Language language, const QPainterPath &outline);
+    void openWifiTransfer(QWidget *from);
+    void openWifiSettings(QWidget *from);
+    void openBluetoothReceiver(QWidget *from);
+    void openTestGpio(QWidget *from);
+    void openFolder(QWidget *from, Language language);
+    void openLayoutsDialog(QWidget *from,
+                           const QString &shapeName,
+                           const QList<LayoutData> &layouts,
+                           const QList<QPolygonF> &shapePolygons,
+                           Language language,
+                           bool isBaseShape = false,
+                           ShapeModel::Type baseType = ShapeModel::Type::Circle);
+    QString promptForName(QWidget *parent,
+                          const QString &title,
+                          const QString &label,
+                          bool *ok = nullptr) const;
+
+signals:
+    void customShapeApplied(QList<QPolygonF> shapes);
+    void customDrawingReset();
+    void layoutSelected(const LayoutData &layout);
+    void baseShapeOnlySelected(ShapeModel::Type type);
+    void baseShapeLayoutSelected(ShapeModel::Type type, const LayoutData &layout);
+    void requestOpenInventory();
+    void requestReturnToFullScreen();
 };
 
 #endif // NAVIGATIONCONTROLLER_H

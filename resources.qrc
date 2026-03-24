@@ -44,4 +44,7 @@
         <file>icons/narrow_text.svg</file>
         <file>icons/add_folder.svg</file>
     </qresource>
+    <qresource prefix="/styles">
+        <file>style.qss</file>
+    </qresource>
 </RCC>

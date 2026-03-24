@@ -25,6 +25,7 @@ win32 {
 HEADERS += \
     # --- MainWindow et UI principale ---
     MainWindow.h \
+    ImageImportService.h \
     ui/widgets/ShapeVisualization.h \
     # --- Drawing ---
     drawing/shapes/CustomDrawArea.h \
@@ -82,6 +83,7 @@ HEADERS += \
 SOURCES += \
     # --- MainWindow et UI principale ---
     MainWindow.cpp \
+    ImageImportService.cpp \
     ui/widgets/ShapeVisualization.cpp \
     main.cpp \
     # --- Drawing ---

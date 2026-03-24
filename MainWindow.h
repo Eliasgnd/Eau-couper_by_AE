@@ -53,11 +53,13 @@ public slots:
 
 private slots:
     void updateShape();
-    void changeToCircle();
-    void changeToRectangle();
-    void changeToTriangle();
-    void changeToStar();
-    void changeToHeart();
+    void onSaveLayoutClicked();
+    void onMoveUpClicked();
+    void onMoveDownClicked();
+    void onMoveLeftClicked();
+    void onMoveRightClicked();
+    void onOptimizePlacementClicked();
+    void onOptimizePlacement2Clicked();
     void showInventory();
     void showCustom();
     void openTestGpio();
@@ -97,6 +99,8 @@ private:
     void setupModels();
     void retranslateDynamicUi();
     void onShapeSelectedFromInventory(ShapeModel::Type type);
+    void setPredefinedShape(ShapeModel::Type type);
+    void moveSelectedShape(int dx, int dy);
     void StartPixel();
     bool promptAndSaveCurrentCustomShape();
     void applySelectedLayoutToControls(const LayoutData &layout);
