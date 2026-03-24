@@ -1,5 +1,8 @@
 #include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
+#include "GeometryUtils.h"
+#include "ImageExporter.h"
+#include "PlacementOptimizer.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
@@ -12,13 +15,52 @@
 #include <QtMath>
 #include <QTransform>
 #include <QApplication>
-#include <QPainterPathStroker>
-#include <QMessageBox>
 #include <QAbstractGraphicsShapeItem>
-#include <QRandomGenerator>
 #include <QSizePolicy>        // <<< important pour QSizePolicy
 #include <cmath>              // <<< pour std::round (si utilisé)
 // #include <limits>          // (optionnel) retire-le si non utilisé
+
+namespace {
+const QString kInteractionLockedReason = QStringLiteral("Interaction verrouillée, modification impossible.");
+
+QPainterPath buildPrototypePath(ShapeModel::Type model,
+                                int largeur,
+                                int longueur,
+                                bool isCustomMode,
+                                const QList<QPolygonF> &customShapes)
+{
+    QPainterPath prototypePath;
+
+    if (isCustomMode && !customShapes.isEmpty()) {
+        for (const QPolygonF &poly : customShapes)
+            prototypePath.addPolygon(poly);
+        prototypePath = prototypePath.simplified();
+
+        const QRectF customBounds = prototypePath.boundingRect();
+        const double scaleX = (customBounds.width() > 0) ? (largeur / customBounds.width()) : 1.0;
+        const double scaleY = (customBounds.height() > 0) ? (longueur / customBounds.height()) : 1.0;
+        QTransform scaleTransform;
+        scaleTransform.scale(scaleX, scaleY);
+        return scaleTransform.map(prototypePath);
+    }
+
+    QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(model, largeur, longueur);
+    if (shapesList.isEmpty())
+        return {};
+
+    QGraphicsItem *prototype = shapesList.first();
+    if (auto pathItem = dynamic_cast<QGraphicsPathItem*>(prototype))
+        prototypePath = pathItem->path();
+    else if (auto rectItem = dynamic_cast<QGraphicsRectItem*>(prototype))
+        prototypePath.addRect(rectItem->rect());
+    else if (auto ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(prototype))
+        prototypePath.addEllipse(ellipseItem->rect());
+    else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
+        prototypePath.addPolygon(polyItem->polygon());
+
+    return prototypePath;
+}
+}
 
 ShapeVisualization::ShapeVisualization(QWidget *parent)
     : QWidget(parent),
@@ -68,17 +110,7 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->viewport()->installEventFilter(this);
 
-    progressBar = new QProgressBar(this);
-    progressBar->setValue(0);
-    progressBar->setVisible(false);
-    progressBar->setStyleSheet(
-        "QProgressBar { border: 2px solid #00BCD4; border-radius: 5px; "
-        "background: #f3f3f3; text-align: center; font-size: 12px; color: black; }"
-        "QProgressBar::chunk { background: #00BCD4; width: 10px; }"
-        );
-
     layout->addWidget(graphicsView);
-    layout->addWidget(progressBar);
     setLayout(layout);
 
     connect(scene, &QGraphicsScene::selectionChanged,
@@ -90,22 +122,6 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     });
 
     redraw();
-}
-
-QPainterPath ShapeVisualization::bufferedPath(const QPainterPath &path, int spacing)
-{
-    // Si aucun espacement n'est demandé, renvoyer le chemin original
-    if (spacing <= 0)
-        return path;
-
-    QPainterPathStroker stroker;
-    // Ici, spacing est interprété comme la largeur totale désirée.
-    // Le contour généré s'étend d'environ spacing/2 de chaque côté.
-    stroker.setWidth(spacing);
-
-    QPainterPath strokePath = stroker.createStroke(path);
-    // Le buffer correspond à l'union du chemin original et de son contour élargi
-    return path.united(strokePath);
 }
 
 void ShapeVisualization::resizeEvent(QResizeEvent* e) {
@@ -136,7 +152,7 @@ void ShapeVisualization::setModel(ShapeModel::Type model)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours)
+    if (!m_interactionEnabled)
         return;
     cancelOptimization();
 
@@ -150,15 +166,9 @@ void ShapeVisualization::updateDimensions(int largeur, int longueur)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans updateDimensions";
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
+        return;
     }
     cancelOptimization();
     currentLargeur = largeur;
@@ -173,15 +183,8 @@ void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setShapeCount";
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
 
@@ -201,15 +204,8 @@ void ShapeVisualization::setSpacing(int newSpacing)
 {
     if (!editingEnabled)
         return;
-    if (m_decoupeEnCours) {
-        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setSpacing";
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
 
@@ -227,15 +223,9 @@ void ShapeVisualization::setPredefinedMode()
 {
     qDebug() << "[DEBUG] setPredefinedMode() appelé";
 
-    if (m_decoupeEnCours) {
-        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans setPredefinedMode";
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
+        return;
     }
 
     cancelOptimization();
@@ -251,15 +241,9 @@ void ShapeVisualization::setPredefinedMode()
    ****** OPTIMIZE PLACEMENT 1 (avec caching et test rapide) ******
 */
 void ShapeVisualization::optimizePlacement() {
-    if (m_decoupeEnCours || m_optimizationRunning) {
-        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement";
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();        return;
+    if (!m_interactionEnabled || m_optimizationRunning) {
+        emit actionRefused(kInteractionLockedReason);
+        return;
     }
 
     // Remise à zéro de l'espacement
@@ -270,156 +254,63 @@ void ShapeVisualization::optimizePlacement() {
     emit optimizationStateChanged(true);
     scene->clear();
     scene->clearSelection();
-    progressBar->setVisible(true);
-    progressBar->setValue(0);
-
-    const QRectF sr = scene->sceneRect();
-    const int drawingWidth  = int(sr.width());
-    const int drawingHeight = int(sr.height());
-
-    QRectF containerRect(0, 0, drawingWidth, drawingHeight);
-
-    int adaptedLargeur = currentLargeur;
-    int adaptedLongueur = currentLongueur;
-
-    QPainterPath prototypePath;
-    if (m_isCustomMode && !m_customShapes.isEmpty()) {
-        for (const QPolygonF &poly : m_customShapes)
-            prototypePath.addPolygon(poly);
-        prototypePath = prototypePath.simplified();
-        QRectF customBounds = prototypePath.boundingRect();
-        double scaleX = (customBounds.width() > 0) ? (adaptedLargeur / customBounds.width()) : 1.0;
-        double scaleY = (customBounds.height() > 0) ? (adaptedLongueur / customBounds.height()) : 1.0;
-        QTransform scaleTransform;
-        scaleTransform.scale(scaleX, scaleY);
-        prototypePath = scaleTransform.map(prototypePath);
-    } else {
-        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
-        if (shapesList.isEmpty()) {
-            //qDebug() << "Erreur : Aucun prototype de forme disponible.";
-
-            m_optimizationRunning = false;
-            progressBar->setVisible(false);
-            return;
-        }
-        QGraphicsItem *prototype = shapesList.first();
-        if (auto pathItem = dynamic_cast<QGraphicsPathItem*>(prototype))
-            prototypePath = pathItem->path();
-        else if (auto rectItem = dynamic_cast<QGraphicsRectItem*>(prototype))
-            prototypePath.addRect(rectItem->rect());
-        else if (auto ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(prototype))
-            prototypePath.addEllipse(ellipseItem->rect());
-        else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
-            prototypePath.addPolygon(polyItem->polygon());
-        else {
-            //qDebug() << "Erreur : Type de forme inconnu pour l'optimisation.";
-            progressBar->setVisible(false);
-            return;
-        }
+    const QPainterPath prototypePath = buildPrototypePath(currentModel,
+                                                          currentLargeur,
+                                                          currentLongueur,
+                                                          m_isCustomMode,
+                                                          m_customShapes);
+    if (prototypePath.isEmpty()) {
+        m_optimizationRunning = false;
+        emit progressUpdated(0, 0);
+        return;
     }
 
-    QRectF protoRect = prototypePath.boundingRect();
-    QPointF center = protoRect.center();
+    PlacementParams params;
+    params.prototypePath = prototypePath;
+    params.containerRect = scene->sceneRect();
+    params.shapeCount = shapeCount;
+    params.spacing = spacing;
+    params.step = 5;
+    params.angles = {0, 180, 90};
 
-    const int step = 5;
-    int count = shapeCount;
-    QList<int> angles = {0, 180, 90};
-
-    struct PathInfo { QPainterPath path; QRectF bbox; };
-    QList<PathInfo> placedPaths;
-    int shapesPlaced = 0;
-    int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
-    progressBar->setMinimum(0);
-    progressBar->setMaximum(totalPositions);
-    int progressCounter = 0;
-
-    for (int y = 0; y <= drawingHeight && shapesPlaced < count; y += step) {
-        for (int x = 0; x <= drawingWidth && shapesPlaced < count; x += step) {
-            progressCounter++;
-            progressBar->setValue(progressCounter);
+    const PlacementResult result = PlacementOptimizer::run(
+        params,
+        [this](int current, int total) {
+            emit progressUpdated(current, total);
             qApp->processEvents();
             if (m_cancelOptimization) {
                 m_cancelOptimization = false;
-                m_optimizationRunning = false;
-                emit optimizationStateChanged(false);
-                progressBar->setVisible(false);
-                return;
+                return false;
             }
+            return true;
+        });
 
-            for (int angle : angles) {
-                QTransform trans;
-                trans.translate(x, y);
-                trans.translate(center.x(), center.y());
-                trans.rotate(angle);
-                trans.translate(-center.x(), -center.y());
-                QPainterPath candidate = trans.map(prototypePath);
-
-                QRectF candRect = candidate.boundingRect();
-                QTransform adjust;
-                adjust.translate(x - candRect.x(), y - candRect.y());
-                candidate = adjust.map(candidate);
-                candidate.closeSubpath();
-
-                if (!containerRect.contains(candidate.boundingRect()))
-                    continue;
-
-                QRectF candBBox = candidate.boundingRect();
-                bool collision = false;
-                for (const PathInfo &existing : placedPaths) {
-                    if (!existing.bbox.intersects(candBBox))
-                        continue;
-                    QPainterPath inter = candidate.intersected(existing.path);
-                    QRectF br = inter.boundingRect();
-                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
-                        collision = true;
-                        break;
-                    }
-                }
-
-                if (!collision) {
-                    QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
-                    item->setPen(QPen(Qt::black, 1));
-                    item->setBrush(Qt::NoBrush);
-                    item->setFlag(QGraphicsItem::ItemIsMovable, true);
-                    item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-
-                    // Ajuste la position en fonction du boundingRect réel de l'élément
-                    QRectF bounds = item->boundingRect();
-                    QPointF offset(x - bounds.x(), y - bounds.y());
-                    item->moveBy(offset.x(), offset.y());
-                    scene->addItem(item);
-                    item->setSelected(false);
-
-                    // Enregistre la position corrigée pour les futurs tests de collision
-                    candidate.translate(offset);
-                    placedPaths.append({candidate, candidate.boundingRect()});
-                    shapesPlaced++;
-                    break;
-                }
-            }
-            if (shapesPlaced >= count)
-                break;
-        }
+    if (result.cancelled) {
+        m_optimizationRunning = false;
+        emit optimizationStateChanged(false);
+        emit progressUpdated(0, 0);
+        return;
     }
 
-    //qDebug() << "Formes placées:" << shapesPlaced;
+    for (const QPainterPath &path : result.placedPaths) {
+        QGraphicsPathItem *item = new QGraphicsPathItem(path);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        scene->addItem(item);
+        item->setSelected(false);
+    }
 
     m_optimizationRunning = false;
-    emit shapesPlacedCount(shapesPlaced);
+    emit shapesPlacedCount(result.placedPaths.size());
     emit optimizationStateChanged(true);
-    progressBar->setVisible(false);
+    emit progressUpdated(result.totalPositions, result.totalPositions);
 }
 
 void ShapeVisualization::optimizePlacement2() {
-    if (m_decoupeEnCours || m_optimizationRunning) {
-        qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement2";
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (!m_interactionEnabled || m_optimizationRunning) {
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
 
@@ -430,137 +321,56 @@ void ShapeVisualization::optimizePlacement2() {
     scene->clearSelection();
     graphicsView->update();
 
-    progressBar->setVisible(true);
-    progressBar->setValue(0);
-
-    const QRectF sr = scene->sceneRect();
-    const int drawingWidth  = int(sr.width());
-    const int drawingHeight = int(sr.height());
-
-    int adaptedLargeur = currentLargeur;
-    int adaptedLongueur = currentLongueur;
-
-    QPainterPath prototypePath;
-    if (m_isCustomMode && !m_customShapes.isEmpty()) {
-        for (const QPolygonF &poly : m_customShapes)
-            prototypePath.addPolygon(poly);
-        QRectF customBounds = prototypePath.boundingRect();
-        double scaleX = (customBounds.width() > 0) ? (adaptedLargeur / customBounds.width()) : 1.0;
-        double scaleY = (customBounds.height() > 0) ? (adaptedLongueur / customBounds.height()) : 1.0;
-        QTransform scaleTransform;
-        scaleTransform.scale(scaleX, scaleY);
-        prototypePath = scaleTransform.map(prototypePath);
-    } else {
-        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(currentModel, adaptedLargeur, adaptedLongueur);
-        if (shapesList.isEmpty()) {
-            m_optimizationRunning = false;
-            progressBar->setVisible(false);
-            return;
-        }
-        QGraphicsItem *prototype = shapesList.first();
-        if (auto pathItem = dynamic_cast<QGraphicsPathItem*>(prototype))
-            prototypePath = pathItem->path();
-        else if (auto rectItem = dynamic_cast<QGraphicsRectItem*>(prototype))
-            prototypePath.addRect(rectItem->rect());
-        else if (auto ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(prototype))
-            prototypePath.addEllipse(ellipseItem->rect());
-        else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
-            prototypePath.addPolygon(polyItem->polygon());
-        else {
-            return;
-        }
+    const QPainterPath prototypePath = buildPrototypePath(currentModel,
+                                                          currentLargeur,
+                                                          currentLongueur,
+                                                          m_isCustomMode,
+                                                          m_customShapes);
+    if (prototypePath.isEmpty()) {
+        m_optimizationRunning = false;
+        emit progressUpdated(0, 0);
+        return;
     }
 
-    QRectF bounds = prototypePath.boundingRect();
-    QTransform normTransform;
-    normTransform.translate(-bounds.x(), -bounds.y());
-    prototypePath = normTransform.map(prototypePath);
-    prototypePath.closeSubpath();
+    PlacementParams params;
+    params.prototypePath = prototypePath;
+    params.containerRect = scene->sceneRect();
+    params.shapeCount = shapeCount;
+    params.spacing = spacing;
+    params.step = 5;
+    params.angles = {0, 180};
 
-    struct PathInfo { QPainterPath path; QRectF bbox; };
-    QList<PathInfo> placedPaths;
-    int shapesPlaced = 0;
-    int count = shapeCount;
-    const int step = 5;
-    bool finished = false;
-    QRectF containerRect(0, 0, drawingWidth, drawingHeight);
-
-    int totalPositions = ((drawingWidth / step) + 1) * ((drawingHeight / step) + 1);
-    progressBar->setMinimum(0);
-    progressBar->setMaximum(totalPositions);
-    int progressCounter = 0;
-
-    for (int y = 0; y <= drawingHeight && !finished; y += step) {
-        for (int x = 0; x <= drawingWidth && !finished; x += step) {
-            progressCounter++;
-            progressBar->setValue(progressCounter);
+    const PlacementResult result = PlacementOptimizer::run(
+        params,
+        [this](int current, int total) {
+            emit progressUpdated(current, total);
             qApp->processEvents();
             if (m_cancelOptimization) {
                 m_cancelOptimization = false;
-                m_optimizationRunning = false;
-                emit optimizationStateChanged(false);
-                progressBar->setVisible(false);
-                return;
+                return false;
             }
+            return true;
+        });
 
-            // Boucle sur les deux rotations : 0° et 180°
-            for (int angle : {0, 180}) {
-                QTransform rotationTransform;
-                if (angle != 0) {
-                    QPointF center = prototypePath.boundingRect().center();
-                    rotationTransform.translate(center.x(), center.y());
-                    rotationTransform.rotate(angle);
-                    rotationTransform.translate(-center.x(), -center.y());
-                }
+    if (result.cancelled) {
+        m_optimizationRunning = false;
+        emit optimizationStateChanged(false);
+        emit progressUpdated(0, 0);
+        return;
+    }
 
-                QTransform candidateTransform = QTransform().translate(x, y) * rotationTransform;
-                QPainterPath candidate = candidateTransform.map(prototypePath);
-                candidate.closeSubpath();
-
-                if (!containerRect.contains(candidate.boundingRect()))
-                    continue;
-
-                QRectF candBBox = candidate.boundingRect();
-                bool collision = false;
-                for (const PathInfo &existing : placedPaths) {
-                    if (!existing.bbox.intersects(candBBox))
-                        continue;
-                    QPainterPath inter = candidate.intersected(existing.path);
-                    QRectF br = inter.boundingRect();
-                    if (!br.isNull() && br.width() > 1.0 && br.height() > 1.0) {
-                        collision = true;
-                        break;
-                    }
-                }
-
-                if (!collision) {
-                    QGraphicsPathItem *item = new QGraphicsPathItem(candidate);
-                    item->setPen(QPen(Qt::black, 1));
-                    item->setBrush(Qt::NoBrush);
-                    item->setFlag(QGraphicsItem::ItemIsMovable, true);
-                    item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-
-                    QRectF bounds = item->boundingRect();
-                    QPointF offset(x - bounds.x(), y - bounds.y());
-                    item->moveBy(offset.x(), offset.y());
-                    scene->addItem(item);
-
-                    candidate.translate(offset);
-                    placedPaths.append({candidate, candidate.boundingRect()});
-                    shapesPlaced++;
-                    if (shapesPlaced >= count) {
-                        finished = true;
-                        break;
-                    }
-                    break;
-                }
-            }
-        }
+    for (const QPainterPath &path : result.placedPaths) {
+        QGraphicsPathItem *item = new QGraphicsPathItem(path);
+        item->setPen(QPen(Qt::black, 1));
+        item->setBrush(Qt::NoBrush);
+        item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        scene->addItem(item);
     }
 
     m_optimizationRunning = false;
-    emit shapesPlacedCount(shapesPlaced);
-    progressBar->setVisible(false);
+    emit shapesPlacedCount(result.placedPaths.size());
+    emit progressUpdated(result.totalPositions, result.totalPositions);
 }
 
 
@@ -642,14 +452,8 @@ void ShapeVisualization::redraw()
 
 void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
 
@@ -723,14 +527,8 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
 void ShapeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
     // Parcours de tous les items sélectionnés dans la scène
@@ -743,14 +541,8 @@ void ShapeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 
 void ShapeVisualization::rotateSelectedShapes(qreal angleDelta)
 {
-    if (m_decoupeEnCours) {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+    if (!m_interactionEnabled) {
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
     const auto selected = scene->selectedItems();
@@ -784,15 +576,9 @@ void ShapeVisualization::rotateSelectedShapes(qreal angleDelta)
 
 void ShapeVisualization::deleteSelectedShapes()
 {
-    if (m_decoupeEnCours)
+    if (!m_interactionEnabled)
     {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
 
@@ -811,15 +597,9 @@ void ShapeVisualization::deleteSelectedShapes()
 
 void ShapeVisualization::addShapeBottomRight()
 {
-    if (m_decoupeEnCours)
+    if (!m_interactionEnabled)
     {
-        QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                           "Découpe en cours",
-                                           "Impossible de modifier les paramètres ou la forme pendant la découpe.",
-                                           QMessageBox::Ok,
-                                           this);
-        msg->setModal(false);
-        msg->show();
+        emit actionRefused(kInteractionLockedReason);
         return;
     }
 
@@ -928,45 +708,24 @@ QGraphicsScene* ShapeVisualization::getScene() const {
 
 
 QList<QPoint> ShapeVisualization::getBlackPixels() {
-
-    QList<QPoint> pixelsNoirs;
-
-    // Convertir la scène en image
-    QImage image(scene->sceneRect().size().toSize(), QImage::Format_RGB32);
-    image.fill(Qt::white);  // Fond blanc pour éviter les erreurs
-    QPainter painter(&image);
-    scene->render(&painter);
-
-    // Parcourir chaque pixel de l'image
-
-    for (int x = 0; x < image.width(); ++x) {
-        for (int y = 0; y < image.height(); ++y) {
-            if (image.pixelColor(x, y) == Qt::black) {
-                pixelsNoirs.append(QPoint(x, y));
-                //qDebug() << "Pixel noir à :" << QPoint(x, y);  //simplement pour visualiser les coordonnées des pixels noirs.
-            }
-        }
-
-    }
-
-    return pixelsNoirs;
+    return ImageExporter::extractBlackPixels(scene);
 }
 
 // Démarre la barre de progression avec un maximum de étapes
 void ShapeVisualization::startDecoupeProgress(int maxSteps) {
-    progressBar->setMaximum(maxSteps);
-    progressBar->setValue(0);
-    progressBar->setVisible(true);
+    m_decoupeProgressMax = maxSteps;
+    emit progressUpdated(0, maxSteps);
 }
 
 // Met à jour la valeur courante de la barre de progression
 void ShapeVisualization::updateDecoupeProgress(int currentStep) {
-    progressBar->setValue(currentStep);
+    emit progressUpdated(currentStep, m_decoupeProgressMax);
 }
 
 // Cache la barre de progression en fin de découpe
 void ShapeVisualization::endDecoupeProgress() {
-    progressBar->setVisible(false);
+    m_decoupeProgressMax = 0;
+    emit progressUpdated(0, 0);
 }
 
 void ShapeVisualization::setEditingEnabled(bool enabled)
@@ -979,18 +738,18 @@ bool ShapeVisualization::isEditingEnabled() const
     return editingEnabled;
 }
 
-void ShapeVisualization::setDecoupeEnCours(bool etat)
+void ShapeVisualization::setInteractionEnabled(bool enabled)
 {
-    m_decoupeEnCours = etat;
-    // Interdire ou autoriser le déplacement manuel des items
+    m_interactionEnabled = enabled;
     for (QGraphicsItem *item : scene->items()) {
-        item->setFlag(QGraphicsItem::ItemIsMovable, !etat);
+        item->setFlag(QGraphicsItem::ItemIsMovable, enabled);
+        item->setFlag(QGraphicsItem::ItemIsSelectable, enabled);
     }
 }
 
-bool ShapeVisualization::isDecoupeEnCours() const
+bool ShapeVisualization::isInteractionEnabled() const
 {
-    return m_decoupeEnCours;
+    return m_interactionEnabled;
 }
 
 void ShapeVisualization::cancelOptimization()
@@ -1023,45 +782,32 @@ int ShapeVisualization::countPlacedShapes() const
 bool ShapeVisualization::validateShapes()
 {
     resetAllShapeColors();
-    bool allValid = true;
+
     QList<QAbstractGraphicsShapeItem*> shapes;
+    QList<QPainterPath> paths;
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
             shapes << shape;
+            paths << shape->mapToScene(shape->shape());
         }
     }
 
-    // Ajout d'une tolérance pour éviter les faux positifs sur les bords
-    QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
-    for (auto *shape : std::as_const(shapes)) {
-        QRectF rect = shape->mapToScene(shape->boundingRect()).boundingRect();
-        if (!bounds.contains(rect)) {
-            shape->setPen(QPen(Qt::red, 1));
-            allValid = false;
-        }
+    const QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
+    const ShapeValidationResult validation = validatePlacedPaths(paths, bounds, 1.0);
+
+    for (int idx : validation.outOfBoundsIndices) {
+        if (idx >= 0 && idx < shapes.size())
+            shapes[idx]->setPen(QPen(Qt::red, 1));
     }
-
-    for (int i = 0; i < shapes.size(); ++i) {
-        for (int j = i + 1; j < shapes.size(); ++j) {
-            QPainterPath p1 = shapes[i]->mapToScene(shapes[i]->shape());
-            QPainterPath p2 = shapes[j]->mapToScene(shapes[j]->shape());
-            QPainterPath inter = p1.intersected(p2);
-            QRectF iRect = inter.boundingRect();
-            // Consider shapes colliding only if the intersection is larger than one pixel
-            if (!iRect.isNull() && iRect.width() > 1.0 && iRect.height() > 1.0) {
-
-
-                shapes[i]->setPen(QPen(Qt::red, 1));
-                shapes[j]->setPen(QPen(Qt::red, 1));
-                allValid = false;
-            }
-        }
+    for (int idx : validation.collisionIndices) {
+        if (idx >= 0 && idx < shapes.size())
+            shapes[idx]->setPen(QPen(Qt::red, 1));
     }
 
     emit shapesPlacedCount(shapes.size());
-    return allValid;
+    return validation.allValid;
 }
 
 void ShapeVisualization::handleSelectionChanged()
@@ -1156,19 +902,6 @@ LayoutData ShapeVisualization::captureCurrentLayout(const QString &name) const
     return layout;
 }
 
-double ShapeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPaths,
-                                             int drawingWidth, int drawingHeight)
-{
-    QPainterPath united;
-    for (const QPainterPath &p : placedPaths)
-        united = united.united(p);
-
-    QRectF br = united.boundingRect();
-    double used = br.width() * br.height();
-    double total = static_cast<double>(drawingWidth) * drawingHeight;
-    return total - used;
-}
-
 int ShapeVisualization::heightForWidth(int w) const
 {
     if (m_aspect <= 0.0) return QWidget::heightForWidth(w);
@@ -1214,4 +947,3 @@ void ShapeVisualization::setSheetSizeMm(const QSizeF& mm)
 
     emit sheetSizeMmChanged(m_sheetMm);
 }
-

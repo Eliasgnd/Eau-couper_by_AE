@@ -302,3 +302,48 @@ bool validateAndProxyPolygons(QList<QPolygonF> &polys,
 
 void setSafeMode(bool enabled){ gSafeMode = enabled; }
 bool safeModeEnabled(){ return gSafeMode; }
+
+double evaluateWasteArea(const QList<QPainterPath> &placedPaths,
+                         int drawingWidth,
+                         int drawingHeight)
+{
+    QPainterPath united;
+    for (const QPainterPath &p : placedPaths)
+        united = united.united(p);
+
+    const QRectF br = united.boundingRect();
+    const double used = br.width() * br.height();
+    const double total = static_cast<double>(drawingWidth) * drawingHeight;
+    return total - used;
+}
+
+ShapeValidationResult validatePlacedPaths(const QList<QPainterPath> &paths,
+                                          const QRectF &bounds,
+                                          qreal minIntersectionSize)
+{
+    ShapeValidationResult result;
+
+    for (int i = 0; i < paths.size(); ++i) {
+        const QRectF rect = paths[i].boundingRect();
+        if (!bounds.contains(rect)) {
+            result.allValid = false;
+            result.outOfBoundsIndices.insert(i);
+        }
+    }
+
+    for (int i = 0; i < paths.size(); ++i) {
+        for (int j = i + 1; j < paths.size(); ++j) {
+            const QPainterPath inter = paths[i].intersected(paths[j]);
+            const QRectF iRect = inter.boundingRect();
+            if (!iRect.isNull() &&
+                iRect.width() > minIntersectionSize &&
+                iRect.height() > minIntersectionSize) {
+                result.allValid = false;
+                result.collisionIndices.insert(i);
+                result.collisionIndices.insert(j);
+            }
+        }
+    }
+
+    return result;
+}

@@ -141,7 +141,7 @@ void TrajetMotor::executeTrajet()
     m_running       = true;
     m_paused        = false;
     m_stopRequested = false;
-    m_visu->setDecoupeEnCours(true);
+    m_visu->setInteractionEnabled(false);
 
     // 1) Extraction des segments ----------------------------------------------
     const QList<Segment> segs = PathPlanner::extractSegments(m_visu->getScene());
@@ -246,7 +246,7 @@ void TrajetMotor::executeTrajet()
     }
 
     if (m_visu)
-        m_visu->setDecoupeEnCours(false);
+        m_visu->setInteractionEnabled(true);
 
     m_running = false;
     QMetaObject::invokeMethod(m_mainWindow, [this]() {
@@ -289,7 +289,7 @@ void TrajetMotor::resume()
 void TrajetMotor::stopCut()
 {
     if (m_visu)
-        m_visu->setDecoupeEnCours(false);
+        m_visu->setInteractionEnabled(true);
     if (!m_running) return;
     m_stopRequested = true;
     m_paused        = false;

@@ -19,6 +19,7 @@
 #include <QToolButton>
 #include <QFile>
 #include <QTextStream>
+#include <QMessageBox>
 
 
 // --- Construction / Destruction ---
@@ -61,6 +62,7 @@ void MainWindow::setupUI()
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
+    ui->progressBar->setVisible(false);
 
 
     if (ui->timeRemainingLabel)
@@ -160,6 +162,25 @@ void MainWindow::setupShapeConnections()
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount,
             this, [this](int count) {
                 ui->shapeCountLabel->setText(QString("Formes placées: %1").arg(count));
+            });
+
+    connect(shapeVisualization, &ShapeVisualization::actionRefused,
+            this, [this](const QString &reason) {
+                QMessageBox::warning(this, tr("Action refusée"), reason);
+            });
+
+    connect(shapeVisualization, &ShapeVisualization::progressUpdated,
+            this, [this](int current, int total) {
+                if (total <= 0) {
+                    ui->progressBar->setRange(0, 100);
+                    ui->progressBar->setValue(0);
+                    ui->progressBar->setVisible(false);
+                    return;
+                }
+
+                ui->progressBar->setVisible(true);
+                ui->progressBar->setRange(0, total);
+                ui->progressBar->setValue(current);
             });
 
     // Connecter les spinbox pour les dimensions
@@ -386,6 +407,8 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
 }
 
 void MainWindow::updateProgressBar(int percentage, const QString &remainingTimeText) {
+    ui->progressBar->setVisible(true);
+    ui->progressBar->setRange(0, 100);
     ui->progressBar->setValue(percentage);
     if (ui->timeRemainingLabel) {
         ui->timeRemainingLabel->setText(remainingTimeText);
@@ -492,6 +515,7 @@ void MainWindow::setSpinboxSliderEnabled(bool enabled)
 void MainWindow::onCutFinished(bool /*success*/)
 {
     ui->progressBar->setValue(0);
+    ui->progressBar->setVisible(false);
 }
 
 void MainWindow::onLanguageApplied(Language lang, bool ok)

@@ -135,10 +135,10 @@ bool ShapeController::loadCustomShapes(const QList<QPolygonF> &polygons,
     if (!m_visualization)
         return false;
 
-    if (m_visualization->isDecoupeEnCours()) {
+    if (!m_visualization->isInteractionEnabled()) {
         QMessageBox::warning(nullptr,
-                             tr("Découpe en cours"),
-                             tr("Impossible de modifier la forme pendant la découpe."));
+                             tr("Interaction verrouillée"),
+                             tr("Impossible de modifier la forme lorsque l'édition est verrouillée."));
         return false;
     }
 

@@ -69,6 +69,8 @@ HEADERS += \
     managers/ai/AIServiceManager.h \
     drawing/tools/ImportedImageGeometryHelper.h \
     drawing/utils/GeometryUtils.h \
+    drawing/utils/ImageExporter.h \
+    drawing/utils/PlacementOptimizer.h \
     drawing/ShapeManager.h \
     drawing/ShapeRenderer.h \
     drawing/DrawModeManager.h \
@@ -124,6 +126,8 @@ SOURCES += \
     managers/ai/AIServiceManager.cpp \
     drawing/tools/ImportedImageGeometryHelper.cpp \
     drawing/utils/GeometryUtils.cpp \
+    drawing/utils/ImageExporter.cpp \
+    drawing/utils/PlacementOptimizer.cpp \
     drawing/ShapeManager.cpp \
     drawing/ShapeRenderer.cpp \
     drawing/DrawModeManager.cpp \

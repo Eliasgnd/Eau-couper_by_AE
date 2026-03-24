@@ -4,7 +4,6 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QGraphicsScene>
-#include <QProgressBar>
 #include <QLabel>
 #include <QPainterPath>
 #include <QGraphicsRectItem>
@@ -33,16 +32,14 @@ public:
     void optimizePlacement();
     void optimizePlacement2();
     void optimizePlacementComplex();
-    double evaluateWasteArea(const QList<QPainterPath>& placedPaths,
-                             int drawingWidth, int drawingHeight);
     void colorPositionRed (const QPoint& position);
     void colorPositionBlue(const QPoint& position);
     QGraphicsScene* getScene() const;
     void setCustomMode();
     void setEditingEnabled(bool enabled);
     bool isEditingEnabled() const;
-    void setDecoupeEnCours(bool etat);
-    bool isDecoupeEnCours() const;
+    void setInteractionEnabled(bool enabled);
+    bool isInteractionEnabled() const;
     void cancelOptimization();
     bool isOptimizationRunning() const { return m_optimizationRunning; }
     QGraphicsView* getGraphicsView() const;
@@ -85,6 +82,8 @@ signals:
     void shapesPlacedCount(int);
     void spacingChanged(int newSpacing);
     void blackPixelsProgress(int remaining, int total);
+    void actionRefused(const QString &reason);
+    void progressUpdated(int current, int total);
 
     // <<< AJOUT
     void sheetSizeMmChanged(const QSizeF&);
@@ -95,7 +94,6 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
-    QPainterPath bufferedPath(const QPainterPath &path, int spacing);
     void handleSelectionChanged();
 
 private:
@@ -105,7 +103,6 @@ private:
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
-    QProgressBar        *progressBar {};
     ShapeModel::Type     currentModel {ShapeModel::Type::Circle};
     int  currentLargeur  {0};
     int  currentLongueur {0};
@@ -116,9 +113,10 @@ private:
     QString              m_currentCustomShapeName;
     QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
-    bool m_decoupeEnCours = false;
+    bool m_interactionEnabled = true;
     bool m_optimizationRunning = false;
     bool m_cancelOptimization = false;
+    int m_decoupeProgressMax {0};
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
 
