@@ -4,22 +4,16 @@
 #include "qmessagebox.h"
 #include "ui_mainwindow.h"
 #include "Inventory.h"
-#include "CustomEditor.h"
-#include "LayoutsDialog.h"
 #include "ShapeVisualization.h"
-#include "KeyboardDialog.h"
 #include "Language.h"
-#include "LogoImporter.h"
-#include "ImageEdgeImporter.h"
+#include "ImageImportService.h"
 #include "AIImagePromptDialog.h"
 #include "AIImageProcessDialog.h"
 #include "WifiTransferWidget.h"
 #include "AspectRatioWrapper.h"
 #include "NavigationController.h"
 #include "AIServiceManager.h"
-#include "ImportedImageGeometryHelper.h"
 #include "GeometryUtils.h"
-#include "drawing/PathGenerator.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -38,8 +32,8 @@
 #include <QWidgetAction>
 #include <QToolButton>
 #include <QMessageBox>
-#include <QInputDialog>
-#include <QLineEdit>
+#include <QFile>
+#include <QTextStream>
 
 
 //Ceci est le Mainwindow,bienvenue dans le mainwindow
@@ -141,25 +135,11 @@ void MainWindow::setupMenus()
 void MainWindow::applyStyleSheets()
 {
     if (auto *settingsBtn = menuBar()->cornerWidget(Qt::TopRightCorner)) {
-        settingsBtn->setStyleSheet(R"(
-            QToolButton {
-                background-color: #00BCD4;
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 6px 14px;
-                border: 2px solid #008C9E;
-                border-radius: 8px;
-            }
-            QToolButton::menu-indicator {
-                image: url(:/icons/chevron-down-white.svg);
-                subcontrol-position: right center;
-                subcontrol-origin: padding;
-                padding-left: 6px;
-            }
-            QToolButton:hover { background-color: #26C6DA; }
-            QToolButton:pressed { background-color: #008C9E; }
-        )");
+        QFile styleFile(":/styles/style.qss");
+        if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream stream(&styleFile);
+            settingsBtn->setStyleSheet(stream.readAll());
+        }
     }
 }
 
@@ -191,11 +171,21 @@ void MainWindow::setupShapeConnections()
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShape);
 
     // Connecter les boutons pour changer les modèles
-    connect(ui->Cercle, &QPushButton::clicked, this, &MainWindow::changeToCircle);
-    connect(ui->Rectangle, &QPushButton::clicked, this, &MainWindow::changeToRectangle);
-    connect(ui->Triangle, &QPushButton::clicked, this, &MainWindow::changeToTriangle);
-    connect(ui->Etoile, &QPushButton::clicked, this, &MainWindow::changeToStar);
-    connect(ui->Coeur, &QPushButton::clicked, this, &MainWindow::changeToHeart);
+    connect(ui->Cercle, &QPushButton::clicked, this, [this]() {
+        setPredefinedShape(ShapeModel::Type::Circle);
+    });
+    connect(ui->Rectangle, &QPushButton::clicked, this, [this]() {
+        setPredefinedShape(ShapeModel::Type::Rectangle);
+    });
+    connect(ui->Triangle, &QPushButton::clicked, this, [this]() {
+        setPredefinedShape(ShapeModel::Type::Triangle);
+    });
+    connect(ui->Etoile, &QPushButton::clicked, this, [this]() {
+        setPredefinedShape(ShapeModel::Type::Star);
+    });
+    connect(ui->Coeur, &QPushButton::clicked, this, [this]() {
+        setPredefinedShape(ShapeModel::Type::Heart);
+    });
 
     // connexion pour les formes de l'inventory
     connect(Inventory::getInstance(), &Inventory::customShapeSelected,
@@ -204,6 +194,38 @@ void MainWindow::setupShapeConnections()
 
 void MainWindow::setupNavigationConnections()
 {
+    connect(m_navigationController, &NavigationController::customShapeApplied,
+            this, &MainWindow::applyCustomShape);
+    connect(m_navigationController, &NavigationController::customDrawingReset,
+            this, &MainWindow::resetDrawing);
+    connect(m_navigationController, &NavigationController::layoutSelected, this,
+            [this](const LayoutData &layout) {
+                shapeVisualization->applyLayout(layout);
+                applySelectedLayoutToControls(layout);
+            });
+    connect(m_navigationController, &NavigationController::baseShapeLayoutSelected, this,
+            [this](ShapeModel::Type type, const LayoutData &layout) {
+                selectedShapeType = type;
+                QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
+                shapeVisualization->setCustomMode();
+                shapeVisualization->displayCustomShapes(shapePolys);
+                shapeVisualization->setCurrentCustomShapeName(Inventory::baseShapeName(type, Language::French));
+                shapeVisualization->applyLayout(layout);
+                applySelectedLayoutToControls(layout);
+            });
+    connect(m_navigationController, &NavigationController::baseShapeOnlySelected, this,
+            [this](ShapeModel::Type type) {
+                setPredefinedShape(type);
+            });
+    connect(m_navigationController, &NavigationController::requestReturnToFullScreen, this,
+            [this]() {
+                showFullScreen();
+            });
+    connect(m_navigationController, &NavigationController::requestOpenInventory, this,
+            []() {
+                Inventory::getInstance()->showFullScreen();
+            });
+
     // Naviguer entre les pages
     connect(ui->buttonInventory, &QPushButton::clicked, this, &MainWindow::showInventory);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
@@ -228,27 +250,11 @@ void MainWindow::setupSystemConnections()
     // Connection entre spinbox nombre de formes et ShapeVisualization
     connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShapeCount);
 
-    connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [=]() {
-        if (ui->optimizePlacementButton->isChecked()) {
-            ui->optimizePlacementButton2->setChecked(false);
-            shapeVisualization->optimizePlacement();
-        } else {
-            int largeur = ui->Largeur->value();
-            int longueur = ui->Longueur->value();
-            shapeVisualization->updateDimensions(largeur, longueur);
-        }
-    });
+    connect(ui->optimizePlacementButton, &QPushButton::clicked,
+            this, &MainWindow::onOptimizePlacementClicked);
 
-    connect(ui->optimizePlacementButton2, &QPushButton::clicked, this, [=]() {
-        if (ui->optimizePlacementButton2->isChecked()) {
-            ui->optimizePlacementButton->setChecked(false);
-            shapeVisualization->optimizePlacement2();
-        } else {
-            int largeur = ui->Largeur->value();
-            int longueur = ui->Longueur->value();
-            shapeVisualization->updateDimensions(largeur, longueur);
-        }
-    });
+    connect(ui->optimizePlacementButton2, &QPushButton::clicked,
+            this, &MainWindow::onOptimizePlacement2Clicked);
 
     // spinBox pour l'espacement
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
@@ -260,18 +266,10 @@ void MainWindow::setupSystemConnections()
             });
 
     // Déplacement : 1 pixel par clic
-    connect(ui->ButtonUp, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->moveSelectedShapes(0, -1); // vers le haut
-    });
-    connect(ui->ButtonDown, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->moveSelectedShapes(0, 1);  // vers le bas
-    });
-    connect(ui->ButtonLeft, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->moveSelectedShapes(-1, 0); // vers la gauche
-    });
-    connect(ui->ButtonRight, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->moveSelectedShapes(1, 0);  // vers la droite
-    });
+    connect(ui->ButtonUp, &QPushButton::clicked, this, &MainWindow::onMoveUpClicked);
+    connect(ui->ButtonDown, &QPushButton::clicked, this, &MainWindow::onMoveDownClicked);
+    connect(ui->ButtonLeft, &QPushButton::clicked, this, &MainWindow::onMoveLeftClicked);
+    connect(ui->ButtonRight, &QPushButton::clicked, this, &MainWindow::onMoveRightClicked);
 
     connect(ui->ButtonRotationLeft, &QPushButton::clicked, this, [this]() {
         shapeVisualization->rotateSelectedShapes(-90); // rotation vers la gauche
@@ -288,35 +286,7 @@ void MainWindow::setupSystemConnections()
         shapeVisualization->deleteSelectedShapes();
     });
 
-    connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
-        auto saveLayout = [this]() {
-            bool ok;
-            QString name = QInputDialog::getText(this,
-                                                 tr("Nom de la disposition"),
-                                                 tr("Entrez un nom"),
-                                                 QLineEdit::Normal,
-                                                 "",
-                                                 &ok);
-            if (!ok || name.isEmpty())
-                return;
-            LayoutData layout = shapeVisualization->captureCurrentLayout(name);
-            if (shapeVisualization->isCustomMode())
-                Inventory::getInstance()->addLayoutToShape(shapeVisualization->currentCustomShapeName(), layout);
-            else
-                Inventory::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
-        };
-
-        if (shapeVisualization->isCustomMode() && shapeVisualization->currentCustomShapeName().isEmpty()) {
-            QMessageBox::warning(this,
-                                 tr("Disposition"),
-                                 tr("Forme non sauvegardée — veuillez la sauvegarder d'abord."));
-            if (promptAndSaveCurrentCustomShape())
-                saveLayout();
-            return;
-        }
-
-        saveLayout();
-    });
+    connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, &MainWindow::onSaveLayoutClicked);
 
     connect(ui->Play, &QPushButton::clicked, this, &MainWindow::StartPixel);
     connect(ui->Pause, &QPushButton::clicked, this, [this]() { emit requestPauseCut(); });
@@ -341,39 +311,89 @@ void MainWindow::updateShape() {
     shapeVisualization->updateDimensions(largeur, longueur);
 }
 
-void MainWindow::changeToCircle() {
-    //qDebug() << "Changement de forme: Cercle";
-    selectedShapeType = ShapeModel::Type::Circle;
+void MainWindow::setPredefinedShape(ShapeModel::Type type)
+{
+    selectedShapeType = type;
     shapeVisualization->setPredefinedMode();
-    shapeVisualization->setModel(ShapeModel::Type::Circle);
+    shapeVisualization->setModel(type);
 }
 
-void MainWindow::changeToRectangle() {
-    //qDebug() << "Changement de forme: Rectangle";
-    selectedShapeType = ShapeModel::Type::Rectangle;
-    shapeVisualization->setPredefinedMode();
-    shapeVisualization->setModel(ShapeModel::Type::Rectangle);
+void MainWindow::moveSelectedShape(int dx, int dy)
+{
+    shapeVisualization->moveSelectedShapes(dx, dy);
 }
 
-void MainWindow::changeToTriangle() {
-    //qDebug() << "Changement de forme: Triangle";
-    selectedShapeType = ShapeModel::Type::Triangle;
-    shapeVisualization->setPredefinedMode();
-    shapeVisualization->setModel(ShapeModel::Type::Triangle);
+void MainWindow::onMoveUpClicked()
+{
+    moveSelectedShape(0, -1);
 }
 
-void MainWindow::changeToStar() {
-    //qDebug() << "Changement de forme: Étoile";
-    selectedShapeType = ShapeModel::Type::Star;
-    shapeVisualization->setPredefinedMode();
-    shapeVisualization->setModel(ShapeModel::Type::Star);
+void MainWindow::onMoveDownClicked()
+{
+    moveSelectedShape(0, 1);
 }
 
-void MainWindow::changeToHeart() {
-    //qDebug() << "Changement de forme: Cœur";
-    selectedShapeType = ShapeModel::Type::Heart;
-    shapeVisualization->setPredefinedMode();
-    shapeVisualization->setModel(ShapeModel::Type::Heart);
+void MainWindow::onMoveLeftClicked()
+{
+    moveSelectedShape(-1, 0);
+}
+
+void MainWindow::onMoveRightClicked()
+{
+    moveSelectedShape(1, 0);
+}
+
+void MainWindow::onOptimizePlacementClicked()
+{
+    if (ui->optimizePlacementButton->isChecked()) {
+        ui->optimizePlacementButton2->setChecked(false);
+        shapeVisualization->optimizePlacement();
+    } else {
+        int largeur = ui->Largeur->value();
+        int longueur = ui->Longueur->value();
+        shapeVisualization->updateDimensions(largeur, longueur);
+    }
+}
+
+void MainWindow::onOptimizePlacement2Clicked()
+{
+    if (ui->optimizePlacementButton2->isChecked()) {
+        ui->optimizePlacementButton->setChecked(false);
+        shapeVisualization->optimizePlacement2();
+    } else {
+        int largeur = ui->Largeur->value();
+        int longueur = ui->Longueur->value();
+        shapeVisualization->updateDimensions(largeur, longueur);
+    }
+}
+
+void MainWindow::onSaveLayoutClicked()
+{
+    auto saveLayout = [this]() {
+        bool ok = false;
+        QString name = m_navigationController->promptForName(this,
+                                                             tr("Nom de la disposition"),
+                                                             tr("Entrez un nom"),
+                                                             &ok);
+        if (!ok || name.isEmpty())
+            return;
+        LayoutData layout = shapeVisualization->captureCurrentLayout(name);
+        if (shapeVisualization->isCustomMode())
+            Inventory::getInstance()->addLayoutToShape(shapeVisualization->currentCustomShapeName(), layout);
+        else
+            Inventory::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+    };
+
+    if (shapeVisualization->isCustomMode() && shapeVisualization->currentCustomShapeName().isEmpty()) {
+        QMessageBox::warning(this,
+                             tr("Disposition"),
+                             tr("Forme non sauvegardée — veuillez la sauvegarder d'abord."));
+        if (promptAndSaveCurrentCustomShape())
+            saveLayout();
+        return;
+    }
+
+    saveLayout();
 }
 
 void MainWindow::showInventory() {
@@ -381,14 +401,7 @@ void MainWindow::showInventory() {
 }
 
 void MainWindow::showCustom() {
-    CustomEditor *customWindow = m_navigationController->openCustomEditor(this, m_displayLanguage);
-
-    connect(customWindow, &CustomEditor::applyCustomShapeSignal,
-            this, &MainWindow::applyCustomShape);
-    connect(customWindow, &CustomEditor::resetDrawingSignal,
-            this, &MainWindow::resetDrawing);
-
-    customWindow->showFullScreen();
+    m_navigationController->openCustomEditor(this, m_displayLanguage);
 }
 
 void MainWindow::openTestGpio() {
@@ -417,40 +430,12 @@ void MainWindow::openImageInCustom(const QString &filePath,
                                    bool internalContours,
                                    bool colorEdges)
 {
-    this->hide();
-
-    QPainterPath outline;
-    if (colorEdges) {
-        ImageEdgeImporter edgeImporter;
-        if (!edgeImporter.loadAndProcess(filePath, outline))
-            return;
-    } else {
-        LogoImporter importer;
-        outline = importer.importLogo(filePath, internalContours, 128);
-        if (outline.isEmpty())
-            return;
-    }
-
-    CustomEditor *cw = new CustomEditor(m_displayLanguage);
-    cw->setAttribute(Qt::WA_DeleteOnClose);
-
-    connect(cw, &CustomEditor::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
-    connect(cw, &CustomEditor::resetDrawingSignal,     this, &MainWindow::resetDrawing);
-
-    CustomDrawArea *area = cw->getDrawArea();
-    cw->showFullScreen();   // ← important : la taille de drawArea sera correcte à la prochaine itération d'event loop
-
-    // ⚠️ On décale le centrage à "après mise en page"
-    QTimer::singleShot(0, cw, [area, outline]() mutable {
-        if (!area) return;
-        QPainterPath scaled = ImportedImageGeometryHelper::fitCentered(outline, area->size());
-        if (scaled.isEmpty())
-            return;
-
-        QList<QPainterPath> subs = PathGenerator::separateIntoSubpaths(scaled);
-        for (const QPainterPath &sp : subs)
-            area->addImportedLogoSubpath(sp);
-    });
+    QPainterPath outline = ImageImportService::processImageToPath(filePath,
+                                                                  internalContours,
+                                                                  colorEdges);
+    if (outline.isEmpty())
+        return;
+    m_navigationController->openCustomEditorWithImportedPath(this, m_displayLanguage, outline);
 }
 
 void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
@@ -505,30 +490,11 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     /* 4) Si des dispositions existent, ouvrir la fenêtre LayoutsDialog */
     QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
     if (!layouts.isEmpty()) {
-        LayoutsDialog *disp = m_navigationController->openLayoutsDialog(this,
-                                                                      name,
-                                                                      layouts,
-                                                                      polygons,
-                                                                      m_displayLanguage);
-
-        connect(disp, &LayoutsDialog::layoutSelected, this,
-                [this](const LayoutData &ld) {
-                    shapeVisualization->applyLayout(ld);
-                    applySelectedLayoutToControls(ld);
-                });
-
-        /* signaux de fermeture/retour */
-        connect(disp, &LayoutsDialog::shapeOnlySelected, this, [](){});
-        connect(disp, &LayoutsDialog::closed, this, [this, disp]() {
-            this->showFullScreen();
-            disp->deleteLater();
-        });
-        connect(disp, &LayoutsDialog::requestOpenInventory, this,
-                [this, disp]() {
-                    disp->deleteLater();
-                    Inventory::getInstance()->showFullScreen();
-                });
-
+        m_navigationController->openLayoutsDialog(this,
+                                                  name,
+                                                  layouts,
+                                                  polygons,
+                                                  m_displayLanguage);
         return;
     }
 
@@ -576,16 +542,6 @@ void MainWindow::updateSpacing(int value)
     if (shapeVisualization) {
         // Met à jour l'espacement et redessine
         shapeVisualization->setSpacing(value);
-    }
-}
-
-// Par exemple, dans votre slot ou méthode :
-void afficherKeyboardDialog() {
-    KeyboardDialog clavier;        // Création d'une instance du clavier
-    if (clavier.exec() == QDialog::Accepted) {  // Affichage modal du clavier
-        QString texteSaisi = clavier.getText();
-        // Traitez le texte saisi selon vos besoins
-        //qDebug() << "Texte saisi :" << texteSaisi;
     }
 }
 
@@ -674,38 +630,13 @@ void MainWindow::onShapeSelectedFromInventory(ShapeModel::Type type)
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
         QString name = Inventory::baseShapeName(type, m_displayLanguage);
-        LayoutsDialog *disp = m_navigationController->openLayoutsDialog(this,
-                                                                      name,
-                                                                      layouts,
-                                                                      polys,
-                                                                      m_displayLanguage,
-                                                                      true,
-                                                                      type);
-
-        connect(disp, &LayoutsDialog::layoutSelected, this, [this, type](const LayoutData &ld){
-            QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
-            shapeVisualization->setCustomMode();
-            shapeVisualization->displayCustomShapes(shapePolys);
-            shapeVisualization->setCurrentCustomShapeName(Inventory::baseShapeName(type, Language::French));
-            shapeVisualization->applyLayout(ld);
-            applySelectedLayoutToControls(ld);
-        });
-
-        connect(disp, &LayoutsDialog::shapeOnlySelected, this, [this, type]() {
-            selectedShapeType = type;
-            shapeVisualization->setPredefinedMode();
-            shapeVisualization->setModel(type);
-        });
-
-        connect(disp, &LayoutsDialog::closed, this, [this, disp]() {
-            this->showFullScreen();
-            disp->deleteLater();
-        });
-
-        connect(disp, &LayoutsDialog::requestOpenInventory, this, [this, disp]() {
-            disp->deleteLater();
-            Inventory::getInstance()->showFullScreen();
-        });
+        m_navigationController->openLayoutsDialog(this,
+                                                  name,
+                                                  layouts,
+                                                  polys,
+                                                  m_displayLanguage,
+                                                  true,
+                                                  type);
 
         return;
     }
@@ -742,12 +673,10 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
     bool ok = false;
     QString shapeName;
     do {
-        shapeName = QInputDialog::getText(this,
-                                          tr("Nom de la forme"),
-                                          tr("Entrez un nom pour votre forme :"),
-                                          QLineEdit::Normal,
-                                          "",
-                                          &ok);
+        shapeName = m_navigationController->promptForName(this,
+                                                          tr("Nom de la forme"),
+                                                          tr("Entrez un nom pour votre forme :"),
+                                                          &ok);
         if (!ok)
             return false;
         if (shapeName.isEmpty())

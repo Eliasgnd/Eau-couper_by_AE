@@ -1,0 +1,24 @@
+QToolButton {
+    background-color: #00BCD4;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 6px 14px;
+    border: 2px solid #008C9E;
+    border-radius: 8px;
+}
+
+QToolButton::menu-indicator {
+    image: url(:/icons/chevron-down-white.svg);
+    subcontrol-position: right center;
+    subcontrol-origin: padding;
+    padding-left: 6px;
+}
+
+QToolButton:hover {
+    background-color: #26C6DA;
+}
+
+QToolButton:pressed {
+    background-color: #008C9E;
+}
