@@ -3,11 +3,11 @@
 #include "ShapeModel.h"
 #include "qmessagebox.h"
 #include "ui_mainwindow.h"
-#include "Inventaire.h"
-#include "Custom.h"
-#include "Dispositions.h"
-#include "FormeVisualization.h"
-#include "Clavier.h"
+#include "Inventory.h"
+#include "CustomEditor.h"
+#include "LayoutsDialog.h"
+#include "ShapeVisualization.h"
+#include "KeyboardDialog.h"
 #include "Language.h"
 #include "LogoImporter.h"
 #include "ImageEdgeImporter.h"
@@ -59,7 +59,7 @@ void MainWindow::setupUI()
 {
     // La barre de titre (index 0) ne prend pas de stretch, la vue (index 1) prend tout, le bas (index 2) reste compact.
     ui->centerVBox->setStretch(0, 0);  // topBarLayout
-    ui->centerVBox->setStretch(1, 1);  // horizontalLayout contenant formeVisualizationWidget
+    ui->centerVBox->setStretch(1, 1);  // horizontalLayout contenant shapeVisualizationWidget
     ui->centerVBox->setStretch(2, 0);  // horizontalLayout_2 (commandes + Réglages)
     ui->centerVBox->setStretch(3, 0);  // verticalLayout_2 (vide chez toi)
 
@@ -68,7 +68,7 @@ void MainWindow::setupUI()
     ui->mainHorizontalLayout->setStretch(0, 0); // colonne gauche (fixe)
     ui->mainHorizontalLayout->setStretch(1, 1); // colonne droite (expansive)
 
-    auto fv = ui->formeVisualizationWidget;   // FormeVisualization* issu du .ui
+    auto fv = ui->shapeVisualizationWidget;   // ShapeVisualization* issu du .ui
     fv->setSheetSizeMm(QSizeF(600, 400));     // OK
 
     // 1) Crée le wrapper SANS re‑parenter fv
@@ -83,7 +83,7 @@ void MainWindow::setupUI()
     wrapper->setChild(fv);
 
     // 4) Mets à jour le ratio du wrapper si la taille de feuille change
-    connect(fv, &FormeVisualization::sheetSizeMmChanged,
+    connect(fv, &ShapeVisualization::sheetSizeMmChanged,
             wrapper, [wrapper](const QSizeF& mm) {
                 if (mm.width() > 0.0 && mm.height() > 0.0)
                     wrapper->setAspect(mm.width() / mm.height());
@@ -95,7 +95,7 @@ void MainWindow::setupUI()
     // place la fenêtre sur le 2ᵉ écran
     // ScreenUtils::placeOnSecondaryScreen(this);
 
-    // Connection de l'inventaire à la forme
+    // Connection de l'inventory à la forme
     // Bon : on récupère directement les valeurs actuelles des spinboxes longueur/largeur
     updateSliderLongueur(ui->Longueur->value());
     updateSliderLargeur (ui->Largeur ->value());
@@ -165,8 +165,8 @@ void MainWindow::applyStyleSheets()
 
 void MainWindow::setupModels()
 {
-    // Initialiser la classe FormeVisualization à partir du widget de l'UI
-    formeVisualization = qobject_cast<FormeVisualization*>(ui->formeVisualizationWidget);
+    // Initialiser la classe ShapeVisualization à partir du widget de l'UI
+    shapeVisualization = qobject_cast<ShapeVisualization*>(ui->shapeVisualizationWidget);
 }
 
 void MainWindow::setupConnections()
@@ -178,17 +178,17 @@ void MainWindow::setupConnections()
 
 void MainWindow::setupShapeConnections()
 {
-    // Connection de l'inventaire à la forme
-    QObject::connect(Inventaire::getInstance(), &Inventaire::shapeSelected,
-                     this, &MainWindow::onShapeSelectedFromInventaire);
+    // Connection de l'inventory à la forme
+    QObject::connect(Inventory::getInstance(), &Inventory::shapeSelected,
+                     this, &MainWindow::onShapeSelectedFromInventory);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
-    connect(formeVisualization, &FormeVisualization::shapesPlacedCount,
+    connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount,
             this, &MainWindow::updateShapeCountLabel);
 
     // Connecter les spinbox pour les dimensions
-    connect(ui->Largeur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateForme);
-    connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateForme);
+    connect(ui->Largeur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShape);
+    connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShape);
 
     // Connecter les boutons pour changer les modèles
     connect(ui->Cercle, &QPushButton::clicked, this, &MainWindow::changeToCircle);
@@ -197,18 +197,18 @@ void MainWindow::setupShapeConnections()
     connect(ui->Etoile, &QPushButton::clicked, this, &MainWindow::changeToStar);
     connect(ui->Coeur, &QPushButton::clicked, this, &MainWindow::changeToHeart);
 
-    // connexion pour les formes de l'inventaire
-    connect(Inventaire::getInstance(), &Inventaire::customShapeSelected,
+    // connexion pour les formes de l'inventory
+    connect(Inventory::getInstance(), &Inventory::customShapeSelected,
             this,                       &MainWindow::onCustomShapeSelected);
 }
 
 void MainWindow::setupNavigationConnections()
 {
     // Naviguer entre les pages
-    connect(ui->buttonInventaire, &QPushButton::clicked, this, &MainWindow::showInventaire);
+    connect(ui->buttonInventory, &QPushButton::clicked, this, &MainWindow::showInventory);
     connect(ui->buttonCustom, &QPushButton::clicked, this, &MainWindow::showCustom);
     // "Images générées" should open the gallery of generated images
-    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showDossier);
+    connect(ui->buttonTestGpio, &QPushButton::clicked, this, &MainWindow::showFolder);
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::openAIImagePromptDialog);
     // Small button with the download icon opens the GPIO test page
@@ -225,28 +225,28 @@ void MainWindow::setupSystemConnections()
     connect(ui->Slider_longueur, &QSlider::valueChanged, this, &MainWindow::updateSpinBoxLongueur);
     connect(ui->Slider_largeur, &QSlider::valueChanged, this, &MainWindow::updateSpinBoxLargeur);
 
-    // Connection entre spinbox nombre de formes et FormeVisualization
+    // Connection entre spinbox nombre de formes et ShapeVisualization
     connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShapeCount);
 
     connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [=]() {
         if (ui->optimizePlacementButton->isChecked()) {
             ui->optimizePlacementButton2->setChecked(false);
-            formeVisualization->optimizePlacement();
+            shapeVisualization->optimizePlacement();
         } else {
             int largeur = ui->Largeur->value();
             int longueur = ui->Longueur->value();
-            formeVisualization->updateDimensions(largeur, longueur);
+            shapeVisualization->updateDimensions(largeur, longueur);
         }
     });
 
     connect(ui->optimizePlacementButton2, &QPushButton::clicked, this, [=]() {
         if (ui->optimizePlacementButton2->isChecked()) {
             ui->optimizePlacementButton->setChecked(false);
-            formeVisualization->optimizePlacement2();
+            shapeVisualization->optimizePlacement2();
         } else {
             int largeur = ui->Largeur->value();
             int longueur = ui->Longueur->value();
-            formeVisualization->updateDimensions(largeur, longueur);
+            shapeVisualization->updateDimensions(largeur, longueur);
         }
     });
 
@@ -254,38 +254,38 @@ void MainWindow::setupSystemConnections()
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::updateSpacing);
 
-    connect(formeVisualization, &FormeVisualization::spacingChanged,
+    connect(shapeVisualization, &ShapeVisualization::spacingChanged,
             this, [this](int newSpacing) {
                 ui->spaceSpinBox->setValue(newSpacing);
             });
 
     // Déplacement : 1 pixel par clic
     connect(ui->ButtonUp, &QPushButton::clicked, this, [this]() {
-        formeVisualization->moveSelectedShapes(0, -1); // vers le haut
+        shapeVisualization->moveSelectedShapes(0, -1); // vers le haut
     });
     connect(ui->ButtonDown, &QPushButton::clicked, this, [this]() {
-        formeVisualization->moveSelectedShapes(0, 1);  // vers le bas
+        shapeVisualization->moveSelectedShapes(0, 1);  // vers le bas
     });
     connect(ui->ButtonLeft, &QPushButton::clicked, this, [this]() {
-        formeVisualization->moveSelectedShapes(-1, 0); // vers la gauche
+        shapeVisualization->moveSelectedShapes(-1, 0); // vers la gauche
     });
     connect(ui->ButtonRight, &QPushButton::clicked, this, [this]() {
-        formeVisualization->moveSelectedShapes(1, 0);  // vers la droite
+        shapeVisualization->moveSelectedShapes(1, 0);  // vers la droite
     });
 
     connect(ui->ButtonRotationLeft, &QPushButton::clicked, this, [this]() {
-        formeVisualization->rotateSelectedShapes(-90); // rotation vers la gauche
+        shapeVisualization->rotateSelectedShapes(-90); // rotation vers la gauche
     });
     connect(ui->ButtonRotationRight, &QPushButton::clicked, this, [this]() {
-        formeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
+        shapeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
     });
 
     connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
-        formeVisualization->addShapeBottomRight();
+        shapeVisualization->addShapeBottomRight();
     });
 
     connect(ui->ButtonDeleteShape, &QPushButton::clicked, this, [this]() {
-        formeVisualization->deleteSelectedShapes();
+        shapeVisualization->deleteSelectedShapes();
     });
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
@@ -299,14 +299,14 @@ void MainWindow::setupSystemConnections()
                                                  &ok);
             if (!ok || name.isEmpty())
                 return;
-            LayoutData layout = formeVisualization->captureCurrentLayout(name);
-            if (formeVisualization->isCustomMode())
-                Inventaire::getInstance()->addLayoutToShape(formeVisualization->currentCustomShapeName(), layout);
+            LayoutData layout = shapeVisualization->captureCurrentLayout(name);
+            if (shapeVisualization->isCustomMode())
+                Inventory::getInstance()->addLayoutToShape(shapeVisualization->currentCustomShapeName(), layout);
             else
-                Inventaire::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+                Inventory::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
         };
 
-        if (formeVisualization->isCustomMode() && formeVisualization->currentCustomShapeName().isEmpty()) {
+        if (shapeVisualization->isCustomMode() && shapeVisualization->currentCustomShapeName().isEmpty()) {
             QMessageBox::warning(this,
                                  tr("Disposition"),
                                  tr("Forme non sauvegardée — veuillez la sauvegarder d'abord."));
@@ -322,7 +322,7 @@ void MainWindow::setupSystemConnections()
     connect(ui->Pause, &QPushButton::clicked, this, [this]() { emit requestPauseCut(); });
     connect(ui->Stop, &QPushButton::clicked, this, [this]() { emit requestStopCut(); });
 
-    connect(formeVisualization, &FormeVisualization::optimizationStateChanged, this,
+    connect(shapeVisualization, &ShapeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
                 if (!optimized) {
                     ui->optimizePlacementButton->setChecked(false);
@@ -335,57 +335,57 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
-void MainWindow::updateForme() {
+void MainWindow::updateShape() {
     int largeur = ui->Largeur->value();
     int longueur = ui->Longueur->value();
-    formeVisualization->updateDimensions(largeur, longueur);
+    shapeVisualization->updateDimensions(largeur, longueur);
 }
 
 void MainWindow::changeToCircle() {
     //qDebug() << "Changement de forme: Cercle";
     selectedShapeType = ShapeModel::Type::Circle;
-    formeVisualization->setPredefinedMode();
-    formeVisualization->setModel(ShapeModel::Type::Circle);
+    shapeVisualization->setPredefinedMode();
+    shapeVisualization->setModel(ShapeModel::Type::Circle);
 }
 
 void MainWindow::changeToRectangle() {
     //qDebug() << "Changement de forme: Rectangle";
     selectedShapeType = ShapeModel::Type::Rectangle;
-    formeVisualization->setPredefinedMode();
-    formeVisualization->setModel(ShapeModel::Type::Rectangle);
+    shapeVisualization->setPredefinedMode();
+    shapeVisualization->setModel(ShapeModel::Type::Rectangle);
 }
 
 void MainWindow::changeToTriangle() {
     //qDebug() << "Changement de forme: Triangle";
     selectedShapeType = ShapeModel::Type::Triangle;
-    formeVisualization->setPredefinedMode();
-    formeVisualization->setModel(ShapeModel::Type::Triangle);
+    shapeVisualization->setPredefinedMode();
+    shapeVisualization->setModel(ShapeModel::Type::Triangle);
 }
 
 void MainWindow::changeToStar() {
     //qDebug() << "Changement de forme: Étoile";
     selectedShapeType = ShapeModel::Type::Star;
-    formeVisualization->setPredefinedMode();
-    formeVisualization->setModel(ShapeModel::Type::Star);
+    shapeVisualization->setPredefinedMode();
+    shapeVisualization->setModel(ShapeModel::Type::Star);
 }
 
 void MainWindow::changeToHeart() {
     //qDebug() << "Changement de forme: Cœur";
     selectedShapeType = ShapeModel::Type::Heart;
-    formeVisualization->setPredefinedMode();
-    formeVisualization->setModel(ShapeModel::Type::Heart);
+    shapeVisualization->setPredefinedMode();
+    shapeVisualization->setModel(ShapeModel::Type::Heart);
 }
 
-void MainWindow::showInventaire() {
-    m_navigationController->showInventaire(this, Inventaire::getInstance());
+void MainWindow::showInventory() {
+    m_navigationController->showInventory(this, Inventory::getInstance());
 }
 
 void MainWindow::showCustom() {
-    Custom *customWindow = m_navigationController->openCustomEditor(this, m_displayLanguage);
+    CustomEditor *customWindow = m_navigationController->openCustomEditor(this, m_displayLanguage);
 
-    connect(customWindow, &Custom::applyCustomShapeSignal,
+    connect(customWindow, &CustomEditor::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
-    connect(customWindow, &Custom::resetDrawingSignal,
+    connect(customWindow, &CustomEditor::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
 
     customWindow->showFullScreen();
@@ -403,9 +403,9 @@ void MainWindow::openWifiConfig() {
     m_navigationController->openWifiSettings(this);
 }
 
-void MainWindow::showDossier()
+void MainWindow::showFolder()
 {
-    m_navigationController->openDossier(this, m_displayLanguage);
+    m_navigationController->openFolder(this, m_displayLanguage);
 }
 
 void MainWindow::on_receptionFichierButton_clicked()
@@ -431,11 +431,11 @@ void MainWindow::openImageInCustom(const QString &filePath,
             return;
     }
 
-    Custom *cw = new Custom(m_displayLanguage);
+    CustomEditor *cw = new CustomEditor(m_displayLanguage);
     cw->setAttribute(Qt::WA_DeleteOnClose);
 
-    connect(cw, &Custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
-    connect(cw, &Custom::resetDrawingSignal,     this, &MainWindow::resetDrawing);
+    connect(cw, &CustomEditor::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
+    connect(cw, &CustomEditor::resetDrawingSignal,     this, &MainWindow::resetDrawing);
 
     CustomDrawArea *area = cw->getDrawArea();
     cw->showFullScreen();   // ← important : la taille de drawArea sera correcte à la prochaine itération d'event loop
@@ -457,24 +457,24 @@ void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
 
 
     //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
-    if (formeVisualization) {
-        formeVisualization->displayCustomShapes(shapes);
-        formeVisualization->setCurrentCustomShapeName("");
+    if (shapeVisualization) {
+        shapeVisualization->displayCustomShapes(shapes);
+        shapeVisualization->setCurrentCustomShapeName("");
     } else {
-        //qDebug() << "Erreur : formeVisualization est nullptr.";
+        //qDebug() << "Erreur : shapeVisualization est nullptr.";
     }
     // ---------- FIN de applyCustomShape ----------
     this->showFullScreen();            // plein écran
 }
 
 /* =====================================================================
- *  On sélectionne une forme custom depuis l'inventaire
+ *  On sélectionne une forme custom depuis l'inventory
  * ===================================================================*/
 void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                                        const QString &name)
 {
     /* 1) Empêcher la modification pendant une découpe ---------------- */
-    if (formeVisualization && formeVisualization->isDecoupeEnCours()) {
+    if (shapeVisualization && shapeVisualization->isDecoupeEnCours()) {
         QMessageBox::warning(this,
                              tr("Découpe en cours"),
                              tr("Impossible de modifier la forme pendant la découpe."));
@@ -482,11 +482,11 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     }
 
     /* 2) Passage en mode Custom -------------------------------------- */
-    if (!formeVisualization) {
+    if (!shapeVisualization) {
         this->showFullScreen();
         return;
     }
-    formeVisualization->setCustomMode();
+    shapeVisualization->setCustomMode();
 
     /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
     const QRectF bounds = combinedBoundingRect(polygons);
@@ -498,35 +498,35 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
     if (hauteur <= 0)
         hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
 
-    formeVisualization->updateDimensions(largeur, hauteur);
-    formeVisualization->displayCustomShapes(polygons);
-    formeVisualization->setCurrentCustomShapeName(name);
+    shapeVisualization->updateDimensions(largeur, hauteur);
+    shapeVisualization->displayCustomShapes(polygons);
+    shapeVisualization->setCurrentCustomShapeName(name);
 
-    /* 4) Si des dispositions existent, ouvrir la fenêtre Dispositions */
-    QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForShape(name);
+    /* 4) Si des dispositions existent, ouvrir la fenêtre LayoutsDialog */
+    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
     if (!layouts.isEmpty()) {
-        Dispositions *disp = m_navigationController->openDispositions(this,
+        LayoutsDialog *disp = m_navigationController->openLayoutsDialog(this,
                                                                       name,
                                                                       layouts,
                                                                       polygons,
                                                                       m_displayLanguage);
 
-        connect(disp, &Dispositions::layoutSelected, this,
+        connect(disp, &LayoutsDialog::layoutSelected, this,
                 [this](const LayoutData &ld) {
-                    formeVisualization->applyLayout(ld);
+                    shapeVisualization->applyLayout(ld);
                     applySelectedLayoutToControls(ld);
                 });
 
         /* signaux de fermeture/retour */
-        connect(disp, &Dispositions::shapeOnlySelected, this, [](){});
-        connect(disp, &Dispositions::closed, this, [this, disp]() {
+        connect(disp, &LayoutsDialog::shapeOnlySelected, this, [](){});
+        connect(disp, &LayoutsDialog::closed, this, [this, disp]() {
             this->showFullScreen();
             disp->deleteLater();
         });
-        connect(disp, &Dispositions::requestOpenInventaire, this,
+        connect(disp, &LayoutsDialog::requestOpenInventory, this,
                 [this, disp]() {
                     disp->deleteLater();
-                    Inventaire::getInstance()->showFullScreen();
+                    Inventory::getInstance()->showFullScreen();
                 });
 
         return;
@@ -561,7 +561,7 @@ void MainWindow::updateShapeCount() {
     int width = ui->Largeur->value();
     int height = ui->Longueur->value();
     ShapeModel::Type type = selectedShapeType;
-    formeVisualization->setShapeCount(count, type, width, height);
+    shapeVisualization->setShapeCount(count, type, width, height);
 }
 
 // Slot pour mettre à jour le label du nombre de formes placées
@@ -573,15 +573,15 @@ void MainWindow::updateShapeCountLabel(int count) {
 void MainWindow::updateSpacing(int value)
 {
     // Vérifier que le widget de visualisation existe
-    if (formeVisualization) {
+    if (shapeVisualization) {
         // Met à jour l'espacement et redessine
-        formeVisualization->setSpacing(value);
+        shapeVisualization->setSpacing(value);
     }
 }
 
 // Par exemple, dans votre slot ou méthode :
-void afficherClavier() {
-    Clavier clavier;        // Création d'une instance du clavier
+void afficherKeyboardDialog() {
+    KeyboardDialog clavier;        // Création d'une instance du clavier
     if (clavier.exec() == QDialog::Accepted) {  // Affichage modal du clavier
         QString texteSaisi = clavier.getText();
         // Traitez le texte saisi selon vos besoins
@@ -667,14 +667,14 @@ void MainWindow::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
-void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
+void MainWindow::onShapeSelectedFromInventory(ShapeModel::Type type)
 {
     selectedShapeType = type;
-    QList<LayoutData> layouts = Inventaire::getInstance()->getLayoutsForBaseShape(type);
+    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForBaseShape(type);
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
-        QString name = Inventaire::baseShapeName(type, m_displayLanguage);
-        Dispositions *disp = m_navigationController->openDispositions(this,
+        QString name = Inventory::baseShapeName(type, m_displayLanguage);
+        LayoutsDialog *disp = m_navigationController->openLayoutsDialog(this,
                                                                       name,
                                                                       layouts,
                                                                       polys,
@@ -682,36 +682,36 @@ void MainWindow::onShapeSelectedFromInventaire(ShapeModel::Type type)
                                                                       true,
                                                                       type);
 
-        connect(disp, &Dispositions::layoutSelected, this, [this, type](const LayoutData &ld){
+        connect(disp, &LayoutsDialog::layoutSelected, this, [this, type](const LayoutData &ld){
             QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
-            formeVisualization->setCustomMode();
-            formeVisualization->displayCustomShapes(shapePolys);
-            formeVisualization->setCurrentCustomShapeName(Inventaire::baseShapeName(type, Language::French));
-            formeVisualization->applyLayout(ld);
+            shapeVisualization->setCustomMode();
+            shapeVisualization->displayCustomShapes(shapePolys);
+            shapeVisualization->setCurrentCustomShapeName(Inventory::baseShapeName(type, Language::French));
+            shapeVisualization->applyLayout(ld);
             applySelectedLayoutToControls(ld);
         });
 
-        connect(disp, &Dispositions::shapeOnlySelected, this, [this, type]() {
+        connect(disp, &LayoutsDialog::shapeOnlySelected, this, [this, type]() {
             selectedShapeType = type;
-            formeVisualization->setPredefinedMode();
-            formeVisualization->setModel(type);
+            shapeVisualization->setPredefinedMode();
+            shapeVisualization->setModel(type);
         });
 
-        connect(disp, &Dispositions::closed, this, [this, disp]() {
+        connect(disp, &LayoutsDialog::closed, this, [this, disp]() {
             this->showFullScreen();
             disp->deleteLater();
         });
 
-        connect(disp, &Dispositions::requestOpenInventaire, this, [this, disp]() {
+        connect(disp, &LayoutsDialog::requestOpenInventory, this, [this, disp]() {
             disp->deleteLater();
-            Inventaire::getInstance()->showFullScreen();
+            Inventory::getInstance()->showFullScreen();
         });
 
         return;
     }
 
-    formeVisualization->setPredefinedMode();
-    formeVisualization->setModel(type);
+    shapeVisualization->setPredefinedMode();
+    shapeVisualization->setModel(type);
 }
 
 void MainWindow::setSpinboxSliderEnabled(bool enabled)
@@ -725,17 +725,17 @@ void MainWindow::setSpinboxSliderEnabled(bool enabled)
     qDebug() << "[DEBUG] Appel de setSpinboxSliderEnabled(" << enabled << ")";
 }
 
-FormeVisualization* MainWindow::getFormeVisualization() const
+ShapeVisualization* MainWindow::getShapeVisualization() const
 {
-    return formeVisualization;
+    return shapeVisualization;
 }
 
 bool MainWindow::promptAndSaveCurrentCustomShape()
 {
-    if (!formeVisualization)
+    if (!shapeVisualization)
         return false;
 
-    QList<QPolygonF> shapes = formeVisualization->currentCustomShapes();
+    QList<QPolygonF> shapes = shapeVisualization->currentCustomShapes();
     if (shapes.isEmpty())
         return false;
 
@@ -752,7 +752,7 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
             return false;
         if (shapeName.isEmpty())
             continue;
-        if (Inventaire::getInstance()->shapeNameExists(shapeName)) {
+        if (Inventory::getInstance()->shapeNameExists(shapeName)) {
             QMessageBox msg(QMessageBox::Warning,
                             tr("Nom déjà utilisé"),
                             tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
@@ -764,8 +764,8 @@ bool MainWindow::promptAndSaveCurrentCustomShape()
         }
     } while (!ok);
 
-    Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
-    formeVisualization->setCurrentCustomShapeName(shapeName);
+    Inventory::getInstance()->addSavedCustomShape(shapes, shapeName);
+    shapeVisualization->setCurrentCustomShapeName(shapeName);
     return true;
 }
 

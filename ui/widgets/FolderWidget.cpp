@@ -1,5 +1,5 @@
-#include "DossierWidget.h"
-#include "ui_DossierWidget.h"
+#include "FolderWidget.h"
+#include "ui_FolderWidget.h"
 
 #include "MainWindow.h"
 #include "ScreenUtils.h"
@@ -40,9 +40,9 @@ MainWindow* resolveMainWindow()
 }
 }
 
-DossierWidget::DossierWidget(Language lang, QWidget *parent)
+FolderWidget::FolderWidget(Language lang, QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::DossierWidget)
+    , ui(new Ui::FolderWidget)
     , m_lang(lang)
 {
     ui->setupUi(this);
@@ -67,14 +67,14 @@ DossierWidget::DossierWidget(Language lang, QWidget *parent)
         m_sourceFilter->addItem(tr("Autres"));             // 4
         toolLay->addWidget(m_sourceFilter);
         connect(m_sourceFilter, &QComboBox::currentIndexChanged,
-                this, &DossierWidget::onFilterChanged);
+                this, &FolderWidget::onFilterChanged);
 
         // Recherche
         m_searchEdit = new QLineEdit(toolBar);
         m_searchEdit->setPlaceholderText(tr("Rechercher..."));
         toolLay->addWidget(m_searchEdit, 1);
         connect(m_searchEdit, &QLineEdit::textChanged,
-                this, &DossierWidget::onSearchChanged);
+                this, &FolderWidget::onSearchChanged);
 
         // Tri (ui->comboSort existe déjà)
         if (ui->comboSort) {
@@ -82,7 +82,7 @@ DossierWidget::DossierWidget(Language lang, QWidget *parent)
             ui->comboSort->addItem(tr("Récent → Ancien"));
             ui->comboSort->addItem(tr("Ancien → Récent"));
             connect(ui->comboSort, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-                    this, &DossierWidget::onSortChanged);
+                    this, &FolderWidget::onSortChanged);
             toolLay->addWidget(ui->comboSort);
         }
 
@@ -94,7 +94,7 @@ DossierWidget::DossierWidget(Language lang, QWidget *parent)
         m_zoomSlider->setFixedWidth(160);
         toolLay->addWidget(m_zoomSlider);
         connect(m_zoomSlider, &QSlider::valueChanged,
-                this, &DossierWidget::onZoomChanged);
+                this, &FolderWidget::onZoomChanged);
 
         // Injecte la barre tout de suite après le bouton close
         int idx = mainLay->indexOf(ui->buttonClose);
@@ -103,7 +103,7 @@ DossierWidget::DossierWidget(Language lang, QWidget *parent)
     }
 
     // ===== Connexions de base =====
-    connect(ui->buttonClose, &QPushButton::clicked, this, &DossierWidget::onCloseClicked);
+    connect(ui->buttonClose, &QPushButton::clicked, this, &FolderWidget::onCloseClicked);
 
     // Scroll infini
     connect(ui->scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this,
@@ -119,41 +119,41 @@ DossierWidget::DossierWidget(Language lang, QWidget *parent)
     loadNextPage();      // première page
 }
 
-DossierWidget::~DossierWidget()
+FolderWidget::~FolderWidget()
 {
     delete ui;
 }
 
 /*---------------------------- UI -----------------------------*/
-void DossierWidget::onCloseClicked()
+void FolderWidget::onCloseClicked()
 {
     close();
     if (auto mw = resolveMainWindow())
         mw->showFullScreen();
 }
 
-void DossierWidget::onSortChanged(int idx)
+void FolderWidget::onSortChanged(int idx)
 {
     m_newestFirst = (idx == 0);
     rebuildFileList();
     loadNextPage();
 }
 
-void DossierWidget::onFilterChanged(int idx)
+void FolderWidget::onFilterChanged(int idx)
 {
     m_filterIndex = idx;
     rebuildFileList();
     loadNextPage();
 }
 
-void DossierWidget::onSearchChanged(const QString &txt)
+void FolderWidget::onSearchChanged(const QString &txt)
 {
     m_searchText = txt;
     rebuildFileList();
     loadNextPage();
 }
 
-void DossierWidget::onZoomChanged(int value)
+void FolderWidget::onZoomChanged(int value)
 {
     m_thumbSize = value;
     // Re-bâtir juste l'affichage (pas de re-scan)
@@ -163,7 +163,7 @@ void DossierWidget::onZoomChanged(int value)
 }
 
 /*---------------------------- DATA -----------------------------*/
-void DossierWidget::rebuildFileList()
+void FolderWidget::rebuildFileList()
 {
     // 1) Scanner (si pas déjà scanné ou si tri/filtre impose un re-scan)
     // ici on rescannera toujours pour simpli. Tu peux garder un cache et check m_allFiles.empty() pour optimiser.
@@ -213,7 +213,7 @@ void DossierWidget::rebuildFileList()
     m_currentPage = 0;
 }
 
-void DossierWidget::clearGrid()
+void FolderWidget::clearGrid()
 {
     QLayoutItem *child;
     while ((child = ui->gridLayout->takeAt(0)) != nullptr) {
@@ -223,7 +223,7 @@ void DossierWidget::clearGrid()
     ui->scrollArea->verticalScrollBar()->setValue(0);
 }
 
-void DossierWidget::loadNextPage()
+void FolderWidget::loadNextPage()
 {
     if (m_loading) return;
     m_loading = true;
@@ -254,7 +254,7 @@ void DossierWidget::loadNextPage()
 }
 
 /*---------------------------- CARTE (vignette) -----------------------------*/
-QWidget* DossierWidget::buildCard(const QFileInfo &info)
+QWidget* FolderWidget::buildCard(const QFileInfo &info)
 {
     QWidget *frame = new QWidget;
     frame->setFixedSize(m_thumbSize + 40, m_thumbSize + 70);
@@ -324,7 +324,7 @@ QWidget* DossierWidget::buildCard(const QFileInfo &info)
 }
 
 /*---------------------------- ACTIONS -----------------------------*/
-void DossierWidget::renameFile(const QFileInfo &fi)
+void FolderWidget::renameFile(const QFileInfo &fi)
 {
     bool ok = false;
     QString newName = QInputDialog::getText(this, tr("Renommer"),
@@ -343,7 +343,7 @@ void DossierWidget::renameFile(const QFileInfo &fi)
     }
 }
 
-void DossierWidget::deleteFile(const QFileInfo &fi)
+void FolderWidget::deleteFile(const QFileInfo &fi)
 {
     if (QMessageBox::question(this, tr("Supprimer"),
                               tr("Supprimer %1 ?").arg(fi.fileName()))
@@ -355,7 +355,7 @@ void DossierWidget::deleteFile(const QFileInfo &fi)
     loadNextPage();
 }
 
-void DossierWidget::viewFile(const QFileInfo &fi)
+void FolderWidget::viewFile(const QFileInfo &fi)
 {
     QDialog dlg(this);
     dlg.setWindowTitle(fi.fileName());
@@ -368,20 +368,20 @@ void DossierWidget::viewFile(const QFileInfo &fi)
     dlg.exec();
 }
 
-void DossierWidget::reuseFile(const QFileInfo &fi)
+void FolderWidget::reuseFile(const QFileInfo &fi)
 {
     close();
     if (auto mw = resolveMainWindow())
         mw->openImageInCustom(fi.filePath());
 }
 
-void DossierWidget::openInExplorer(const QFileInfo &fi)
+void FolderWidget::openInExplorer(const QFileInfo &fi)
 {
     QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absoluteFilePath()));
 }
 
 /*---------------------------- UTIL -----------------------------*/
-QString DossierWidget::detectSource(const QString &absPath) const
+QString FolderWidget::detectSource(const QString &absPath) const
 {
     const QString p = absPath.toLower();
     if (p.contains("/ai/") || p.contains("\\ai\\"))          return "IA";
@@ -391,7 +391,7 @@ QString DossierWidget::detectSource(const QString &absPath) const
 }
 
 /*---------------------------- QT events -----------------------------*/
-void DossierWidget::changeEvent(QEvent *event)
+void FolderWidget::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);

@@ -25,21 +25,21 @@ win32 {
 HEADERS += \
     # --- MainWindow et UI principale ---
     MainWindow.h \
-    ui/widgets/FormeVisualization.h \
+    ui/widgets/ShapeVisualization.h \
     # --- Drawing ---
     drawing/shapes/CustomDrawArea.h \
     drawing/tools/LogoImporter.h \
     drawing/tools/ImageEdgeImporter.h \
     models/ShapeModel.h \
     # --- UI (Widgets) ---
-    ui/widgets/DossierWidget.h \
+    ui/widgets/FolderWidget.h \
     drawing/utils/ScreenUtils.h \
     drawing/utils/AspectRatioWrapper.h \
-    ui/widgets/Clavier.h \
-    ui/widgets/ClavierNumerique.h \
-    ui/widgets/Custom.h \
-    models/Inventaire.h \
-    ui/widgets/Dispositions.h \
+    ui/widgets/KeyboardDialog.h \
+    ui/widgets/NumericKeyboardDialog.h \
+    ui/widgets/CustomEditor.h \
+    models/Inventory.h \
+    ui/widgets/LayoutsDialog.h \
     # --- Drawing (Tools/Managers) ---
     drawing/DrawingState.h \
     ui/widgets/KeyboardEventFilter.h \
@@ -82,7 +82,7 @@ HEADERS += \
 SOURCES += \
     # --- MainWindow et UI principale ---
     MainWindow.cpp \
-    ui/widgets/FormeVisualization.cpp \
+    ui/widgets/ShapeVisualization.cpp \
     main.cpp \
     # --- Drawing ---
     drawing/shapes/CustomDrawArea.cpp \
@@ -90,13 +90,13 @@ SOURCES += \
     drawing/tools/ImageEdgeImporter.cpp \
     models/ShapeModel.cpp \
     # --- UI (Widgets) ---
-    ui/widgets/DossierWidget.cpp \
+    ui/widgets/FolderWidget.cpp \
     drawing/utils/AspectRatioWrapper.cpp \
-    ui/widgets/Clavier.cpp \
-    ui/widgets/ClavierNumerique.cpp \
-    ui/widgets/Custom.cpp \
-    models/Inventaire.cpp \
-    ui/widgets/Dispositions.cpp \
+    ui/widgets/KeyboardDialog.cpp \
+    ui/widgets/NumericKeyboardDialog.cpp \
+    ui/widgets/CustomEditor.cpp \
+    models/Inventory.cpp \
+    ui/widgets/LayoutsDialog.cpp \
     ui/widgets/KeyboardEventFilter.cpp \
     # --- Managers/System ---
     managers/system/MotorControl.cpp \
@@ -135,10 +135,10 @@ SOURCES += \
 FORMS += \
     ui/dialogs/BluetoothReceiverDialog.ui \
     mainwindow.ui \
-    ui/widgets/Custom.ui \
-    ui/widgets/Inventaire.ui \
-    ui/widgets/Dispositions.ui \
-    ui/widgets/DossierWidget.ui \
+    ui/widgets/CustomEditor.ui \
+    ui/widgets/Inventory.ui \
+    ui/widgets/LayoutsDialog.ui \
+    ui/widgets/FolderWidget.ui \
     ui/dialogs/TestGpio.ui \
     ui/widgets/WifiTransferWidget.ui \
     ui/dialogs/WifiConfigDialog.ui

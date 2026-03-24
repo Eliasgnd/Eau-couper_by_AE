@@ -1,5 +1,5 @@
-#include "Dispositions.h"
-#include "ui_Dispositions.h"
+#include "LayoutsDialog.h"
+#include "ui_LayoutsDialog.h"
 
 #include <QGridLayout>
 #include <QGraphicsView>
@@ -21,9 +21,9 @@
 #include <QDateTime>
 
 #include <algorithm>
-#include "Inventaire.h"
+#include "Inventory.h"
 
-Dispositions::Dispositions(const QString &shapeName,
+LayoutsDialog::LayoutsDialog(const QString &shapeName,
                            const QList<LayoutData> &layouts,
                            const QList<QPolygonF> &shapePolygons,
                            Language lang,
@@ -31,7 +31,7 @@ Dispositions::Dispositions(const QString &shapeName,
                            ShapeModel::Type baseType,
                            QWidget *parent)
     : QWidget(parent),
-    ui(new Ui::Dispositions),
+    ui(new Ui::LayoutsDialog),
     m_layouts(layouts),
     m_polygons(shapePolygons),
     m_lang(lang),
@@ -41,17 +41,17 @@ Dispositions::Dispositions(const QString &shapeName,
 {
     ui->setupUi(this);
 
-    setWindowTitle(m_lang == Language::French ? tr("Dispositions") : tr("Layouts"));
+    setWindowTitle(m_lang == Language::French ? tr("LayoutsDialog") : tr("Layouts"));
     resize(800, 600);
     setWindowState(Qt::WindowFullScreen);
     QTimer::singleShot(0, this, &QWidget::showFullScreen);
 
     connect(ui->buttonMenu, &QPushButton::clicked,
-            this, &Dispositions::onMenuButtonClicked);
+            this, &LayoutsDialog::onMenuButtonClicked);
     connect(ui->searchBar, &QLineEdit::textChanged,
-            this, &Dispositions::onSearchTextChanged);
+            this, &LayoutsDialog::onSearchTextChanged);
     connect(ui->buttonClearSearch, &QPushButton::clicked,
-            this, &Dispositions::onClearSearchClicked);
+            this, &LayoutsDialog::onClearSearchClicked);
 
     if (ui->comboSort) {
         ui->comboSort->addItem("Nom (A \342\206\222 Z)");
@@ -61,7 +61,7 @@ Dispositions::Dispositions(const QString &shapeName,
         ui->comboSort->addItem("Ancien \342\206\222 R\303\251cent");
 
         connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, &Dispositions::onSortChanged);
+                this, &LayoutsDialog::onSortChanged);
     }
 
 
@@ -74,26 +74,26 @@ Dispositions::Dispositions(const QString &shapeName,
 
 }
 
-Dispositions::~Dispositions()
+LayoutsDialog::~LayoutsDialog()
 {
     delete ui;
 }
 
 /* --------------------- slots --------------------- */
-void Dispositions::onMenuButtonClicked()
+void LayoutsDialog::onMenuButtonClicked()
 {
-    emit requestOpenInventaire();
+    emit requestOpenInventory();
     close();
 }
 
-void Dispositions::onCloseButtonClicked()
+void LayoutsDialog::onCloseButtonClicked()
 {
     emit closed();
     close();
 }
 
 /* --------------------- création d’une carte --------------------- */
-QFrame *Dispositions::createLayoutFrame(int index)
+QFrame *LayoutsDialog::createLayoutFrame(int index)
 {
     if (index < 0 || index >= m_layouts.size())
         return nullptr;
@@ -182,9 +182,9 @@ QFrame *Dispositions::createLayoutFrame(int index)
             if (index >= 0 && index < m_layouts.size()) {
                 m_layouts[index].name = newName;
                 if (m_isBaseShape)
-                    Inventaire::getInstance()->renameBaseLayout(m_baseType, index, newName);
+                    Inventory::getInstance()->renameBaseLayout(m_baseType, index, newName);
                 else
-                    Inventaire::getInstance()->renameLayout(m_shapeName, index, newName);
+                    Inventory::getInstance()->renameLayout(m_shapeName, index, newName);
             }
         }
     });
@@ -193,9 +193,9 @@ QFrame *Dispositions::createLayoutFrame(int index)
         if (index >= 0 && index < m_layouts.size()) {
             m_layouts.removeAt(index);
             if (m_isBaseShape)
-                Inventaire::getInstance()->deleteBaseLayout(m_baseType, index);
+                Inventory::getInstance()->deleteBaseLayout(m_baseType, index);
             else
-                Inventaire::getInstance()->deleteLayout(m_shapeName, index);
+                Inventory::getInstance()->deleteLayout(m_shapeName, index);
             displayLayouts();
         }
     });
@@ -220,7 +220,7 @@ QFrame *Dispositions::createLayoutFrame(int index)
 }
 
 /* --------------------- réaffichage des cartes --------------------- */
-void Dispositions::displayLayouts(const QString &filter)
+void LayoutsDialog::displayLayouts(const QString &filter)
 {
     if (!ui->gridLayout)
         return;
@@ -277,7 +277,7 @@ void Dispositions::displayLayouts(const QString &filter)
 }
 
 /* --------------------- carte « forme seule » --------------------- */
-QFrame *Dispositions::createBaseShapeFrame()
+QFrame *LayoutsDialog::createBaseShapeFrame()
 {
     QGraphicsScene *scene = new QGraphicsScene();
 
@@ -323,7 +323,7 @@ QFrame *Dispositions::createBaseShapeFrame()
 }
 
 /* --------------------- filtrage du clic sur une carte --------------------- */
-bool Dispositions::eventFilter(QObject *obj, QEvent *event)
+bool LayoutsDialog::eventFilter(QObject *obj, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonPress) {
         auto *frame = qobject_cast<QFrame *>(obj);
@@ -334,9 +334,9 @@ bool Dispositions::eventFilter(QObject *obj, QEvent *event)
             } else if (idx >= 0 && idx < m_layouts.size()) {
                 LayoutData ld = m_layouts.at(idx);
                 if (m_isBaseShape)
-                    Inventaire::getInstance()->incrementBaseLayoutUsage(m_baseType, idx);
+                    Inventory::getInstance()->incrementBaseLayoutUsage(m_baseType, idx);
                 else
-                    Inventaire::getInstance()->incrementLayoutUsage(m_shapeName, idx);
+                    Inventory::getInstance()->incrementLayoutUsage(m_shapeName, idx);
                 ld.usageCount++;
                 ld.lastUsed = QDateTime::currentDateTime();
                 m_layouts[idx].usageCount = ld.usageCount;
@@ -351,19 +351,19 @@ bool Dispositions::eventFilter(QObject *obj, QEvent *event)
     return QWidget::eventFilter(obj, event);
 }
 
-void Dispositions::onSearchTextChanged(const QString &text)
+void LayoutsDialog::onSearchTextChanged(const QString &text)
 {
     displayLayouts(text);
 }
 
-void Dispositions::onClearSearchClicked()
+void LayoutsDialog::onClearSearchClicked()
 {
     if (ui->searchBar)
         ui->searchBar->clear();
     displayLayouts();
 }
 
-void Dispositions::onSortChanged(int)
+void LayoutsDialog::onSortChanged(int)
 {
     displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
 }

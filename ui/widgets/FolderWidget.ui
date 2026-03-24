@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>DossierWidget</class>
- <widget class="QWidget" name="DossierWidget">
+ <class>FolderWidget</class>
+ <widget class="QWidget" name="FolderWidget">
   <property name="geometry">
    <rect>
     <x>0</x>

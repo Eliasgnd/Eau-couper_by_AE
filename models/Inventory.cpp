@@ -1,5 +1,5 @@
-#include "Inventaire.h"
-#include "ui_Inventaire.h"
+#include "Inventory.h"
+#include "ui_Inventory.h"
 #include "ShapeModel.h"
 #include "MainWindow.h"
 #include <QApplication>
@@ -52,13 +52,13 @@ MainWindow* resolveMainWindow()
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
 // -----------------------------------------------------------------------------
-Inventaire* Inventaire::instance = nullptr;
+Inventory* Inventory::instance = nullptr;
 
 // -----------------------------------------------------------------------------
 // Constructor / Destructor
 // -----------------------------------------------------------------------------
-Inventaire::Inventaire(QWidget *parent)
-    : QWidget(parent), ui(new Ui::Inventaire)
+Inventory::Inventory(QWidget *parent)
+    : QWidget(parent), ui(new Ui::Inventory)
 {
     ui->setupUi(this);
 
@@ -78,12 +78,12 @@ Inventaire::Inventaire(QWidget *parent)
     ScreenUtils::placeOnSecondaryScreen(this);
 
     // Navigation
-    connect(ui->buttonMenu, &QPushButton::clicked, this, &Inventaire::goToMainWindow);
+    connect(ui->buttonMenu, &QPushButton::clicked, this, &Inventory::goToMainWindow);
 
     // Search bar
-    connect(ui->searchBar, &QLineEdit::textChanged, this, &Inventaire::onSearchTextChanged);
-    connect(ui->buttonClearSearch, &QPushButton::clicked, this, &Inventaire::onClearSearchClicked);
-    connect(ui->buttonNewFolder, &QPushButton::clicked, this, &Inventaire::onCreateFolderClicked);
+    connect(ui->searchBar, &QLineEdit::textChanged, this, &Inventory::onSearchTextChanged);
+    connect(ui->buttonClearSearch, &QPushButton::clicked, this, &Inventory::onClearSearchClicked);
+    connect(ui->buttonNewFolder, &QPushButton::clicked, this, &Inventory::onCreateFolderClicked);
 
     if (ui->comboSort) {
         ui->comboSort->addItem("Nom (A \342\206\222 Z)");
@@ -91,14 +91,14 @@ Inventaire::Inventaire(QWidget *parent)
         ui->comboSort->addItem("Utilisation fr\303\251quente");
         ui->comboSort->addItem("R\303\251cent \342\206\222 Ancien");
         ui->comboSort->addItem("Ancien \342\206\222 R\303\251cent");
-        connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Inventaire::onSortChanged);
+        connect(ui->comboSort, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Inventory::onSortChanged);
     }
 
     if (ui->comboFilter) {
         ui->comboFilter->addItem("Tout");
         ui->comboFilter->addItem("Dossiers uniquement");
         ui->comboFilter->addItem("Formes sans dossier");
-        connect(ui->comboFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Inventaire::onFilterChanged);
+        connect(ui->comboFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Inventory::onFilterChanged);
     }
 
     // Initial display
@@ -106,26 +106,26 @@ Inventaire::Inventaire(QWidget *parent)
 
 }
 
-Inventaire::~Inventaire()
+Inventory::~Inventory()
 {
-    qDebug() << "Fermeture de l'Inventaire (l'instance reste vivante via le singleton)";
+    qDebug() << "Fermeture de l'Inventory (l'instance reste vivante via le singleton)";
     delete ui;
 }
 
 // -----------------------------------------------------------------------------
 // Singleton accessor
 // -----------------------------------------------------------------------------
-Inventaire* Inventaire::getInstance()
+Inventory* Inventory::getInstance()
 {
     if (!instance) {
-        qDebug() << "Création de l'instance Inventaire";
-        instance = new Inventaire();
+        qDebug() << "Création de l'instance Inventory";
+        instance = new Inventory();
     }
     return instance;
 }
 
 
-QPixmap Inventaire::renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size)
+QPixmap Inventory::renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size)
 {
     QSvgRenderer renderer(filePath);
     QPixmap pixmap(size);
@@ -155,7 +155,7 @@ QPixmap Inventaire::renderColoredSvg(const QString &filePath, const QColor &colo
 // -----------------------------------------------------------------------------
 // Navigation helpers
 // -----------------------------------------------------------------------------
-void Inventaire::goToMainWindow()
+void Inventory::goToMainWindow()
 {
     hide();
     if (auto mw = resolveMainWindow()) mw->showFullScreen();
@@ -164,14 +164,14 @@ void Inventaire::goToMainWindow()
 // -----------------------------------------------------------------------------
 // UI – Build the inventory grid
 // -----------------------------------------------------------------------------
-void Inventaire::displayShapes(const QString &filter /* = QString() */)
+void Inventory::displayShapes(const QString &filter /* = QString() */)
 {
-    if (!ui->scrollAreaInventaire)
+    if (!ui->scrollAreaInventory)
         return;
 
     // Clear previous content, if any
-    if (QWidget *oldWidget = ui->scrollAreaInventaire->widget()) {
-        ui->scrollAreaInventaire->takeWidget();
+    if (QWidget *oldWidget = ui->scrollAreaInventory->widget()) {
+        ui->scrollAreaInventory->takeWidget();
         oldWidget->deleteLater();
     }
 
@@ -184,8 +184,8 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     listWidget->setMovement(QListView::Snap);
     listWidget->setSpacing(25);
 
-    ui->scrollAreaInventaire->setWidget(listWidget);
-    ui->scrollAreaInventaire->setWidgetResizable(true);
+    ui->scrollAreaInventory->setWidget(listWidget);
+    ui->scrollAreaInventory->setWidgetResizable(true);
 
     const QString f = filter.trimmed().toLower();
     int filterMode = ui->comboFilter ? ui->comboFilter->currentIndex() : 0;
@@ -196,7 +196,7 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
 
     // Folders
     for (int i=0;i<m_folders.size();++i) {
-        const InventaireFolder &folder = m_folders[i];
+        const InventoryFolder &folder = m_folders[i];
         if (!folder.parentFolder.isEmpty())
             continue;
         if (!f.isEmpty() && !folder.name.toLower().contains(f) &&
@@ -267,7 +267,7 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
     ui->buttonClearSearch->setVisible(!inFolderView);
     inFolderView = false;
     currentFolder.clear();
-    connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
+    connect(listWidget, &QListWidget::itemClicked, this, &Inventory::onItemClicked);
     ui->buttonMenu->setVisible(true);
     update();
 }
@@ -275,7 +275,7 @@ void Inventaire::displayShapes(const QString &filter /* = QString() */)
 // -----------------------------------------------------------------------------
 // Build a single custom shape thumbnail
 // -----------------------------------------------------------------------------
-QFrame* Inventaire::addCustomShapeToGrid(int index)
+QFrame* Inventory::addCustomShapeToGrid(int index)
 {
     if (index < 0 || index >= m_customShapes.size())
         return nullptr;
@@ -334,7 +334,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
             QString oldFolder = m_customShapes[index].folder;
             // Cherche le dossier parent
             QString parentFolder;
-            for (const InventaireFolder &f : m_folders) {
+            for (const InventoryFolder &f : m_folders) {
                 if (f.name == oldFolder) {
                     parentFolder = f.parentFolder;
                     break;
@@ -379,12 +379,12 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
         }
     });
 
-        for (const InventaireFolder &folder : m_folders) {
+        for (const InventoryFolder &folder : m_folders) {
             if (inFolderView && folder.parentFolder != currentFolder)
                 continue;  // 👉 dans un dossier, ne proposer que ses sous-dossiers
 
             if (!inFolderView && !folder.parentFolder.isEmpty())
-                continue;  // 👉 dans l'inventaire principal, ne proposer que les dossiers racines
+                continue;  // 👉 dans l'inventory principal, ne proposer que les dossiers racines
 
             qDebug() << " - " << folder.name;
             QAction *folderAction = folderSubMenu->addAction(folder.name);
@@ -451,7 +451,7 @@ QFrame* Inventaire::addCustomShapeToGrid(int index)
 // -----------------------------------------------------------------------------
 // Add one custom shape to inventory (called by other parts of the app)
 // -----------------------------------------------------------------------------
-void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
+void Inventory::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
 {
     if (shapeNameExists(name)) {
         qDebug() << "Forme déjà enregistrée avec ce nom";
@@ -470,7 +470,7 @@ void Inventaire::addSavedCustomShape(const QList<QPolygonF> &polygons, const QSt
 // -----------------------------------------------------------------------------
 // Internationalisation helpers
 // -----------------------------------------------------------------------------
-void Inventaire::updateTranslations(Language lang)
+void Inventory::updateTranslations(Language lang)
 {
     currentLanguage = lang;
     if (ui->buttonMenu)
@@ -479,7 +479,7 @@ void Inventaire::updateTranslations(Language lang)
     displayShapes(ui->searchBar ? ui->searchBar->text() : QString());
 }
 
-void Inventaire::changeEvent(QEvent *event)
+void Inventory::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
@@ -491,7 +491,7 @@ void Inventaire::changeEvent(QEvent *event)
 // -----------------------------------------------------------------------------
 // Filesystem helpers
 // -----------------------------------------------------------------------------
-QString Inventaire::customShapesFilePath() const
+QString Inventory::customShapesFilePath() const
 {
     QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (dir.isEmpty())
@@ -504,7 +504,7 @@ QString Inventaire::customShapesFilePath() const
 // -----------------------------------------------------------------------------
 // Utilities
 // -----------------------------------------------------------------------------
-bool Inventaire::shapeNameExists(const QString &name) const
+bool Inventory::shapeNameExists(const QString &name) const
 {
     for (const auto &shapeData : m_customShapes) {
         if (shapeData.name.compare(name, Qt::CaseSensitive) == 0)
@@ -516,7 +516,7 @@ bool Inventaire::shapeNameExists(const QString &name) const
 // -----------------------------------------------------------------------------
 // Load / Save custom shapes (+ layouts)
 // -----------------------------------------------------------------------------
-void Inventaire::loadCustomShapes()
+void Inventory::loadCustomShapes()
 {
     m_customShapes.clear();
     m_baseShapeLayouts.clear();
@@ -543,7 +543,7 @@ void Inventaire::loadCustomShapes()
         if (!val.isObject())
             continue;
         const QJsonObject obj = val.toObject();
-        InventaireFolder f;
+        InventoryFolder f;
         f.name = obj.value("name").toString();
         f.parentFolder = obj.value("parentFolder").toString();
         f.usageCount = obj.value("usageCount").toInt();
@@ -671,7 +671,7 @@ void Inventaire::loadCustomShapes()
     // Preserve default order of built-in shapes
 }
 
-void Inventaire::saveCustomShapes() const
+void Inventory::saveCustomShapes() const
 {
     QJsonArray shapesArr;
     for (const CustomShapeData &data : m_customShapes) {
@@ -760,7 +760,7 @@ void Inventaire::saveCustomShapes() const
         lastUsedObj[QString::number(static_cast<int>(it.key()))] = static_cast<qint64>(it.value().toSecsSinceEpoch());
     }
     QJsonArray foldersArr;
-    for (const InventaireFolder &f : m_folders) {
+    for (const InventoryFolder &f : m_folders) {
         QJsonObject fo;
         fo["name"] = f.name;
         fo["parentFolder"] = f.parentFolder;
@@ -787,7 +787,7 @@ void Inventaire::saveCustomShapes() const
 // -----------------------------------------------------------------------------
 // Search bar helpers
 // -----------------------------------------------------------------------------
-void Inventaire::onSearchTextChanged(const QString &text)
+void Inventory::onSearchTextChanged(const QString &text)
 {
     if (inFolderView) {
         displayShapesInFolder(currentFolder, text);
@@ -797,14 +797,14 @@ void Inventaire::onSearchTextChanged(const QString &text)
 }
 
 
-void Inventaire::onClearSearchClicked()
+void Inventory::onClearSearchClicked()
 {
     if (ui->searchBar)
         ui->searchBar->clear();
     displayShapes();
 }
 
-void Inventaire::onCreateFolderClicked()
+void Inventory::onCreateFolderClicked()
 {
     bool ok = false;
     QString name = QInputDialog::getText(this,
@@ -826,7 +826,7 @@ void Inventaire::onCreateFolderClicked()
     }
 }
 
-void Inventaire::onSortChanged(int)
+void Inventory::onSortChanged(int)
 {
     if (inFolderView)
         displayShapesInFolder(currentFolder, ui->searchBar->text());
@@ -834,7 +834,7 @@ void Inventaire::onSortChanged(int)
         displayShapes(ui->searchBar->text());
 }
 
-void Inventaire::onFilterChanged(int)
+void Inventory::onFilterChanged(int)
 {
     if (inFolderView)
         displayShapesInFolder(currentFolder, ui->searchBar->text());
@@ -842,7 +842,7 @@ void Inventaire::onFilterChanged(int)
         displayShapes(ui->searchBar->text());
 }
 
-QStringList Inventaire::getAllShapeNames() const
+QStringList Inventory::getAllShapeNames() const
 {
     QStringList names;
 
@@ -863,7 +863,7 @@ QStringList Inventaire::getAllShapeNames() const
 // -----------------------------------------------------------------------------
 // Layout management – Custom shapes
 // -----------------------------------------------------------------------------
-void Inventaire::addLayoutToShape(const QString &shapeName, const LayoutData &layout)
+void Inventory::addLayoutToShape(const QString &shapeName, const LayoutData &layout)
 {
     for (CustomShapeData &data : m_customShapes) {
         if (data.name == shapeName) {
@@ -874,7 +874,7 @@ void Inventaire::addLayoutToShape(const QString &shapeName, const LayoutData &la
     }
 }
 
-void Inventaire::renameLayout(const QString &shapeName, int index, const QString &newName)
+void Inventory::renameLayout(const QString &shapeName, int index, const QString &newName)
 {
     for (CustomShapeData &data : m_customShapes) {
         if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
@@ -885,7 +885,7 @@ void Inventaire::renameLayout(const QString &shapeName, int index, const QString
     }
 }
 
-void Inventaire::deleteLayout(const QString &shapeName, int index)
+void Inventory::deleteLayout(const QString &shapeName, int index)
 {
     for (CustomShapeData &data : m_customShapes) {
         if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
@@ -896,7 +896,7 @@ void Inventaire::deleteLayout(const QString &shapeName, int index)
     }
 }
 
-QList<LayoutData> Inventaire::getLayoutsForShape(const QString &shapeName) const
+QList<LayoutData> Inventory::getLayoutsForShape(const QString &shapeName) const
 {
     for (const CustomShapeData &data : m_customShapes) {
         if (data.name == shapeName)
@@ -908,13 +908,13 @@ QList<LayoutData> Inventaire::getLayoutsForShape(const QString &shapeName) const
 // -----------------------------------------------------------------------------
 // Layout management – Built-in shapes
 // -----------------------------------------------------------------------------
-void Inventaire::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
+void Inventory::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
 {
     m_baseShapeLayouts[type].append(layout);
     saveCustomShapes();
 }
 
-void Inventaire::renameBaseLayout(ShapeModel::Type type, int index, const QString &newName)
+void Inventory::renameBaseLayout(ShapeModel::Type type, int index, const QString &newName)
 {
     auto it = m_baseShapeLayouts.find(type);
     if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
@@ -923,7 +923,7 @@ void Inventaire::renameBaseLayout(ShapeModel::Type type, int index, const QStrin
     }
 }
 
-void Inventaire::deleteBaseLayout(ShapeModel::Type type, int index)
+void Inventory::deleteBaseLayout(ShapeModel::Type type, int index)
 {
     auto it = m_baseShapeLayouts.find(type);
     if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
@@ -932,12 +932,12 @@ void Inventaire::deleteBaseLayout(ShapeModel::Type type, int index)
     }
 }
 
-QList<LayoutData> Inventaire::getLayoutsForBaseShape(ShapeModel::Type type) const
+QList<LayoutData> Inventory::getLayoutsForBaseShape(ShapeModel::Type type) const
 {
     return m_baseShapeLayouts.value(type);
 }
 
-void Inventaire::incrementLayoutUsage(const QString &shapeName, int index)
+void Inventory::incrementLayoutUsage(const QString &shapeName, int index)
 {
     for (CustomShapeData &data : m_customShapes) {
         if (data.name == shapeName && index >= 0 && index < data.layouts.size()) {
@@ -949,7 +949,7 @@ void Inventaire::incrementLayoutUsage(const QString &shapeName, int index)
     }
 }
 
-void Inventaire::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
+void Inventory::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
 {
     auto it = m_baseShapeLayouts.find(type);
     if (it != m_baseShapeLayouts.end() && index >= 0 && index < it.value().size()) {
@@ -962,7 +962,7 @@ void Inventaire::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
 // -----------------------------------------------------------------------------
 // Utility to get localised name for a built-in shape type
 // -----------------------------------------------------------------------------
-QString Inventaire::baseShapeName(ShapeModel::Type type, Language lang)
+QString Inventory::baseShapeName(ShapeModel::Type type, Language lang)
 {
     switch (type) {
     case ShapeModel::Type::Circle:
@@ -979,7 +979,7 @@ QString Inventaire::baseShapeName(ShapeModel::Type type, Language lang)
     return {};
 }
 
-QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &name)
+QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &name)
 {
     auto *scene = new QGraphicsScene();
     auto *view  = new QGraphicsView(scene);
@@ -1019,7 +1019,7 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
         connect(removeFromFolder, &QAction::triggered, this, [this, type]() {
             QString oldFolder = m_baseShapeFolders.value(type);
             QString parentFolder;
-            for (const InventaireFolder &f : m_folders) {
+            for (const InventoryFolder &f : m_folders) {
                 if (f.name == oldFolder) { parentFolder = f.parentFolder; break; }
             }
             m_baseShapeFolders[type] = parentFolder;
@@ -1057,7 +1057,7 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
     });
 
     // ➕ 2) Lister ensuite les dossiers existants (s’il y en a)
-    for (const InventaireFolder &folder : m_folders) {
+    for (const InventoryFolder &folder : m_folders) {
     if (inFolderView && folder.parentFolder != currentFolder) continue;
     if (!inFolderView && !folder.parentFolder.isEmpty())      continue;
 
@@ -1091,7 +1091,7 @@ QFrame* Inventaire::createBaseShapeCard(ShapeModel::Type type, const QString &na
     return frame;
 }
 
-QFrame* Inventaire::createFolderCard(const QString& folderName)
+QFrame* Inventory::createFolderCard(const QString& folderName)
 {
     QLabel *iconLabel = new QLabel();
     QString iconPath = folderIsEmpty(folderName) ? ":/icons/folder.svg" : ":/icons/folderfull.svg";
@@ -1153,7 +1153,7 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
         bool ok;
         QString newName = QInputDialog::getText(this, "Renommer le dossier", "Nouveau nom :", QLineEdit::Normal, folderName, &ok);
         if (ok && !newName.trimmed().isEmpty()) {
-            for (InventaireFolder &f : m_folders) {
+            for (InventoryFolder &f : m_folders) {
                 if (f.name == folderName) {
                     f.name = newName.trimmed();
                     break;
@@ -1166,7 +1166,7 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
 
     connect(deleteAction, &QAction::triggered, this, [this, folderName]() {
         m_folders.erase(std::remove_if(m_folders.begin(), m_folders.end(),
-                                       [=](const InventaireFolder &f) { return f.name == folderName; }),
+                                       [=](const InventoryFolder &f) { return f.name == folderName; }),
                         m_folders.end());
 
         // Supprime les formes associées au dossier si besoin
@@ -1186,17 +1186,17 @@ QFrame* Inventaire::createFolderCard(const QString& folderName)
 }
 
 
-void Inventaire::displayShapesInFolder(const QString &folderName, const QString &filter)
+void Inventory::displayShapesInFolder(const QString &folderName, const QString &filter)
 {
     QString search = filter.trimmed();
 
     // Nettoyer l'ancien contenu
-    if (!ui->scrollAreaInventaire)
+    if (!ui->scrollAreaInventory)
         return;
 
-    QWidget *oldWidget = ui->scrollAreaInventaire->widget();
+    QWidget *oldWidget = ui->scrollAreaInventory->widget();
     if (oldWidget) {
-        ui->scrollAreaInventaire->takeWidget();
+        ui->scrollAreaInventory->takeWidget();
         oldWidget->deleteLater();
     }
 
@@ -1209,8 +1209,8 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     listWidget->setMovement(QListView::Snap);
     listWidget->setSpacing(25);
 
-    ui->scrollAreaInventaire->setWidget(listWidget);
-    ui->scrollAreaInventaire->setWidgetResizable(true);
+    ui->scrollAreaInventory->setWidget(listWidget);
+    ui->scrollAreaInventory->setWidgetResizable(true);
 
     int filterMode = ui->comboFilter ? ui->comboFilter->currentIndex() : 0;
     int sortMode = ui->comboSort ? ui->comboSort->currentIndex() : 0;
@@ -1219,7 +1219,7 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     QList<Item> items;
 
     for (int i=0;i<m_folders.size();++i) {
-        const InventaireFolder &folder = m_folders[i];
+        const InventoryFolder &folder = m_folders[i];
         if (folder.parentFolder != folderName)
             continue;
         if (!search.isEmpty() && !folder.name.toLower().contains(search.toLower()) &&
@@ -1289,7 +1289,7 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     connect(retourButton, &QPushButton::clicked, this, [this]() {
         // Cherche le dossier courant
         QString parent;
-        for (const InventaireFolder &f : m_folders) {
+        for (const InventoryFolder &f : m_folders) {
             if (f.name == currentFolder) {
                 parent = f.parentFolder;
                 break;
@@ -1297,7 +1297,7 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
         }
 
         if (parent.isEmpty()) {
-            // Aucun parent ⇒ revenir à l'inventaire principal
+            // Aucun parent ⇒ revenir à l'inventory principal
             displayShapes();
         } else {
             // Retourner au dossier parent
@@ -1309,15 +1309,15 @@ void Inventaire::displayShapesInFolder(const QString &folderName, const QString 
     backItem->setSizeHint(retourButton->size());
     listWidget->addItem(backItem);
     listWidget->setItemWidget(backItem, retourButton);
-    connect(listWidget, &QListWidget::itemClicked, this, &Inventaire::onItemClicked);
+    connect(listWidget, &QListWidget::itemClicked, this, &Inventory::onItemClicked);
     ui->buttonMenu->setVisible(false);
 
 }
 
-bool Inventaire::folderIsEmpty(const QString& folderName) const
+bool Inventory::folderIsEmpty(const QString& folderName) const
 {
     // Sous-dossiers
-    for (const InventaireFolder& folder : m_folders)
+    for (const InventoryFolder& folder : m_folders)
         if (folder.parentFolder == folderName)
             return false;
 
@@ -1334,14 +1334,14 @@ bool Inventaire::folderIsEmpty(const QString& folderName) const
     return true;
 }
 
-bool Inventaire::folderContainsMatchingShape(const QString &folderName, const QString &text) const
+bool Inventory::folderContainsMatchingShape(const QString &folderName, const QString &text) const
 {
     const QString search = text.trimmed().toLower();
     if (search.isEmpty())
         return false;
 
     // Check subfolders recursively
-    for (const InventaireFolder &folder : m_folders) {
+    for (const InventoryFolder &folder : m_folders) {
         if (folder.parentFolder == folderName) {
             if (folder.name.toLower().contains(search))
                 return true;
@@ -1367,13 +1367,13 @@ bool Inventaire::folderContainsMatchingShape(const QString &folderName, const QS
     return false;
 }
 
-void Inventaire::onItemClicked(QListWidgetItem *item)
+void Inventory::onItemClicked(QListWidgetItem *item)
 {
     if (!item) return;
     int t = item->data(Qt::UserRole).toInt();
     if (t == 0) {
         QString name = item->data(Qt::UserRole + 1).toString();
-        for (InventaireFolder &f : m_folders) {
+        for (InventoryFolder &f : m_folders) {
             if (f.name == name) {
                 f.usageCount++;
                 f.lastUsed = QDateTime::currentDateTime();

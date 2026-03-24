@@ -6,7 +6,7 @@
 #include "Language.h"
 
 class MainWindow;
-class FormeVisualization;
+class ShapeVisualization;
 class TrajetMotor;
 class OpenAIService;
 
@@ -17,7 +17,7 @@ public:
     explicit AppController(QObject *parent = nullptr);
 
     void setMainWindow(MainWindow *window);
-    void setFormeVisualization(FormeVisualization *visualization);
+    void setShapeVisualization(ShapeVisualization *visualization);
 
 public slots:
     void startCutting();
@@ -47,7 +47,7 @@ private:
     bool loadLanguage(Language lang);
 
     MainWindow *m_mainWindow = nullptr;
-    FormeVisualization *m_formeVisualization = nullptr;
+    ShapeVisualization *m_shapeVisualization = nullptr;
 
     TrajetMotor *m_trajetMotor = nullptr;
     OpenAIService *m_aiService = nullptr;

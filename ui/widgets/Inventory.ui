@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Inventaire</class>
- <widget class="QWidget" name="Inventaire">
+ <class>Inventory</class>
+ <widget class="QWidget" name="Inventory">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -180,7 +180,7 @@ QPushButton\:pressed { background-color: #C62828; } </string>
     </layout>
    </item>
    <item row="2" column="2" colspan="8">
-    <widget class="QScrollArea" name="scrollAreaInventaire">
+    <widget class="QScrollArea" name="scrollAreaInventory">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>

@@ -1,12 +1,12 @@
 #include "NavigationController.h"
 
-#include "Custom.h"
+#include "CustomEditor.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
 #include "BluetoothReceiverDialog.h"
 #include "TestGpio.h"
-#include "DossierWidget.h"
-#include "Dispositions.h"
+#include "FolderWidget.h"
+#include "LayoutsDialog.h"
 
 #include <QWidget>
 
@@ -15,20 +15,20 @@ NavigationController::NavigationController(QObject *parent)
 {
 }
 
-void NavigationController::showInventaire(QWidget *from, QWidget *inventaire)
+void NavigationController::showInventory(QWidget *from, QWidget *inventory)
 {
     if (from)
         from->hide();
-    if (inventaire)
-        inventaire->showFullScreen();
+    if (inventory)
+        inventory->showFullScreen();
 }
 
-Custom *NavigationController::openCustomEditor(QWidget *from, Language language)
+CustomEditor *NavigationController::openCustomEditor(QWidget *from, Language language)
 {
     if (from)
         from->hide();
 
-    Custom *customWindow = new Custom(language);
+    CustomEditor *customWindow = new CustomEditor(language);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
     customWindow->showFullScreen();
     return customWindow;
@@ -78,18 +78,18 @@ TestGpio *NavigationController::openTestGpio(QWidget *from)
     return dialog;
 }
 
-DossierWidget *NavigationController::openDossier(QWidget *from, Language language)
+FolderWidget *NavigationController::openFolder(QWidget *from, Language language)
 {
     if (from)
         from->hide();
 
-    auto *dialog = new DossierWidget(language);
+    auto *dialog = new FolderWidget(language);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->showFullScreen();
     return dialog;
 }
 
-Dispositions *NavigationController::openDispositions(QWidget *from,
+LayoutsDialog *NavigationController::openLayoutsDialog(QWidget *from,
                                                      const QString &shapeName,
                                                      const QList<LayoutData> &layouts,
                                                      const QList<QPolygonF> &shapePolygons,
@@ -100,7 +100,7 @@ Dispositions *NavigationController::openDispositions(QWidget *from,
     if (from)
         from->hide();
 
-    auto *dialog = new Dispositions(shapeName, layouts, shapePolygons, language, isBaseShape, baseType);
+    auto *dialog = new LayoutsDialog(shapeName, layouts, shapePolygons, language, isBaseShape, baseType);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->showFullScreen();
     return dialog;

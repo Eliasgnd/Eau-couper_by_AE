@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <QEvent>        // <— nécessaire pour QEvent
-class FormeVisualization;
+class ShapeVisualization;
 
 class KeyboardEventFilter : public QObject
 {
@@ -11,7 +11,7 @@ class KeyboardEventFilter : public QObject
 
 public:
     explicit KeyboardEventFilter(QObject *parent = nullptr);
-    void setFormeVisualization(FormeVisualization* visu);
+    void setShapeVisualization(ShapeVisualization* visu);
 
 protected:
     // La signature doit matcher celle de QObject::eventFilter
@@ -19,7 +19,7 @@ protected:
 
 private:
     bool m_keyboardActive;
-    FormeVisualization* m_visu = nullptr;
+    ShapeVisualization* m_visu = nullptr;
 };
 
 #endif // KEYBOARDEVENTFILTER_H
