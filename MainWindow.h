@@ -50,11 +50,6 @@ public slots:
     void onLanguageApplied(Language lang, bool ok);
 
 private slots:
-    void applyCustomShape(QList<QPolygonF>);
-    void resetDrawing();
-    void updateShapeCount();
-    void updateShapeCountLabel(int count);
-    void updateSpacing(int value);
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
     void setLanguageFrench();
