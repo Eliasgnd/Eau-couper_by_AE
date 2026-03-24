@@ -1,4 +1,4 @@
-#include "trajetmotor.h"
+#include "TrajetMotor.h"
 #include "pathplanner.h"          // définitions de PathPlanner / Segment
 #include <QSet>
 #include <QLineF>

@@ -35,21 +35,21 @@ HEADERS += \
     ui/widgets/DossierWidget.h \
     drawing/utils/ScreenUtils.h \
     drawing/utils/AspectRatioWrapper.h \
-    ui/widgets/clavier.h \
-    ui/widgets/claviernumerique.h \
-    ui/widgets/custom.h \
-    models/inventaire.h \
+    ui/widgets/Clavier.h \
+    ui/widgets/ClavierNumerique.h \
+    ui/widgets/Custom.h \
+    models/Inventaire.h \
     ui/widgets/Dispositions.h \
     # --- Drawing (Tools/Managers) ---
     drawing/DrawingState.h \
-    ui/widgets/keyboardeventfilter.h \
-    managers/system/motorcontrol.h \
+    ui/widgets/KeyboardEventFilter.h \
+    managers/system/MotorControl.h \
     drawing/tools/pathplanner.h \
-    managers/system/raspberry.h \
+    managers/system/Raspberry.h \
     ui/dialogs/TestGpio.h \
     drawing/tools/skeletonizer.h \
-    drawing/tools/touchgesturereader.h \
-    drawing/tools/trajetmotor.h \
+    drawing/tools/TouchGestureReader.h \
+    drawing/tools/TrajetMotor.h \
     # --- Language ---
     Language.h \
     # --- UI (Dialogs) ---
@@ -92,20 +92,20 @@ SOURCES += \
     # --- UI (Widgets) ---
     ui/widgets/DossierWidget.cpp \
     drawing/utils/AspectRatioWrapper.cpp \
-    ui/widgets/clavier.cpp \
-    ui/widgets/claviernumerique.cpp \
-    ui/widgets/custom.cpp \
-    models/inventaire.cpp \
+    ui/widgets/Clavier.cpp \
+    ui/widgets/ClavierNumerique.cpp \
+    ui/widgets/Custom.cpp \
+    models/Inventaire.cpp \
     ui/widgets/Dispositions.cpp \
-    ui/widgets/keyboardeventfilter.cpp \
+    ui/widgets/KeyboardEventFilter.cpp \
     # --- Managers/System ---
-    managers/system/motorcontrol.cpp \
+    managers/system/MotorControl.cpp \
     drawing/tools/pathplanner.cpp \
-    managers/system/raspberry.cpp \
+    managers/system/Raspberry.cpp \
     ui/dialogs/TestGpio.cpp \
     drawing/tools/skeletonizer.cpp \
-    drawing/tools/touchgesturereader.cpp \
-    drawing/tools/trajetmotor.cpp \
+    drawing/tools/TouchGestureReader.cpp \
+    drawing/tools/TrajetMotor.cpp \
     # --- UI (Dialogs) ---
     ui/dialogs/AIImagePromptDialog.cpp \
     ui/dialogs/AIImageProcessDialog.cpp \
@@ -135,8 +135,8 @@ SOURCES += \
 FORMS += \
     ui/dialogs/BluetoothReceiverDialog.ui \
     mainwindow.ui \
-    ui/widgets/custom.ui \
-    ui/widgets/inventaire.ui \
+    ui/widgets/Custom.ui \
+    ui/widgets/Inventaire.ui \
     ui/widgets/Dispositions.ui \
     ui/widgets/DossierWidget.ui \
     ui/dialogs/TestGpio.ui \

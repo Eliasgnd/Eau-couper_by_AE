@@ -1,6 +1,6 @@
 #include "NavigationController.h"
 
-#include "custom.h"
+#include "Custom.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
 #include "BluetoothReceiverDialog.h"
@@ -23,12 +23,12 @@ void NavigationController::showInventaire(QWidget *from, QWidget *inventaire)
         inventaire->showFullScreen();
 }
 
-custom *NavigationController::openCustomEditor(QWidget *from, Language language)
+Custom *NavigationController::openCustomEditor(QWidget *from, Language language)
 {
     if (from)
         from->hide();
 
-    custom *customWindow = new custom(language);
+    Custom *customWindow = new Custom(language);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
     customWindow->showFullScreen();
     return customWindow;

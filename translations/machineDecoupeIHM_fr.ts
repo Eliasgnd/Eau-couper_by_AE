@@ -279,47 +279,47 @@ Veuillez patienter avant de quitter.</translation>
 <context>
     <name>Inventaire</name>
     <message>
-        <location filename="../inventaire.ui" line="20"/>
+        <location filename="../Inventaire.ui" line="20"/>
         <source>Form</source>
         <translation>Form</translation>
     </message>
     <message>
-        <location filename="../inventaire.ui" line="73"/>
+        <location filename="../Inventaire.ui" line="73"/>
         <source>Rechercher</source>
         <translation>Rechercher</translation>
     </message>
     <message>
-        <location filename="../inventaire.ui" line="99"/>
+        <location filename="../Inventaire.ui" line="99"/>
         <source>✖</source>
         <translation>✖</translation>
     </message>
     <message>
-        <location filename="../inventaire.cpp" line="398"/>
+        <location filename="../Inventaire.cpp" line="398"/>
         <source>Renommer la forme</source>
         <translation>Renommer la forme</translation>
     </message>
     <message>
-        <location filename="../inventaire.cpp" line="398"/>
+        <location filename="../Inventaire.cpp" line="398"/>
         <source>Rename shape</source>
         <translation>Rename shape</translation>
     </message>
     <message>
-        <location filename="../inventaire.cpp" line="399"/>
+        <location filename="../Inventaire.cpp" line="399"/>
         <source>Nouveau nom :</source>
         <translation>Nouveau nom :</translation>
     </message>
     <message>
-        <location filename="../inventaire.cpp" line="399"/>
+        <location filename="../Inventaire.cpp" line="399"/>
         <source>New name:</source>
         <translation>New name:</translation>
     </message>
     <message>
-        <location filename="../inventaire.cpp" line="797"/>
+        <location filename="../Inventaire.cpp" line="797"/>
         <source>Nouveau dossier</source>
         <translation>Nouveau dossier</translation>
     </message>
     <message>
-        <location filename="../inventaire.cpp" line="798"/>
+        <location filename="../Inventaire.cpp" line="798"/>
         <source>Nom du dossier :</source>
         <translation>Nom du dossier :</translation>
     </message>
@@ -1121,282 +1121,282 @@ Souhaitez-vous l&apos;écraser ?</translation>
     </message>
 </context>
 <context>
-    <name>custom</name>
+    <name>Custom</name>
     <message>
-        <location filename="../custom.ui" line="14"/>
+        <location filename="../Custom.ui" line="14"/>
         <source>Form</source>
         <translation>Form</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="104"/>
+        <location filename="../Custom.ui" line="104"/>
         <source>Replier/afficher le panneau Outils</source>
         <translation>Replier/afficher le panneau Outils</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="107"/>
+        <location filename="../Custom.ui" line="107"/>
         <source>‹</source>
         <translation>‹</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="114"/>
+        <location filename="../Custom.ui" line="114"/>
         <source>Main menu     </source>
         <translation>Main menu     </translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="131"/>
+        <location filename="../Custom.ui" line="131"/>
         <source>Reset              </source>
         <translation>Reset              </translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="148"/>
+        <location filename="../Custom.ui" line="148"/>
         <source>Application    </source>
         <translation>Application    </translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="165"/>
+        <location filename="../Custom.ui" line="165"/>
         <source>Retour            </source>
         <translation>Retour            </translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="195"/>
+        <location filename="../Custom.ui" line="195"/>
         <source>Importer </source>
         <translation>Importer </translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="215"/>
+        <location filename="../Custom.ui" line="215"/>
         <source>Sauvegarder</source>
         <translation>Sauvegarder</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="235"/>
+        <location filename="../Custom.ui" line="235"/>
         <source>Replier/afficher le panneau Propriétés</source>
         <translation>Replier/afficher le panneau Propriétés</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="238"/>
+        <location filename="../Custom.ui" line="238"/>
         <source>›</source>
         <translation>›</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="285"/>
+        <location filename="../Custom.ui" line="285"/>
         <source>Outils</source>
         <translation>Outils</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="298"/>
+        <location filename="../Custom.ui" line="298"/>
         <source>Forme </source>
         <translation>Forme </translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="318"/>
+        <location filename="../Custom.ui" line="318"/>
         <source>    Sélection</source>
         <translation>    Sélection</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="335"/>
+        <location filename="../Custom.ui" line="335"/>
         <source>       Déplacer</source>
         <translation>       Déplacer</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="352"/>
-        <location filename="../custom.cpp" line="194"/>
-        <location filename="../custom.cpp" line="807"/>
+        <location filename="../Custom.ui" line="352"/>
+        <location filename="../Custom.cpp" line="194"/>
+        <location filename="../Custom.cpp" line="807"/>
         <source>Copier</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="369"/>
+        <location filename="../Custom.ui" line="369"/>
         <source>            Relier</source>
         <translation>            Relier</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="386"/>
+        <location filename="../Custom.ui" line="386"/>
         <source>     Supprimer</source>
         <translation>     Supprimer</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="403"/>
+        <location filename="../Custom.ui" line="403"/>
         <source>          Fermer</source>
         <translation>          Fermer</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="420"/>
+        <location filename="../Custom.ui" line="420"/>
         <source>Grille ✅</source>
         <translation>Grille ✅</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="497"/>
+        <location filename="../Custom.ui" line="497"/>
         <source>Lissage</source>
         <translation>Lissage</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="515"/>
+        <location filename="../Custom.ui" line="515"/>
         <source>Puissance de lissage : 0%</source>
         <translation>Puissance de lissage : 0%</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="532"/>
+        <location filename="../Custom.ui" line="532"/>
         <source>Grille</source>
         <translation>Grille</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="550"/>
+        <location filename="../Custom.ui" line="550"/>
         <source>             Aimant</source>
         <translation>             Aimant</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="567"/>
+        <location filename="../Custom.ui" line="567"/>
         <source>Taille de la grille : 20 px</source>
         <translation>Taille de la grille : 20 px</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="593"/>
+        <location filename="../Custom.ui" line="593"/>
         <source>Gomme</source>
         <translation>Gomme</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="611"/>
+        <location filename="../Custom.ui" line="611"/>
         <source>          Gomme</source>
         <translation>          Gomme</translation>
     </message>
     <message>
-        <location filename="../custom.ui" line="628"/>
+        <location filename="../Custom.ui" line="628"/>
         <source>Taille gomme :</source>
         <translation>Taille gomme :</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="292"/>
+        <location filename="../Custom.cpp" line="292"/>
         <source>À la main</source>
         <translation>À la main</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="293"/>
+        <location filename="../Custom.cpp" line="293"/>
         <source>Point par point</source>
         <translation>Point par point</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="294"/>
+        <location filename="../Custom.cpp" line="294"/>
         <source>Ligne droite</source>
         <translation>Ligne droite</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="295"/>
+        <location filename="../Custom.cpp" line="295"/>
         <source>Cercle</source>
         <translation>Cercle</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="296"/>
+        <location filename="../Custom.cpp" line="296"/>
         <source>Rectangle</source>
         <translation>Rectangle</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="297"/>
+        <location filename="../Custom.cpp" line="297"/>
         <source>Texte</source>
         <translation>Texte</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="298"/>
+        <location filename="../Custom.cpp" line="298"/>
         <source>Texte fin</source>
         <translation>Texte fin</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="331"/>
+        <location filename="../Custom.cpp" line="331"/>
         <source>Police:</source>
         <translation>Police:</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="333"/>
+        <location filename="../Custom.cpp" line="333"/>
         <source>Taille:</source>
         <translation>Taille:</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="483"/>
+        <location filename="../Custom.cpp" line="483"/>
         <source>Importer un logo</source>
         <translation>Importer un logo</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="484"/>
+        <location filename="../Custom.cpp" line="484"/>
         <source>Importer image couleur</source>
         <translation>Importer image couleur</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="513"/>
+        <location filename="../Custom.cpp" line="513"/>
         <source>Ajouter aux favoris</source>
         <translation>Ajouter aux favoris</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="528"/>
+        <location filename="../Custom.cpp" line="528"/>
         <source>Supprimer favoris</source>
         <translation>Supprimer favoris</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="546"/>
+        <location filename="../Custom.cpp" line="546"/>
         <source>Favoris:</source>
         <translation>Favoris:</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="600"/>
+        <location filename="../Custom.cpp" line="600"/>
         <source>Taille de la grille : %1 px</source>
         <translation>Taille de la grille : %1 px</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="653"/>
+        <location filename="../Custom.cpp" line="653"/>
         <source>Nom de la forme</source>
         <translation>Nom de la forme</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="654"/>
+        <location filename="../Custom.cpp" line="654"/>
         <source>Entrez un nom pour votre forme :</source>
         <translation>Entrez un nom pour votre forme :</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="665"/>
+        <location filename="../Custom.cpp" line="665"/>
         <source>Nom déjà utilisé</source>
         <translation>Nom déjà utilisé</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="666"/>
+        <location filename="../Custom.cpp" line="666"/>
         <source>Ce nom est déjà utilisé, veuillez en choisir un autre.</source>
         <translation>Ce nom est déjà utilisé, veuillez en choisir un autre.</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="730"/>
-        <location filename="../custom.cpp" line="777"/>
+        <location filename="../Custom.cpp" line="730"/>
+        <location filename="../Custom.cpp" line="777"/>
         <source>Sélectionner une image</source>
         <translation>Sélectionner une image</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="732"/>
+        <location filename="../Custom.cpp" line="732"/>
         <source>Images (*.png *.jpg *.bmp *.svg *.webp)</source>
         <translation>Images (*.png *.jpg *.bmp *.svg *.webp)</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="739"/>
+        <location filename="../Custom.cpp" line="739"/>
         <source>Contours internes</source>
         <translation>Contours internes</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="740"/>
+        <location filename="../Custom.cpp" line="740"/>
         <source>Voulez-vous inclure également les contours internes ?</source>
         <translation>Voulez-vous inclure également les contours internes ?</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="778"/>
+        <location filename="../Custom.cpp" line="778"/>
         <source>Images (*.png *.jpg *.bmp *.webp)</source>
         <translation>Images (*.png *.jpg *.bmp *.webp)</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="783"/>
+        <location filename="../Custom.cpp" line="783"/>
         <source>Erreur</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="784"/>
+        <location filename="../Custom.cpp" line="784"/>
         <source>Contour introuvable.</source>
         <translation>Contour introuvable.</translation>
     </message>
     <message>
-        <location filename="../custom.cpp" line="809"/>
+        <location filename="../Custom.cpp" line="809"/>
         <source>Coller</source>
         <translation>Coller</translation>
     </message>

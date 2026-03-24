@@ -3,7 +3,7 @@
 
 #include <QWidget>
 class MainWindow;
-#include "motorcontrol.h"
+#include "MotorControl.h"
 #include "FormeVisualization.h"
 
 class TrajetMotor : public QWidget {

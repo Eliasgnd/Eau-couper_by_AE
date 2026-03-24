@@ -1,5 +1,5 @@
-#include "inventaire.h"
-#include "ui_inventaire.h"
+#include "Inventaire.h"
+#include "ui_Inventaire.h"
 #include "ShapeModel.h"
 #include "MainWindow.h"
 #include <QApplication>

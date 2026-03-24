@@ -6,11 +6,11 @@
 #include <QPolygonF>
 #include <QString>
 #include "Language.h"
-#include "inventaire.h"
+#include "Inventaire.h"
 #include "ShapeModel.h"
 
 class QWidget;
-class custom;
+class Custom;
 class WifiTransferWidget;
 class WifiConfigDialog;
 class BluetoothReceiverDialog;
@@ -25,7 +25,7 @@ public:
     explicit NavigationController(QObject *parent = nullptr);
 
     void showInventaire(QWidget *from, QWidget *inventaire);
-    custom *openCustomEditor(QWidget *from, Language language);
+    Custom *openCustomEditor(QWidget *from, Language language);
     WifiTransferWidget *openWifiTransfer(QWidget *from);
     WifiConfigDialog *openWifiSettings(QWidget *from);
     BluetoothReceiverDialog *openBluetoothReceiver(QWidget *from);

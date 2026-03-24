@@ -1,5 +1,5 @@
-#include "clavier.h"
-#include "inventaire.h"
+#include "Clavier.h"
+#include "Inventaire.h"
 #include <QTimer>
 #include <QDebug>
 #include <QRegularExpression>

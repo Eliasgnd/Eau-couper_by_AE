@@ -21,7 +21,7 @@
 #include <QDateTime>
 
 #include <algorithm>
-#include "inventaire.h"
+#include "Inventaire.h"
 
 Dispositions::Dispositions(const QString &shapeName,
                            const QList<LayoutData> &layouts,

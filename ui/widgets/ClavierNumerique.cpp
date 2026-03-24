@@ -1,5 +1,5 @@
 // ClavierNumerique.cpp
-#include "claviernumerique.h"
+#include "ClavierNumerique.h"
 #include <QVBoxLayout>
 
 ClavierNumerique::ClavierNumerique(QWidget *parent)

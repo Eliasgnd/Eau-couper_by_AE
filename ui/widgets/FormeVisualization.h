@@ -10,7 +10,7 @@
 #include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
 #include "ShapeModel.h"
-#include "inventaire.h"
+#include "Inventaire.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées

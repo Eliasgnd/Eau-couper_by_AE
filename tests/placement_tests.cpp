@@ -1,7 +1,7 @@
 #include <QtTest>
 #include <QElapsedTimer>
 #include "../GeometryUtils.h"
-#include "../motorcontrol.h"
+#include "../MotorControl.h"
 #include "placement_tests.h"
 
 void PlacementTests::borderContactNotOverlap()
