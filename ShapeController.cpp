@@ -1,6 +1,9 @@
 #include "ShapeController.h"
 
 #include "ShapeVisualization.h"
+#include "GeometryUtils.h"
+
+#include <QMessageBox>
 
 ShapeController::ShapeController(ShapeVisualization *visualization, QObject *parent)
     : QObject(parent), m_visualization(visualization)
@@ -22,6 +25,20 @@ void ShapeController::updateShape(int largeur, int longueur)
     if (!m_visualization)
         return;
     m_visualization->updateDimensions(largeur, longueur);
+}
+
+void ShapeController::updateShapeCount(int count, int largeur, int longueur)
+{
+    if (!m_visualization)
+        return;
+    m_visualization->setShapeCount(count, m_selectedShapeType, largeur, longueur);
+}
+
+void ShapeController::updateSpacing(int value)
+{
+    if (!m_visualization)
+        return;
+    m_visualization->setSpacing(value);
 }
 
 void ShapeController::setPredefinedShape(ShapeModel::Type type)
@@ -60,6 +77,34 @@ void ShapeController::onMoveRightClicked()
     moveSelectedShape(1, 0);
 }
 
+void ShapeController::rotateLeft()
+{
+    if (!m_visualization)
+        return;
+    m_visualization->rotateSelectedShapes(-90);
+}
+
+void ShapeController::rotateRight()
+{
+    if (!m_visualization)
+        return;
+    m_visualization->rotateSelectedShapes(90);
+}
+
+void ShapeController::addShape()
+{
+    if (!m_visualization)
+        return;
+    m_visualization->addShapeBottomRight();
+}
+
+void ShapeController::deleteShape()
+{
+    if (!m_visualization)
+        return;
+    m_visualization->deleteSelectedShapes();
+}
+
 void ShapeController::onOptimizePlacementClicked(bool checked, int largeur, int longueur)
 {
     if (!m_visualization)
@@ -80,4 +125,36 @@ void ShapeController::onOptimizePlacement2Clicked(bool checked, int largeur, int
     } else {
         m_visualization->updateDimensions(largeur, longueur);
     }
+}
+
+bool ShapeController::loadCustomShapes(const QList<QPolygonF> &polygons,
+                                       const QString &name,
+                                       int currentUiLargeur,
+                                       int currentUiLongueur)
+{
+    if (!m_visualization)
+        return false;
+
+    if (m_visualization->isDecoupeEnCours()) {
+        QMessageBox::warning(nullptr,
+                             tr("Découpe en cours"),
+                             tr("Impossible de modifier la forme pendant la découpe."));
+        return false;
+    }
+
+    m_visualization->setCustomMode();
+
+    const QRectF bounds = combinedBoundingRect(polygons);
+    int largeur = currentUiLargeur;
+    int hauteur = currentUiLongueur;
+
+    if (largeur <= 0)
+        largeur = bounds.width() > 0 ? qRound(bounds.width()) : 100;
+    if (hauteur <= 0)
+        hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
+
+    m_visualization->updateDimensions(largeur, hauteur);
+    m_visualization->displayCustomShapes(polygons);
+    m_visualization->setCurrentCustomShapeName(name);
+    return true;
 }

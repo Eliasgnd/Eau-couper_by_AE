@@ -6,7 +6,6 @@
 #include "AspectRatioWrapper.h"
 #include "NavigationController.h"
 #include "AIServiceManager.h"
-#include "GeometryUtils.h"
 #include "ShapeController.h"
 
 #include <QSpinBox>
@@ -18,7 +17,6 @@
 #include <QGuiApplication>
 #include <QShowEvent>
 #include <QToolButton>
-#include <QMessageBox>
 #include <QFile>
 #include <QTextStream>
 
@@ -160,7 +158,9 @@ void MainWindow::setupShapeConnections()
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount,
-            this, &MainWindow::updateShapeCountLabel);
+            this, [this](int count) {
+                ui->shapeCountLabel->setText(QString("Formes placées: %1").arg(count));
+            });
 
     // Connecter les spinbox pour les dimensions
     connect(ui->Largeur, QOverload<int>::of(&QSpinBox::valueChanged), this,
@@ -193,9 +193,13 @@ void MainWindow::setupShapeConnections()
 void MainWindow::setupNavigationConnections()
 {
     connect(m_navigationController, &NavigationController::customShapeApplied,
-            this, &MainWindow::applyCustomShape);
-    connect(m_navigationController, &NavigationController::customDrawingReset,
-            this, &MainWindow::resetDrawing);
+            this, [this](const QList<QPolygonF> &shapes) {
+                if (shapeVisualization) {
+                    shapeVisualization->displayCustomShapes(shapes);
+                    shapeVisualization->setCurrentCustomShapeName("");
+                }
+                showFullScreen();
+            });
     connect(m_navigationController, &NavigationController::layoutSelected, this,
             [this](const LayoutData &layout) {
                 shapeVisualization->applyLayout(layout);
@@ -264,8 +268,13 @@ void MainWindow::setupSystemConnections()
     connect(ui->Largeur, &QSpinBox::valueChanged, ui->Slider_largeur, &QSlider::setValue);
     connect(ui->Slider_largeur, &QSlider::valueChanged, ui->Largeur, &QSpinBox::setValue);
 
-    // Connection entre spinbox nombre de formes et ShapeVisualization
-    connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::updateShapeCount);
+    // Connection entre spinbox nombre de formes et ShapeController
+    connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this](int count) {
+                m_shapeController->updateShapeCount(count,
+                                                    ui->Largeur->value(),
+                                                    ui->Longueur->value());
+            });
 
     connect(ui->optimizePlacementButton, &QPushButton::clicked, this,
             [this](bool checked) {
@@ -285,7 +294,7 @@ void MainWindow::setupSystemConnections()
 
     // spinBox pour l'espacement
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &MainWindow::updateSpacing);
+            m_shapeController, &ShapeController::updateSpacing);
 
     connect(shapeVisualization, &ShapeVisualization::spacingChanged,
             this, [this](int newSpacing) {
@@ -298,20 +307,14 @@ void MainWindow::setupSystemConnections()
     connect(ui->ButtonLeft, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveLeftClicked);
     connect(ui->ButtonRight, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveRightClicked);
 
-    connect(ui->ButtonRotationLeft, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->rotateSelectedShapes(-90); // rotation vers la gauche
-    });
-    connect(ui->ButtonRotationRight, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->rotateSelectedShapes(90);  // rotation vers la droite
-    });
-
-    connect(ui->ButtonAddShape, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->addShapeBottomRight();
-    });
-
-    connect(ui->ButtonDeleteShape, &QPushButton::clicked, this, [this]() {
-        shapeVisualization->deleteSelectedShapes();
-    });
+    connect(ui->ButtonRotationLeft, &QPushButton::clicked,
+            m_shapeController, &ShapeController::rotateLeft);
+    connect(ui->ButtonRotationRight, &QPushButton::clicked,
+            m_shapeController, &ShapeController::rotateRight);
+    connect(ui->ButtonAddShape, &QPushButton::clicked,
+            m_shapeController, &ShapeController::addShape);
+    connect(ui->ButtonDeleteShape, &QPushButton::clicked,
+            m_shapeController, &ShapeController::deleteShape);
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
         m_navigationController->handleSaveLayoutRequest(this,
@@ -357,54 +360,15 @@ void MainWindow::openImageInCustom(const QString &filePath,
 
 // --- Event Handlers ---
 
-void MainWindow::applyCustomShape(QList<QPolygonF> shapes) {
-
-
-    //qDebug() << "Slot applyCustomShape() appelé dans MainWindow avec" << shapes.size() << "formes.";
-    if (shapeVisualization) {
-        shapeVisualization->displayCustomShapes(shapes);
-        shapeVisualization->setCurrentCustomShapeName("");
-    } else {
-        //qDebug() << "Erreur : shapeVisualization est nullptr.";
-    }
-    // ---------- FIN de applyCustomShape ----------
-    this->showFullScreen();            // plein écran
-}
-
-/* =====================================================================
- *  On sélectionne une forme custom depuis l'inventory
- * ===================================================================*/
 void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                                        const QString &name)
 {
-    /* 1) Empêcher la modification pendant une découpe ---------------- */
-    if (shapeVisualization && shapeVisualization->isDecoupeEnCours()) {
-        QMessageBox::warning(this,
-                             tr("Découpe en cours"),
-                             tr("Impossible de modifier la forme pendant la découpe."));
+    if (!m_shapeController->loadCustomShapes(polygons,
+                                             name,
+                                             ui->Largeur->value(),
+                                             ui->Longueur->value())) {
         return;
     }
-
-    /* 2) Passage en mode Custom -------------------------------------- */
-    if (!shapeVisualization) {
-        this->showFullScreen();
-        return;
-    }
-    shapeVisualization->setCustomMode();
-
-    /* 3) Mettre à l’échelle la zone de découpe ----------------------- */
-    const QRectF bounds = combinedBoundingRect(polygons);
-
-    int largeur = ui->Largeur->value();
-    int hauteur = ui->Longueur->value();
-    if (largeur <= 0)
-        largeur = bounds.width()  > 0 ? qRound(bounds.width())  : 100;
-    if (hauteur <= 0)
-        hauteur = bounds.height() > 0 ? qRound(bounds.height()) : 100;
-
-    shapeVisualization->updateDimensions(largeur, hauteur);
-    shapeVisualization->displayCustomShapes(polygons);
-    shapeVisualization->setCurrentCustomShapeName(name);
 
     /* 4) Si des dispositions existent, ouvrir la fenêtre LayoutsDialog */
     QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
@@ -419,33 +383,6 @@ void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
 
     /* 5) Pas de dispositions : on se contente d’afficher la forme ----- */
     this->showFullScreen();
-}
-
-void MainWindow::resetDrawing() {
-    //qDebug() << "Slot resetDrawing() appelé dans MainWindow ! (Rien à faire car le reset est dans custom)";
-}
-
-void MainWindow::updateShapeCount() {
-    int count = ui->shapeCountSpinBox->value();
-    int width = ui->Largeur->value();
-    int height = ui->Longueur->value();
-    ShapeModel::Type type = m_shapeController->selectedShapeType();
-    shapeVisualization->setShapeCount(count, type, width, height);
-}
-
-// Slot pour mettre à jour le label du nombre de formes placées
-void MainWindow::updateShapeCountLabel(int count) {
-    ui->shapeCountLabel->setText(QString("Formes placées: %1").arg(count));
-}
-
-//slot pour spin box espacment
-void MainWindow::updateSpacing(int value)
-{
-    // Vérifier que le widget de visualisation existe
-    if (shapeVisualization) {
-        // Met à jour l'espacement et redessine
-        shapeVisualization->setSpacing(value);
-    }
 }
 
 void MainWindow::updateProgressBar(int percentage, const QString &remainingTimeText) {

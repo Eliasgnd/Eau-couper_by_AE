@@ -2,6 +2,9 @@
 #define SHAPECONTROLLER_H
 
 #include <QObject>
+#include <QList>
+#include <QPolygonF>
+#include <QString>
 
 #include "ShapeModel.h"
 
@@ -19,14 +22,24 @@ public:
 
 public slots:
     void updateShape(int largeur, int longueur);
+    void updateShapeCount(int count, int largeur, int longueur);
+    void updateSpacing(int value);
     void setPredefinedShape(ShapeModel::Type type);
     void moveSelectedShape(int dx, int dy);
     void onMoveUpClicked();
     void onMoveDownClicked();
     void onMoveLeftClicked();
     void onMoveRightClicked();
+    void rotateLeft();
+    void rotateRight();
+    void addShape();
+    void deleteShape();
     void onOptimizePlacementClicked(bool checked, int largeur, int longueur);
     void onOptimizePlacement2Clicked(bool checked, int largeur, int longueur);
+    bool loadCustomShapes(const QList<QPolygonF> &polygons,
+                          const QString &name,
+                          int currentUiLargeur,
+                          int currentUiLongueur);
 
 private:
     ShapeVisualization *m_visualization = nullptr;
