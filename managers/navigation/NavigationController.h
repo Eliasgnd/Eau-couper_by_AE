@@ -18,6 +18,7 @@ class BluetoothReceiverDialog;
 class TestGpio;
 class FolderWidget;
 class LayoutsDialog;
+class ShapeVisualization;
 
 class NavigationController : public QObject
 {
@@ -44,6 +45,9 @@ public:
                           const QString &title,
                           const QString &label,
                           bool *ok = nullptr) const;
+    void handleSaveLayoutRequest(QWidget *parent,
+                                 ShapeVisualization *shapeVisualization,
+                                 ShapeModel::Type selectedShapeType);
 
 signals:
     void customShapeApplied(QList<QPolygonF> shapes);

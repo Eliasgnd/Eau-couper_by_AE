@@ -25,6 +25,7 @@ win32 {
 HEADERS += \
     # --- MainWindow et UI principale ---
     MainWindow.h \
+    ShapeController.h \
     ImageImportService.h \
     ui/widgets/ShapeVisualization.h \
     # --- Drawing ---
@@ -83,6 +84,7 @@ HEADERS += \
 SOURCES += \
     # --- MainWindow et UI principale ---
     MainWindow.cpp \
+    ShapeController.cpp \
     ImageImportService.cpp \
     ui/widgets/ShapeVisualization.cpp \
     main.cpp \

@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "AppController.h"
 #include "KeyboardEventFilter.h"
+#include "AIServiceManager.h"
 
 int main(int argc, char *argv[])
 {
@@ -35,9 +36,9 @@ int main(int argc, char *argv[])
     QObject::connect(&controller, &AppController::cutControlsEnabled,
                      &w, &MainWindow::setSpinboxSliderEnabled);
     QObject::connect(&controller, &AppController::aiGenerationStatus,
-                     &w, &MainWindow::onAiGenerationStatus);
+                     w.aiServiceManager(), &AIServiceManager::onGenerationStatus);
     QObject::connect(&controller, &AppController::aiImageReady,
-                     &w, &MainWindow::onAiImageReady);
+                     w.aiServiceManager(), &AIServiceManager::onAiImageReady);
     QObject::connect(&controller, &AppController::languageApplied,
                      &w, &MainWindow::onLanguageApplied);
 
