@@ -2,12 +2,60 @@
 
 #include "ShapeVisualization.h"
 #include "GeometryUtils.h"
+#include "PlacementOptimizer.h"
+#include "ui/widgets/shapevisualization/ShapeProjectModel.h"
 
+#include <QApplication>
+#include <QGraphicsEllipseItem>
+#include <QGraphicsPathItem>
+#include <QGraphicsPolygonItem>
+#include <QGraphicsRectItem>
+#include <QTransform>
 #include <QMessageBox>
 
 ShapeController::ShapeController(ShapeVisualization *visualization, QObject *parent)
     : QObject(parent), m_visualization(visualization)
 {
+}
+
+namespace {
+QPainterPath buildPrototypePath(ShapeModel::Type model,
+                                int largeur,
+                                int longueur,
+                                bool isCustomMode,
+                                const QList<QPolygonF> &customShapes)
+{
+    QPainterPath prototypePath;
+
+    if (isCustomMode && !customShapes.isEmpty()) {
+        for (const QPolygonF &poly : customShapes)
+            prototypePath.addPolygon(poly);
+        prototypePath = prototypePath.simplified();
+
+        const QRectF customBounds = prototypePath.boundingRect();
+        const double scaleX = (customBounds.width() > 0) ? (largeur / customBounds.width()) : 1.0;
+        const double scaleY = (customBounds.height() > 0) ? (longueur / customBounds.height()) : 1.0;
+        QTransform scaleTransform;
+        scaleTransform.scale(scaleX, scaleY);
+        return scaleTransform.map(prototypePath);
+    }
+
+    QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(model, largeur, longueur);
+    if (shapesList.isEmpty())
+        return {};
+
+    QGraphicsItem *prototype = shapesList.first();
+    if (auto pathItem = dynamic_cast<QGraphicsPathItem*>(prototype))
+        prototypePath = pathItem->path();
+    else if (auto rectItem = dynamic_cast<QGraphicsRectItem*>(prototype))
+        prototypePath.addRect(rectItem->rect());
+    else if (auto ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(prototype))
+        prototypePath.addEllipse(ellipseItem->rect());
+    else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
+        prototypePath.addPolygon(polyItem->polygon());
+
+    return prototypePath;
+}
 }
 
 ShapeModel::Type ShapeController::selectedShapeType() const
@@ -110,8 +158,10 @@ void ShapeController::onOptimizePlacementClicked(bool checked, int largeur, int 
     if (!m_visualization)
         return;
     if (checked) {
-        m_visualization->optimizePlacement();
+        runOptimization({0, 180, 90});
     } else {
+        m_visualization->setOptimizationRunning(false);
+        emit progressUpdated(0, 0);
         m_visualization->updateDimensions(largeur, longueur);
     }
 }
@@ -121,8 +171,10 @@ void ShapeController::onOptimizePlacement2Clicked(bool checked, int largeur, int
     if (!m_visualization)
         return;
     if (checked) {
-        m_visualization->optimizePlacement2();
+        runOptimization({0, 180});
     } else {
+        m_visualization->setOptimizationRunning(false);
+        emit progressUpdated(0, 0);
         m_visualization->updateDimensions(largeur, longueur);
     }
 }
@@ -157,4 +209,56 @@ bool ShapeController::loadCustomShapes(const QList<QPolygonF> &polygons,
     m_visualization->displayCustomShapes(polygons);
     m_visualization->setCurrentCustomShapeName(name);
     return true;
+}
+
+void ShapeController::runOptimization(const QList<int> &angles)
+{
+    if (!m_visualization || !m_visualization->projectModel())
+        return;
+    if (!m_visualization->isInteractionEnabled() || m_visualization->isOptimizationRunning())
+        return;
+
+    auto *model = m_visualization->projectModel();
+    m_visualization->setSpacing(0);
+    m_visualization->setOptimizationRunning(true);
+
+    const QPainterPath prototypePath = buildPrototypePath(model->currentModel(),
+                                                          model->currentLargeur(),
+                                                          model->currentLongueur(),
+                                                          m_visualization->isCustomMode(),
+                                                          model->customShapes());
+
+    if (prototypePath.isEmpty()) {
+        m_visualization->setOptimizationRunning(false);
+        emit progressUpdated(0, 0);
+        return;
+    }
+
+    PlacementParams params;
+    params.prototypePath = prototypePath;
+    params.containerRect = m_visualization->getScene()->sceneRect();
+    params.shapeCount = model->shapeCount();
+    params.spacing = model->spacing();
+    params.step = 5;
+    params.angles = angles;
+
+    const PlacementResult result = PlacementOptimizer::run(
+        params,
+        [this](int current, int total) {
+            emit progressUpdated(current, total);
+            qApp->processEvents();
+            return true;
+        });
+
+    if (result.cancelled) {
+        m_visualization->setOptimizationRunning(false);
+        emit optimizationStateChanged(false);
+        emit progressUpdated(0, 0);
+        return;
+    }
+
+    m_visualization->setOptimizationResult(result.placedPaths, true);
+    m_visualization->setOptimizationRunning(false);
+    emit optimizationStateChanged(true);
+    emit progressUpdated(result.totalPositions, result.totalPositions);
 }

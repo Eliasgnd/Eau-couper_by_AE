@@ -169,7 +169,7 @@ void MainWindow::setupShapeConnections()
                 QMessageBox::warning(this, tr("Action refusée"), reason);
             });
 
-    connect(shapeVisualization, &ShapeVisualization::progressUpdated,
+    connect(m_shapeController, &ShapeController::progressUpdated,
             this, [this](int current, int total) {
                 if (total <= 0) {
                     ui->progressBar->setRange(0, 100);
