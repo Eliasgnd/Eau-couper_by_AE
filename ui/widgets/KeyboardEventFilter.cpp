@@ -1,6 +1,6 @@
-#include "keyboardeventfilter.h"
-#include "claviernumerique.h"
-#include "clavier.h"
+#include "KeyboardEventFilter.h"
+#include "ClavierNumerique.h"
+#include "Clavier.h"
 #include "MainWindow.h"
 #include "FormeVisualization.h"
 

@@ -1,4 +1,4 @@
-#include "motorcontrol.h"
+#include "MotorControl.h"
 #include <QtMath>
 
 MotorControl::MotorControl(QObject* p):QObject(p){}

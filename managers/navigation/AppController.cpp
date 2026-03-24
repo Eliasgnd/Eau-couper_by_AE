@@ -2,7 +2,7 @@
 
 #include "MainWindow.h"
 #include "FormeVisualization.h"
-#include "trajetmotor.h"
+#include "TrajetMotor.h"
 #include "OpenAIService.h"
 
 #include <QApplication>

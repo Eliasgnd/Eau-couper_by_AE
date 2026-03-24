@@ -9,17 +9,17 @@
 #include "ImageEdgeImporter.h"
 
 namespace Ui {
-class custom;
+class Custom;
 }
 
 // Classe représentant la fenêtre personnalisée
-class custom : public QWidget
+class Custom : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
-    ~custom(); // Destructeur
+    explicit Custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
+    ~Custom(); // Destructeur
     void updateFormeButtonIcon(CustomDrawArea::DrawMode mode);
 
 protected:
@@ -27,7 +27,7 @@ protected:
 
 
 private:
-    Ui::custom *ui;
+    Ui::Custom *ui;
     CustomDrawArea *drawArea; // Instance de la zone de dessin
     QGraphicsView  *m_colorView{};
     QGraphicsView  *m_edgeView{};

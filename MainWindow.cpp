@@ -3,11 +3,11 @@
 #include "ShapeModel.h"
 #include "qmessagebox.h"
 #include "ui_mainwindow.h"
-#include "inventaire.h"
-#include "custom.h"
+#include "Inventaire.h"
+#include "Custom.h"
 #include "Dispositions.h"
 #include "FormeVisualization.h"
-#include "clavier.h"
+#include "Clavier.h"
 #include "Language.h"
 #include "LogoImporter.h"
 #include "ImageEdgeImporter.h"
@@ -381,11 +381,11 @@ void MainWindow::showInventaire() {
 }
 
 void MainWindow::showCustom() {
-    custom *customWindow = m_navigationController->openCustomEditor(this, m_displayLanguage);
+    Custom *customWindow = m_navigationController->openCustomEditor(this, m_displayLanguage);
 
-    connect(customWindow, &custom::applyCustomShapeSignal,
+    connect(customWindow, &Custom::applyCustomShapeSignal,
             this, &MainWindow::applyCustomShape);
-    connect(customWindow, &custom::resetDrawingSignal,
+    connect(customWindow, &Custom::resetDrawingSignal,
             this, &MainWindow::resetDrawing);
 
     customWindow->showFullScreen();
@@ -431,11 +431,11 @@ void MainWindow::openImageInCustom(const QString &filePath,
             return;
     }
 
-    custom *cw = new custom(m_displayLanguage);
+    Custom *cw = new Custom(m_displayLanguage);
     cw->setAttribute(Qt::WA_DeleteOnClose);
 
-    connect(cw, &custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
-    connect(cw, &custom::resetDrawingSignal,     this, &MainWindow::resetDrawing);
+    connect(cw, &Custom::applyCustomShapeSignal, this, &MainWindow::applyCustomShape);
+    connect(cw, &Custom::resetDrawingSignal,     this, &MainWindow::resetDrawing);
 
     CustomDrawArea *area = cw->getDrawArea();
     cw->showFullScreen();   // ← important : la taille de drawArea sera correcte à la prochaine itération d'event loop

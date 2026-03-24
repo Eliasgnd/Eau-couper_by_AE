@@ -518,9 +518,9 @@ class QrCode final {
  * - Change the text to fit the character set of a particular segment mode (e.g. alphanumeric).
  * - Propagate the error upward to the caller/user.
  */
-class data_too_long : public std::length_error {
+class DataTooLong : public std::length_error {
 	
-	public: explicit data_too_long(const std::string &msg);
+	public: explicit DataTooLong(const std::string &msg);
 	
 };
 

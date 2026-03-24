@@ -276,7 +276,7 @@ QrCode QrCode::encodeSegments(const vector<QrSegment> &segs, Ecc ecl,
 				sb << "Data length = " << dataUsedBits << " bits, ";
 				sb << "Max capacity = " << dataCapacityBits << " bits";
 			}
-			throw data_too_long(sb.str());
+			throw DataTooLong(sb.str());
 		}
 	}
 	assert(dataUsedBits != -1);
@@ -808,7 +808,7 @@ const int8_t QrCode::NUM_ERROR_CORRECTION_BLOCKS[4][41] = {
 };
 
 
-data_too_long::data_too_long(const std::string &msg) :
+DataTooLong::DataTooLong(const std::string &msg) :
 	std::length_error(msg) {}
 
 

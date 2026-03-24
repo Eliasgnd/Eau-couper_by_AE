@@ -6,7 +6,7 @@
 #include <QPolygonF>
 #include <QFrame>
 #include <QString>
-#include "inventaire.h" // for LayoutData
+#include "Inventaire.h" // for LayoutData
 #include "Language.h"
 
 QT_BEGIN_NAMESPACE

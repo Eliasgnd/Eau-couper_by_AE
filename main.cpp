@@ -1,7 +1,7 @@
 #include <QApplication>
 #include "MainWindow.h"
 #include "AppController.h"
-#include "keyboardeventfilter.h"
+#include "KeyboardEventFilter.h"
 
 int main(int argc, char *argv[])
 {

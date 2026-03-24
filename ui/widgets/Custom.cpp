@@ -1,11 +1,11 @@
-#include "custom.h"
+#include "Custom.h"
 #include "MainWindow.h"
 #include "qlayout.h"
 #include "qsplitter.h"
 #include "qstatusbar.h"
-#include "ui_custom.h"
-#include "clavier.h"
-#include "inventaire.h"
+#include "ui_Custom.h"
+#include "Clavier.h"
+#include "Inventaire.h"
 #include "LogoImporter.h"
 #include "ImageEdgeImporter.h"
 #include <QGraphicsView>
@@ -65,9 +65,9 @@ static QString modeToString(CustomDrawArea::DrawMode mode)
 }
 
 // Constructeur : création de l'interface et des connexions
-custom::custom(Language lang, QWidget *parent)
+Custom::Custom(Language lang, QWidget *parent)
     : QWidget(parent),
-    ui(new Ui::custom)
+    ui(new Ui::Custom)
 {
     Q_UNUSED(lang);
     ui->setupUi(this);
@@ -249,10 +249,10 @@ custom::custom(Language lang, QWidget *parent)
     });
 
     // Bouton "Menu" : retourne à la fenêtre principale
-    connect(ui->buttonMenu, &QPushButton::clicked, this, &custom::goToMainWindow);
+    connect(ui->buttonMenu, &QPushButton::clicked, this, &Custom::goToMainWindow);
 
     // Bouton "Save" : enregistre la forme personnalisée
-    connect(ui->buttonSave, &QPushButton::clicked, this, &custom::saveCustomShape);
+    connect(ui->buttonSave, &QPushButton::clicked, this, &Custom::saveCustomShape);
 
     //Relier deux extrémités
     connect(ui->buttonConnect, &QPushButton::clicked, this, [this]() {
@@ -268,7 +268,7 @@ custom::custom(Language lang, QWidget *parent)
     connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
 
     // Bouton copier/coller
-    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &custom::onCopyPasteClicked);
+    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &Custom::onCopyPasteClicked);
 
 
     connect(ui->buttonCloseShape, &QPushButton::clicked, this, [this]() {
@@ -517,8 +517,8 @@ custom::custom(Language lang, QWidget *parent)
     importMenu->addAction(actionImportImage);
     ui->buttonImporter->setMenu(importMenu);
     ui->buttonImporter->setPopupMode(QToolButton::InstantPopup);
-    connect(actionImportLogo, &QAction::triggered, this, &custom::importerLogo);
-    connect(actionImportImage, &QAction::triggered, this, &custom::importerImageCouleur);
+    connect(actionImportLogo, &QAction::triggered, this, &Custom::importerLogo);
+    connect(actionImportImage, &QAction::triggered, this, &Custom::importerImageCouleur);
 
     // --- Connexions pour mettre à jour la police dans drawArea ---
     connect(fontCombo, &QFontComboBox::currentFontChanged, this, [=]() {
@@ -645,24 +645,24 @@ custom::custom(Language lang, QWidget *parent)
 
 }
 
-custom::~custom()
+Custom::~Custom()
 {
     delete ui;
 }
 
-void custom::goToMainWindow()
+void Custom::goToMainWindow()
 {
     this->close();
     if (auto mw = resolveMainWindow()) mw->showFullScreen();
 }
 
-void custom::closeCustom()
+void Custom::closeCustom()
 {
     this->close();
     delete this;
 }
 
-void custom::ouvrirClavier()
+void Custom::ouvrirClavier()
 {
     Clavier clavier(this);
     if (clavier.exec() == QDialog::Accepted) {
@@ -670,7 +670,7 @@ void custom::ouvrirClavier()
     }
 }
 
-void custom::saveCustomShape() {
+void Custom::saveCustomShape() {
     // Récupère toutes les formes (traits) du CustomDrawArea
     QList<QPolygonF> shapes = drawArea->getCustomShapes();
     if (shapes.isEmpty()) {
@@ -732,7 +732,7 @@ void custom::saveCustomShape() {
     Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
 }
 
-void custom::importerLogo()
+void Custom::importerLogo()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this,
@@ -779,7 +779,7 @@ void custom::importerLogo()
     }
 }
 
-void custom::importerImageCouleur()
+void Custom::importerImageCouleur()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this, tr("Sélectionner une image"),
@@ -809,7 +809,7 @@ void custom::importerImageCouleur()
         drawArea->addImportedLogoSubpath(sp);
 }
 
-void custom::onCopyPasteClicked()
+void Custom::onCopyPasteClicked()
 {
     if (ui->buttonCopyPaste->text() == tr("Copier")) {
         drawArea->copySelectedShapes();
@@ -825,7 +825,7 @@ void custom::onCopyPasteClicked()
     }
 }
 
-void custom::updateFormeButtonIcon(CustomDrawArea::DrawMode mode)
+void Custom::updateFormeButtonIcon(CustomDrawArea::DrawMode mode)
 {
     static const QHash<CustomDrawArea::DrawMode, QString> iconMap = {
         { CustomDrawArea::DrawMode::Freehand,      ":/icons/freehand.svg" },
@@ -842,7 +842,7 @@ void custom::updateFormeButtonIcon(CustomDrawArea::DrawMode mode)
         ui->buttonForme->setIcon(QIcon(it.value()));
 }
 
-void custom::changeEvent(QEvent *event)
+void Custom::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
