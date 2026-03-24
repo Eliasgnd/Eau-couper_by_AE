@@ -75,7 +75,7 @@ void AppController::startCutting()
     }
 
     emit cutControlsEnabled(false);
-    m_shapeVisualization->setDecoupeEnCours(true);
+    m_shapeVisualization->setInteractionEnabled(false);
     m_shapeVisualization->resetAllShapeColors();
     m_trajetMotor->executeTrajet();
 }
@@ -84,7 +84,7 @@ void AppController::stopCutting()
 {
     if (!ensureServicesInitialized()) return;
     m_trajetMotor->stopCut();
-    m_shapeVisualization->setDecoupeEnCours(false);
+    m_shapeVisualization->setInteractionEnabled(true);
     emit cutProgressUpdated(0, tr("Temps restant estimé : 0s"));
     emit cutControlsEnabled(true);
     emit cutFinished(true);

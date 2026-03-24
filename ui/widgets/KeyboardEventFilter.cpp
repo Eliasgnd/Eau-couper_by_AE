@@ -23,12 +23,12 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
         if (me->button() != Qt::LeftButton)
             return QObject::eventFilter(obj, event);
 
-        // Blocage du déplacement manuel des formes pendant la découpe
+        // Blocage du déplacement manuel des formes si l'interaction est verrouillée
         if (m_visu && obj == m_visu->getGraphicsView()->viewport()) {
-            if (m_visu->isDecoupeEnCours()) {
+            if (!m_visu->isInteractionEnabled()) {
                 QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                                   "Découpe en cours",
-                                                   "Impossible de modifier les paramètres ou la forme pendant la découpe.",
+                                                   "Interaction verrouillée",
+                                                   "Impossible de modifier les paramètres ou la forme tant que l'interaction est verrouillée.",
                                                    QMessageBox::Ok,
                                                    m_visu);
                 msg->setModal(false);
@@ -42,10 +42,10 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
             // 1) si parent immédiat est un QSpinBox de MainWindow → pavé numérique
             if (auto *spin = qobject_cast<QSpinBox*>(le->parentWidget())) {
                 if (qobject_cast<MainWindow*>(spin->window())) {
-                    if (m_visu && m_visu->isDecoupeEnCours()) {
+                    if (m_visu && !m_visu->isInteractionEnabled()) {
                         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
-                                                           "Découpe en cours",
-                                                           "Impossible d’ouvrir le clavier pendant la découpe.",
+                                                           "Interaction verrouillée",
+                                                           "Impossible d’ouvrir le clavier tant que l'interaction est verrouillée.",
                                                            QMessageBox::Ok,
                                                            spin->window());
                         msg->setModal(false);

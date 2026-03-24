@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QHash>
 #include <QQueue>
+#include <QSet>
 #include <functional>
 #include <cmath>
 
@@ -123,3 +124,17 @@ QPainterPath buildProxyPath(const QPainterPath &path);
 // The result is a square pixmap of size res x res in device coordinates.
 QPixmap rasterFallback(const QPainterPath &path, int res = 512);
 QRectF combinedBoundingRect(const QList<QPolygonF> &polygons);
+
+struct ShapeValidationResult {
+    bool allValid = true;
+    QSet<int> outOfBoundsIndices;
+    QSet<int> collisionIndices;
+};
+
+double evaluateWasteArea(const QList<QPainterPath> &placedPaths,
+                         int drawingWidth,
+                         int drawingHeight);
+
+ShapeValidationResult validatePlacedPaths(const QList<QPainterPath> &paths,
+                                          const QRectF &bounds,
+                                          qreal minIntersectionSize = 1.0);
