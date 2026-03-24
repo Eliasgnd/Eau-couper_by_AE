@@ -1,4 +1,4 @@
-#include "FormeVisualization.h"
+#include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
@@ -20,7 +20,7 @@
 #include <cmath>              // <<< pour std::round (si utilisé)
 // #include <limits>          // (optionnel) retire-le si non utilisé
 
-FormeVisualization::FormeVisualization(QWidget *parent)
+ShapeVisualization::ShapeVisualization(QWidget *parent)
     : QWidget(parent),
     currentModel(ShapeModel::Type::Circle),
     currentLargeur(0),
@@ -82,7 +82,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     setLayout(layout);
 
     connect(scene, &QGraphicsScene::selectionChanged,
-            this, &FormeVisualization::handleSelectionChanged);
+            this, &ShapeVisualization::handleSelectionChanged);
 
     // Fit initial
     QTimer::singleShot(0, this, [this](){
@@ -92,7 +92,7 @@ FormeVisualization::FormeVisualization(QWidget *parent)
     redraw();
 }
 
-QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spacing)
+QPainterPath ShapeVisualization::bufferedPath(const QPainterPath &path, int spacing)
 {
     // Si aucun espacement n'est demandé, renvoyer le chemin original
     if (spacing <= 0)
@@ -108,7 +108,7 @@ QPainterPath FormeVisualization::bufferedPath(const QPainterPath &path, int spac
     return path.united(strokePath);
 }
 
-void FormeVisualization::resizeEvent(QResizeEvent* e) {
+void ShapeVisualization::resizeEvent(QResizeEvent* e) {
     QWidget::resizeEvent(e);
     if (graphicsView && scene) {
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
@@ -116,7 +116,7 @@ void FormeVisualization::resizeEvent(QResizeEvent* e) {
     }
 }
 
-bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
+bool ShapeVisualization::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonDblClick) {
         auto *me = static_cast<QMouseEvent*>(event);
@@ -132,7 +132,7 @@ bool FormeVisualization::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
-void FormeVisualization::setModel(ShapeModel::Type model)
+void ShapeVisualization::setModel(ShapeModel::Type model)
 {
     if (!editingEnabled)
         return;
@@ -146,7 +146,7 @@ void FormeVisualization::setModel(ShapeModel::Type model)
     update();
 }
 
-void FormeVisualization::updateDimensions(int largeur, int longueur)
+void ShapeVisualization::updateDimensions(int largeur, int longueur)
 {
     if (!editingEnabled)
         return;
@@ -169,7 +169,7 @@ void FormeVisualization::updateDimensions(int largeur, int longueur)
         redraw();
 }
 
-void FormeVisualization::setShapeCount(int count, ShapeModel::Type type, int width, int height)
+void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int width, int height)
 {
     if (!editingEnabled)
         return;
@@ -197,7 +197,7 @@ void FormeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
         redraw();
 }
 
-void FormeVisualization::setSpacing(int newSpacing)
+void ShapeVisualization::setSpacing(int newSpacing)
 {
     if (!editingEnabled)
         return;
@@ -223,7 +223,7 @@ void FormeVisualization::setSpacing(int newSpacing)
         redraw();
 }
 
-void FormeVisualization::setPredefinedMode()
+void ShapeVisualization::setPredefinedMode()
 {
     qDebug() << "[DEBUG] setPredefinedMode() appelé";
 
@@ -250,7 +250,7 @@ void FormeVisualization::setPredefinedMode()
 /*
    ****** OPTIMIZE PLACEMENT 1 (avec caching et test rapide) ******
 */
-void FormeVisualization::optimizePlacement() {
+void ShapeVisualization::optimizePlacement() {
     if (m_decoupeEnCours || m_optimizationRunning) {
         qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
@@ -410,7 +410,7 @@ void FormeVisualization::optimizePlacement() {
     progressBar->setVisible(false);
 }
 
-void FormeVisualization::optimizePlacement2() {
+void ShapeVisualization::optimizePlacement2() {
     if (m_decoupeEnCours || m_optimizationRunning) {
         qDebug() << "[DEBUG] Message d’erreur : découpe déjà en cours dans optimizePlacement2";
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
@@ -566,7 +566,7 @@ void FormeVisualization::optimizePlacement2() {
 
 
 
-void FormeVisualization::redraw()
+void ShapeVisualization::redraw()
 {
     scene->clear();
     const QRectF sr = scene->sceneRect();
@@ -640,7 +640,7 @@ void FormeVisualization::redraw()
     emit shapesPlacedCount(shapesToPlace);
 }
 
-void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
+void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 {
     if (m_decoupeEnCours) {
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
@@ -717,11 +717,11 @@ void FormeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
     }
 
-    //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans FormeVisualization.";
+    //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans ShapeVisualization.";
     emit shapesPlacedCount(shapesToPlace);
 }
 
-void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
+void ShapeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 {
     if (m_decoupeEnCours) {
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
@@ -741,7 +741,7 @@ void FormeVisualization::moveSelectedShapes(qreal dx, qreal dy)
 }
 
 
-void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
+void ShapeVisualization::rotateSelectedShapes(qreal angleDelta)
 {
     if (m_decoupeEnCours) {
         QMessageBox* msg = new QMessageBox(QMessageBox::Warning,
@@ -782,7 +782,7 @@ void FormeVisualization::rotateSelectedShapes(qreal angleDelta)
         item->setRotation(item->rotation() + angleDelta);
 }
 
-void FormeVisualization::deleteSelectedShapes()
+void ShapeVisualization::deleteSelectedShapes()
 {
     if (m_decoupeEnCours)
     {
@@ -809,7 +809,7 @@ void FormeVisualization::deleteSelectedShapes()
         emit shapesPlacedCount(countPlacedShapes());
 }
 
-void FormeVisualization::addShapeBottomRight()
+void ShapeVisualization::addShapeBottomRight()
 {
     if (m_decoupeEnCours)
     {
@@ -877,7 +877,7 @@ void FormeVisualization::addShapeBottomRight()
     }
 }
 
-void FormeVisualization::setCustomMode() {
+void ShapeVisualization::setCustomMode() {
     cancelOptimization();
     m_isCustomMode = true;
     emit optimizationStateChanged(false);
@@ -886,7 +886,7 @@ void FormeVisualization::setCustomMode() {
 // -----------------------------------------------------------------------------
 // Ajout d’un point rouge
 // -----------------------------------------------------------------------------
-void FormeVisualization::colorPositionRed(const QPoint& p)
+void ShapeVisualization::colorPositionRed(const QPoint& p)
 {
     auto *dot = scene->addEllipse(p.x()-1, p.y()-1, 2, 2,
                                   QPen(Qt::NoPen), QBrush(Qt::red));
@@ -897,7 +897,7 @@ void FormeVisualization::colorPositionRed(const QPoint& p)
 // -----------------------------------------------------------------------------
 // Ajout d’un point bleu
 // -----------------------------------------------------------------------------
-void FormeVisualization::colorPositionBlue(const QPoint& p)
+void ShapeVisualization::colorPositionBlue(const QPoint& p)
 {
     auto *dot = scene->addEllipse(p.x(), p.y(), 2, 2,
                                   QPen(Qt::NoPen), QBrush(Qt::blue));
@@ -908,7 +908,7 @@ void FormeVisualization::colorPositionBlue(const QPoint& p)
 // -----------------------------------------------------------------------------
 // Remise à zéro des marqueurs de découpe
 // -----------------------------------------------------------------------------
-void FormeVisualization::resetCutMarkers()
+void ShapeVisualization::resetCutMarkers()
 {
     for (auto *item : std::as_const(m_cutMarkers)) {
         scene->removeItem(item);
@@ -917,7 +917,7 @@ void FormeVisualization::resetCutMarkers()
     m_cutMarkers.clear();
 }
 
-QGraphicsScene* FormeVisualization::getScene() const {
+QGraphicsScene* ShapeVisualization::getScene() const {
     return scene;
 }
 
@@ -927,7 +927,7 @@ QGraphicsScene* FormeVisualization::getScene() const {
 
 
 
-QList<QPoint> FormeVisualization::getBlackPixels() {
+QList<QPoint> ShapeVisualization::getBlackPixels() {
 
     QList<QPoint> pixelsNoirs;
 
@@ -953,33 +953,33 @@ QList<QPoint> FormeVisualization::getBlackPixels() {
 }
 
 // Démarre la barre de progression avec un maximum de étapes
-void FormeVisualization::startDecoupeProgress(int maxSteps) {
+void ShapeVisualization::startDecoupeProgress(int maxSteps) {
     progressBar->setMaximum(maxSteps);
     progressBar->setValue(0);
     progressBar->setVisible(true);
 }
 
 // Met à jour la valeur courante de la barre de progression
-void FormeVisualization::updateDecoupeProgress(int currentStep) {
+void ShapeVisualization::updateDecoupeProgress(int currentStep) {
     progressBar->setValue(currentStep);
 }
 
 // Cache la barre de progression en fin de découpe
-void FormeVisualization::endDecoupeProgress() {
+void ShapeVisualization::endDecoupeProgress() {
     progressBar->setVisible(false);
 }
 
-void FormeVisualization::setEditingEnabled(bool enabled)
+void ShapeVisualization::setEditingEnabled(bool enabled)
 {
     editingEnabled = enabled;
 }
 
-bool FormeVisualization::isEditingEnabled() const
+bool ShapeVisualization::isEditingEnabled() const
 {
     return editingEnabled;
 }
 
-void FormeVisualization::setDecoupeEnCours(bool etat)
+void ShapeVisualization::setDecoupeEnCours(bool etat)
 {
     m_decoupeEnCours = etat;
     // Interdire ou autoriser le déplacement manuel des items
@@ -988,23 +988,23 @@ void FormeVisualization::setDecoupeEnCours(bool etat)
     }
 }
 
-bool FormeVisualization::isDecoupeEnCours() const
+bool ShapeVisualization::isDecoupeEnCours() const
 {
     return m_decoupeEnCours;
 }
 
-void FormeVisualization::cancelOptimization()
+void ShapeVisualization::cancelOptimization()
 {
     if (m_optimizationRunning)
         m_cancelOptimization = true;
 }
 
-QGraphicsView* FormeVisualization::getGraphicsView() const
+QGraphicsView* ShapeVisualization::getGraphicsView() const
 {
     return graphicsView;
 }
 
-int FormeVisualization::countPlacedShapes() const
+int ShapeVisualization::countPlacedShapes() const
 {
     int count = 0;
     for (QGraphicsItem *item : scene->items()) {
@@ -1020,7 +1020,7 @@ int FormeVisualization::countPlacedShapes() const
     return count;
 }
 
-bool FormeVisualization::validateShapes()
+bool ShapeVisualization::validateShapes()
 {
     resetAllShapeColors();
     bool allValid = true;
@@ -1064,7 +1064,7 @@ bool FormeVisualization::validateShapes()
     return allValid;
 }
 
-void FormeVisualization::handleSelectionChanged()
+void ShapeVisualization::handleSelectionChanged()
 {
     m_rotationPivotValid = false;
     for (QGraphicsItem *item : scene->selectedItems()) {
@@ -1074,7 +1074,7 @@ void FormeVisualization::handleSelectionChanged()
     }
 }
 
-void FormeVisualization::resetAllShapeColors()
+void ShapeVisualization::resetAllShapeColors()
 {
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
@@ -1087,7 +1087,7 @@ void FormeVisualization::resetAllShapeColors()
 }
 
 
-void FormeVisualization::applyLayout(const LayoutData &layout)
+void ShapeVisualization::applyLayout(const LayoutData &layout)
 {
     if (!m_isCustomMode)
         return;
@@ -1131,7 +1131,7 @@ void FormeVisualization::applyLayout(const LayoutData &layout)
     graphicsView->viewport()->update();
 }
 
-LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
+LayoutData ShapeVisualization::captureCurrentLayout(const QString &name) const
 {
     LayoutData layout;
     layout.name = name;
@@ -1156,7 +1156,7 @@ LayoutData FormeVisualization::captureCurrentLayout(const QString &name) const
     return layout;
 }
 
-double FormeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPaths,
+double ShapeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPaths,
                                              int drawingWidth, int drawingHeight)
 {
     QPainterPath united;
@@ -1169,26 +1169,26 @@ double FormeVisualization::evaluateWasteArea(const QList<QPainterPath>& placedPa
     return total - used;
 }
 
-int FormeVisualization::heightForWidth(int w) const
+int ShapeVisualization::heightForWidth(int w) const
 {
     if (m_aspect <= 0.0) return QWidget::heightForWidth(w);
     return static_cast<int>(std::round(w / m_aspect));
 }
 
-QSize FormeVisualization::sizeHint() const
+QSize ShapeVisualization::sizeHint() const
 {
     // Taille "agréable" par défaut tout en respectant le ratio
     int w = 900;
     return { w, heightForWidth(w) };
 }
 
-QSize FormeVisualization::minimumSizeHint() const
+QSize ShapeVisualization::minimumSizeHint() const
 {
     int w = 300;
     return { w, heightForWidth(w) };
 }
 
-void FormeVisualization::setSheetSizeMm(const QSizeF& mm)
+void ShapeVisualization::setSheetSizeMm(const QSizeF& mm)
 {
     if (mm.width() <= 0 || mm.height() <= 0)
         return;

@@ -151,175 +151,175 @@ Veuillez patienter avant de quitter.</translation>
     </message>
 </context>
 <context>
-    <name>Dispositions</name>
+    <name>LayoutsDialog</name>
     <message>
-        <location filename="../Dispositions.ui" line="19"/>
+        <location filename="../LayoutsDialog.ui" line="19"/>
         <source>Rechercher</source>
         <translation>Rechercher</translation>
     </message>
     <message>
-        <location filename="../Dispositions.ui" line="42"/>
+        <location filename="../LayoutsDialog.ui" line="42"/>
         <source>✖</source>
         <translation>✖</translation>
     </message>
     <message>
-        <location filename="../Dispositions.cpp" line="44"/>
-        <source>Dispositions</source>
-        <translation>Dispositions</translation>
+        <location filename="../LayoutsDialog.cpp" line="44"/>
+        <source>LayoutsDialog</source>
+        <translation>LayoutsDialog</translation>
     </message>
     <message>
-        <location filename="../Dispositions.cpp" line="44"/>
+        <location filename="../LayoutsDialog.cpp" line="44"/>
         <source>Layouts</source>
         <translation>Layouts</translation>
     </message>
 </context>
 <context>
-    <name>DossierWidget</name>
+    <name>FolderWidget</name>
     <message>
-        <location filename="../DossierWidget.cpp" line="50"/>
-        <location filename="../DossierWidget.cpp" line="393"/>
+        <location filename="../FolderWidget.cpp" line="50"/>
+        <location filename="../FolderWidget.cpp" line="393"/>
         <source>Toutes les sources</source>
         <translation>Toutes les sources</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="51"/>
-        <location filename="../DossierWidget.cpp" line="394"/>
+        <location filename="../FolderWidget.cpp" line="51"/>
+        <location filename="../FolderWidget.cpp" line="394"/>
         <source>IA</source>
         <translation>IA</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="52"/>
-        <location filename="../DossierWidget.cpp" line="395"/>
+        <location filename="../FolderWidget.cpp" line="52"/>
+        <location filename="../FolderWidget.cpp" line="395"/>
         <source>Wi‑Fi</source>
         <translation>Wi‑Fi</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="53"/>
-        <location filename="../DossierWidget.cpp" line="396"/>
+        <location filename="../FolderWidget.cpp" line="53"/>
+        <location filename="../FolderWidget.cpp" line="396"/>
         <source>Bluetooth</source>
         <translation>Bluetooth</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="54"/>
-        <location filename="../DossierWidget.cpp" line="397"/>
+        <location filename="../FolderWidget.cpp" line="54"/>
+        <location filename="../FolderWidget.cpp" line="397"/>
         <source>Autres</source>
         <translation>Autres</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="61"/>
-        <location filename="../DossierWidget.cpp" line="400"/>
+        <location filename="../FolderWidget.cpp" line="61"/>
+        <location filename="../FolderWidget.cpp" line="400"/>
         <source>Rechercher...</source>
         <translation>Rechercher...</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="69"/>
-        <location filename="../DossierWidget.cpp" line="388"/>
+        <location filename="../FolderWidget.cpp" line="69"/>
+        <location filename="../FolderWidget.cpp" line="388"/>
         <source>Récent → Ancien</source>
         <translation>Récent → Ancien</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="70"/>
-        <location filename="../DossierWidget.cpp" line="389"/>
+        <location filename="../FolderWidget.cpp" line="70"/>
+        <location filename="../FolderWidget.cpp" line="389"/>
         <source>Ancien → Récent</source>
         <translation>Ancien → Récent</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="80"/>
+        <location filename="../FolderWidget.cpp" line="80"/>
         <source>Taille des vignettes</source>
         <translation>Taille des vignettes</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="257"/>
+        <location filename="../FolderWidget.cpp" line="257"/>
         <source>Afficher</source>
         <translation>Afficher</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="258"/>
+        <location filename="../FolderWidget.cpp" line="258"/>
         <source>Réutiliser</source>
         <translation>Réutiliser</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="259"/>
-        <location filename="../DossierWidget.cpp" line="317"/>
+        <location filename="../FolderWidget.cpp" line="259"/>
+        <location filename="../FolderWidget.cpp" line="317"/>
         <source>Renommer</source>
         <translation>Renommer</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="260"/>
-        <location filename="../DossierWidget.cpp" line="335"/>
+        <location filename="../FolderWidget.cpp" line="260"/>
+        <location filename="../FolderWidget.cpp" line="335"/>
         <source>Supprimer</source>
         <translation>Supprimer</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="261"/>
+        <location filename="../FolderWidget.cpp" line="261"/>
         <source>Ouvrir dans le dossier</source>
         <translation>Ouvrir dans le dossier</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="318"/>
+        <location filename="../FolderWidget.cpp" line="318"/>
         <source>Nouveau nom (sans chemin) :</source>
         <translation>Nouveau nom (sans chemin) :</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="324"/>
+        <location filename="../FolderWidget.cpp" line="324"/>
         <source>Erreur</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="324"/>
+        <location filename="../FolderWidget.cpp" line="324"/>
         <source>Un fichier portant ce nom existe déjà.</source>
         <translation>Un fichier portant ce nom existe déjà.</translation>
     </message>
     <message>
-        <location filename="../DossierWidget.cpp" line="336"/>
+        <location filename="../FolderWidget.cpp" line="336"/>
         <source>Supprimer %1 ?</source>
         <translation>Supprimer %1 ?</translation>
     </message>
 </context>
 <context>
-    <name>Inventaire</name>
+    <name>Inventory</name>
     <message>
-        <location filename="../Inventaire.ui" line="20"/>
+        <location filename="../Inventory.ui" line="20"/>
         <source>Form</source>
         <translation>Form</translation>
     </message>
     <message>
-        <location filename="../Inventaire.ui" line="73"/>
+        <location filename="../Inventory.ui" line="73"/>
         <source>Rechercher</source>
         <translation>Rechercher</translation>
     </message>
     <message>
-        <location filename="../Inventaire.ui" line="99"/>
+        <location filename="../Inventory.ui" line="99"/>
         <source>✖</source>
         <translation>✖</translation>
     </message>
     <message>
-        <location filename="../Inventaire.cpp" line="398"/>
+        <location filename="../Inventory.cpp" line="398"/>
         <source>Renommer la forme</source>
         <translation>Renommer la forme</translation>
     </message>
     <message>
-        <location filename="../Inventaire.cpp" line="398"/>
+        <location filename="../Inventory.cpp" line="398"/>
         <source>Rename shape</source>
         <translation>Rename shape</translation>
     </message>
     <message>
-        <location filename="../Inventaire.cpp" line="399"/>
+        <location filename="../Inventory.cpp" line="399"/>
         <source>Nouveau nom :</source>
         <translation>Nouveau nom :</translation>
     </message>
     <message>
-        <location filename="../Inventaire.cpp" line="399"/>
+        <location filename="../Inventory.cpp" line="399"/>
         <source>New name:</source>
         <translation>New name:</translation>
     </message>
     <message>
-        <location filename="../Inventaire.cpp" line="797"/>
+        <location filename="../Inventory.cpp" line="797"/>
         <source>Nouveau dossier</source>
         <translation>Nouveau dossier</translation>
     </message>
     <message>
-        <location filename="../Inventaire.cpp" line="798"/>
+        <location filename="../Inventory.cpp" line="798"/>
         <source>Nom du dossier :</source>
         <translation>Nom du dossier :</translation>
     </message>
@@ -368,8 +368,8 @@ Veuillez patienter avant de quitter.</translation>
     </message>
     <message>
         <location filename="../mainwindow.ui" line="224"/>
-        <source>Inventaire                      </source>
-        <translation>Inventaire                      </translation>
+        <source>Inventory                      </source>
+        <translation>Inventory                      </translation>
     </message>
     <message>
         <location filename="../mainwindow.ui" line="249"/>
@@ -1123,280 +1123,280 @@ Souhaitez-vous l&apos;écraser ?</translation>
 <context>
     <name>Custom</name>
     <message>
-        <location filename="../Custom.ui" line="14"/>
+        <location filename="../CustomEditor.ui" line="14"/>
         <source>Form</source>
         <translation>Form</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="104"/>
+        <location filename="../CustomEditor.ui" line="104"/>
         <source>Replier/afficher le panneau Outils</source>
         <translation>Replier/afficher le panneau Outils</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="107"/>
+        <location filename="../CustomEditor.ui" line="107"/>
         <source>‹</source>
         <translation>‹</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="114"/>
+        <location filename="../CustomEditor.ui" line="114"/>
         <source>Main menu     </source>
         <translation>Main menu     </translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="131"/>
+        <location filename="../CustomEditor.ui" line="131"/>
         <source>Reset              </source>
         <translation>Reset              </translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="148"/>
+        <location filename="../CustomEditor.ui" line="148"/>
         <source>Application    </source>
         <translation>Application    </translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="165"/>
+        <location filename="../CustomEditor.ui" line="165"/>
         <source>Retour            </source>
         <translation>Retour            </translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="195"/>
+        <location filename="../CustomEditor.ui" line="195"/>
         <source>Importer </source>
         <translation>Importer </translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="215"/>
+        <location filename="../CustomEditor.ui" line="215"/>
         <source>Sauvegarder</source>
         <translation>Sauvegarder</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="235"/>
+        <location filename="../CustomEditor.ui" line="235"/>
         <source>Replier/afficher le panneau Propriétés</source>
         <translation>Replier/afficher le panneau Propriétés</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="238"/>
+        <location filename="../CustomEditor.ui" line="238"/>
         <source>›</source>
         <translation>›</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="285"/>
+        <location filename="../CustomEditor.ui" line="285"/>
         <source>Outils</source>
         <translation>Outils</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="298"/>
+        <location filename="../CustomEditor.ui" line="298"/>
         <source>Forme </source>
         <translation>Forme </translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="318"/>
+        <location filename="../CustomEditor.ui" line="318"/>
         <source>    Sélection</source>
         <translation>    Sélection</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="335"/>
+        <location filename="../CustomEditor.ui" line="335"/>
         <source>       Déplacer</source>
         <translation>       Déplacer</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="352"/>
-        <location filename="../Custom.cpp" line="194"/>
-        <location filename="../Custom.cpp" line="807"/>
+        <location filename="../CustomEditor.ui" line="352"/>
+        <location filename="../CustomEditor.cpp" line="194"/>
+        <location filename="../CustomEditor.cpp" line="807"/>
         <source>Copier</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="369"/>
+        <location filename="../CustomEditor.ui" line="369"/>
         <source>            Relier</source>
         <translation>            Relier</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="386"/>
+        <location filename="../CustomEditor.ui" line="386"/>
         <source>     Supprimer</source>
         <translation>     Supprimer</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="403"/>
+        <location filename="../CustomEditor.ui" line="403"/>
         <source>          Fermer</source>
         <translation>          Fermer</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="420"/>
+        <location filename="../CustomEditor.ui" line="420"/>
         <source>Grille ✅</source>
         <translation>Grille ✅</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="497"/>
+        <location filename="../CustomEditor.ui" line="497"/>
         <source>Lissage</source>
         <translation>Lissage</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="515"/>
+        <location filename="../CustomEditor.ui" line="515"/>
         <source>Puissance de lissage : 0%</source>
         <translation>Puissance de lissage : 0%</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="532"/>
+        <location filename="../CustomEditor.ui" line="532"/>
         <source>Grille</source>
         <translation>Grille</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="550"/>
+        <location filename="../CustomEditor.ui" line="550"/>
         <source>             Aimant</source>
         <translation>             Aimant</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="567"/>
+        <location filename="../CustomEditor.ui" line="567"/>
         <source>Taille de la grille : 20 px</source>
         <translation>Taille de la grille : 20 px</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="593"/>
+        <location filename="../CustomEditor.ui" line="593"/>
         <source>Gomme</source>
         <translation>Gomme</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="611"/>
+        <location filename="../CustomEditor.ui" line="611"/>
         <source>          Gomme</source>
         <translation>          Gomme</translation>
     </message>
     <message>
-        <location filename="../Custom.ui" line="628"/>
+        <location filename="../CustomEditor.ui" line="628"/>
         <source>Taille gomme :</source>
         <translation>Taille gomme :</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="292"/>
+        <location filename="../CustomEditor.cpp" line="292"/>
         <source>À la main</source>
         <translation>À la main</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="293"/>
+        <location filename="../CustomEditor.cpp" line="293"/>
         <source>Point par point</source>
         <translation>Point par point</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="294"/>
+        <location filename="../CustomEditor.cpp" line="294"/>
         <source>Ligne droite</source>
         <translation>Ligne droite</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="295"/>
+        <location filename="../CustomEditor.cpp" line="295"/>
         <source>Cercle</source>
         <translation>Cercle</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="296"/>
+        <location filename="../CustomEditor.cpp" line="296"/>
         <source>Rectangle</source>
         <translation>Rectangle</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="297"/>
+        <location filename="../CustomEditor.cpp" line="297"/>
         <source>Texte</source>
         <translation>Texte</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="298"/>
+        <location filename="../CustomEditor.cpp" line="298"/>
         <source>Texte fin</source>
         <translation>Texte fin</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="331"/>
+        <location filename="../CustomEditor.cpp" line="331"/>
         <source>Police:</source>
         <translation>Police:</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="333"/>
+        <location filename="../CustomEditor.cpp" line="333"/>
         <source>Taille:</source>
         <translation>Taille:</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="483"/>
+        <location filename="../CustomEditor.cpp" line="483"/>
         <source>Importer un logo</source>
         <translation>Importer un logo</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="484"/>
+        <location filename="../CustomEditor.cpp" line="484"/>
         <source>Importer image couleur</source>
         <translation>Importer image couleur</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="513"/>
+        <location filename="../CustomEditor.cpp" line="513"/>
         <source>Ajouter aux favoris</source>
         <translation>Ajouter aux favoris</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="528"/>
+        <location filename="../CustomEditor.cpp" line="528"/>
         <source>Supprimer favoris</source>
         <translation>Supprimer favoris</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="546"/>
+        <location filename="../CustomEditor.cpp" line="546"/>
         <source>Favoris:</source>
         <translation>Favoris:</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="600"/>
+        <location filename="../CustomEditor.cpp" line="600"/>
         <source>Taille de la grille : %1 px</source>
         <translation>Taille de la grille : %1 px</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="653"/>
+        <location filename="../CustomEditor.cpp" line="653"/>
         <source>Nom de la forme</source>
         <translation>Nom de la forme</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="654"/>
+        <location filename="../CustomEditor.cpp" line="654"/>
         <source>Entrez un nom pour votre forme :</source>
         <translation>Entrez un nom pour votre forme :</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="665"/>
+        <location filename="../CustomEditor.cpp" line="665"/>
         <source>Nom déjà utilisé</source>
         <translation>Nom déjà utilisé</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="666"/>
+        <location filename="../CustomEditor.cpp" line="666"/>
         <source>Ce nom est déjà utilisé, veuillez en choisir un autre.</source>
         <translation>Ce nom est déjà utilisé, veuillez en choisir un autre.</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="730"/>
-        <location filename="../Custom.cpp" line="777"/>
+        <location filename="../CustomEditor.cpp" line="730"/>
+        <location filename="../CustomEditor.cpp" line="777"/>
         <source>Sélectionner une image</source>
         <translation>Sélectionner une image</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="732"/>
+        <location filename="../CustomEditor.cpp" line="732"/>
         <source>Images (*.png *.jpg *.bmp *.svg *.webp)</source>
         <translation>Images (*.png *.jpg *.bmp *.svg *.webp)</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="739"/>
+        <location filename="../CustomEditor.cpp" line="739"/>
         <source>Contours internes</source>
         <translation>Contours internes</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="740"/>
+        <location filename="../CustomEditor.cpp" line="740"/>
         <source>Voulez-vous inclure également les contours internes ?</source>
         <translation>Voulez-vous inclure également les contours internes ?</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="778"/>
+        <location filename="../CustomEditor.cpp" line="778"/>
         <source>Images (*.png *.jpg *.bmp *.webp)</source>
         <translation>Images (*.png *.jpg *.bmp *.webp)</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="783"/>
+        <location filename="../CustomEditor.cpp" line="783"/>
         <source>Erreur</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="784"/>
+        <location filename="../CustomEditor.cpp" line="784"/>
         <source>Contour introuvable.</source>
         <translation>Contour introuvable.</translation>
     </message>
     <message>
-        <location filename="../Custom.cpp" line="809"/>
+        <location filename="../CustomEditor.cpp" line="809"/>
         <source>Coller</source>
         <translation>Coller</translation>
     </message>

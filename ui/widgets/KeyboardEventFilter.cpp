@@ -1,8 +1,8 @@
 #include "KeyboardEventFilter.h"
-#include "ClavierNumerique.h"
-#include "Clavier.h"
+#include "NumericKeyboardDialog.h"
+#include "KeyboardDialog.h"
 #include "MainWindow.h"
-#include "FormeVisualization.h"
+#include "ShapeVisualization.h"
 
 #include <QLineEdit>
 #include <QSpinBox>
@@ -54,7 +54,7 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
                     }
 
                     m_keyboardActive = true;
-                    ClavierNumerique numDlg(spin->window());
+                    NumericKeyboardDialog numDlg(spin->window());
                     if (numDlg.exec() == QDialog::Accepted) {
                         bool ok;
                         int nv = numDlg.getText().toInt(&ok);
@@ -67,10 +67,10 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
             // 2) sinon → clavier alphabétique
             else {
                 m_keyboardActive = true;
-                Clavier txtDlg(le->window());
+                KeyboardDialog txtDlg(le->window());
 
                 // 🔁 Mise à jour de la barre de recherche si on édite celle-ci
-                connect(&txtDlg, &Clavier::textChangedExternally, le, [le](const QString &text){
+                connect(&txtDlg, &KeyboardDialog::textChangedExternally, le, [le](const QString &text){
                     if (le->text() != text) {
                         le->setText(text);  // 🟢 met à jour si différent
                     }
@@ -93,7 +93,7 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
     return QObject::eventFilter(obj, event);
 }
 
-void KeyboardEventFilter::setFormeVisualization(FormeVisualization* visu)
+void KeyboardEventFilter::setShapeVisualization(ShapeVisualization* visu)
 {
     m_visu = visu;
 }

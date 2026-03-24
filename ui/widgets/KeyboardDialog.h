@@ -10,12 +10,12 @@
 
 
 //cration brnache global
-class Clavier : public QDialog
+class KeyboardDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit Clavier(QWidget *parent = nullptr);  // Constructeur du clavier
+    explicit KeyboardDialog(QWidget *parent = nullptr);  // Constructeur du clavier
     QString getText() const;  // Récupère le texte saisi
 
 private slots:

@@ -1,12 +1,12 @@
-#include "Clavier.h"
-#include "Inventaire.h"
+#include "KeyboardDialog.h"
+#include "Inventory.h"
 #include <QTimer>
 #include <QDebug>
 #include <QRegularExpression>
 
-Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
+KeyboardDialog::KeyboardDialog(QWidget *parent) : QDialog(parent), majusculeActive(true)
 {
-    setWindowTitle("Clavier Virtuel AZERTY");
+    setWindowTitle("KeyboardDialog Virtuel AZERTY");
     setFixedSize(650, 540);  // Augmenter la taille pour un meilleur affichage
     isSymbolMode = false;  // Démarrer en mode clavier principal
 
@@ -41,7 +41,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     for (const QString &chiffre : chiffres) {
         QPushButton *button = new QPushButton(chiffre, this);
         button->setFixedSize(60, 60);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);;
     }
 
@@ -58,9 +58,9 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
         button->setFixedSize(60, 60);
         allButtons.append(button);
         row1Buttons.append(button);
-        connect(button, &QPushButton::pressed, this, &Clavier::startLongPress);
-        connect(button, &QPushButton::released, this, &Clavier::stopLongPress);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::pressed, this, &KeyboardDialog::startLongPress);
+        connect(button, &QPushButton::released, this, &KeyboardDialog::stopLongPress);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);
     }
 
@@ -72,9 +72,9 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
         button->setFixedSize(60, 60);
         allButtons.append(button);
         row2Buttons.append(button);
-        connect(button, &QPushButton::pressed, this, &Clavier::startLongPress);
-        connect(button, &QPushButton::released, this, &Clavier::stopLongPress);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::pressed, this, &KeyboardDialog::startLongPress);
+        connect(button, &QPushButton::released, this, &KeyboardDialog::stopLongPress);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);
     }
 
@@ -85,9 +85,9 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
         button->setFixedSize(60, 60);
         allButtons.append(button);
         row3Buttons.append(button);
-        connect(button, &QPushButton::pressed, this, &Clavier::startLongPress);
-        connect(button, &QPushButton::released, this, &Clavier::stopLongPress);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::pressed, this, &KeyboardDialog::startLongPress);
+        connect(button, &QPushButton::released, this, &KeyboardDialog::stopLongPress);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);
 
         //qDebug() << "Création du bouton" << key << "en position" << row << "," << col-1;
@@ -99,7 +99,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     apostropheButton = new QPushButton("'", this);
     apostropheButton->setFixedSize(80, 60);
     allButtons.append(apostropheButton);
-    connect(apostropheButton, &QPushButton::clicked, this, &Clavier::handleButton);
+    connect(apostropheButton, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
     gridLayout->addWidget(apostropheButton, row, 8);  // Placé juste à droite de la barre espace
 
 
@@ -107,14 +107,14 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     row++; col = 0;  // ✅ Assurer qu’il est bien sur la dernière ligne
     langueButton = new QPushButton("🌍 AZERTY", this);
     langueButton->setFixedSize(100, 60);
-    connect(langueButton, &QPushButton::clicked, this, &Clavier::switchLayout);
+    connect(langueButton, &QPushButton::clicked, this, &KeyboardDialog::switchLayout);
     gridLayout->addWidget(langueButton, row, col);
 
     // Bouton Shift (⇧) et Effacer (⌫) alignés à droite
     shiftButton = new QPushButton("⇧", this);
     shiftButton->setFixedSize(80, 60);
     allButtons.append(shiftButton);
-    connect(shiftButton, &QPushButton::clicked, this, &Clavier::toggleShift);
+    connect(shiftButton, &QPushButton::clicked, this, &KeyboardDialog::toggleShift);
     gridLayout->addWidget(shiftButton, row, 9);  // À droite
 
     QPushButton *deleteButton = new QPushButton("⌫", this);
@@ -125,29 +125,29 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     deleteDelayTimer->setSingleShot(true);  // Assurer que le délai n'est lancé qu'une seule fois
 
     // Connexions des timers
-    connect(deleteDelayTimer, &QTimer::timeout, this, &Clavier::startDelete);
-    connect(deleteTimer, &QTimer::timeout, this, &Clavier::deleteChar);
-    connect(deleteButton, &QPushButton::pressed, this, &Clavier::startDeleteDelay);
+    connect(deleteDelayTimer, &QTimer::timeout, this, &KeyboardDialog::startDelete);
+    connect(deleteTimer, &QTimer::timeout, this, &KeyboardDialog::deleteChar);
+    connect(deleteButton, &QPushButton::pressed, this, &KeyboardDialog::startDeleteDelay);
     gridLayout->addWidget(deleteButton, 0, 10);  // Aligné sous Shift
-    connect(deleteButton, &QPushButton::released, this, &Clavier::stopDelete);
+    connect(deleteButton, &QPushButton::released, this, &KeyboardDialog::stopDelete);
 
     // Ajout du bouton Espace (␣) centré en bas
     row++;
     QPushButton *spaceButton = new QPushButton("␣", this);
     spaceButton->setFixedSize(250, 60);
-    connect(spaceButton, &QPushButton::clicked, this, &Clavier::addSpace);
+    connect(spaceButton, &QPushButton::clicked, this, &KeyboardDialog::addSpace);
     gridLayout->addWidget(spaceButton, row, 4, 1, 3);  // Largeur sur 4 colonnes
 
     // Ajout du bouton Underscore (_)
     QPushButton *underscoreButton = new QPushButton("_", this);
     underscoreButton->setFixedSize(80, 60);
-    connect(underscoreButton, &QPushButton::clicked, this, &Clavier::addUnderscore);
+    connect(underscoreButton, &QPushButton::clicked, this, &KeyboardDialog::addUnderscore);
     gridLayout->addWidget(underscoreButton, row, 2);
 
     // Ajout du bouton Valider (✔) en bas à droite
     QPushButton *validateButton = new QPushButton("✔", this);
     validateButton->setFixedSize(80, 60);
-    connect(validateButton, &QPushButton::clicked, this, &Clavier::validateText);
+    connect(validateButton, &QPushButton::clicked, this, &KeyboardDialog::validateText);
     gridLayout->addWidget(validateButton, row, 9);
 
     layout->addLayout(gridLayout);
@@ -156,7 +156,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     // Ajout du bouton "123?" pour passer aux symboles
     switchButton = new QPushButton("123?", this);
     switchButton->setFixedSize(80, 60);
-    connect(switchButton, &QPushButton::clicked, this, &Clavier::switchKeyboard);
+    connect(switchButton, &QPushButton::clicked, this, &KeyboardDialog::switchKeyboard);
     gridLayout->addWidget(switchButton, row, 0);  // Mettre "123?" en bas à gauche
 
     // Ajouter les touches de symboles (Cachées au début)
@@ -165,7 +165,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     for (const QString &symbol : symbols1) {
         QPushButton *button = new QPushButton(symbol, this);
         button->setFixedSize(60, 60);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);
         symbolButtons.append(button);
         button->setVisible(false);  // Cacher les symboles au début
@@ -177,7 +177,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     for (const QString &symbol : symbols2) {
         QPushButton *button = new QPushButton(symbol, this);
         button->setFixedSize(60, 60);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);
         symbolButtons.append(button);
         button->setVisible(false);  // Cacher les symboles au début
@@ -190,7 +190,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
     for (const QString &symbol : symbols3) {
         QPushButton *button = new QPushButton(symbol, this); // ✅ Crée le bouton avant de l'utiliser
         button->setFixedSize(60, 60);
-        connect(button, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(button, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         gridLayout->addWidget(button, row, col++);
         symbolButtons.append(button);
         button->setVisible(false);  // Cacher les symboles au début
@@ -202,7 +202,7 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
 
     longPressTimer = new QTimer(this);
     longPressTimer->setSingleShot(true);
-    connect(longPressTimer, &QTimer::timeout, this, &Clavier::handleLongPress);
+    connect(longPressTimer, &QTimer::timeout, this, &KeyboardDialog::handleLongPress);
     accentPopup = nullptr;
 
     // Mapping des touches avec leurs variantes accentuées
@@ -226,13 +226,13 @@ Clavier::Clavier(QWidget *parent) : QDialog(parent), majusculeActive(true)
 
 }
 
-QString Clavier::getText() const
+QString KeyboardDialog::getText() const
 {
     return lineEdit->text();
 }
 
 // Fonction pour ajouter un texte dans le champ
-void Clavier::handleButton()
+void KeyboardDialog::handleButton()
 {
     QPushButton *button = qobject_cast<QPushButton *>(sender());
     if (!button) return;
@@ -252,7 +252,7 @@ void Clavier::handleButton()
 
 
 // Fonction pour supprimer un caractère
-void Clavier::deleteChar()
+void KeyboardDialog::deleteChar()
 {
     if (!lineEdit->text().isEmpty())
     {
@@ -265,7 +265,7 @@ void Clavier::deleteChar()
 }
 
 // Fonction pour valider l'entrée et fermer la fenêtre
-void Clavier::validateText()
+void KeyboardDialog::validateText()
 {
     accept();
     QString current = lineEdit->text();
@@ -275,7 +275,7 @@ void Clavier::validateText()
 
 }
 
-void Clavier::toggleShift()
+void KeyboardDialog::toggleShift()
 {
     if (!majusculeActive)
     {
@@ -300,7 +300,7 @@ void Clavier::toggleShift()
 }
 
 
-void Clavier::updateKeys()
+void KeyboardDialog::updateKeys()
 {
     for (QPushButton *button : allButtons) {
         QString text = button->text();
@@ -322,7 +322,7 @@ void Clavier::updateKeys()
 
 
 // Ajout de l'espace
-void Clavier::addSpace()
+void KeyboardDialog::addSpace()
 {
     lineEdit->insert(" ");
     emit textChangedExternally(lineEdit->text());
@@ -330,14 +330,14 @@ void Clavier::addSpace()
 }
 
 // Ajout de l'underscore
-void Clavier::addUnderscore()
+void KeyboardDialog::addUnderscore()
 {
     lineEdit->insert("_");
     emit textChangedExternally(lineEdit->text());
     updateSuggestions();
 }
 
-void Clavier::updateKeyboard()
+void KeyboardDialog::updateKeyboard()
 {
     if (isSymbolMode) {
         // Masquer les touches principales et afficher les symboles
@@ -372,13 +372,13 @@ void Clavier::updateKeyboard()
 }
 
 
-void Clavier::switchKeyboard()
+void KeyboardDialog::switchKeyboard()
 {
     isSymbolMode = !isSymbolMode;  // Inverser l'état du clavier
     updateKeyboard();
 }
 
-void Clavier::startDeleteDelay()
+void KeyboardDialog::startDeleteDelay()
 {
     deleteChar();
     if (deleteDelayTimer->isActive())
@@ -388,20 +388,20 @@ void Clavier::startDeleteDelay()
     deleteDelayTimer->start(500);  // Démarrer un délai de 500ms avant l’effacement rapide
 }
 
-void Clavier::startDelete()
+void KeyboardDialog::startDelete()
 {
     if (!deleteTimer->isActive()) {
         deleteTimer->start(75);  // Démarrer l'effacement toutes les 100ms
     }
 }
 
-void Clavier::stopDelete()
+void KeyboardDialog::stopDelete()
 {
     deleteTimer->stop();  // Stopper l’effacement rapide
     deleteDelayTimer->stop();  // Stopper aussi le délai s'il n’est pas fini
 }
 
-void Clavier::handleAccent() {
+void KeyboardDialog::handleAccent() {
     QPushButton* button = qobject_cast<QPushButton*>(sender());
     if (button) {
         QString text = button->text();
@@ -430,7 +430,7 @@ void Clavier::handleAccent() {
 }
 
 
-void Clavier::handleLongPress()
+void KeyboardDialog::handleLongPress()
 {
     if (currentLongPressButton) {
         QString buttonText = currentLongPressButton->text();
@@ -448,7 +448,7 @@ void Clavier::handleLongPress()
 }
 
 
-void Clavier::showAccentPopup(QPushButton* button) {
+void KeyboardDialog::showAccentPopup(QPushButton* button) {
     if (accentPopup) return;
 
     // ✅ Création de l'overlay semi-transparent
@@ -461,7 +461,7 @@ void Clavier::showAccentPopup(QPushButton* button) {
     accentPopup = new QWidget(this);
     accentPopup->setWindowFlags(Qt::Popup);
     accentPopup->setAttribute(Qt::WA_DeleteOnClose);
-    connect(accentPopup, &QWidget::destroyed, this, &Clavier::hideAccentPopup); // Supprime overlay à la fermeture
+    connect(accentPopup, &QWidget::destroyed, this, &KeyboardDialog::hideAccentPopup); // Supprime overlay à la fermeture
     accentLayout = new QGridLayout(accentPopup);
 
     QStringList accents = accentMap.value(button->text());
@@ -469,7 +469,7 @@ void Clavier::showAccentPopup(QPushButton* button) {
     for (const QString &accent : accents) {
         QPushButton* accentButton = new QPushButton(accent, accentPopup);
         accentButton->setFixedSize(50, 50);
-        connect(accentButton, &QPushButton::clicked, this, &Clavier::insertAccent);
+        connect(accentButton, &QPushButton::clicked, this, &KeyboardDialog::insertAccent);
         accentLayout->addWidget(accentButton, 0, col++);
     }
 
@@ -481,7 +481,7 @@ void Clavier::showAccentPopup(QPushButton* button) {
 
 
 
-void Clavier::insertAccent() {
+void KeyboardDialog::insertAccent() {
     QPushButton* accentButton = qobject_cast<QPushButton*>(sender());
     if (accentButton) {
         lineEdit->insert(accentButton->text());
@@ -491,7 +491,7 @@ void Clavier::insertAccent() {
     hideAccentPopup();
 }
 
-void Clavier::hideAccentPopup() {
+void KeyboardDialog::hideAccentPopup() {
     if (accentPopup) {
         accentPopup->close();
         accentPopup = nullptr;
@@ -505,13 +505,13 @@ void Clavier::hideAccentPopup() {
     }
 }
 
-void Clavier::stopTimer() {
+void KeyboardDialog::stopTimer() {
     deleteTimer->stop();
     deleteDelayTimer->stop();
     hideAccentPopup(); // Cache les accents si le doigt est levé
 }
 
-void Clavier::startLongPress()
+void KeyboardDialog::startLongPress()
 {
     QPushButton* button = qobject_cast<QPushButton*>(sender());
     if (button) {
@@ -534,12 +534,12 @@ void Clavier::startLongPress()
     }
 }
 
-void Clavier::stopLongPress()
+void KeyboardDialog::stopLongPress()
 {
     longPressTimer->stop();  // Annule l'appui long si la touche est relâchée
 }
 
-void Clavier::switchLayout()
+void KeyboardDialog::switchLayout()
 {
     // ✅ Alterner immédiatement entre AZERTY et QWERTY
     if (currentLayout == AZERTY)
@@ -556,7 +556,7 @@ void Clavier::switchLayout()
     updateKeyboardLayout();  // ✅ Appliquer immédiatement le changement
 }
 
-void Clavier::updateKeyboardLayout()
+void KeyboardDialog::updateKeyboardLayout()
 {
     // 1) Une seule déclaration, tout en haut
     QStringList newRow1, newRow2, newRow3;
@@ -586,7 +586,7 @@ void Clavier::updateKeyboardLayout()
         buttonM->setFixedSize(60, 60);
         allButtons.append(buttonM);
         row3Buttons.append(buttonM);
-        connect(buttonM, &QPushButton::clicked, this, &Clavier::handleButton);
+        connect(buttonM, &QPushButton::clicked, this, &KeyboardDialog::handleButton);
         // colonne = index+1 (décalage)
         int column = row3Buttons.size() /*=7*/;
         gridLayout->addWidget(buttonM, 3, column);
@@ -611,7 +611,7 @@ void Clavier::updateKeyboardLayout()
     updateKeys();
 }
 
-void Clavier::updateSuggestions()
+void KeyboardDialog::updateSuggestions()
 {
     QString currentText = lineEdit->text().trimmed();
     suggestionList->clear();
@@ -624,7 +624,7 @@ void Clavier::updateSuggestions()
     QString pattern = "^" + QRegularExpression::escape(currentText);
     QRegularExpression rx(pattern, QRegularExpression::CaseInsensitiveOption);
 
-    QStringList matches = Inventaire::getInstance()
+    QStringList matches = Inventory::getInstance()
                               ->getAllShapeNames()
                               .filter(rx);
 
@@ -648,14 +648,14 @@ void Clavier::updateSuggestions()
     }
 }
 
-void Clavier::loadUsageHistory()
+void KeyboardDialog::loadUsageHistory()
 {
     QSettings settings("AubeElectronique", "EauCouper");
-    usageHistory = settings.value("Clavier/UsageHistory").toStringList();
+    usageHistory = settings.value("KeyboardDialog/UsageHistory").toStringList();
 }
 
-void Clavier::saveUsageHistory() const
+void KeyboardDialog::saveUsageHistory() const
 {
     QSettings settings("AubeElectronique", "EauCouper");
-    settings.setValue("Clavier/UsageHistory", usageHistory);
+    settings.setValue("KeyboardDialog/UsageHistory", usageHistory);
 }

@@ -18,7 +18,7 @@ static constexpr int    VIS_DELAY_MS  = 15;   // délai visualisation (ms)
 static constexpr double mmPerPx       = 1.0;  // calibration plateau
 static constexpr int    VIS_SAMPLE_PX = 1;    // pas entre deux points affichés
 
-TrajetMotor::TrajetMotor(FormeVisualization* visu, QWidget* parent)
+TrajetMotor::TrajetMotor(ShapeVisualization* visu, QWidget* parent)
     : QWidget(parent), m_visu(visu)
 {}
 
@@ -107,7 +107,7 @@ static int estimateTotalSteps(const QList<Segment>& segs)
 // -----------------------------------------------------------------------------
 // Helper pour colorier un segment
 // -----------------------------------------------------------------------------
-static void drawSegment(FormeVisualization* v,
+static void drawSegment(ShapeVisualization* v,
                         const QPoint& a, const QPoint& b,
                         bool cut)
 {

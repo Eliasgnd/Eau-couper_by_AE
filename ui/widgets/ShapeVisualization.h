@@ -10,19 +10,19 @@
 #include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
 #include "ShapeModel.h"
-#include "Inventaire.h"
+#include "Inventory.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
 // -----------------------------------------------------------------------------
-class FormeVisualization : public QWidget {
+class ShapeVisualization : public QWidget {
     Q_OBJECT
 
     // <<< AJOUT : propriété "taille plateau en mm" (X=largeur, Y=hauteur)
     Q_PROPERTY(QSizeF sheetSizeMm READ sheetSizeMm WRITE setSheetSizeMm NOTIFY sheetSizeMmChanged)
 
 public:
-    explicit FormeVisualization(QWidget *parent = nullptr);
+    explicit ShapeVisualization(QWidget *parent = nullptr);
 
     // --- API existante ---
     void setModel(ShapeModel::Type model);

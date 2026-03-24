@@ -4,12 +4,12 @@
 #include <QWidget>
 class MainWindow;
 #include "MotorControl.h"
-#include "FormeVisualization.h"
+#include "ShapeVisualization.h"
 
 class TrajetMotor : public QWidget {
     Q_OBJECT
 public:
-    explicit TrajetMotor(FormeVisualization* visu, QWidget* parent = nullptr);
+    explicit TrajetMotor(ShapeVisualization* visu, QWidget* parent = nullptr);
 
     /// Démarre le parcours de découpe
     void executeTrajet();
@@ -33,7 +33,7 @@ signals:
     void decoupeProgress(int remaining, int total);
 
 private:
-    FormeVisualization* m_visu{};  // Vue pour le dessin
+    ShapeVisualization* m_visu{};  // Vue pour le dessin
     MotorControl        m_motor;   // Simulation des moteurs
 
     bool m_paused        = false;  // Vrai si pause active

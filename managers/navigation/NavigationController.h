@@ -6,17 +6,17 @@
 #include <QPolygonF>
 #include <QString>
 #include "Language.h"
-#include "Inventaire.h"
+#include "Inventory.h"
 #include "ShapeModel.h"
 
 class QWidget;
-class Custom;
+class CustomEditor;
 class WifiTransferWidget;
 class WifiConfigDialog;
 class BluetoothReceiverDialog;
 class TestGpio;
-class DossierWidget;
-class Dispositions;
+class FolderWidget;
+class LayoutsDialog;
 
 class NavigationController : public QObject
 {
@@ -24,14 +24,14 @@ class NavigationController : public QObject
 public:
     explicit NavigationController(QObject *parent = nullptr);
 
-    void showInventaire(QWidget *from, QWidget *inventaire);
-    Custom *openCustomEditor(QWidget *from, Language language);
+    void showInventory(QWidget *from, QWidget *inventory);
+    CustomEditor *openCustomEditor(QWidget *from, Language language);
     WifiTransferWidget *openWifiTransfer(QWidget *from);
     WifiConfigDialog *openWifiSettings(QWidget *from);
     BluetoothReceiverDialog *openBluetoothReceiver(QWidget *from);
     TestGpio *openTestGpio(QWidget *from);
-    DossierWidget *openDossier(QWidget *from, Language language);
-    Dispositions *openDispositions(QWidget *from,
+    FolderWidget *openFolder(QWidget *from, Language language);
+    LayoutsDialog *openLayoutsDialog(QWidget *from,
                                    const QString &shapeName,
                                    const QList<LayoutData> &layouts,
                                    const QList<QPolygonF> &shapePolygons,

@@ -15,7 +15,7 @@ class QAction;
 class QMenu;
 class QLabel;
 struct LayoutData;
-class FormeVisualization;
+class ShapeVisualization;
 class CustomDrawArea;
 class NavigationController;
 class AIServiceManager;
@@ -26,7 +26,7 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    FormeVisualization* getFormeVisualization() const;
+    ShapeVisualization* getShapeVisualization() const;
     Language displayLanguage() const { return m_displayLanguage; }
     void openImageInCustom(const QString &filePath,
                            bool internalContours = false,
@@ -52,13 +52,13 @@ public slots:
     void onLanguageApplied(Language lang, bool ok);
 
 private slots:
-    void updateForme();
+    void updateShape();
     void changeToCircle();
     void changeToRectangle();
     void changeToTriangle();
     void changeToStar();
     void changeToHeart();
-    void showInventaire();
+    void showInventory();
     void showCustom();
     void openTestGpio();
     void on_receptionFichierButton_clicked();
@@ -77,7 +77,7 @@ private slots:
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
 
     void openAIImagePromptDialog();
-    void showDossier();
+    void showFolder();
 
     void setLanguageFrench();
     void setLanguageEnglish();
@@ -96,7 +96,7 @@ private:
     void setupSystemConnections();
     void setupModels();
     void retranslateDynamicUi();
-    void onShapeSelectedFromInventaire(ShapeModel::Type type);
+    void onShapeSelectedFromInventory(ShapeModel::Type type);
     void StartPixel();
     bool promptAndSaveCurrentCustomShape();
     void applySelectedLayoutToControls(const LayoutData &layout);
@@ -109,7 +109,7 @@ private:
     QAction *actionWifiConfig = nullptr;
 
     Ui::MainWindow *ui;
-    FormeVisualization *formeVisualization = nullptr;
+    ShapeVisualization *shapeVisualization = nullptr;
     CustomDrawArea *drawArea = nullptr;
     NavigationController *m_navigationController = nullptr;
     AIServiceManager *m_aiServiceManager = nullptr;

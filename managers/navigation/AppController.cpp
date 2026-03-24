@@ -1,7 +1,7 @@
 #include "AppController.h"
 
 #include "MainWindow.h"
-#include "FormeVisualization.h"
+#include "ShapeVisualization.h"
 #include "TrajetMotor.h"
 #include "OpenAIService.h"
 
@@ -17,20 +17,20 @@ void AppController::setMainWindow(MainWindow *window)
     m_mainWindow = window;
 }
 
-void AppController::setFormeVisualization(FormeVisualization *visualization)
+void AppController::setShapeVisualization(ShapeVisualization *visualization)
 {
-    m_formeVisualization = visualization;
+    m_shapeVisualization = visualization;
     ensureServicesInitialized();
 }
 
 bool AppController::ensureServicesInitialized()
 {
-    if (!m_formeVisualization || !m_mainWindow) {
+    if (!m_shapeVisualization || !m_mainWindow) {
         return false;
     }
 
     if (!m_trajetMotor) {
-        m_trajetMotor = new TrajetMotor(m_formeVisualization, m_mainWindow);
+        m_trajetMotor = new TrajetMotor(m_shapeVisualization, m_mainWindow);
 
         connect(m_trajetMotor, &TrajetMotor::decoupeProgress, this,
                 [this](int remaining, int total) {
@@ -67,16 +67,16 @@ void AppController::startCutting()
         return;
     }
 
-    m_formeVisualization->resetAllShapeColors();
-    if (!m_formeVisualization->validateShapes()) {
+    m_shapeVisualization->resetAllShapeColors();
+    if (!m_shapeVisualization->validateShapes()) {
         emit aiGenerationStatus(tr("Certaines formes dépassent la zone ou se chevauchent."));
         emit cutFinished(false);
         return;
     }
 
     emit cutControlsEnabled(false);
-    m_formeVisualization->setDecoupeEnCours(true);
-    m_formeVisualization->resetAllShapeColors();
+    m_shapeVisualization->setDecoupeEnCours(true);
+    m_shapeVisualization->resetAllShapeColors();
     m_trajetMotor->executeTrajet();
 }
 
@@ -84,7 +84,7 @@ void AppController::stopCutting()
 {
     if (!ensureServicesInitialized()) return;
     m_trajetMotor->stopCut();
-    m_formeVisualization->setDecoupeEnCours(false);
+    m_shapeVisualization->setDecoupeEnCours(false);
     emit cutProgressUpdated(0, tr("Temps restant estimé : 0s"));
     emit cutControlsEnabled(true);
     emit cutFinished(true);

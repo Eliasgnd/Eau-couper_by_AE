@@ -1,5 +1,5 @@
-#ifndef CUSTOM_H
-#define CUSTOM_H
+#ifndef CUSTOMEDITOR_H
+#define CUSTOMEDITOR_H
 
 #include <QWidget>
 #include "CustomDrawArea.h"
@@ -9,25 +9,25 @@
 #include "ImageEdgeImporter.h"
 
 namespace Ui {
-class Custom;
+class CustomEditor;
 }
 
 // Classe représentant la fenêtre personnalisée
-class Custom : public QWidget
+class CustomEditor : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit Custom(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
-    ~Custom(); // Destructeur
-    void updateFormeButtonIcon(CustomDrawArea::DrawMode mode);
+    explicit CustomEditor(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
+    ~CustomEditor(); // Destructeur
+    void updateShapeButtonIcon(CustomDrawArea::DrawMode mode);
 
 protected:
     void changeEvent(QEvent *event) override;
 
 
 private:
-    Ui::Custom *ui;
+    Ui::CustomEditor *ui;
     CustomDrawArea *drawArea; // Instance de la zone de dessin
     QGraphicsView  *m_colorView{};
     QGraphicsView  *m_edgeView{};
@@ -39,8 +39,8 @@ private:
 
 private slots:
     void goToMainWindow(); // Retourner à la fenêtre principale
-    void ouvrirClavier(); // Ouvrir le clavier virtuel
-    void closeCustom(); // Fermer la fenêtre custom
+    void openKeyboardDialog(); // Ouvrir le clavier virtuel
+    void closeEditor(); // Fermer la fenêtre custom
     void importerLogo(); // Importer un logo dans la zone de dessin
     void importerImageCouleur(); // Importer une image couleur et afficher les bords
     void saveCustomShape(); // Sauvegarder une forme personnalisée
@@ -54,4 +54,4 @@ public:
     CustomDrawArea* getDrawArea() const { return drawArea; }
 };
 
-#endif // CUSTOM_H
+#endif // CUSTOMEDITOR_H

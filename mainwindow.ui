@@ -205,7 +205,7 @@ QPushButton:checked { background-color: green; }</string>
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="buttonInventaire">
+       <widget class="QPushButton" name="buttonInventory">
         <property name="minimumSize">
          <size>
           <width>0</width>
@@ -221,7 +221,7 @@ QPushButton:hover { background-color: #26C6DA; }
 QPushButton:pressed { background-color: #008C9E; }</string>
         </property>
         <property name="text">
-         <string>Inventaire                      </string>
+         <string>Inventory                      </string>
         </property>
         <property name="icon">
          <iconset resource="resources.qrc">
@@ -609,7 +609,7 @@ QPushButton:pressed { background-color: #B71C1C; }</string>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout" stretch="1">
         <item>
-         <widget class="FormeVisualization" name="formeVisualizationWidget" native="true">
+         <widget class="ShapeVisualization" name="shapeVisualizationWidget" native="true">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1092,9 +1092,9 @@ QPushButton:pressed { background-color: #008C9E; }</string>
  </widget>
  <customwidgets>
   <customwidget>
-   <class>FormeVisualization</class>
+   <class>ShapeVisualization</class>
    <extends>QWidget</extends>
-   <header location="global">FormeVisualization.h</header>
+   <header location="global">ShapeVisualization.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

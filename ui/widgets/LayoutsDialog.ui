@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Dispositions</class>
- <widget class="QWidget" name="Dispositions">
+ <class>LayoutsDialog</class>
+ <widget class="QWidget" name="LayoutsDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -117,7 +117,7 @@ QPushButton:pressed {
     </layout>
    </item>
    <item>
-    <widget class="QScrollArea" name="scrollAreaDispositions">
+    <widget class="QScrollArea" name="scrollAreaLayoutsDialog">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>

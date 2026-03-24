@@ -6,30 +6,30 @@
 #include <QPolygonF>
 #include <QFrame>
 #include <QString>
-#include "Inventaire.h" // for LayoutData
+#include "Inventory.h" // for LayoutData
 #include "Language.h"
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class Dispositions; }
+namespace Ui { class LayoutsDialog; }
 QT_END_NAMESPACE
 
-class Dispositions : public QWidget
+class LayoutsDialog : public QWidget
 {
     Q_OBJECT
 public:
-    Dispositions(const QString &shapeName,
+    LayoutsDialog(const QString &shapeName,
                  const QList<LayoutData> &layouts,
                  const QList<QPolygonF> &shapePolygons,
                  Language lang,
                  bool isBaseShape = false,
                  ShapeModel::Type baseType = ShapeModel::Type::Circle,
                  QWidget *parent = nullptr);
-    ~Dispositions();
+    ~LayoutsDialog();
 
 signals:
     void layoutSelected(const LayoutData &layout);
     void shapeOnlySelected();
-    void requestOpenInventaire();
+    void requestOpenInventory();
     void closed();
 
 protected:
@@ -43,7 +43,7 @@ private slots:
     void onSortChanged(int index);
 
 private:
-    Ui::Dispositions *ui;
+    Ui::LayoutsDialog *ui;
     QFrame* createLayoutFrame(int index);
     QFrame* createBaseShapeFrame();
     void displayLayouts(const QString &filter = QString());

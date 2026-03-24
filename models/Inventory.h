@@ -14,7 +14,7 @@
 #include "Language.h"
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class Inventaire; }
+namespace Ui { class Inventory; }
 QT_END_NAMESPACE
 
 // -----------------------------------------------------------------------------
@@ -50,7 +50,7 @@ struct CustomShapeData {
 };
 
 // Structure pour un dossier
-struct InventaireFolder {
+struct InventoryFolder {
     QString name;
     QString parentFolder;  // vide si dossier racine
     int usageCount {0};
@@ -59,18 +59,18 @@ struct InventaireFolder {
 
 
 // -----------------------------------------------------------------------------
-// Inventaire widget
+// Inventory widget
 // -----------------------------------------------------------------------------
-class Inventaire : public QWidget
+class Inventory : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit Inventaire(QWidget *parent = nullptr);
-    ~Inventaire() override;
+    explicit Inventory(QWidget *parent = nullptr);
+    ~Inventory() override;
 
     // Singleton accessor
-    static Inventaire* getInstance();
+    static Inventory* getInstance();
 
     // Public attributes -------------------------------------------------------
     bool gros_cavu {false};
@@ -139,8 +139,8 @@ private:
     // ---------------------------------------------------------------------
     // Data members
     // ---------------------------------------------------------------------
-    Ui::Inventaire *ui {nullptr};
-    static Inventaire *instance;
+    Ui::Inventory *ui {nullptr};
+    static Inventory *instance;
 
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
@@ -149,7 +149,7 @@ private:
     QMap<ShapeModel::Type, QDateTime> m_baseLastUsed;
     QList<ShapeModel::Type> m_baseShapeOrder;
     Language currentLanguage {Language::French};
-    QList<InventaireFolder> m_folders;
+    QList<InventoryFolder> m_folders;
 
     QFrame *createFolderCard(const QString &folderName);
     QFrame *createBaseShapeCard(ShapeModel::Type type, const QString &name);

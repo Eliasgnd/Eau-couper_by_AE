@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     MainWindow w;
 
     controller.setMainWindow(&w);
-    controller.setFormeVisualization(w.getFormeVisualization());
+    controller.setShapeVisualization(w.getShapeVisualization());
 
     QObject::connect(&w, &MainWindow::requestStartCut,
                      &controller, &AppController::startCutting);
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
                      &w, &MainWindow::onLanguageApplied);
 
     w.showFullScreen();
-    filter.setFormeVisualization(w.getFormeVisualization());
+    filter.setShapeVisualization(w.getShapeVisualization());
 
     return app.exec();
 }

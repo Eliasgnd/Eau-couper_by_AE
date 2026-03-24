@@ -1,4 +1,4 @@
-// ClavierNumerique.h
+// NumericKeyboardDialog.h
 #ifndef CLAVIERNUMERIQUE_H
 #define CLAVIERNUMERIQUE_H
 
@@ -8,16 +8,16 @@
 #include <QLineEdit>
 #include <QList>
 //test brache rudy 2
-class ClavierNumerique : public QDialog
+class NumericKeyboardDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit ClavierNumerique(QWidget *parent = nullptr);  // Constructeur du pavé numérique
+    explicit NumericKeyboardDialog(QWidget *parent = nullptr);  // Constructeur du pavé numérique
     QString getText() const;  // Récupère le texte saisi par l'utilisateur
 
     /// Ouvre modally le pavé numérique, renvoie true si validé et place la valeur dans 'out'
-    static bool ouvrirClavierNum(QWidget *parent, int &out);
+    static bool openNumericKeyboardDialog(QWidget *parent, int &out);
 
 private slots:
     void handleButton();      // Insère un chiffre ou un point décimal

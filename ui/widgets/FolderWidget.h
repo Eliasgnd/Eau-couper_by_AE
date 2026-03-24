@@ -13,15 +13,15 @@ class QLayout;
 class QListWidgetItem;
 
 namespace Ui {
-class DossierWidget;
+class FolderWidget;
 }
 
-class DossierWidget : public QWidget
+class FolderWidget : public QWidget
 {
     Q_OBJECT
 public:
-    explicit DossierWidget(Language lang = Language::French, QWidget *parent = nullptr);
-    ~DossierWidget() override;
+    explicit FolderWidget(Language lang = Language::French, QWidget *parent = nullptr);
+    ~FolderWidget() override;
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -47,7 +47,7 @@ private:
     void openInExplorer(const QFileInfo &fi);
 
     // UI
-    Ui::DossierWidget *ui = nullptr;
+    Ui::FolderWidget *ui = nullptr;
 
     // Widgets créés dynamiquement (barre d’outils)
     QComboBox   *m_sourceFilter = nullptr;

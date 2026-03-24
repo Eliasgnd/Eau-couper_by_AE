@@ -1,11 +1,11 @@
-#include "Custom.h"
+#include "CustomEditor.h"
 #include "MainWindow.h"
 #include "qlayout.h"
 #include "qsplitter.h"
 #include "qstatusbar.h"
-#include "ui_Custom.h"
-#include "Clavier.h"
-#include "Inventaire.h"
+#include "ui_CustomEditor.h"
+#include "KeyboardDialog.h"
+#include "Inventory.h"
 #include "LogoImporter.h"
 #include "ImageEdgeImporter.h"
 #include <QGraphicsView>
@@ -65,9 +65,9 @@ static QString modeToString(CustomDrawArea::DrawMode mode)
 }
 
 // Constructeur : création de l'interface et des connexions
-Custom::Custom(Language lang, QWidget *parent)
+CustomEditor::CustomEditor(Language lang, QWidget *parent)
     : QWidget(parent),
-    ui(new Ui::Custom)
+    ui(new Ui::CustomEditor)
 {
     Q_UNUSED(lang);
     ui->setupUi(this);
@@ -249,10 +249,10 @@ Custom::Custom(Language lang, QWidget *parent)
     });
 
     // Bouton "Menu" : retourne à la fenêtre principale
-    connect(ui->buttonMenu, &QPushButton::clicked, this, &Custom::goToMainWindow);
+    connect(ui->buttonMenu, &QPushButton::clicked, this, &CustomEditor::goToMainWindow);
 
     // Bouton "Save" : enregistre la forme personnalisée
-    connect(ui->buttonSave, &QPushButton::clicked, this, &Custom::saveCustomShape);
+    connect(ui->buttonSave, &QPushButton::clicked, this, &CustomEditor::saveCustomShape);
 
     //Relier deux extrémités
     connect(ui->buttonConnect, &QPushButton::clicked, this, [this]() {
@@ -268,7 +268,7 @@ Custom::Custom(Language lang, QWidget *parent)
     connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
 
     // Bouton copier/coller
-    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &Custom::onCopyPasteClicked);
+    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &CustomEditor::onCopyPasteClicked);
 
 
     connect(ui->buttonCloseShape, &QPushButton::clicked, this, [this]() {
@@ -334,10 +334,10 @@ Custom::Custom(Language lang, QWidget *parent)
 
     ui->buttonForme->setMenu(menuForme);
     ui->buttonForme->setPopupMode(QToolButton::InstantPopup);
-    updateFormeButtonIcon(drawArea->getDrawMode());
+    updateShapeButtonIcon(drawArea->getDrawMode());
     connect(drawArea, &CustomDrawArea::drawModeChanged, this,
             [this](CustomDrawArea::DrawMode m){
-                updateFormeButtonIcon(m);
+                updateShapeButtonIcon(m);
                 if (auto mw = qobject_cast<QMainWindow*>(window()))
                     mw->statusBar()->showMessage(modeToString(m));
             });
@@ -390,44 +390,44 @@ Custom::Custom(Language lang, QWidget *parent)
     // Mode Texte : afficher fontContainer
     connect(actionText, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Text);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::Text);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::Text);
         //qDebug() << "Mode Texte activé";
         fontContainer->show();
     });
     // Mode Texte fin : afficher fontContainer
     connect(actionThinText, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::ThinText);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::ThinText);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::ThinText);
         fontContainer->show();
     });
     // Pour les autres modes, cacher fontContainer
     connect(actionAlaMain, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Freehand);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::Freehand);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::Freehand);
         //qDebug() << "Mode À la main activé";
         fontContainer->hide();
     });
     connect(actionPointParPoint, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::PointParPoint);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::PointParPoint);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::PointParPoint);
         //qDebug() << "Mode Point par point activé";
         fontContainer->hide();
     });
     connect(actionLigne, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Line);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::Line);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::Line);
         //qDebug() << "Mode Ligne activé";
         fontContainer->hide();
     });
     connect(actionCercle, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Circle);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::Circle);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::Circle);
         //qDebug() << "Mode Cercle activé";
         fontContainer->hide();
     });
     connect(actionRectangle, &QAction::triggered, this, [=]() {
         drawArea->setDrawMode(CustomDrawArea::DrawMode::Rectangle);
-        updateFormeButtonIcon(CustomDrawArea::DrawMode::Rectangle);
+        updateShapeButtonIcon(CustomDrawArea::DrawMode::Rectangle);
         //qDebug() << "Mode Rectangle activé";
         fontContainer->hide();
     });
@@ -455,7 +455,7 @@ Custom::Custom(Language lang, QWidget *parent)
         ui->buttonDeplacer->setStyleSheet(ui->buttonDeplacer->styleSheet());
 
         ui->buttonDeplacer->update();
-        if (enabled) updateFormeButtonIcon(CustomDrawArea::DrawMode::Deplacer);
+        if (enabled) updateShapeButtonIcon(CustomDrawArea::DrawMode::Deplacer);
     });
 
     qDebug() << "[DEBUG] Connexion faite avec deplacerModeChanged";
@@ -482,7 +482,7 @@ Custom::Custom(Language lang, QWidget *parent)
 
                 ui->buttonSupprimer->setStyleSheet(ui->buttonSupprimer->styleSheet());
                 ui->buttonSupprimer->update();
-                if (enabled) updateFormeButtonIcon(CustomDrawArea::DrawMode::Supprimer);
+                if (enabled) updateShapeButtonIcon(CustomDrawArea::DrawMode::Supprimer);
             });
 
     connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
@@ -503,7 +503,7 @@ Custom::Custom(Language lang, QWidget *parent)
 
                 ui->buttonGomme->setStyleSheet(ui->buttonGomme->styleSheet());
                 ui->buttonGomme->update();
-                if (enabled) updateFormeButtonIcon(CustomDrawArea::DrawMode::Gomme);
+                if (enabled) updateShapeButtonIcon(CustomDrawArea::DrawMode::Gomme);
             });
 
 
@@ -517,8 +517,8 @@ Custom::Custom(Language lang, QWidget *parent)
     importMenu->addAction(actionImportImage);
     ui->buttonImporter->setMenu(importMenu);
     ui->buttonImporter->setPopupMode(QToolButton::InstantPopup);
-    connect(actionImportLogo, &QAction::triggered, this, &Custom::importerLogo);
-    connect(actionImportImage, &QAction::triggered, this, &Custom::importerImageCouleur);
+    connect(actionImportLogo, &QAction::triggered, this, &CustomEditor::importerLogo);
+    connect(actionImportImage, &QAction::triggered, this, &CustomEditor::importerImageCouleur);
 
     // --- Connexions pour mettre à jour la police dans drawArea ---
     connect(fontCombo, &QFontComboBox::currentFontChanged, this, [=]() {
@@ -645,32 +645,32 @@ Custom::Custom(Language lang, QWidget *parent)
 
 }
 
-Custom::~Custom()
+CustomEditor::~CustomEditor()
 {
     delete ui;
 }
 
-void Custom::goToMainWindow()
+void CustomEditor::goToMainWindow()
 {
     this->close();
     if (auto mw = resolveMainWindow()) mw->showFullScreen();
 }
 
-void Custom::closeCustom()
+void CustomEditor::closeEditor()
 {
     this->close();
     delete this;
 }
 
-void Custom::ouvrirClavier()
+void CustomEditor::openKeyboardDialog()
 {
-    Clavier clavier(this);
+    KeyboardDialog clavier(this);
     if (clavier.exec() == QDialog::Accepted) {
         QString texteSaisi = clavier.getText();
     }
 }
 
-void Custom::saveCustomShape() {
+void CustomEditor::saveCustomShape() {
     // Récupère toutes les formes (traits) du CustomDrawArea
     QList<QPolygonF> shapes = drawArea->getCustomShapes();
     if (shapes.isEmpty()) {
@@ -689,7 +689,7 @@ void Custom::saveCustomShape() {
         if (shapeName.isEmpty())
             continue;
         // custom.cpp ── dans saveCustomShape()
-        if (Inventaire::getInstance()->shapeNameExists(shapeName))
+        if (Inventory::getInstance()->shapeNameExists(shapeName))
         {
             // Boîte d'avertissement SANS boutons, modale, fermée après 2,5 s
             QMessageBox msg(QMessageBox::Warning,
@@ -728,11 +728,11 @@ void Custom::saveCustomShape() {
     }
     painter.end();
 
-    // Sauvegarde de l'image dans l'inventaire
-    Inventaire::getInstance()->addSavedCustomShape(shapes, shapeName);
+    // Sauvegarde de l'image dans l'inventory
+    Inventory::getInstance()->addSavedCustomShape(shapes, shapeName);
 }
 
-void Custom::importerLogo()
+void CustomEditor::importerLogo()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this,
@@ -779,7 +779,7 @@ void Custom::importerLogo()
     }
 }
 
-void Custom::importerImageCouleur()
+void CustomEditor::importerImageCouleur()
 {
     QString filePath = QFileDialog::getOpenFileName(
         this, tr("Sélectionner une image"),
@@ -809,7 +809,7 @@ void Custom::importerImageCouleur()
         drawArea->addImportedLogoSubpath(sp);
 }
 
-void Custom::onCopyPasteClicked()
+void CustomEditor::onCopyPasteClicked()
 {
     if (ui->buttonCopyPaste->text() == tr("Copier")) {
         drawArea->copySelectedShapes();
@@ -825,7 +825,7 @@ void Custom::onCopyPasteClicked()
     }
 }
 
-void Custom::updateFormeButtonIcon(CustomDrawArea::DrawMode mode)
+void CustomEditor::updateShapeButtonIcon(CustomDrawArea::DrawMode mode)
 {
     static const QHash<CustomDrawArea::DrawMode, QString> iconMap = {
         { CustomDrawArea::DrawMode::Freehand,      ":/icons/freehand.svg" },
@@ -842,7 +842,7 @@ void Custom::updateFormeButtonIcon(CustomDrawArea::DrawMode mode)
         ui->buttonForme->setIcon(QIcon(it.value()));
 }
 
-void Custom::changeEvent(QEvent *event)
+void CustomEditor::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         ui->retranslateUi(this);
