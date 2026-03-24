@@ -8,5 +8,5 @@ class QGraphicsScene;
 class ImageExporter
 {
 public:
-    static QList<QPoint> extractBlackPixels(const QGraphicsScene *scene);
+    static QList<QPoint> extractBlackPixels( QGraphicsScene *scene);
 };

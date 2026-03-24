@@ -21,6 +21,20 @@ win32 {
     }
 }
 
+# ==== CHEMINS DE RECHERCHE (INCLUDEPATH) ====
+INCLUDEPATH += \
+    . \
+    models \
+    ui/widgets \
+    ui/dialogs \
+    managers/system \
+    managers/ai \
+    managers/navigation \
+    drawing \
+    drawing/utils \
+    drawing/tools \
+    drawing/shapes
+
 # ==== FICHIERS (HEADERS) ====
 HEADERS += \
     # --- MainWindow et UI principale ---

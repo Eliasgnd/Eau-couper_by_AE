@@ -4,7 +4,7 @@
 #include <QImage>
 #include <QPainter>
 
-QList<QPoint> ImageExporter::extractBlackPixels(const QGraphicsScene *scene)
+QList<QPoint> ImageExporter::extractBlackPixels(QGraphicsScene *scene)
 {
     QList<QPoint> blackPixels;
     if (!scene)
@@ -14,6 +14,7 @@ QList<QPoint> ImageExporter::extractBlackPixels(const QGraphicsScene *scene)
     image.fill(Qt::white);
 
     QPainter painter(&image);
+    // Maintenant, scene n'est plus const, l'appel est autorisé
     scene->render(&painter);
 
     for (int x = 0; x < image.width(); ++x) {
