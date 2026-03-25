@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QObject>
+#include <QList>
+#include <QPolygonF>
+#include <QString>
 
 #include "ui_mainwindow.h"
 #include "Language.h"
@@ -47,12 +50,28 @@ public:
     void bindTo(Ui::MainWindow *ui,
                 QWidget *mainWindow,
                 const std::function<Language()> &languageProvider);
+
+    void openImageInCustom(const QString &filePath,
+                           bool internalContours,
+                           bool colorEdges);
+
+public slots:
+    void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
+    void onShapeSelectedFromInventory(ShapeModel::Type type);
+
+    void onDimensionsChanged(int largeur, int longueur);
+    void onLanguageChanged(Language lang);
+
 signals:
     void generationStatusChanged(const QString &status);
     void imageReadyForImport(const QString &path, bool internalContours, bool colorEdges);
+    void requestShowFullScreen();
 
 private:
     NavigationController *m_navigationController = nullptr;
     AIServiceManager *m_aiServiceManager = nullptr;
     ShapeController *m_shapeController = nullptr;
+    int m_lastLargeur = 100;
+    int m_lastLongueur = 100;
+    Language m_language = Language::French;
 };

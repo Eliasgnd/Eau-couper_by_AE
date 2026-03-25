@@ -146,3 +146,63 @@ void MainWindowCoordinator::bindTo(Ui::MainWindow *ui,
     QObject::connect(ui->ButtonAddShape,      &QPushButton::clicked, m_shapeController, &ShapeController::addShape);
     QObject::connect(ui->ButtonDeleteShape,   &QPushButton::clicked, m_shapeController, &ShapeController::deleteShape);
 }
+
+void MainWindowCoordinator::onCustomShapeSelected(const QList<QPolygonF> &polygons,
+                                                  const QString &name)
+{
+    if (!m_shapeController->loadCustomShapes(polygons, name,
+                                             m_lastLargeur, m_lastLongueur))
+        return;
+
+    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
+    if (!layouts.isEmpty()) {
+        m_navigationController->openLayoutsDialog(m_dialogParent, name,
+                                                  layouts, polygons,
+                                                  m_language);
+        return;
+    }
+
+    emit requestShowFullScreen();
+}
+
+void MainWindowCoordinator::onShapeSelectedFromInventory(ShapeModel::Type type)
+{
+    m_shapeController->setSelectedShapeType(type);
+    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForBaseShape(type);
+    if (!layouts.isEmpty()) {
+        QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
+        QString name = BaseShapeNamingService::baseShapeName(type, m_language);
+        m_navigationController->openLayoutsDialog(m_dialogParent, name,
+                                                  layouts, polys,
+                                                  m_language, true, type);
+        return;
+    }
+
+    m_shapeController->setPredefinedShape(type);
+}
+
+void MainWindowCoordinator::openImageInCustom(const QString &filePath,
+                                              bool internalContours,
+                                              bool colorEdges)
+{
+    QPainterPath outline = ImageImportService::processImageToPath(filePath,
+                                                                  internalContours,
+                                                                  colorEdges);
+    if (outline.isEmpty())
+        return;
+
+    m_navigationController->openCustomEditorWithImportedPath(m_dialogParent,
+                                                             m_language,
+                                                             outline);
+}
+
+void MainWindowCoordinator::onDimensionsChanged(int largeur, int longueur)
+{
+    m_lastLargeur = largeur;
+    m_lastLongueur = longueur;
+}
+
+void MainWindowCoordinator::onLanguageChanged(Language lang)
+{
+    m_language = lang;
+}

@@ -29,9 +29,6 @@ public:
     ShapeVisualization* getShapeVisualization() const;
     AIServiceManager* aiServiceManager() const { return m_aiServiceManager; }
     Language displayLanguage() const { return m_displayLanguage; }
-    void openImageInCustom(const QString &filePath,
-                           bool internalContours = false,
-                           bool colorEdges = false);
 
 signals:
     void requestStartCut();
@@ -51,8 +48,6 @@ public slots:
     void onLanguageApplied(Language lang, bool ok);
 
 private slots:
-    void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
-
     void setLanguageFrench();
     void setLanguageEnglish();
 
@@ -71,7 +66,6 @@ private:
     void setupSystemConnections();
     void setupModels();
     void retranslateDynamicUi();
-    void onShapeSelectedFromInventory(ShapeModel::Type type);
     void applySelectedLayoutToControls(const LayoutData &layout);
 
     // --- UI state ---

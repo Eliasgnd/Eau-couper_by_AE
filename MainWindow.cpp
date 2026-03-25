@@ -161,7 +161,7 @@ void MainWindow::setupConnections()
     connect(m_coordinator, &MainWindowCoordinator::imageReadyForImport, this,
             [this](const QString &path, bool internalContours, bool colorEdges) {
                 ui->progressBarAI->setVisible(false);
-                openImageInCustom(path, internalContours, colorEdges);
+                m_coordinator->openImageInCustom(path, internalContours, colorEdges); // ← appel sur Coordinator
             });
 }
 
@@ -169,7 +169,7 @@ void MainWindow::setupShapeConnections()
 {
     // Connection de l'inventory à la forme
     QObject::connect(Inventory::getInstance(), &Inventory::shapeSelected,
-                     this, &MainWindow::onShapeSelectedFromInventory);
+                     m_coordinator, &MainWindowCoordinator::onShapeSelectedFromInventory);
 
     // Connecter le signal du nombre de formes placées pour mettre à jour le label
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount,
@@ -201,6 +201,10 @@ void MainWindow::setupShapeConnections()
             [this]() { m_shapeController->updateShape(ui->Largeur->value(), ui->Longueur->value()); });
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this,
             [this]() { m_shapeController->updateShape(ui->Largeur->value(), ui->Longueur->value()); });
+    connect(ui->Largeur, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { m_coordinator->onDimensionsChanged(ui->Largeur->value(), ui->Longueur->value()); });
+    connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { m_coordinator->onDimensionsChanged(ui->Largeur->value(), ui->Longueur->value()); });
 
     // Connecter les boutons pour changer les modèles
     connect(ui->Cercle, &QPushButton::clicked, this, [this]() {
@@ -221,7 +225,7 @@ void MainWindow::setupShapeConnections()
 
     // connexion pour les formes de l'inventory
     connect(Inventory::getInstance(), &Inventory::customShapeSelected,
-            this,                       &MainWindow::onCustomShapeSelected);
+            m_coordinator, &MainWindowCoordinator::onCustomShapeSelected);
 }
 
 void MainWindow::setupNavigationConnections()
@@ -314,47 +318,7 @@ ShapeVisualization* MainWindow::getShapeVisualization() const
     return shapeVisualization;
 }
 
-// --- Public API ---
-
-void MainWindow::openImageInCustom(const QString &filePath,
-                                   bool internalContours,
-                                   bool colorEdges)
-{
-    QPainterPath outline = ImageImportService::processImageToPath(filePath,
-                                                                  internalContours,
-                                                                  colorEdges);
-    if (outline.isEmpty())
-        return;
-    m_navigationController->openCustomEditorWithImportedPath(this, m_displayLanguage, outline);
-}
-
 // --- Event Handlers ---
-
-void MainWindow::onCustomShapeSelected(const QList<QPolygonF> &polygons,
-                                       const QString &name)
-{
-    if (!m_shapeController->loadCustomShapes(polygons,
-                                             name,
-                                             ui->Largeur->value(),
-                                             ui->Longueur->value())) {
-        return;
-    }
-
-    /* 4) Si des dispositions existent, ouvrir la fenêtre LayoutsDialog */
-    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
-    if (!layouts.isEmpty()) {
-        m_navigationController->openLayoutsDialog(this,
-                                                  name,
-                                                  layouts,
-                                                  polygons,
-                                                  m_displayLanguage);
-        return;
-    }
-
-    /* 5) Pas de dispositions : on se contente d’afficher la forme ----- */
-    this->showFullScreen();
-}
-
 void MainWindow::updateProgressBar(int percentage, const QString &remainingTimeText) {
     ui->progressBar->setVisible(true);
     ui->progressBar->setRange(0, 100);
@@ -427,27 +391,6 @@ void MainWindow::retranslateDynamicUi()
     if (ui->timeRemainingLabel) {
         ui->timeRemainingLabel->setText(tr("Temps restant estim\u00e9 : 0s"));
     }
-}
-
-void MainWindow::onShapeSelectedFromInventory(ShapeModel::Type type)
-{
-    m_shapeController->setSelectedShapeType(type);
-    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForBaseShape(type);
-    if (!layouts.isEmpty()) {
-        QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
-        QString name = BaseShapeNamingService::baseShapeName(type, m_displayLanguage);
-        m_navigationController->openLayoutsDialog(this,
-                                                  name,
-                                                  layouts,
-                                                  polys,
-                                                  m_displayLanguage,
-                                                  true,
-                                                  type);
-
-        return;
-    }
-
-    m_shapeController->setPredefinedShape(type);
 }
 
 void MainWindow::setSpinboxSliderEnabled(bool enabled)
