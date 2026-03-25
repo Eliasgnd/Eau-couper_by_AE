@@ -9,7 +9,7 @@
 namespace MainWindowMenuBuilder {
 
 MenuHandles build(QMenuBar *menuBar,
-                  QObject *parent,
+                  QWidget *parent,
                   const QString &settingsText,
                   const QString &languageText,
                   const QString &frenchText,

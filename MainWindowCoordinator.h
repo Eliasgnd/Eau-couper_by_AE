@@ -3,6 +3,7 @@
 #include <QObject>
 
 #include "AIServiceManager.h"
+#include "ShapeModel.h"
 
 class NavigationController;
 class ShapeController;

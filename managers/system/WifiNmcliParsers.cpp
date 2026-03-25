@@ -1,6 +1,7 @@
 #include "WifiNmcliParsers.h"
 
 #include <QtGlobal>
+#include <QStringList>
 
 namespace WifiNmcliParsers {
 

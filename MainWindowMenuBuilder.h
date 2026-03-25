@@ -7,7 +7,7 @@ class QMenu;
 class QAction;
 class QToolButton;
 class QMenuBar;
-class QObject;
+class QWidget;
 
 namespace MainWindowMenuBuilder {
 
@@ -20,7 +20,7 @@ struct MenuHandles {
 };
 
 MenuHandles build(QMenuBar *menuBar,
-                  QObject *parent,
+                  QWidget *parent,
                   const QString &settingsText,
                   const QString &languageText,
                   const QString &frenchText,
