@@ -11,6 +11,7 @@
 #include "MainWindowMenuBuilder.h"
 #include "MainWindowNavigationBinder.h"
 #include "MainWindowCoordinator.h"
+#include "BaseShapeNamingService.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -245,7 +246,7 @@ void MainWindow::setupNavigationConnections()
                 QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
                 shapeVisualization->setCustomMode();
                 shapeVisualization->displayCustomShapes(shapePolys);
-                shapeVisualization->setCurrentCustomShapeName(Inventory::baseShapeName(type, Language::French));
+                shapeVisualization->setCurrentCustomShapeName(BaseShapeNamingService::baseShapeName(type, Language::French));
                 shapeVisualization->applyLayout(layout);
                 applySelectedLayoutToControls(layout);
             });
@@ -442,7 +443,7 @@ void MainWindow::onShapeSelectedFromInventory(ShapeModel::Type type)
     QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForBaseShape(type);
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
-        QString name = Inventory::baseShapeName(type, m_displayLanguage);
+        QString name = BaseShapeNamingService::baseShapeName(type, m_displayLanguage);
         m_navigationController->openLayoutsDialog(this,
                                                   name,
                                                   layouts,
