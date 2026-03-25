@@ -58,6 +58,12 @@ HEADERS += \
     models/InventoryMutationService.h \
     models/InventoryModel.h \
     models/InventoryController.h \
+    models/InventoryDomainTypes.h \
+    models/BaseShapeNamingService.h \
+    models/InventorySnapshot.h \
+    models/InventoryRepository.h \
+    models/InventoryViewState.h \
+    models/InventorySortFilterService.h \
     # --- UI (Widgets) ---
     ui/widgets/FolderWidget.h \
     drawing/utils/ScreenUtils.h \
@@ -137,6 +143,9 @@ SOURCES += \
     models/InventoryMutationService.cpp \
     models/InventoryModel.cpp \
     models/InventoryController.cpp \
+    models/BaseShapeNamingService.cpp \
+    models/InventoryRepository.cpp \
+    models/InventorySortFilterService.cpp \
     # --- UI (Widgets) ---
     ui/widgets/FolderWidget.cpp \
     drawing/utils/AspectRatioWrapper.cpp \

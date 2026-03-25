@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Inventory.h"
+#include "InventoryDomainTypes.h"
+#include "Language.h"
+#include "ShapeModel.h"
 
 namespace InventoryQueryService {
 

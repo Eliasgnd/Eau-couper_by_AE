@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Inventory.h"
+#include "InventoryDomainTypes.h"
+#include "ShapeModel.h"
 
 namespace InventoryMutationService {
 

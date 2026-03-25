@@ -1,4 +1,5 @@
 #include "InventoryQueryService.h"
+#include "BaseShapeNamingService.h"
 
 namespace InventoryQueryService {
 
@@ -79,7 +80,7 @@ bool folderContainsMatchingShape(const QString &folderName,
 
     for (auto it = baseShapeFolders.constBegin(); it != baseShapeFolders.constEnd(); ++it) {
         if (it.value() == folderName) {
-            QString name = Inventory::baseShapeName(it.key(), language);
+            QString name = BaseShapeNamingService::baseShapeName(it.key(), language);
             if (name.toLower().contains(search))
                 return true;
         }

@@ -5,12 +5,17 @@
 #include <QMap>
 #include <QString>
 
-#include "Inventory.h"
+#include "InventoryDomainTypes.h"
+#include "Language.h"
+#include "ShapeModel.h"
+
+class InventoryRepository;
 
 class InventoryModel
 {
 public:
-    InventoryModel() = default;
+    explicit InventoryModel(InventoryRepository *repository = nullptr);
+    ~InventoryModel();
 
     void load();
     void save() const;
@@ -41,6 +46,8 @@ public:
     const Language &languageRef() const { return m_currentLanguage; }
 
 private:
+    InventoryRepository *m_repository {nullptr};
+    bool m_ownsRepository {false};
     QList<CustomShapeData> m_customShapes;
     QMap<ShapeModel::Type, QList<LayoutData>> m_baseShapeLayouts;
     QMap<ShapeModel::Type, QString> m_baseShapeFolders;

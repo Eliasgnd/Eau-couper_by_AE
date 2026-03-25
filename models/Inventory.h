@@ -12,51 +12,12 @@
 #include <QDateTime>
 #include "ShapeModel.h"
 #include "Language.h"
+#include "InventoryViewState.h"
+#include "InventoryDomainTypes.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Inventory; }
 QT_END_NAMESPACE
-
-// -----------------------------------------------------------------------------
-// Data structures
-// -----------------------------------------------------------------------------
-
-// Single item in a saved layout
-struct LayoutItem {
-    double x {0};
-    double y {0};
-    double rotation {0};
-};
-
-// Complete layout for a custom shape
-struct LayoutData {
-    QString name;
-    int largeur  {0};
-    int longueur {0};
-    int spacing  {0};
-    QList<LayoutItem> items;
-    int usageCount {0};
-    QDateTime lastUsed;
-};
-
-// Custom shape definition (can contain multiple polygons) and its saved layouts
-struct CustomShapeData {
-    QList<QPolygonF> polygons;
-    QString name;
-    QString folder;
-    QList<LayoutData> layouts;
-    int usageCount {0};
-    QDateTime lastUsed;
-};
-
-// Structure pour un dossier
-struct InventoryFolder {
-    QString name;
-    QString parentFolder;  // vide si dossier racine
-    int usageCount {0};
-    QDateTime lastUsed;
-};
-
 
 // -----------------------------------------------------------------------------
 // Inventory widget
@@ -102,7 +63,6 @@ public:
 
     // Utility helpers
     bool shapeNameExists(const QString &name) const;
-    static QString baseShapeName(ShapeModel::Type type, Language lang);
 
     // Internationalisation
     void updateTranslations(Language lang);
@@ -111,6 +71,11 @@ public:
 signals:
     void shapeSelected(ShapeModel::Type type, int width, int height);
     void customShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
+    void searchRequested(const QString &text);
+    void sortModeRequested(InventorySortMode mode);
+    void filterModeRequested(InventoryFilterMode mode);
+    void folderOpenRequested(const QString &folderName);
+    void returnRequested();
 
 protected:
     // React to palette / language changes
@@ -129,12 +94,9 @@ private:
     // ---------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------
-    QString customShapesFilePath() const;
-    void loadCustomShapes();
-    void saveCustomShapes() const;
-
     // Display all shapes (built‑in + custom). Optional filter on name.
     void displayShapes(const QString &filter = QString());
+    void renderState(const InventoryViewState &state);
 
     // Build and return the QFrame representing the custom shape at index
     QFrame* addCustomShapeToGrid(int index);
@@ -154,6 +116,8 @@ private:
     QString currentFolder;
 
     void displayShapesInFolder(const QString &folderName, const QString &filter);
+    InventorySortMode currentSortMode() const;
+    InventoryFilterMode currentFilterMode() const;
     bool folderIsEmpty(const QString &folderName) const;
     bool folderContainsMatchingShape(const QString &folderName, const QString &text) const;
 };
