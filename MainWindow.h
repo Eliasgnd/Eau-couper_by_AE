@@ -19,33 +19,88 @@ class NavigationController;
 class AIServiceManager;
 class ShapeController;
 class MainWindowCoordinator;
+class WorkspaceModel;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr, MainWindowCoordinator *coordinator = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr,
+                        MainWindowCoordinator *coordinator = nullptr,
+                        WorkspaceModel *model = nullptr);
     ~MainWindow();
+
     ShapeVisualization* getShapeVisualization() const;
-    AIServiceManager* aiServiceManager() const { return m_aiServiceManager; }
-    Language displayLanguage() const { return m_displayLanguage; }
+    AIServiceManager*   aiServiceManager() const { return m_aiServiceManager; }
+    Language            displayLanguage() const;
 
-signals:
-    void requestStartCut();
-    void requestPauseCut();
-    void requestStopCut();
-    void requestAiGeneration(const QString &prompt,
-                             const QString &model,
-                             const QString &quality,
-                             const QString &size,
-                             bool colorPrompt);
-    void requestLanguageChange(Language lang);
-
+    // --- Méthodes appelées par le Coordinator (via slots) ---
 public slots:
     void updateProgressBar(int percentage, const QString &remainingTimeText);
     void setSpinboxSliderEnabled(bool enabled);
     void onCutFinished(bool success);
     void onLanguageApplied(Language lang, bool ok);
+    void showAiProgressBar();
+    void hideAiProgressBar();
+    void applySelectedLayoutToControls(const LayoutData &layout);
+    void displayCustomShapes(const QList<QPolygonF> &shapes, const QString &name = QString());
+    void applyLayout(const LayoutData &layout);
+    void applyBaseShapeLayout(ShapeModel::Type type, const LayoutData &layout);
+
+    // --- Signaux émis par la View vers le Controller ---
+signals:
+    // Contrôle de coupe
+    void requestStartCut();
+    void requestPauseCut();
+    void requestStopCut();
+
+    // Dimensions (la View émet, le Controller réagit)
+    void dimensionsChangeRequested(int largeur, int longueur);
+    void shapeCountChangeRequested(int count);
+    void spacingChangeRequested(int spacing);
+
+    // Formes prédéfinies
+    void circleRequested();
+    void rectangleRequested();
+    void triangleRequested();
+    void starRequested();
+    void heartRequested();
+
+    // Navigation
+    void inventoryRequested();
+    void customEditorRequested();
+    void folderRequested();
+    void testGpioRequested();
+    void bluetoothReceiverRequested();
+    void wifiTransferRequested();
+
+    // Optimisation
+    void optimizePlacement1Requested(bool checked);
+    void optimizePlacement2Requested(bool checked);
+
+    // Déplacement / rotation / ajout / suppression
+    void moveUpRequested();
+    void moveDownRequested();
+    void moveLeftRequested();
+    void moveRightRequested();
+    void rotateLeftRequested();
+    void rotateRightRequested();
+    void addShapeRequested();
+    void deleteShapeRequested();
+
+    // Sauvegarde
+    void saveLayoutRequested();
+
+    // AI
+    void generateAiRequested();
+    void requestAiGeneration(const QString &prompt,
+                             const QString &model,
+                             const QString &quality,
+                             const QString &size,
+                             bool colorPrompt);
+
+    // Langue
+    void requestLanguageChange(Language lang);
 
 private slots:
     void setLanguageFrench();
@@ -60,34 +115,31 @@ private:
     void setupWorkspaceLayout();
     void setupMenus();
     void applyStyleSheets();
-    void setupConnections();
-    void setupNavigationConnections();
-    void setupShapeConnections();
-    void setupSystemConnections();
+    void setupViewConnections();
     void setupModels();
     void retranslateDynamicUi();
-    void applySelectedLayoutToControls(const LayoutData &layout);
+    void syncControlsFromModel();
 
     // --- UI state ---
-    QMenu *settingsMenu = nullptr;
-    QMenu *languageMenu = nullptr;
-    QAction *actionFrench = nullptr;
-    QAction *actionEnglish = nullptr;
+    QMenu   *settingsMenu    = nullptr;
+    QMenu   *languageMenu    = nullptr;
+    QAction *actionFrench    = nullptr;
+    QAction *actionEnglish   = nullptr;
     QAction *actionWifiConfig = nullptr;
 
     // --- UI pointers ---
-    Ui::MainWindow *ui;
-    ShapeVisualization *shapeVisualization = nullptr;
+    Ui::MainWindow     *ui                 = nullptr;
+    ShapeVisualization *shapeVisualization  = nullptr;
 
-    // --- Controllers ---
-    MainWindowCoordinator *m_coordinator = nullptr;
-    NavigationController *m_navigationController = nullptr;
-    AIServiceManager *m_aiServiceManager = nullptr;
-    ShapeController *m_shapeController = nullptr;
-    bool m_ownsCoordinator = false;
+    // --- Données centralisées ---
+    WorkspaceModel *m_model = nullptr;
 
-    // --- Runtime state ---
-    Language m_displayLanguage = Language::French;
+    // --- Controllers (références, pas de propriété) ---
+    MainWindowCoordinator *m_coordinator         = nullptr;
+    NavigationController  *m_navigationController = nullptr;
+    AIServiceManager      *m_aiServiceManager     = nullptr;
+    ShapeController       *m_shapeController      = nullptr;
+    bool                   m_ownsCoordinator      = false;
 };
 
 #endif // MAINWINDOW_H

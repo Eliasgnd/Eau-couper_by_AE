@@ -1,28 +1,221 @@
 #include "MainWindowCoordinator.h"
 
+#include "MainWindow.h"
 #include "NavigationController.h"
 #include "ShapeController.h"
 #include "ShapeVisualization.h"
+#include "WorkspaceModel.h"
+#include "Inventory.h"
+#include "BaseShapeNamingService.h"
+#include "ImageImportService.h"
 
 MainWindowCoordinator::MainWindowCoordinator(NavigationController *navigationController,
                                              AIServiceManager *aiServiceManager,
                                              ShapeController *shapeController,
+                                             WorkspaceModel *model,
                                              QObject *parent)
     : QObject(parent)
     , m_navigationController(navigationController)
     , m_aiServiceManager(aiServiceManager)
     , m_shapeController(shapeController)
+    , m_model(model)
 {
-    QObject::connect(m_aiServiceManager, &AIServiceManager::generationStatusChanged,
-                     this, &MainWindowCoordinator::generationStatusChanged);
-    QObject::connect(m_aiServiceManager, &AIServiceManager::imageReadyForImport,
-                     this, &MainWindowCoordinator::imageReadyForImport);
+    // Signaux internes AI → Coordinator
+    connect(m_aiServiceManager, &AIServiceManager::generationStatusChanged,
+            this, &MainWindowCoordinator::generationStatusChanged);
+    connect(m_aiServiceManager, &AIServiceManager::imageReadyForImport,
+            this, &MainWindowCoordinator::imageReadyForImport);
+
+    // Inventory → Coordinator (on connecte ici au lieu de MainWindow)
+    connect(Inventory::getInstance(), &Inventory::shapeSelected,
+            this, &MainWindowCoordinator::onShapeSelectedFromInventory);
+    connect(Inventory::getInstance(), &Inventory::customShapeSelected,
+            this, &MainWindowCoordinator::onCustomShapeSelected);
 }
 
-void MainWindowCoordinator::setDialogParent(QWidget *parent)
+// =======================================================================
+//  connectToView — Le Coordinator s'abonne aux signaux typés de la View.
+//  Aucune référence à Ui::MainWindow ni aux widgets.
+// =======================================================================
+void MainWindowCoordinator::connectToView(MainWindow *view)
 {
-    m_aiServiceManager->setDialogParent(parent);
+    m_view = view;
+
+    // --- Dimensions ---
+    connect(view, &MainWindow::dimensionsChangeRequested,
+            this, &MainWindowCoordinator::onDimensionsChanged);
+
+    // --- Nombre / espacement ---
+    connect(view, &MainWindow::shapeCountChangeRequested,
+            this, &MainWindowCoordinator::onShapeCountChanged);
+    connect(view, &MainWindow::spacingChangeRequested,
+            this, &MainWindowCoordinator::onSpacingChanged);
+
+    // --- Formes prédéfinies ---
+    connect(view, &MainWindow::circleRequested,    this, &MainWindowCoordinator::onCircleRequested);
+    connect(view, &MainWindow::rectangleRequested,  this, &MainWindowCoordinator::onRectangleRequested);
+    connect(view, &MainWindow::triangleRequested,   this, &MainWindowCoordinator::onTriangleRequested);
+    connect(view, &MainWindow::starRequested,       this, &MainWindowCoordinator::onStarRequested);
+    connect(view, &MainWindow::heartRequested,      this, &MainWindowCoordinator::onHeartRequested);
+
+    // --- Optimisation ---
+    connect(view, &MainWindow::optimizePlacement1Requested,
+            this, &MainWindowCoordinator::onOptimize1Requested);
+    connect(view, &MainWindow::optimizePlacement2Requested,
+            this, &MainWindowCoordinator::onOptimize2Requested);
+
+    // --- Déplacement / rotation / ajout / suppression ---
+    connect(view, &MainWindow::moveUpRequested,     this, &MainWindowCoordinator::onMoveUpRequested);
+    connect(view, &MainWindow::moveDownRequested,    this, &MainWindowCoordinator::onMoveDownRequested);
+    connect(view, &MainWindow::moveLeftRequested,    this, &MainWindowCoordinator::onMoveLeftRequested);
+    connect(view, &MainWindow::moveRightRequested,   this, &MainWindowCoordinator::onMoveRightRequested);
+    connect(view, &MainWindow::rotateLeftRequested,  this, &MainWindowCoordinator::onRotateLeftRequested);
+    connect(view, &MainWindow::rotateRightRequested, this, &MainWindowCoordinator::onRotateRightRequested);
+    connect(view, &MainWindow::addShapeRequested,    this, &MainWindowCoordinator::onAddShapeRequested);
+    connect(view, &MainWindow::deleteShapeRequested, this, &MainWindowCoordinator::onDeleteShapeRequested);
+
+    // --- Navigation ---
+    connect(view, &MainWindow::inventoryRequested,         this, &MainWindowCoordinator::onInventoryRequested);
+    connect(view, &MainWindow::customEditorRequested,       this, &MainWindowCoordinator::onCustomEditorRequested);
+    connect(view, &MainWindow::folderRequested,             this, &MainWindowCoordinator::onFolderRequested);
+    connect(view, &MainWindow::testGpioRequested,           this, &MainWindowCoordinator::onTestGpioRequested);
+    connect(view, &MainWindow::bluetoothReceiverRequested,  this, &MainWindowCoordinator::onBluetoothReceiverRequested);
+    connect(view, &MainWindow::wifiTransferRequested,       this, &MainWindowCoordinator::onWifiTransferRequested);
+
+    // --- Sauvegarde / AI ---
+    connect(view, &MainWindow::saveLayoutRequested, this, &MainWindowCoordinator::onSaveLayoutRequested);
+    connect(view, &MainWindow::generateAiRequested, this, &MainWindowCoordinator::onGenerateAiRequested);
+
+    // --- NavigationController → View (layout, shapes, fullscreen) ---
+    connect(m_navigationController, &NavigationController::customShapeApplied,
+            view, [view](const QList<QPolygonF> &shapes) {
+                view->displayCustomShapes(shapes, QString());
+            });
+
+    connect(m_navigationController, &NavigationController::layoutSelected,
+            view, &MainWindow::applyLayout);
+
+    connect(m_navigationController, &NavigationController::baseShapeLayoutSelected,
+            view, &MainWindow::applyBaseShapeLayout);
+
+    connect(m_navigationController, &NavigationController::baseShapeOnlySelected, this,
+            [this](ShapeModel::Type type) {
+                m_shapeController->setPredefinedShape(type);
+            });
+
+    connect(m_navigationController, &NavigationController::requestReturnToFullScreen, view,
+            [view]() { view->showFullScreen(); });
+
+    connect(m_navigationController, &NavigationController::requestOpenInventory, this,
+            []() { Inventory::getInstance()->showFullScreen(); });
+
+    // --- imageReadyForImport → ouvre dans l'éditeur custom ---
+    connect(this, &MainWindowCoordinator::imageReadyForImport, this,
+            [this](const QString &path, bool internalContours, bool colorEdges) {
+                openImageInCustom(path, internalContours, colorEdges);
+            });
 }
+
+// =======================================================================
+//  Slots — réactions aux signaux de la View
+// =======================================================================
+
+void MainWindowCoordinator::onDimensionsChanged(int largeur, int longueur)
+{
+    m_model->setDimensions(largeur, longueur);
+    m_shapeController->updateShape(largeur, longueur);
+}
+
+void MainWindowCoordinator::onShapeCountChanged(int count)
+{
+    m_shapeController->updateShapeCount(count, m_model->largeur(), m_model->longueur());
+}
+
+void MainWindowCoordinator::onSpacingChanged(int spacing)
+{
+    m_model->setSpacing(spacing);
+    m_shapeController->updateSpacing(spacing);
+}
+
+void MainWindowCoordinator::onCircleRequested()    { m_shapeController->setPredefinedShape(ShapeModel::Type::Circle); }
+void MainWindowCoordinator::onRectangleRequested()  { m_shapeController->setPredefinedShape(ShapeModel::Type::Rectangle); }
+void MainWindowCoordinator::onTriangleRequested()   { m_shapeController->setPredefinedShape(ShapeModel::Type::Triangle); }
+void MainWindowCoordinator::onStarRequested()       { m_shapeController->setPredefinedShape(ShapeModel::Type::Star); }
+void MainWindowCoordinator::onHeartRequested()      { m_shapeController->setPredefinedShape(ShapeModel::Type::Heart); }
+
+void MainWindowCoordinator::onOptimize1Requested(bool checked)
+{
+    m_shapeController->onOptimizePlacementClicked(checked, m_model->largeur(), m_model->longueur());
+}
+
+void MainWindowCoordinator::onOptimize2Requested(bool checked)
+{
+    m_shapeController->onOptimizePlacement2Clicked(checked, m_model->largeur(), m_model->longueur());
+}
+
+void MainWindowCoordinator::onMoveUpRequested()     { m_shapeController->onMoveUpClicked(); }
+void MainWindowCoordinator::onMoveDownRequested()    { m_shapeController->onMoveDownClicked(); }
+void MainWindowCoordinator::onMoveLeftRequested()    { m_shapeController->onMoveLeftClicked(); }
+void MainWindowCoordinator::onMoveRightRequested()   { m_shapeController->onMoveRightClicked(); }
+void MainWindowCoordinator::onRotateLeftRequested()  { m_shapeController->rotateLeft(); }
+void MainWindowCoordinator::onRotateRightRequested() { m_shapeController->rotateRight(); }
+void MainWindowCoordinator::onAddShapeRequested()    { m_shapeController->addShape(); }
+void MainWindowCoordinator::onDeleteShapeRequested() { m_shapeController->deleteShape(); }
+
+void MainWindowCoordinator::onInventoryRequested()
+{
+    openInventory(m_view, Inventory::getInstance());
+}
+
+void MainWindowCoordinator::onCustomEditorRequested()
+{
+    openCustomEditor(m_view, m_model->language());
+}
+
+void MainWindowCoordinator::onFolderRequested()
+{
+    openFolder(m_view, m_model->language());
+}
+
+void MainWindowCoordinator::onTestGpioRequested()
+{
+    openTestGpio(m_view);
+}
+
+void MainWindowCoordinator::onBluetoothReceiverRequested()
+{
+    openBluetoothReceiver(m_view);
+}
+
+void MainWindowCoordinator::onWifiTransferRequested()
+{
+    openWifiTransfer(m_view);
+}
+
+void MainWindowCoordinator::onSaveLayoutRequested()
+{
+    handleSaveLayoutRequest(m_view,
+                            m_view->getShapeVisualization(),
+                            m_shapeController->selectedShapeType());
+}
+
+void MainWindowCoordinator::onGenerateAiRequested()
+{
+    AiGenerationRequest request;
+    if (!openAiGenerationPrompt(m_view, request))
+        return;
+
+    m_view->showAiProgressBar();
+    emit m_view->requestAiGeneration(request.prompt,
+                                     request.model,
+                                     request.quality,
+                                     request.size,
+                                     request.colorPrompt);
+}
+
+// =======================================================================
+//  Logique métier — identique à avant
+// =======================================================================
 
 void MainWindowCoordinator::openWifiSettings(QWidget *parent)
 {
@@ -71,94 +264,18 @@ bool MainWindowCoordinator::openAiGenerationPrompt(QWidget *parent, AiGeneration
     return m_aiServiceManager->openGenerationPrompt(parent, request);
 }
 
-void MainWindowCoordinator::bindTo(Ui::MainWindow *ui,
-                                   QWidget *mainWindow,
-                                   const std::function<Language()> &languageProvider)
-{
-    // ---- Anciennement MainWindowNavigationBinder ----
-    QObject::connect(ui->buttonInventory, &QPushButton::clicked, mainWindow,
-                     [this, mainWindow]() {
-                         openInventory(mainWindow, Inventory::getInstance());
-                     });
-
-    QObject::connect(ui->buttonCustom, &QPushButton::clicked, mainWindow,
-                     [this, mainWindow, languageProvider]() {
-                         openCustomEditor(mainWindow, languageProvider());
-                     });
-
-    QObject::connect(ui->buttonTestGpio, &QPushButton::clicked, mainWindow,
-                     [this, mainWindow, languageProvider]() {
-                         openFolder(mainWindow, languageProvider());
-                     });
-
-    QObject::connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, mainWindow,
-                     [this, mainWindow]() { openTestGpio(mainWindow); });
-
-    QObject::connect(ui->buttonFileReceiver, &QPushButton::clicked, mainWindow,
-                     [this, mainWindow]() { openBluetoothReceiver(mainWindow); });
-
-    QObject::connect(ui->buttonWifiTransfer, &QPushButton::clicked, mainWindow,
-                     [this, mainWindow]() { openWifiTransfer(mainWindow); });
-
-    // ---- Anciennement MainWindowSystemBinder ----
-    QObject::connect(ui->Longueur, &QSpinBox::valueChanged,
-                     ui->Slider_longueur, &QSlider::setValue);
-    QObject::connect(ui->Slider_longueur, &QSlider::valueChanged,
-                     ui->Longueur, &QSpinBox::setValue);
-    QObject::connect(ui->Largeur, &QSpinBox::valueChanged,
-                     ui->Slider_largeur, &QSlider::setValue);
-    QObject::connect(ui->Slider_largeur, &QSlider::valueChanged,
-                     ui->Largeur, &QSpinBox::setValue);
-
-    QObject::connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), mainWindow,
-                     [this, ui](int count) {
-                         m_shapeController->updateShapeCount(count,
-                                                             ui->Largeur->value(),
-                                                             ui->Longueur->value());
-                     });
-
-    QObject::connect(ui->optimizePlacementButton, &QPushButton::clicked, mainWindow,
-                     [this, ui](bool checked) {
-                         ui->optimizePlacementButton2->setChecked(false);
-                         m_shapeController->onOptimizePlacementClicked(checked,
-                                                                       ui->Largeur->value(),
-                                                                       ui->Longueur->value());
-                     });
-
-    QObject::connect(ui->optimizePlacementButton2, &QPushButton::clicked, mainWindow,
-                     [this, ui](bool checked) {
-                         ui->optimizePlacementButton->setChecked(false);
-                         m_shapeController->onOptimizePlacement2Clicked(checked,
-                                                                        ui->Largeur->value(),
-                                                                        ui->Longueur->value());
-                     });
-
-    QObject::connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-                     m_shapeController, &ShapeController::updateSpacing);
-
-    QObject::connect(ui->ButtonUp,    &QPushButton::clicked, m_shapeController, &ShapeController::onMoveUpClicked);
-    QObject::connect(ui->ButtonDown,  &QPushButton::clicked, m_shapeController, &ShapeController::onMoveDownClicked);
-    QObject::connect(ui->ButtonLeft,  &QPushButton::clicked, m_shapeController, &ShapeController::onMoveLeftClicked);
-    QObject::connect(ui->ButtonRight, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveRightClicked);
-
-    QObject::connect(ui->ButtonRotationLeft,  &QPushButton::clicked, m_shapeController, &ShapeController::rotateLeft);
-    QObject::connect(ui->ButtonRotationRight, &QPushButton::clicked, m_shapeController, &ShapeController::rotateRight);
-    QObject::connect(ui->ButtonAddShape,      &QPushButton::clicked, m_shapeController, &ShapeController::addShape);
-    QObject::connect(ui->ButtonDeleteShape,   &QPushButton::clicked, m_shapeController, &ShapeController::deleteShape);
-}
-
 void MainWindowCoordinator::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                                                   const QString &name)
 {
     if (!m_shapeController->loadCustomShapes(polygons, name,
-                                             m_lastLargeur, m_lastLongueur))
+                                             m_model->largeur(), m_model->longueur()))
         return;
 
     QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
     if (!layouts.isEmpty()) {
         m_navigationController->openLayoutsDialog(m_dialogParent, name,
                                                   layouts, polygons,
-                                                  m_language);
+                                                  m_model->language());
         return;
     }
 
@@ -171,10 +288,10 @@ void MainWindowCoordinator::onShapeSelectedFromInventory(ShapeModel::Type type)
     QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForBaseShape(type);
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
-        QString name = BaseShapeNamingService::baseShapeName(type, m_language);
+        QString name = BaseShapeNamingService::baseShapeName(type, m_model->language());
         m_navigationController->openLayoutsDialog(m_dialogParent, name,
                                                   layouts, polys,
-                                                  m_language, true, type);
+                                                  m_model->language(), true, type);
         return;
     }
 
@@ -192,17 +309,6 @@ void MainWindowCoordinator::openImageInCustom(const QString &filePath,
         return;
 
     m_navigationController->openCustomEditorWithImportedPath(m_dialogParent,
-                                                             m_language,
+                                                             m_model->language(),
                                                              outline);
-}
-
-void MainWindowCoordinator::onDimensionsChanged(int largeur, int longueur)
-{
-    m_lastLargeur = largeur;
-    m_lastLongueur = longueur;
-}
-
-void MainWindowCoordinator::onLanguageChanged(Language lang)
-{
-    m_language = lang;
 }

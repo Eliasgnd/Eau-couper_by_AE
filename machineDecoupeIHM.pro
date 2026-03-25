@@ -43,6 +43,7 @@ HEADERS += \
     MainWindowCoordinator.h \
     ShapeController.h \
     ImageImportService.h \
+    Workspacemodel.h \
     ui/widgets/ShapeVisualization.h \
     ui/widgets/shapevisualization/ShapeProjectModel.h \
     ui/widgets/shapevisualization/LayoutManager.h \
