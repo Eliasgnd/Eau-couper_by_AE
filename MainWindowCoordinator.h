@@ -2,6 +2,8 @@
 
 #include <QObject>
 
+#include "ui_mainwindow.h"
+#include "Language.h"
 #include "AIServiceManager.h"
 #include "ShapeModel.h"
 
@@ -42,6 +44,9 @@ public:
 
     bool openAiGenerationPrompt(QWidget *parent, AiGenerationRequest &request);
 
+    void bindTo(Ui::MainWindow *ui,
+                QWidget *mainWindow,
+                const std::function<Language()> &languageProvider);
 signals:
     void generationStatusChanged(const QString &status);
     void imageReadyForImport(const QString &path, bool internalContours, bool colorEdges);

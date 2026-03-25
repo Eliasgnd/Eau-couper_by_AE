@@ -39,9 +39,7 @@ INCLUDEPATH += \
 HEADERS += \
     # --- MainWindow et UI principale ---
     MainWindow.h \
-    MainWindowSystemBinder.h \
     MainWindowMenuBuilder.h \
-    MainWindowNavigationBinder.h \
     MainWindowCoordinator.h \
     ShapeController.h \
     ImageImportService.h \
@@ -123,9 +121,7 @@ HEADERS += \
 SOURCES += \
     # --- MainWindow et UI principale ---
     MainWindow.cpp \
-    MainWindowSystemBinder.cpp \
     MainWindowMenuBuilder.cpp \
-    MainWindowNavigationBinder.cpp \
     MainWindowCoordinator.cpp \
     ShapeController.cpp \
     ImageImportService.cpp \

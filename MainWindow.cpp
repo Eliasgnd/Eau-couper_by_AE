@@ -7,9 +7,7 @@
 #include "NavigationController.h"
 #include "AIServiceManager.h"
 #include "ShapeController.h"
-#include "MainWindowSystemBinder.h"
 #include "MainWindowMenuBuilder.h"
-#include "MainWindowNavigationBinder.h"
 #include "MainWindowCoordinator.h"
 #include "BaseShapeNamingService.h"
 
@@ -154,6 +152,7 @@ void MainWindow::setupModels()
 
 void MainWindow::setupConnections()
 {
+    m_coordinator->bindTo(ui, this, [this]() { return m_displayLanguage; });
     setupShapeConnections();
     setupNavigationConnections();
     setupSystemConnections();
@@ -263,11 +262,7 @@ void MainWindow::setupNavigationConnections()
                 Inventory::getInstance()->showFullScreen();
             });
 
-    // Naviguer entre les pages
-    MainWindowNavigationBinder::bindNavigationButtons(ui,
-                                                      m_coordinator,
-                                                      this,
-                                                      [this]() { return m_displayLanguage; });
+
 
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, [this]() {
         AiGenerationRequest request;
@@ -287,10 +282,7 @@ void MainWindow::setupNavigationConnections()
 
 void MainWindow::setupSystemConnections()
 {
-    MainWindowSystemBinder::bind(ui,
-                                 m_shapeController,
-                                 shapeVisualization,
-                                 this);
+
 
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, [this]() {
         m_coordinator->handleSaveLayoutRequest(this,

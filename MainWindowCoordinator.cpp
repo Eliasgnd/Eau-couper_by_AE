@@ -70,3 +70,79 @@ bool MainWindowCoordinator::openAiGenerationPrompt(QWidget *parent, AiGeneration
 {
     return m_aiServiceManager->openGenerationPrompt(parent, request);
 }
+
+void MainWindowCoordinator::bindTo(Ui::MainWindow *ui,
+                                   QWidget *mainWindow,
+                                   const std::function<Language()> &languageProvider)
+{
+    // ---- Anciennement MainWindowNavigationBinder ----
+    QObject::connect(ui->buttonInventory, &QPushButton::clicked, mainWindow,
+                     [this, mainWindow]() {
+                         openInventory(mainWindow, Inventory::getInstance());
+                     });
+
+    QObject::connect(ui->buttonCustom, &QPushButton::clicked, mainWindow,
+                     [this, mainWindow, languageProvider]() {
+                         openCustomEditor(mainWindow, languageProvider());
+                     });
+
+    QObject::connect(ui->buttonTestGpio, &QPushButton::clicked, mainWindow,
+                     [this, mainWindow, languageProvider]() {
+                         openFolder(mainWindow, languageProvider());
+                     });
+
+    QObject::connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, mainWindow,
+                     [this, mainWindow]() { openTestGpio(mainWindow); });
+
+    QObject::connect(ui->buttonFileReceiver, &QPushButton::clicked, mainWindow,
+                     [this, mainWindow]() { openBluetoothReceiver(mainWindow); });
+
+    QObject::connect(ui->buttonWifiTransfer, &QPushButton::clicked, mainWindow,
+                     [this, mainWindow]() { openWifiTransfer(mainWindow); });
+
+    // ---- Anciennement MainWindowSystemBinder ----
+    QObject::connect(ui->Longueur, &QSpinBox::valueChanged,
+                     ui->Slider_longueur, &QSlider::setValue);
+    QObject::connect(ui->Slider_longueur, &QSlider::valueChanged,
+                     ui->Longueur, &QSpinBox::setValue);
+    QObject::connect(ui->Largeur, &QSpinBox::valueChanged,
+                     ui->Slider_largeur, &QSlider::setValue);
+    QObject::connect(ui->Slider_largeur, &QSlider::valueChanged,
+                     ui->Largeur, &QSpinBox::setValue);
+
+    QObject::connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), mainWindow,
+                     [this, ui](int count) {
+                         m_shapeController->updateShapeCount(count,
+                                                             ui->Largeur->value(),
+                                                             ui->Longueur->value());
+                     });
+
+    QObject::connect(ui->optimizePlacementButton, &QPushButton::clicked, mainWindow,
+                     [this, ui](bool checked) {
+                         ui->optimizePlacementButton2->setChecked(false);
+                         m_shapeController->onOptimizePlacementClicked(checked,
+                                                                       ui->Largeur->value(),
+                                                                       ui->Longueur->value());
+                     });
+
+    QObject::connect(ui->optimizePlacementButton2, &QPushButton::clicked, mainWindow,
+                     [this, ui](bool checked) {
+                         ui->optimizePlacementButton->setChecked(false);
+                         m_shapeController->onOptimizePlacement2Clicked(checked,
+                                                                        ui->Largeur->value(),
+                                                                        ui->Longueur->value());
+                     });
+
+    QObject::connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                     m_shapeController, &ShapeController::updateSpacing);
+
+    QObject::connect(ui->ButtonUp,    &QPushButton::clicked, m_shapeController, &ShapeController::onMoveUpClicked);
+    QObject::connect(ui->ButtonDown,  &QPushButton::clicked, m_shapeController, &ShapeController::onMoveDownClicked);
+    QObject::connect(ui->ButtonLeft,  &QPushButton::clicked, m_shapeController, &ShapeController::onMoveLeftClicked);
+    QObject::connect(ui->ButtonRight, &QPushButton::clicked, m_shapeController, &ShapeController::onMoveRightClicked);
+
+    QObject::connect(ui->ButtonRotationLeft,  &QPushButton::clicked, m_shapeController, &ShapeController::rotateLeft);
+    QObject::connect(ui->ButtonRotationRight, &QPushButton::clicked, m_shapeController, &ShapeController::rotateRight);
+    QObject::connect(ui->ButtonAddShape,      &QPushButton::clicked, m_shapeController, &ShapeController::addShape);
+    QObject::connect(ui->ButtonDeleteShape,   &QPushButton::clicked, m_shapeController, &ShapeController::deleteShape);
+}
