@@ -1,7 +1,8 @@
 QT += core gui widgets svg network bluetooth httpserver openglwidgets
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-TARGET  = machineDecoupeIHM
+TARGET = machineDecoupeIHM
+CONFIG += c++17
 
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
@@ -11,17 +12,17 @@ unix {
 
 # ==== PLATEFORME WINDOWS ====
 win32 {
-    INCLUDEPATH += C:/opencv/build/include \
-                   C:/opencv/build/include/opencv2
+    INCLUDEPATH += C:/opencv/build/include
     LIBS += -LC:/opencv/build/x64/vc16/lib
+
     CONFIG(debug, debug|release) {
-        LIBS += -lopencv_world4120d
+        LIBS += -lopencv_world4120d  # Mode debug
     } else {
-        LIBS += -lopencv_world4120
+        LIBS += -lopencv_world4120   # Mode release
     }
 }
 
-# ==== CHEMINS DE RECHERCHE (INCLUDEPATH) ====
+# ==== INCLUDEPATH ====
 INCLUDEPATH += \
     . \
     models \
@@ -33,37 +34,51 @@ INCLUDEPATH += \
     drawing \
     drawing/utils \
     drawing/tools \
-    drawing/shapes
+    drawing/shapes \
+    viewmodels \
+    application \
+    domain \
+    domain/shapes \
+    domain/geometry \
+    domain/inventory \
+    domain/machine \
+    infrastructure \
+    infrastructure/persistence \
+    infrastructure/hardware \
+    infrastructure/network \
+    infrastructure/imaging \
+    shared
 
-# ==== FICHIERS (HEADERS) ====
+# ==== HEADERS ====
 HEADERS += \
-    # --- MainWindow et UI principale ---
     MainWindow.h \
     MainWindowMenuBuilder.h \
     MainWindowCoordinator.h \
     ShapeController.h \
     ImageImportService.h \
-    Workspacemodel.h \
+    viewmodels/Workspacemodel.h \
     ui/widgets/ShapeVisualization.h \
     ui/widgets/shapevisualization/ShapeProjectModel.h \
     ui/widgets/shapevisualization/LayoutManager.h \
-    # --- Drawing ---
     drawing/shapes/CustomDrawArea.h \
     drawing/tools/LogoImporter.h \
     drawing/tools/ImageEdgeImporter.h \
-    models/ShapeModel.h \
+    domain/shapes/ShapeModel.h \
+    domain/inventory/InventoryModel.h \
+    domain/inventory/InventoryDomainTypes.h \
+    infrastructure/persistence/InventoryRepository.h \
+    domain/shapes/BaseShapeNamingService.h \
+    domain/shapes/ShapeManager.h \
+    domain/shapes/PathGenerator.h \
+    domain/geometry/GeometryUtils.h \
+    domain/geometry/PlacementOptimizer.h \
     models/InventoryStorage.h \
     models/InventoryQueryService.h \
     models/InventoryMutationService.h \
-    models/InventoryModel.h \
     models/InventoryController.h \
-    models/InventoryDomainTypes.h \
-    models/BaseShapeNamingService.h \
     models/InventorySnapshot.h \
-    models/InventoryRepository.h \
     models/InventoryViewState.h \
     models/InventorySortFilterService.h \
-    # --- UI (Widgets) ---
     ui/widgets/FolderWidget.h \
     drawing/utils/ScreenUtils.h \
     drawing/utils/AspectRatioWrapper.h \
@@ -72,7 +87,6 @@ HEADERS += \
     ui/widgets/CustomEditor.h \
     models/Inventory.h \
     ui/widgets/LayoutsDialog.h \
-    # --- Drawing (Tools/Managers) ---
     drawing/DrawingState.h \
     ui/widgets/KeyboardEventFilter.h \
     managers/system/MotorControl.h \
@@ -82,9 +96,7 @@ HEADERS += \
     drawing/tools/skeletonizer.h \
     drawing/tools/TouchGestureReader.h \
     drawing/tools/TrajetMotor.h \
-    # --- Language ---
-    Language.h \
-    # --- UI (Dialogs) ---
+    shared/Language.h \
     ui/dialogs/AIImagePromptDialog.h \
     ui/dialogs/AIImageProcessDialog.h \
     ui/dialogs/BluetoothReceiverDialog.h \
@@ -92,19 +104,15 @@ HEADERS += \
     drawing/tools/qrcodegen.hpp \
     drawing/tools/ImagePaths.h \
     ui/dialogs/WifiConfigDialog.h \
-    # --- Managers ---
     managers/ai/OpenAIService.h \
     managers/navigation/AppController.h \
     managers/navigation/NavigationController.h \
     managers/ai/AIServiceManager.h \
     drawing/tools/ImportedImageGeometryHelper.h \
-    drawing/utils/GeometryUtils.h \
     drawing/utils/shapevisualization/GridPlacementService.h \
     drawing/utils/shapevisualization/GeometryTransformHelper.h \
-    drawing/utils/shapevisualization/ShapeValidationService.h \
+    drawing/utils/shapevisualation/ShapeValidationService.h \
     drawing/utils/ImageExporter.h \
-    drawing/utils/PlacementOptimizer.h \
-    drawing/ShapeManager.h \
     drawing/ShapeRenderer.h \
     drawing/DrawModeManager.h \
     drawing/HistoryManager.h \
@@ -115,12 +123,10 @@ HEADERS += \
     managers/system/WifiNmcliClient.h \
     managers/system/WifiNmcliParsers.h \
     managers/system/WifiProfileService.h \
-    drawing/TextTool.h \
-    drawing/PathGenerator.h
+    drawing/TextTool.h
 
-# ==== FICHIERS (SOURCES) ====
+# ==== SOURCES ====
 SOURCES += \
-    # --- MainWindow et UI principale ---
     MainWindow.cpp \
     MainWindowMenuBuilder.cpp \
     MainWindowCoordinator.cpp \
@@ -130,29 +136,30 @@ SOURCES += \
     ui/widgets/shapevisualization/ShapeProjectModel.cpp \
     ui/widgets/shapevisualization/LayoutManager.cpp \
     main.cpp \
-    # --- Drawing ---
     drawing/shapes/CustomDrawArea.cpp \
     drawing/tools/LogoImporter.cpp \
     drawing/tools/ImageEdgeImporter.cpp \
-    models/ShapeModel.cpp \
+    domain/shapes/ShapeModel.cpp \
+    domain/inventory/InventoryModel.cpp \
+    infrastructure/persistence/InventoryRepository.cpp \
+    domain/shapes/BaseShapeNamingService.cpp \
+    domain/shapes/ShapeManager.cpp \
+    domain/shapes/PathGenerator.cpp \
+    domain/geometry/GeometryUtils.cpp \
+    domain/geometry/PlacementOptimizer.cpp \
     models/InventoryStorage.cpp \
     models/InventoryQueryService.cpp \
     models/InventoryMutationService.cpp \
-    models/InventoryModel.cpp \
     models/InventoryController.cpp \
-    models/BaseShapeNamingService.cpp \
-    models/InventoryRepository.cpp \
     models/InventorySortFilterService.cpp \
-    # --- UI (Widgets) ---
+    models/Inventory.cpp \
     ui/widgets/FolderWidget.cpp \
     drawing/utils/AspectRatioWrapper.cpp \
     ui/widgets/KeyboardDialog.cpp \
     ui/widgets/NumericKeyboardDialog.cpp \
     ui/widgets/CustomEditor.cpp \
-    models/Inventory.cpp \
     ui/widgets/LayoutsDialog.cpp \
     ui/widgets/KeyboardEventFilter.cpp \
-    # --- Managers/System ---
     managers/system/MotorControl.cpp \
     drawing/tools/pathplanner.cpp \
     managers/system/Raspberry.cpp \
@@ -160,26 +167,21 @@ SOURCES += \
     drawing/tools/skeletonizer.cpp \
     drawing/tools/TouchGestureReader.cpp \
     drawing/tools/TrajetMotor.cpp \
-    # --- UI (Dialogs) ---
     ui/dialogs/AIImagePromptDialog.cpp \
     ui/dialogs/AIImageProcessDialog.cpp \
     ui/dialogs/BluetoothReceiverDialog.cpp \
     ui/widgets/WifiTransferWidget.cpp \
     ui/dialogs/WifiConfigDialog.cpp \
     drawing/tools/qrcodegen.cpp \
-    # --- Managers ---
     managers/ai/OpenAIService.cpp \
     managers/navigation/AppController.cpp \
     managers/navigation/NavigationController.cpp \
     managers/ai/AIServiceManager.cpp \
     drawing/tools/ImportedImageGeometryHelper.cpp \
-    drawing/utils/GeometryUtils.cpp \
     drawing/utils/shapevisualization/GridPlacementService.cpp \
     drawing/utils/shapevisualization/GeometryTransformHelper.cpp \
     drawing/utils/shapevisualization/ShapeValidationService.cpp \
     drawing/utils/ImageExporter.cpp \
-    drawing/utils/PlacementOptimizer.cpp \
-    drawing/ShapeManager.cpp \
     drawing/ShapeRenderer.cpp \
     drawing/DrawModeManager.cpp \
     drawing/HistoryManager.cpp \
@@ -190,10 +192,9 @@ SOURCES += \
     managers/system/WifiNmcliClient.cpp \
     managers/system/WifiNmcliParsers.cpp \
     managers/system/WifiProfileService.cpp \
-    drawing/TextTool.cpp \
-    drawing/PathGenerator.cpp
+    drawing/TextTool.cpp
 
-# ==== FICHIERS (FORMS) ====
+# ==== FORMS ====
 FORMS += \
     ui/dialogs/BluetoothReceiverDialog.ui \
     mainwindow.ui \
@@ -205,14 +206,14 @@ FORMS += \
     ui/widgets/WifiTransferWidget.ui \
     ui/dialogs/WifiConfigDialog.ui
 
-
-
 # ==== RESSOURCES ====
-RESOURCES += resources.qrc
+RESOURCES += \
+    resources.qrc
 
 # ==== TRADUCTIONS ====
 TRANSLATIONS += \
-    translations/machineDecoupeIHM_fr.ts \
-    translations/machineDecoupeIHM_en.ts
+    translations/machineDecoupeIHM_fr_FR.ts \
+    translations/machineDecoupeIHM_en_US.ts
 
+# ==== INSTALLATION ====
 !isEmpty(target.path): INSTALLS += target

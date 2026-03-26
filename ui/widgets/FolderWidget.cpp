@@ -4,7 +4,7 @@
 #include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ImagePaths.h"
-
+#include "../MainWindowCoordinator.h"
 #include <QDir>
 #include <QDirIterator>
 #include <QScrollBar>
@@ -371,8 +371,11 @@ void FolderWidget::viewFile(const QFileInfo &fi)
 void FolderWidget::reuseFile(const QFileInfo &fi)
 {
     close();
-    if (auto mw = resolveMainWindow())
-        mw->openImageInCustom(fi.filePath());
+    if (auto mw = resolveMainWindow()) {
+        if (auto coordinator = mw->findChild<MainWindowCoordinator*>()) {
+            coordinator->openImageInCustom(fi.filePath(), true, false); // Exemple
+        }
+    }
 }
 
 void FolderWidget::openInExplorer(const QFileInfo &fi)

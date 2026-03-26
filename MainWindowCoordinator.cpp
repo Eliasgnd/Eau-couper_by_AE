@@ -1,5 +1,4 @@
 #include "MainWindowCoordinator.h"
-
 #include "MainWindow.h"
 #include "NavigationController.h"
 #include "ShapeController.h"
@@ -8,6 +7,10 @@
 #include "Inventory.h"
 #include "BaseShapeNamingService.h"
 #include "ImageImportService.h"
+#include "TrajetMotor.h"
+#include "OpenAIService.h"
+
+#include <QApplication>
 
 MainWindowCoordinator::MainWindowCoordinator(NavigationController *navigationController,
                                              AIServiceManager *aiServiceManager,
@@ -19,6 +22,8 @@ MainWindowCoordinator::MainWindowCoordinator(NavigationController *navigationCon
     , m_aiServiceManager(aiServiceManager)
     , m_shapeController(shapeController)
     , m_model(model)
+    , m_trajetMotor(nullptr)
+    , m_aiService(nullptr)
 {
     // Signaux internes AI → Coordinator
     connect(m_aiServiceManager, &AIServiceManager::generationStatusChanged,
@@ -26,11 +31,125 @@ MainWindowCoordinator::MainWindowCoordinator(NavigationController *navigationCon
     connect(m_aiServiceManager, &AIServiceManager::imageReadyForImport,
             this, &MainWindowCoordinator::imageReadyForImport);
 
-    // Inventory → Coordinator (on connecte ici au lieu de MainWindow)
+    // Inventory → Coordinator
     connect(Inventory::getInstance(), &Inventory::shapeSelected,
             this, &MainWindowCoordinator::onShapeSelectedFromInventory);
     connect(Inventory::getInstance(), &Inventory::customShapeSelected,
             this, &MainWindowCoordinator::onCustomShapeSelected);
+}
+
+void MainWindowCoordinator::setMainWindow(MainWindow *window) {
+    m_view = window;
+}
+
+void MainWindowCoordinator::setShapeVisualization(ShapeVisualization *visualization) {
+    m_shapeVisualization = visualization;
+    ensureServicesInitialized();
+}
+
+bool MainWindowCoordinator::ensureServicesInitialized() {
+    if (!m_shapeVisualization || !m_view) {
+        return false;
+    }
+
+    if (!m_trajetMotor) {
+        m_trajetMotor = new TrajetMotor(m_shapeVisualization, m_view);
+
+        connect(m_trajetMotor, &TrajetMotor::decoupeProgress, this,
+                [this](int remaining, int total) {
+                    const int percent = (total > 0) ? ((total - remaining) * 100) / total : 0;
+                    const int timeSec = (remaining * 15) / 1000;
+                    emit cutProgressUpdated(percent, tr("Temps restant estimé : %1s").arg(timeSec));
+                });
+    }
+
+    if (!m_aiService) {
+        m_aiService = new OpenAIService(this);
+        connect(m_aiService, &OpenAIService::statusUpdate,
+                this, &MainWindowCoordinator::aiGenerationStatus);
+        connect(m_aiService, &OpenAIService::generationFinished,
+                this, [this](bool success, const QString &result) {
+                    if (!success) {
+                        emit aiGenerationStatus(result);
+                        return;
+                    }
+                    emit aiImageReady(result);
+                });
+    }
+
+    return true;
+}
+
+void MainWindowCoordinator::startCutting() {
+    if (!ensureServicesInitialized()) return;
+
+    if (m_trajetMotor->isPaused()) {
+        m_trajetMotor->resume();
+        m_pauseRequested = false;
+        return;
+    }
+
+    m_shapeVisualization->resetAllShapeColors();
+    if (!m_shapeVisualization->validateShapes()) {
+        emit aiGenerationStatus(tr("Certaines formes dépassent la zone ou se chevauchent."));
+        emit cutFinished(false);
+        return;
+    }
+
+    emit cutControlsEnabled(false);
+    m_shapeVisualization->setInteractionEnabled(false);
+    m_shapeVisualization->resetAllShapeColors();
+    m_trajetMotor->executeTrajet();
+}
+
+void MainWindowCoordinator::stopCutting() {
+    if (!ensureServicesInitialized()) return;
+    m_trajetMotor->stopCut();
+    m_shapeVisualization->setInteractionEnabled(true);
+    emit cutProgressUpdated(0, tr("Temps restant estimé : 0s"));
+    emit cutControlsEnabled(true);
+    emit cutFinished(true);
+}
+
+void MainWindowCoordinator::pauseCutting() {
+    if (!ensureServicesInitialized()) return;
+
+    if (!m_pauseRequested) {
+        m_trajetMotor->pause();
+        m_pauseRequested = true;
+    } else {
+        m_trajetMotor->resume();
+        m_pauseRequested = false;
+    }
+}
+
+void MainWindowCoordinator::requestAiGeneration(const QString &prompt,
+                                                const QString &model,
+                                                const QString &quality,
+                                                const QString &size,
+                                                bool colorPrompt) {
+    if (!ensureServicesInitialized()) return;
+    m_aiService->requestImageGeneration(prompt, model, quality, size, colorPrompt);
+}
+
+bool MainWindowCoordinator::loadLanguage(Language lang) {
+    qApp->removeTranslator(&m_translator);
+    m_currentLanguage = lang;
+
+    const QString locale = (lang == Language::French) ? "fr" : "en";
+    const QString path = qApp->applicationDirPath()
+                         + "/translations/machineDecoupeIHM_" + locale + ".qm";
+
+    const bool ok = m_translator.load(path);
+    if (ok) {
+        qApp->installTranslator(&m_translator);
+    }
+    return ok;
+}
+
+void MainWindowCoordinator::changeLanguage(Language lang) {
+    const bool ok = loadLanguage(lang);
+    emit languageApplied(lang, ok);
 }
 
 // =======================================================================
@@ -298,17 +417,12 @@ void MainWindowCoordinator::onShapeSelectedFromInventory(ShapeModel::Type type)
     m_shapeController->setPredefinedShape(type);
 }
 
-void MainWindowCoordinator::openImageInCustom(const QString &filePath,
-                                              bool internalContours,
-                                              bool colorEdges)
+// Dans MainWindowCoordinator.cpp
+void MainWindowCoordinator::openImageInCustom(const QString &filePath, bool internalContours, bool colorEdges)
 {
-    QPainterPath outline = ImageImportService::processImageToPath(filePath,
-                                                                  internalContours,
-                                                                  colorEdges);
+    QPainterPath outline = ImageImportService::processImageToPath(filePath, internalContours, colorEdges);
     if (outline.isEmpty())
         return;
 
-    m_navigationController->openCustomEditorWithImportedPath(m_dialogParent,
-                                                             m_model->language(),
-                                                             outline);
+    m_navigationController->openCustomEditorWithImportedPath(m_dialogParent, m_model->language(), outline);
 }

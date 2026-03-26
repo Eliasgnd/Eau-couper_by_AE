@@ -4,29 +4,29 @@
 #include <QList>
 #include <QPolygonF>
 #include <QString>
+#include <QTranslator>
 
 #include "Language.h"
 #include "AIServiceManager.h"
 #include "ShapeModel.h"
+#include "NavigationController.h"
+#include "ShapeController.h"
+#include "WorkspaceModel.h"
 
-class MainWindow;
-class NavigationController;
-class ShapeController;
-class WorkspaceModel;
-class QWidget;
+class MainWindow; // Forward declaration
 class ShapeVisualization;
-struct LayoutData;
+class TrajetMotor;
+class OpenAIService;
 
-class MainWindowCoordinator : public QObject
-{
+class MainWindowCoordinator : public QObject {
     Q_OBJECT
 
 public:
-    MainWindowCoordinator(NavigationController *navigationController,
-                          AIServiceManager *aiServiceManager,
-                          ShapeController *shapeController,
-                          WorkspaceModel *model,
-                          QObject *parent = nullptr);
+    explicit MainWindowCoordinator(NavigationController *navigationController,
+                                   AIServiceManager *aiServiceManager,
+                                   ShapeController *shapeController,
+                                   WorkspaceModel *model,
+                                   QObject *parent = nullptr);
 
     NavigationController *navigationController() const { return m_navigationController; }
     AIServiceManager     *aiServiceManager()     const { return m_aiServiceManager; }
@@ -34,8 +34,8 @@ public:
     WorkspaceModel       *workspaceModel()       const { return m_model; }
 
     void setDialogParent(QWidget *parent) { m_dialogParent = parent; }
-
-    // Connecte le Coordinator aux signaux de la View
+    void setMainWindow(MainWindow *window);
+    void setShapeVisualization(ShapeVisualization *visualization);
     void connectToView(MainWindow *view);
 
     // --- Actions déléguées (navigation) ---
@@ -57,8 +57,23 @@ public:
                            bool internalContours,
                            bool colorEdges);
 
+    // --- Logique de découpe ---
 public slots:
-    // Réactions aux signaux de la View
+    void startCutting();
+    void stopCutting();
+    void pauseCutting();
+
+    // --- Logique IA ---
+    void requestAiGeneration(const QString& prompt,
+                             const QString& model,
+                             const QString& quality,
+                             const QString& size,
+                             bool colorPrompt);
+
+    // --- Logique de langue ---
+    void changeLanguage(Language lang);
+
+    // --- Réactions aux signaux de la View ---
     void onDimensionsChanged(int largeur, int longueur);
     void onShapeCountChanged(int count);
     void onSpacingChanged(int spacing);
@@ -96,16 +111,39 @@ public slots:
     void onShapeSelectedFromInventory(ShapeModel::Type type);
 
 signals:
+    // Signaux de découpe
+    void cutProgressUpdated(int percent, const QString &timeTxt);
+    void cutFinished(bool success);
+    void cutControlsEnabled(bool enabled);
+
+    // Signaux IA
+    void aiGenerationStatus(const QString &msg);
+    void aiImageReady(const QString &path);
+
+    // Signaux de langue
+    void languageApplied(Language lang, bool ok);
+
+    // Signaux MainWindowCoordinator existants
     void generationStatusChanged(const QString &status);
     void imageReadyForImport(const QString &path, bool internalContours, bool colorEdges);
     void requestShowFullScreen();
 
 private:
-    NavigationController *m_navigationController = nullptr;
-    AIServiceManager     *m_aiServiceManager     = nullptr;
-    ShapeController      *m_shapeController      = nullptr;
-    WorkspaceModel       *m_model                = nullptr;
+    bool ensureServicesInitialized();
+    bool loadLanguage(Language lang);
+
+    NavigationController *m_navigationController;
+    AIServiceManager     *m_aiServiceManager;
+    ShapeController      *m_shapeController;
+    WorkspaceModel       *m_model;
 
     QWidget  *m_dialogParent = nullptr;
-    MainWindow *m_view       = nullptr;   // référence vers la View (pour slots uniquement)
+    MainWindow *m_view       = nullptr;
+    ShapeVisualization *m_shapeVisualization = nullptr;
+
+    TrajetMotor *m_trajetMotor = nullptr;
+    OpenAIService *m_aiService = nullptr;
+    QTranslator m_translator;
+    Language m_currentLanguage = Language::French;
+    bool m_pauseRequested = false;
 };

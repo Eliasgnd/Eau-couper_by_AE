@@ -63,6 +63,9 @@ MainWindow::MainWindow(QWidget *parent,
     setupModels();
     setupViewConnections();
 
+    m_coordinator->setMainWindow(this);
+    m_coordinator->setShapeVisualization(shapeVisualization);
+
     // Le Coordinator connecte ses propres réactions aux signaux de la View
     m_coordinator->connectToView(this);
 }
@@ -223,12 +226,19 @@ void MainWindow::setupViewConnections()
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::generateAiRequested);
 
     // ---- Réactions de la View aux signaux du Coordinator ----
-    connect(m_coordinator, &MainWindowCoordinator::generationStatusChanged,
-            ui->labelAIGenerationStatus, &QLabel::setText);
+    // Découpe
+    connect(m_coordinator, &MainWindowCoordinator::cutProgressUpdated, this, &MainWindow::updateProgressBar);
+    connect(m_coordinator, &MainWindowCoordinator::cutFinished, this, &MainWindow::onCutFinished);
+    connect(m_coordinator, &MainWindowCoordinator::cutControlsEnabled, this, &MainWindow::setSpinboxSliderEnabled);
 
+    // IA
+    connect(m_coordinator, &MainWindowCoordinator::aiGenerationStatus, ui->labelAIGenerationStatus, &QLabel::setText);
     connect(m_coordinator, &MainWindowCoordinator::imageReadyForImport, this, [this]() {
         hideAiProgressBar();
     });
+
+    // Langue
+    connect(m_coordinator, &MainWindowCoordinator::languageApplied, this, &MainWindow::onLanguageApplied);
 
     // ---- Réactions de la View au ShapeVisualization ----
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount, this,
@@ -274,6 +284,12 @@ void MainWindow::setupViewConnections()
         ui->Longueur->setValue(v);
         ui->Longueur->blockSignals(false);
     });
+
+    // ---- Connexion des signaux de découpe et de langue ----
+    connect(this, &MainWindow::requestStartCut, m_coordinator, &MainWindowCoordinator::startCutting);
+    connect(this, &MainWindow::requestPauseCut, m_coordinator, &MainWindowCoordinator::pauseCutting);
+    connect(this, &MainWindow::requestStopCut,  m_coordinator, &MainWindowCoordinator::stopCutting);
+    connect(this, &MainWindow::requestLanguageChange, m_coordinator, &MainWindowCoordinator::changeLanguage);
 }
 
 // =======================================================================

@@ -9,8 +9,7 @@
 #include "LayoutsDialog.h"
 #include "ShapeVisualization.h"
 #include "drawing/tools/ImportedImageGeometryHelper.h"
-#include "drawing/PathGenerator.h"
-
+#include "../../domain/shapes/PathGenerator.h"
 #include <QWidget>
 #include <QInputDialog>
 #include <QLineEdit>

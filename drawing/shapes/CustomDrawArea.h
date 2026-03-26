@@ -10,7 +10,7 @@
 
 #include "drawing/DrawModeManager.h"
 #include "drawing/DrawingState.h"
-#include "drawing/ShapeManager.h"
+#include "domain/shapes/ShapeManager.h"
 
 class QMouseEvent;
 class QPaintEvent;
