@@ -4,7 +4,7 @@
 #include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ImagePaths.h"
-#include "../MainWindowCoordinator.h"
+#include "MainWindowCoordinator.h"
 #include <QDir>
 #include <QDirIterator>
 #include <QScrollBar>

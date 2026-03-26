@@ -34,7 +34,7 @@
 #include <cmath>
 #include "ScreenUtils.h"
 #include <QStatusBar>
-#include "../../domain/shapes/PathGenerator.h"
+#include "PathGenerator.h"
 namespace {
 MainWindow* resolveMainWindow()
 {

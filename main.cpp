@@ -1,8 +1,7 @@
 #include <QApplication>
 #include "MainWindow.h"
-#include "AppController.h"
+#include "WorkspaceViewModel.h"
 #include "KeyboardEventFilter.h"
-#include "AIServiceManager.h"
 
 int main(int argc, char *argv[])
 {
@@ -12,38 +11,16 @@ int main(int argc, char *argv[])
     KeyboardEventFilter filter(&app);
     app.installEventFilter(&filter);
 
-    AppController controller;
-    MainWindow w;
+    // WorkspaceViewModel est le seul objet injectable avant la création de MainWindow.
+    // DialogManager, AIDialogCoordinator et ShapeCoordinator sont créés
+    // à l'intérieur de MainWindow car ShapeCoordinator dépend de ShapeVisualization
+    // (widget instancié lors de ui->setupUi).
+    // Toutes les connexions View ↔ Coordinator sont établies dans connectToView().
+    WorkspaceViewModel model;
+    MainWindow w(nullptr, nullptr, &model);
 
-    controller.setMainWindow(&w);
-    controller.setShapeVisualization(w.getShapeVisualization());
-
-    QObject::connect(&w, &MainWindow::requestStartCut,
-                     &controller, &AppController::startCutting);
-    QObject::connect(&w, &MainWindow::requestPauseCut,
-                     &controller, &AppController::pauseCutting);
-    QObject::connect(&w, &MainWindow::requestStopCut,
-                     &controller, &AppController::stopCutting);
-    QObject::connect(&w, &MainWindow::requestAiGeneration,
-                     &controller, &AppController::requestAiGeneration);
-    QObject::connect(&w, &MainWindow::requestLanguageChange,
-                     &controller, &AppController::changeLanguage);
-
-    QObject::connect(&controller, &AppController::cutProgressUpdated,
-                     &w, &MainWindow::updateProgressBar);
-    QObject::connect(&controller, &AppController::cutFinished,
-                     &w, &MainWindow::onCutFinished);
-    QObject::connect(&controller, &AppController::cutControlsEnabled,
-                     &w, &MainWindow::setSpinboxSliderEnabled);
-    QObject::connect(&controller, &AppController::aiGenerationStatus,
-                     w.aiServiceManager(), &AIServiceManager::onGenerationStatus);
-    QObject::connect(&controller, &AppController::aiImageReady,
-                     w.aiServiceManager(), &AIServiceManager::onAiImageReady);
-    QObject::connect(&controller, &AppController::languageApplied,
-                     &w, &MainWindow::onLanguageApplied);
-
-    w.showFullScreen();
     filter.setShapeVisualization(w.getShapeVisualization());
 
+    w.showFullScreen();
     return app.exec();
 }

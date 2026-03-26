@@ -1,5 +1,5 @@
 #include <QtTest>
-#include "../GeometryUtils.h"
+#include "GeometryUtils.h"
 #include "inventory_safety_tests.h"
 
 void InventorySafetyTests::malformedShapeUsesProxy()

@@ -10,7 +10,7 @@
 #include <QSizeF>                // <<< AJOUT
 #include "ShapeModel.h"
 #include "Inventory.h"
-#include "shapevisualization/ShapeProjectModel.h"
+#include "shapevisualization/ShapeVisualizationViewModel.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées
@@ -39,20 +39,20 @@ public:
     void setInteractionEnabled(bool enabled);
     bool isInteractionEnabled() const;
     void cancelOptimization();
-    bool isOptimizationRunning() const { return m_optimizationRunning; }
+    bool isOptimizationRunning() const { return m_projectModel && m_projectModel->isOptimizationRunning(); }
     void setOptimizationRunning(bool running);
     void setOptimizationResult(const QList<QPainterPath> &placedPaths, bool optimized);
     QGraphicsView* getGraphicsView() const;
 
-    bool isCustomMode() const { return m_isCustomMode; }
-    void setCurrentCustomShapeName(const QString &name) { m_currentCustomShapeName = name; }
-    QString currentCustomShapeName() const { return m_currentCustomShapeName; }
+    bool isCustomMode() const { return m_projectModel && m_projectModel->isCustomMode(); }
+    void setCurrentCustomShapeName(const QString &name) { if (m_projectModel) m_projectModel->setCustomShapeName(name); }
+    QString currentCustomShapeName() const { return m_projectModel ? m_projectModel->customShapeName() : QString(); }
     QList<QPolygonF> currentCustomShapes() const;
     void applyLayout(const LayoutData &layout);
     LayoutData captureCurrentLayout(const QString &name) const;
 
-    ShapeProjectModel* projectModel() const { return m_projectModel; }
-    void setProjectModel(ShapeProjectModel *model);
+    ShapeVisualizationViewModel* projectModel() const { return m_projectModel; }
+    void setProjectModel(ShapeVisualizationViewModel *model);
 
     // <<< AJOUT : accès à la taille en mm
     QSizeF sheetSizeMm() const { return m_sheetMm; }
@@ -105,13 +105,10 @@ private:
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
-    bool                 m_isCustomMode {false};
-    ShapeProjectModel    *m_projectModel {nullptr};
-    QString              m_currentCustomShapeName;
+    ShapeVisualizationViewModel    *m_projectModel {nullptr};
     QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
     bool m_interactionEnabled = true;
-    bool m_optimizationRunning = false;
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
 

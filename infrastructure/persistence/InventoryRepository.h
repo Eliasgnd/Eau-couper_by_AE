@@ -1,11 +1,12 @@
 #pragma once
 
+#include "IInventoryRepository.h"
 #include "InventorySnapshot.h"
 
-class InventoryRepository
+class InventoryRepository : public IInventoryRepository
 {
 public:
-    InventorySnapshot load() const;
-    void save(const InventorySnapshot &snapshot) const;
+    InventorySnapshot load() const override;
+    void save(const InventorySnapshot &snapshot) const override;
     QString customShapesFilePath() const;
 };

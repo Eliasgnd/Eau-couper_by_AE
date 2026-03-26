@@ -2,7 +2,7 @@
 #include "ui_WifiConfigDialog.h"
 #include "MainWindow.h"
 
-#include "managers/system/WifiNmcliParsers.h"
+#include "WifiNmcliParsers.h"
 #include <QMessageBox>
 #include <QClipboard>
 #include <QGuiApplication>

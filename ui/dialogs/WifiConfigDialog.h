@@ -5,8 +5,8 @@
 #include <QString>
 #include <QCloseEvent>
 
-#include "managers/system/WifiNmcliClient.h"
-#include "managers/system/WifiProfileService.h"
+#include "WifiNmcliClient.h"
+#include "WifiProfileService.h"
 
 namespace Ui { class WifiConfigDialog; }
 

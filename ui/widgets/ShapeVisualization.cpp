@@ -1,11 +1,11 @@
 #include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
 #include "GeometryUtils.h"
-#include "drawing/utils/shapevisualization/GeometryTransformHelper.h"
-#include "drawing/utils/shapevisualization/GridPlacementService.h"
+#include "shapevisualization/GeometryTransformHelper.h"
+#include "shapevisualization/GridPlacementService.h"
 #include "ImageExporter.h"
 #include "shapevisualization/LayoutManager.h"
-#include "drawing/utils/shapevisualization/ShapeValidationService.h"
+#include "shapevisualization/ShapeValidationService.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>
@@ -66,8 +66,7 @@ QPainterPath buildPrototypePath(ShapeModel::Type model,
 
 ShapeVisualization::ShapeVisualization(QWidget *parent)
     : QWidget(parent),
-    m_isCustomMode(false),
-    m_projectModel(new ShapeProjectModel(this))
+    m_projectModel(new ShapeVisualizationViewModel(this))
 {
     // >>> ICI (dans le corps), on peut écrire du code :
     // Le widget garde un ratio fixe (B : ratio au niveau du widget)
@@ -114,9 +113,9 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &ShapeVisualization::handleSelectionChanged);
 
-    connect(m_projectModel, &ShapeProjectModel::dataChanged,
+    connect(m_projectModel, &ShapeVisualizationViewModel::dataChanged,
             this, [this]() {
-                if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+                if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
                     displayCustomShapes(m_projectModel->customShapes());
                 else
                     redraw();
@@ -178,7 +177,7 @@ void ShapeVisualization::updateDimensions(int largeur, int longueur)
     }
     cancelOptimization();
     m_projectModel->setDimensions(largeur, longueur);
-    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+    if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
         displayCustomShapes(m_projectModel->customShapes());
     else
         redraw();
@@ -198,7 +197,7 @@ void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
     m_projectModel->setShapeCount(count);
     m_projectModel->setCurrentModel(type);
     m_projectModel->setDimensions(width, height);
-    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+    if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
         displayCustomShapes(m_projectModel->customShapes());
     else
         redraw();
@@ -217,7 +216,7 @@ void ShapeVisualization::setSpacing(int newSpacing)
 
     m_projectModel->setSpacing(newSpacing);
     emit spacingChanged(newSpacing);
-    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+    if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
         displayCustomShapes(m_projectModel->customShapes());
     else
         redraw();
@@ -234,8 +233,8 @@ void ShapeVisualization::setPredefinedMode()
 
     cancelOptimization();
 
-    m_isCustomMode = false;
-    m_currentCustomShapeName.clear();
+    m_projectModel->setCustomMode(false);
+    m_projectModel->setCustomShapeName(QString());
     m_projectModel->clearCustomShapes();
     emit optimizationStateChanged(false);
     redraw();
@@ -249,7 +248,7 @@ void ShapeVisualization::redraw()
     const int drawingWidth  = int(sr.width());
     const int drawingHeight = int(sr.height());
 
-    m_isCustomMode = false;
+    m_projectModel->setCustomMode(false);
     m_projectModel->clearCustomShapes();
 
     if (m_projectModel->shapeCount() <= 0)
@@ -325,7 +324,7 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         return;
     }
 
-    m_isCustomMode = true;
+    m_projectModel->setCustomMode(true);
     m_projectModel->setCustomShapes(shapes);
 
     const QRectF sr = scene->sceneRect();
@@ -455,7 +454,7 @@ void ShapeVisualization::addShapeBottomRight()
 
     QGraphicsItem *newItem = nullptr;
 
-    if (m_isCustomMode && !m_projectModel->customShapes().isEmpty()) {
+    if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty()) {
         QPainterPath combinedPath;
         for (const QPolygonF &poly : m_projectModel->customShapes())
             combinedPath.addPolygon(poly);
@@ -505,7 +504,7 @@ void ShapeVisualization::addShapeBottomRight()
 
 void ShapeVisualization::setCustomMode() {
     cancelOptimization();
-    m_isCustomMode = true;
+    m_projectModel->setCustomMode(true);
     emit optimizationStateChanged(false);
 }
 
@@ -583,12 +582,12 @@ bool ShapeVisualization::isInteractionEnabled() const
 
 void ShapeVisualization::cancelOptimization()
 {
-    m_optimizationRunning = false;
+    m_projectModel->setOptimizationRunning(false);
 }
 
 void ShapeVisualization::setOptimizationRunning(bool running)
 {
-    m_optimizationRunning = running;
+    m_projectModel->setOptimizationRunning(running);
 }
 
 
@@ -689,7 +688,7 @@ void ShapeVisualization::resetAllShapeColors()
 
 void ShapeVisualization::applyLayout(const LayoutData &layout)
 {
-    if (!m_isCustomMode)
+    if (!m_projectModel->isCustomMode())
         return;
 
     m_projectModel->setDimensions(layout.largeur, layout.longueur);
@@ -737,7 +736,7 @@ QList<QPolygonF> ShapeVisualization::currentCustomShapes() const
     return m_projectModel ? m_projectModel->customShapes() : QList<QPolygonF>{};
 }
 
-void ShapeVisualization::setProjectModel(ShapeProjectModel *model)
+void ShapeVisualization::setProjectModel(ShapeVisualizationViewModel *model)
 {
     if (!model || model == m_projectModel)
         return;
@@ -749,9 +748,9 @@ void ShapeVisualization::setProjectModel(ShapeProjectModel *model)
     if (!m_projectModel->parent())
         m_projectModel->setParent(this);
 
-    connect(m_projectModel, &ShapeProjectModel::dataChanged,
+    connect(m_projectModel, &ShapeVisualizationViewModel::dataChanged,
             this, [this]() {
-                if (m_isCustomMode && !m_projectModel->customShapes().isEmpty())
+                if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
                     displayCustomShapes(m_projectModel->customShapes());
                 else
                     redraw();

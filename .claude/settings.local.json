@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(qmake machineDecoupeIHM.pro)",
+      "Bash(\"C:/Qt/6.10.2/msvc2022_64/bin/qmake.exe\" machineDecoupeIHM.pro)",
+      "Bash(\"C:/Qt/6.10.2/mingw_64/bin/qmake.exe\" machineDecoupeIHM.pro)",
+      "Bash(ls -d \"C:\\\\Program Files/Microsoft Visual Studio\"/*)",
+      "Bash(ls -la Makefile*)",
+      "Bash(qmake_only.bat:*)",
+      "Bash(cmd.exe /c qmake_only.bat)",
+      "Bash(find . -maxdepth 1 -name *.h -o -name *.cpp)",
+      "Bash(ls -la viewmodels/InventoryViewModel*)",
+      "Bash(\"build_project.bat\":*)",
+      "Bash(cmd.exe /c \"build_project.bat\")",
+      "Bash(for file:*)",
+      "Bash(do)",
+      "Bash(echo \"=== Checking $file ===\")",
+      "Read(//c/Users/elias/Desktop/codeQT/Eau-couper_by_AE/**)",
+      "Bash(done)",
+      "Bash(__NEW_LINE_596c14826799f994__ echo:*)",
+      "Bash(build_project.py:*)",
+      "Bash(__NEW_LINE_059b36c1ab8c7a2d__ python:*)",
+      "Bash(ls -lh \"build/Desktop_Qt_6_10_2_MSVC2022_64bit-Debug/Makefile\"*)",
+      "Bash(grep -rn \"WorkspaceModel\\\\|NavigationController\\\\|AIServiceManager\\\\|ShapeProjectModel\" --include=*.h --include=*.cpp C:/Users/elias/Desktop/codeQT/Eau-couper_by_AE)",
+      "Bash(grep -rn \"WorkspaceModel\\\\b\\\\|NavigationController\\\\b\\\\|AIServiceManager\\\\b\\\\|ShapeProjectModel\\\\b\" --include=*.h --include=*.cpp C:/Users/elias/Desktop/codeQT/Eau-couper_by_AE)",
+      "Bash(for f:*)",
+      "Bash(do grep:*)",
+      "Bash(xargs -I{} echo \"$f: {} occurrences\" done)",
+      "Bash(qmake machineDecoupeIHM.pro -o Makefile)",
+      "Bash(\"/c/Qt/6.10.2/msvc2022_64/bin/qmake.exe\" machineDecoupeIHM.pro -o Makefile)",
+      "Bash(\"/c/Qt/6.10.2/mingw_64/bin/qmake.exe\" machineDecoupeIHM.pro -o Makefile)",
+      "Bash(while read:*)",
+      "Bash(do echo:*)",
+      "Bash(xargs wc:*)",
+      "Bash(echo \"  \\(from $f\\)\" done)"
+    ]
+  }
+}

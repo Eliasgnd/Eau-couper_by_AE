@@ -25,23 +25,20 @@ win32 {
 # ==== INCLUDEPATH ====
 INCLUDEPATH += \
     . \
-    models \
+    ui/mainwindow \
     ui/widgets \
+    ui/widgets/shapevisualization \
     ui/dialogs \
-    managers/system \
-    managers/ai \
-    managers/navigation \
-    drawing \
-    drawing/utils \
-    drawing/tools \
-    drawing/shapes \
-    viewmodels \
+    ui/utils \
     application \
+    viewmodels \
+    drawing \
+    drawing/tools \
     domain \
     domain/shapes \
     domain/geometry \
     domain/inventory \
-    domain/machine \
+    domain/interfaces \
     infrastructure \
     infrastructure/persistence \
     infrastructure/hardware \
@@ -51,153 +48,160 @@ INCLUDEPATH += \
 
 # ==== HEADERS ====
 HEADERS += \
-    MainWindow.h \
-    MainWindowMenuBuilder.h \
-    MainWindowCoordinator.h \
-    ShapeController.h \
-    ImageImportService.h \
-    viewmodels/Workspacemodel.h \
+    ui/mainwindow/MainWindow.h \
+    ui/mainwindow/MainWindowMenuBuilder.h \
+    application/MainWindowCoordinator.h \
+    application/ShapeCoordinator.h \
+    application/CuttingService.h \
+    application/ImageImportService.h \
+    application/DialogManager.h \
+    application/AIDialogCoordinator.h \
+    application/InventoryController.h \
+    application/InventoryStorage.h \
+    application/InventoryQueryService.h \
+    application/InventoryMutationService.h \
+    application/InventorySortFilterService.h \
+    application/InventoryViewState.h \
+    viewmodels/WorkspaceViewModel.h \
+    viewmodels/MainWindowViewModel.h \
+    viewmodels/InventoryViewModel.h \
     ui/widgets/ShapeVisualization.h \
-    ui/widgets/shapevisualization/ShapeProjectModel.h \
+    ui/widgets/shapevisualization/ShapeVisualizationViewModel.h \
     ui/widgets/shapevisualization/LayoutManager.h \
-    drawing/shapes/CustomDrawArea.h \
-    drawing/tools/LogoImporter.h \
-    drawing/tools/ImageEdgeImporter.h \
-    domain/shapes/ShapeModel.h \
-    domain/inventory/InventoryModel.h \
-    domain/inventory/InventoryDomainTypes.h \
-    infrastructure/persistence/InventoryRepository.h \
-    domain/shapes/BaseShapeNamingService.h \
-    domain/shapes/ShapeManager.h \
-    domain/shapes/PathGenerator.h \
-    domain/geometry/GeometryUtils.h \
-    domain/geometry/PlacementOptimizer.h \
-    models/InventoryStorage.h \
-    models/InventoryQueryService.h \
-    models/InventoryMutationService.h \
-    models/InventoryController.h \
-    models/InventorySnapshot.h \
-    models/InventoryViewState.h \
-    models/InventorySortFilterService.h \
+    ui/widgets/shapevisualization/GridPlacementService.h \
+    ui/widgets/shapevisualization/GeometryTransformHelper.h \
+    ui/widgets/shapevisualization/ShapeValidationService.h \
     ui/widgets/FolderWidget.h \
-    drawing/utils/ScreenUtils.h \
-    drawing/utils/AspectRatioWrapper.h \
     ui/widgets/KeyboardDialog.h \
     ui/widgets/NumericKeyboardDialog.h \
     ui/widgets/CustomEditor.h \
-    models/Inventory.h \
+    ui/widgets/Inventory.h \
     ui/widgets/LayoutsDialog.h \
-    drawing/DrawingState.h \
     ui/widgets/KeyboardEventFilter.h \
-    managers/system/MotorControl.h \
-    drawing/tools/pathplanner.h \
-    managers/system/Raspberry.h \
+    ui/widgets/WifiTransferWidget.h \
     ui/dialogs/TestGpio.h \
-    drawing/tools/skeletonizer.h \
-    drawing/tools/TouchGestureReader.h \
-    drawing/tools/TrajetMotor.h \
-    shared/Language.h \
     ui/dialogs/AIImagePromptDialog.h \
     ui/dialogs/AIImageProcessDialog.h \
     ui/dialogs/BluetoothReceiverDialog.h \
-    ui/widgets/WifiTransferWidget.h \
-    drawing/tools/qrcodegen.hpp \
-    drawing/tools/ImagePaths.h \
     ui/dialogs/WifiConfigDialog.h \
-    managers/ai/OpenAIService.h \
-    managers/navigation/AppController.h \
-    managers/navigation/NavigationController.h \
-    managers/ai/AIServiceManager.h \
-    drawing/tools/ImportedImageGeometryHelper.h \
-    drawing/utils/shapevisualization/GridPlacementService.h \
-    drawing/utils/shapevisualization/GeometryTransformHelper.h \
-    drawing/utils/shapevisualation/ShapeValidationService.h \
-    drawing/utils/ImageExporter.h \
+    ui/utils/AspectRatioWrapper.h \
+    ui/utils/ScreenUtils.h \
+    ui/utils/UiScale.h \
+    ui/utils/ImageExporter.h \
+    ui/utils/GestureHandler.h \
+    drawing/CustomDrawArea.h \
+    drawing/DrawingState.h \
     drawing/ShapeRenderer.h \
     drawing/DrawModeManager.h \
     drawing/HistoryManager.h \
     drawing/MouseInteractionHandler.h \
     drawing/ViewTransformer.h \
     drawing/EraserTool.h \
-    managers/system/GestureHandler.h \
-    managers/system/WifiNmcliClient.h \
-    managers/system/WifiNmcliParsers.h \
-    managers/system/WifiProfileService.h \
-    drawing/TextTool.h
+    drawing/TextTool.h \
+    drawing/tools/pathplanner.h \
+    drawing/tools/TouchGestureReader.h \
+    drawing/tools/ImportedImageGeometryHelper.h \
+    drawing/tools/qrcodegen.hpp \
+    drawing/tools/ImagePaths.h \
+    domain/shapes/ShapeModel.h \
+    domain/shapes/BaseShapeNamingService.h \
+    domain/shapes/ShapeManager.h \
+    domain/shapes/PathGenerator.h \
+    domain/geometry/GeometryUtils.h \
+    domain/geometry/PlacementOptimizer.h \
+    domain/inventory/InventoryModel.h \
+    domain/inventory/InventoryDomainTypes.h \
+    domain/inventory/InventorySnapshot.h \
+    domain/interfaces/IInventoryRepository.h \
+    domain/interfaces/IMotorControl.h \
+    infrastructure/persistence/InventoryRepository.h \
+    infrastructure/hardware/MotorControl.h \
+    infrastructure/hardware/Raspberry.h \
+    infrastructure/hardware/TrajetMotor.h \
+    infrastructure/network/OpenAIService.h \
+    infrastructure/network/WifiNmcliClient.h \
+    infrastructure/network/WifiNmcliParsers.h \
+    infrastructure/network/WifiProfileService.h \
+    infrastructure/imaging/LogoImporter.h \
+    infrastructure/imaging/ImageEdgeImporter.h \
+    infrastructure/imaging/skeletonizer.h \
+    shared/Language.h
 
 # ==== SOURCES ====
 SOURCES += \
-    MainWindow.cpp \
-    MainWindowMenuBuilder.cpp \
-    MainWindowCoordinator.cpp \
-    ShapeController.cpp \
-    ImageImportService.cpp \
-    ui/widgets/ShapeVisualization.cpp \
-    ui/widgets/shapevisualization/ShapeProjectModel.cpp \
-    ui/widgets/shapevisualization/LayoutManager.cpp \
     main.cpp \
-    drawing/shapes/CustomDrawArea.cpp \
-    drawing/tools/LogoImporter.cpp \
-    drawing/tools/ImageEdgeImporter.cpp \
-    domain/shapes/ShapeModel.cpp \
-    domain/inventory/InventoryModel.cpp \
-    infrastructure/persistence/InventoryRepository.cpp \
-    domain/shapes/BaseShapeNamingService.cpp \
-    domain/shapes/ShapeManager.cpp \
-    domain/shapes/PathGenerator.cpp \
-    domain/geometry/GeometryUtils.cpp \
-    domain/geometry/PlacementOptimizer.cpp \
-    models/InventoryStorage.cpp \
-    models/InventoryQueryService.cpp \
-    models/InventoryMutationService.cpp \
-    models/InventoryController.cpp \
-    models/InventorySortFilterService.cpp \
-    models/Inventory.cpp \
+    ui/mainwindow/MainWindow.cpp \
+    ui/mainwindow/MainWindowMenuBuilder.cpp \
+    application/MainWindowCoordinator.cpp \
+    application/ShapeCoordinator.cpp \
+    application/CuttingService.cpp \
+    application/ImageImportService.cpp \
+    application/DialogManager.cpp \
+    application/AIDialogCoordinator.cpp \
+    application/InventoryController.cpp \
+    application/InventoryStorage.cpp \
+    application/InventoryQueryService.cpp \
+    application/InventoryMutationService.cpp \
+    application/InventorySortFilterService.cpp \
+    ui/widgets/ShapeVisualization.cpp \
+    ui/widgets/shapevisualization/ShapeVisualizationViewModel.cpp \
+    ui/widgets/shapevisualization/LayoutManager.cpp \
+    ui/widgets/shapevisualization/GridPlacementService.cpp \
+    ui/widgets/shapevisualization/GeometryTransformHelper.cpp \
+    ui/widgets/shapevisualization/ShapeValidationService.cpp \
     ui/widgets/FolderWidget.cpp \
-    drawing/utils/AspectRatioWrapper.cpp \
     ui/widgets/KeyboardDialog.cpp \
     ui/widgets/NumericKeyboardDialog.cpp \
     ui/widgets/CustomEditor.cpp \
+    ui/widgets/Inventory.cpp \
     ui/widgets/LayoutsDialog.cpp \
     ui/widgets/KeyboardEventFilter.cpp \
-    managers/system/MotorControl.cpp \
-    drawing/tools/pathplanner.cpp \
-    managers/system/Raspberry.cpp \
+    ui/widgets/WifiTransferWidget.cpp \
     ui/dialogs/TestGpio.cpp \
-    drawing/tools/skeletonizer.cpp \
-    drawing/tools/TouchGestureReader.cpp \
-    drawing/tools/TrajetMotor.cpp \
     ui/dialogs/AIImagePromptDialog.cpp \
     ui/dialogs/AIImageProcessDialog.cpp \
     ui/dialogs/BluetoothReceiverDialog.cpp \
-    ui/widgets/WifiTransferWidget.cpp \
     ui/dialogs/WifiConfigDialog.cpp \
-    drawing/tools/qrcodegen.cpp \
-    managers/ai/OpenAIService.cpp \
-    managers/navigation/AppController.cpp \
-    managers/navigation/NavigationController.cpp \
-    managers/ai/AIServiceManager.cpp \
-    drawing/tools/ImportedImageGeometryHelper.cpp \
-    drawing/utils/shapevisualization/GridPlacementService.cpp \
-    drawing/utils/shapevisualization/GeometryTransformHelper.cpp \
-    drawing/utils/shapevisualization/ShapeValidationService.cpp \
-    drawing/utils/ImageExporter.cpp \
+    ui/utils/AspectRatioWrapper.cpp \
+    ui/utils/ImageExporter.cpp \
+    ui/utils/GestureHandler.cpp \
+    drawing/CustomDrawArea.cpp \
     drawing/ShapeRenderer.cpp \
     drawing/DrawModeManager.cpp \
     drawing/HistoryManager.cpp \
     drawing/MouseInteractionHandler.cpp \
     drawing/ViewTransformer.cpp \
     drawing/EraserTool.cpp \
-    managers/system/GestureHandler.cpp \
-    managers/system/WifiNmcliClient.cpp \
-    managers/system/WifiNmcliParsers.cpp \
-    managers/system/WifiProfileService.cpp \
-    drawing/TextTool.cpp
+    drawing/TextTool.cpp \
+    drawing/tools/pathplanner.cpp \
+    drawing/tools/TouchGestureReader.cpp \
+    drawing/tools/ImportedImageGeometryHelper.cpp \
+    drawing/tools/qrcodegen.cpp \
+    domain/shapes/ShapeModel.cpp \
+    domain/shapes/BaseShapeNamingService.cpp \
+    domain/shapes/ShapeManager.cpp \
+    domain/shapes/PathGenerator.cpp \
+    domain/geometry/GeometryUtils.cpp \
+    domain/geometry/PlacementOptimizer.cpp \
+    domain/inventory/InventoryModel.cpp \
+    infrastructure/persistence/InventoryRepository.cpp \
+    viewmodels/InventoryViewModel.cpp \
+    viewmodels/MainWindowViewModel.cpp \
+    infrastructure/hardware/MotorControl.cpp \
+    infrastructure/hardware/Raspberry.cpp \
+    infrastructure/hardware/TrajetMotor.cpp \
+    infrastructure/network/OpenAIService.cpp \
+    infrastructure/network/WifiNmcliClient.cpp \
+    infrastructure/network/WifiNmcliParsers.cpp \
+    infrastructure/network/WifiProfileService.cpp \
+    infrastructure/imaging/LogoImporter.cpp \
+    infrastructure/imaging/ImageEdgeImporter.cpp \
+    infrastructure/imaging/skeletonizer.cpp
 
 # ==== FORMS ====
 FORMS += \
+    ui/mainwindow/mainwindow.ui \
     ui/dialogs/BluetoothReceiverDialog.ui \
-    mainwindow.ui \
     ui/widgets/CustomEditor.ui \
     ui/widgets/Inventory.ui \
     ui/widgets/LayoutsDialog.ui \
