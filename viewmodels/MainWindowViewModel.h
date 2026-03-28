@@ -30,6 +30,9 @@ public:
     void setControlsEnabled(bool enabled);
     void setLanguage(Language lang, bool ok);
     void setAiGenerating(bool generating);
+    void setAiStatus(const QString &status);
+    void setShapeProgress(int current, int total);
+    void setAiImageReceived();
 
 signals:
     // --- Signaux écoutés par MainWindow ---
@@ -39,6 +42,9 @@ signals:
     void controlsEnabledChanged(bool enabled);
     void languageChanged(Language lang, bool ok);
     void aiGeneratingChanged(bool generating);
+    void aiStatusChanged(const QString &status);
+    void shapeProgressChanged(int current, int total);
+    void aiImageReceived();
 
 private:
     bool     m_cuttingActive        = false;

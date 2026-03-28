@@ -1,6 +1,7 @@
 #include "DialogManager.h"
 
 #include "CustomEditor.h"
+#include "CustomEditorViewModel.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
 #include "BluetoothReceiverDialog.h"
@@ -34,7 +35,8 @@ void DialogManager::openCustomEditor(QWidget *from, Language language)
     if (from)
         from->hide();
 
-    CustomEditor *customWindow = new CustomEditor(language);
+    auto *vm = new CustomEditorViewModel(*Inventory::getInstance()->viewModel());
+    CustomEditor *customWindow = new CustomEditor(vm, language);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
     connect(customWindow, &CustomEditor::applyCustomShapeSignal,
             this, &DialogManager::customShapeApplied);
@@ -43,6 +45,7 @@ void DialogManager::openCustomEditor(QWidget *from, Language language)
     connect(customWindow, &QObject::destroyed, this, [this]() {
         emit requestReturnToFullScreen();
     });
+    vm->setParent(customWindow);
     customWindow->showFullScreen();
 }
 
@@ -53,7 +56,8 @@ void DialogManager::openCustomEditorWithImportedPath(QWidget *from,
     if (from)
         from->hide();
 
-    CustomEditor *customWindow = new CustomEditor(language);
+    auto *vm = new CustomEditorViewModel(*Inventory::getInstance()->viewModel());
+    CustomEditor *customWindow = new CustomEditor(vm, language);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
     connect(customWindow, &CustomEditor::applyCustomShapeSignal,
             this, &DialogManager::customShapeApplied);
@@ -63,6 +67,7 @@ void DialogManager::openCustomEditorWithImportedPath(QWidget *from,
         emit requestReturnToFullScreen();
     });
 
+    vm->setParent(customWindow);
     CustomDrawArea *area = customWindow->getDrawArea();
     customWindow->showFullScreen();
 
@@ -141,6 +146,8 @@ void DialogManager::openFolder(QWidget *from, Language language)
     connect(dialog, &QObject::destroyed, this, [this]() {
         emit requestReturnToFullScreen();
     });
+    connect(dialog, &FolderWidget::imageReuseRequested,
+            this, &DialogManager::imageReuseRequested);
     dialog->showFullScreen();
 }
 

@@ -1,10 +1,8 @@
 #include "FolderWidget.h"
 #include "ui_FolderWidget.h"
 
-#include "MainWindow.h"
 #include "ScreenUtils.h"
 #include "ImagePaths.h"
-#include "MainWindowCoordinator.h"
 #include <QDir>
 #include <QDirIterator>
 #include <QScrollBar>
@@ -27,18 +25,6 @@
 #include <QImageReader>
 #include <QtGlobal>
 
-namespace {
-MainWindow* resolveMainWindow()
-{
-    const auto widgets = QApplication::topLevelWidgets();
-    for (QWidget *w : widgets) {
-        if (auto *mw = qobject_cast<MainWindow*>(w)) {
-            return mw;
-        }
-    }
-    return nullptr;
-}
-}
 
 FolderWidget::FolderWidget(Language lang, QWidget *parent)
     : QWidget(parent)
@@ -128,8 +114,6 @@ FolderWidget::~FolderWidget()
 void FolderWidget::onCloseClicked()
 {
     close();
-    if (auto mw = resolveMainWindow())
-        mw->showFullScreen();
 }
 
 void FolderWidget::onSortChanged(int idx)
@@ -370,12 +354,8 @@ void FolderWidget::viewFile(const QFileInfo &fi)
 
 void FolderWidget::reuseFile(const QFileInfo &fi)
 {
+    emit imageReuseRequested(fi.filePath(), true, false);
     close();
-    if (auto mw = resolveMainWindow()) {
-        if (auto coordinator = mw->findChild<MainWindowCoordinator*>()) {
-            coordinator->openImageInCustom(fi.filePath(), true, false); // Exemple
-        }
-    }
 }
 
 void FolderWidget::openInExplorer(const QFileInfo &fi)

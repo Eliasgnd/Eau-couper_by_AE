@@ -57,6 +57,7 @@ signals:
     void baseShapeLayoutSelected(ShapeModel::Type type, const LayoutData &layout);
     void requestOpenInventory();
     void requestReturnToFullScreen();
+    void imageReuseRequested(const QString &filePath, bool internalContours, bool colorEdges);
 };
 
 #endif // DIALOGMANAGER_H

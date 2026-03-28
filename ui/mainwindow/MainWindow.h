@@ -15,9 +15,6 @@ class QAction;
 class QMenu;
 struct LayoutData;
 class ShapeVisualization;
-class DialogManager;
-class AIDialogCoordinator;
-class ShapeCoordinator;
 class MainWindowCoordinator;
 class WorkspaceViewModel;
 class MainWindowViewModel;
@@ -32,7 +29,6 @@ public:
     ~MainWindow();
 
     ShapeVisualization* getShapeVisualization() const;
-    AIDialogCoordinator*   aiServiceManager() const { return m_aiServiceManager; }
     Language            displayLanguage() const;
 
     // --- Méthodes appelées par le Coordinator (via slots) ---
@@ -135,13 +131,10 @@ private:
     // --- Données centralisées ---
     WorkspaceViewModel *m_model = nullptr;
 
-    // --- Controllers (références, pas de propriété) ---
-    MainWindowCoordinator *m_coordinator         = nullptr;
-    DialogManager         *m_navigationController = nullptr;
-    AIDialogCoordinator   *m_aiServiceManager     = nullptr;
-    ShapeCoordinator      *m_shapeController      = nullptr;
-    MainWindowViewModel   *m_viewModel            = nullptr;
-    bool                   m_ownsCoordinator      = false;
+    // --- Coordinator et ViewModel (seuls contacts autorisés depuis la View) ---
+    MainWindowCoordinator *m_coordinator    = nullptr;
+    MainWindowViewModel   *m_viewModel      = nullptr;
+    bool                   m_ownsCoordinator = false;
 };
 
 #endif // MAINWINDOW_H

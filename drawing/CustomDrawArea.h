@@ -37,7 +37,7 @@ public:
     using DrawMode = DrawModeManager::DrawMode;
 
     explicit CustomDrawArea(QWidget *parent = nullptr);
-    ~CustomDrawArea() override = default;
+    ~CustomDrawArea() override;
 
     void     setDrawMode(DrawMode mode);
     DrawMode getDrawMode() const;

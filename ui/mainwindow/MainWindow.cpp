@@ -55,9 +55,6 @@ MainWindow::MainWindow(QWidget *parent,
         m_ownsCoordinator = true;
     }
 
-    m_navigationController = m_coordinator->navigationController();
-    m_aiServiceManager     = m_coordinator->aiServiceManager();
-    m_shapeController      = m_coordinator->shapeController();
     m_coordinator->setDialogParent(this);
 
     // Créer et injecter le ViewModel — il sert de pont entre Coordinator et View
@@ -236,11 +233,22 @@ void MainWindow::setupViewConnections()
     connect(m_viewModel, &MainWindowViewModel::controlsEnabledChanged, this, &MainWindow::setSpinboxSliderEnabled);
     connect(m_viewModel, &MainWindowViewModel::languageChanged,    this, &MainWindow::onLanguageApplied);
 
-    // ---- Réactions de la View aux signaux directs du Coordinator (IA) ----
-    connect(m_coordinator, &MainWindowCoordinator::aiGenerationStatus, ui->labelAIGenerationStatus, &QLabel::setText);
-    connect(m_coordinator, &MainWindowCoordinator::imageReadyForImport, this, [this]() {
-        hideAiProgressBar();
-    });
+    // ---- Réactions de la View au ViewModel (IA, shape progress) ----
+    connect(m_viewModel, &MainWindowViewModel::aiStatusChanged,
+            ui->labelAIGenerationStatus, &QLabel::setText);
+    connect(m_viewModel, &MainWindowViewModel::aiImageReceived, this, &MainWindow::hideAiProgressBar);
+    connect(m_viewModel, &MainWindowViewModel::shapeProgressChanged, this,
+            [this](int current, int total) {
+                if (total <= 0) {
+                    ui->progressBar->setRange(0, 100);
+                    ui->progressBar->setValue(0);
+                    ui->progressBar->setVisible(false);
+                    return;
+                }
+                ui->progressBar->setVisible(true);
+                ui->progressBar->setRange(0, total);
+                ui->progressBar->setValue(current);
+            });
 
     // ---- Réactions de la View au ShapeVisualization ----
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount, this,
@@ -259,20 +267,6 @@ void MainWindow::setupViewConnections()
                     ui->optimizePlacementButton->setChecked(false);
                     ui->optimizePlacementButton2->setChecked(false);
                 }
-            });
-
-    // ---- Barre de progression du ShapeCoordinator ----
-    connect(m_shapeController, &ShapeCoordinator::progressUpdated, this,
-            [this](int current, int total) {
-                if (total <= 0) {
-                    ui->progressBar->setRange(0, 100);
-                    ui->progressBar->setValue(0);
-                    ui->progressBar->setVisible(false);
-                    return;
-                }
-                ui->progressBar->setVisible(true);
-                ui->progressBar->setRange(0, total);
-                ui->progressBar->setValue(current);
             });
 
     // ---- Synchroniser la View quand le Model change ----
@@ -333,7 +327,7 @@ void MainWindow::applyBaseShapeLayout(ShapeModel::Type type, const LayoutData &l
     shapeVisualization->setCustomMode();
     shapeVisualization->displayCustomShapes(shapePolys);
     shapeVisualization->setCurrentCustomShapeName(
-        BaseShapeNamingService::baseShapeName(type, m_model->language()));
+        BaseShapeNamingService::baseShapeName(type, m_viewModel->currentLanguage()));
     shapeVisualization->applyLayout(layout);
     applySelectedLayoutToControls(layout);
 }
@@ -432,7 +426,7 @@ void MainWindow::onCutFinished(bool /*success*/)
 
 void MainWindow::onLanguageApplied(Language lang, bool ok)
 {
-    m_model->setLanguage(lang);
+    Q_UNUSED(lang)
     if (!ok)
         QMessageBox::warning(this, tr("Langue"), tr("Impossible de charger la langue demandée."));
     retranslateDynamicUi();
@@ -452,5 +446,5 @@ ShapeVisualization* MainWindow::getShapeVisualization() const
 
 Language MainWindow::displayLanguage() const
 {
-    return m_model->language();
+    return m_viewModel->currentLanguage();
 }

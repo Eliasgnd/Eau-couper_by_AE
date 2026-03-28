@@ -42,6 +42,7 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     setMouseTracking(true);
     setAutoFillBackground(true);
 
+
     connect(m_shapeManager.get(), &ShapeManager::shapesChanged,
             this, QOverload<>::of(&CustomDrawArea::update));
     connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
@@ -65,6 +66,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     connect(m_transformer.get(), &ViewTransformer::viewTransformed,
             this, QOverload<>::of(&CustomDrawArea::update));
 }
+
+CustomDrawArea::~CustomDrawArea() = default;
 
 // ---------------------------------------------------------------------------
 // Mode de dessin

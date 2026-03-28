@@ -6,11 +6,12 @@
 #include "Language.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
-#include "ImageEdgeImporter.h"
 
 namespace Ui {
 class CustomEditor;
 }
+
+class CustomEditorViewModel;
 
 // Classe représentant la fenêtre personnalisée
 class CustomEditor : public QWidget
@@ -18,7 +19,9 @@ class CustomEditor : public QWidget
     Q_OBJECT
 
 public:
-    explicit CustomEditor(Language lang = Language::French, QWidget *parent = nullptr); // Constructeur
+    explicit CustomEditor(CustomEditorViewModel *viewModel,
+                          Language lang = Language::French,
+                          QWidget *parent = nullptr);
     ~CustomEditor(); // Destructeur
     void updateShapeButtonIcon(CustomDrawArea::DrawMode mode);
 
@@ -33,7 +36,7 @@ private:
     QGraphicsView  *m_edgeView{};
     QGraphicsScene *m_colorScene{};
     QGraphicsScene *m_edgeScene{};
-    ImageEdgeImporter m_imageImporter;
+    CustomEditorViewModel *m_viewModel = nullptr;
     QStringList m_favoriteFonts;
 
 

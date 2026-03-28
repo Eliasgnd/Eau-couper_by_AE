@@ -23,6 +23,9 @@ public:
     explicit FolderWidget(Language lang = Language::French, QWidget *parent = nullptr);
     ~FolderWidget() override;
 
+signals:
+    void imageReuseRequested(const QString &filePath, bool internalContours, bool colorEdges);
+
 protected:
     void changeEvent(QEvent *event) override;
 

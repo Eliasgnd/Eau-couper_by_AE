@@ -1,13 +1,10 @@
 #include "CustomEditor.h"
-#include "MainWindow.h"
+#include "CustomEditorViewModel.h"
 #include "qlayout.h"
 #include "qsplitter.h"
 #include "qstatusbar.h"
 #include "ui_CustomEditor.h"
 #include "KeyboardDialog.h"
-#include "Inventory.h"
-#include "LogoImporter.h"
-#include "ImageEdgeImporter.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include "Language.h"
@@ -34,19 +31,6 @@
 #include <cmath>
 #include "ScreenUtils.h"
 #include <QStatusBar>
-#include "PathGenerator.h"
-namespace {
-MainWindow* resolveMainWindow()
-{
-    const auto widgets = QApplication::topLevelWidgets();
-    for (QWidget *w : widgets) {
-        if (auto *mw = qobject_cast<MainWindow*>(w)) {
-            return mw;
-        }
-    }
-    return nullptr;
-}
-}
 
 static QString modeToString(CustomDrawArea::DrawMode mode)
 {
@@ -64,9 +48,10 @@ static QString modeToString(CustomDrawArea::DrawMode mode)
 }
 
 // Constructeur : création de l'interface et des connexions
-CustomEditor::CustomEditor(Language lang, QWidget *parent)
+CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWidget *parent)
     : QWidget(parent),
-    ui(new Ui::CustomEditor)
+    ui(new Ui::CustomEditor),
+    m_viewModel(viewModel)
 {
     Q_UNUSED(lang);
     ui->setupUi(this);
@@ -179,6 +164,19 @@ CustomEditor::CustomEditor(Language lang, QWidget *parent)
 
     // Création de l'instance de CustomDrawArea
     drawArea = new CustomDrawArea(this);
+
+    // Connexions ViewModel → View
+    if (m_viewModel) {
+        connect(m_viewModel, &CustomEditorViewModel::subpathsReady,
+                this, [this](const QList<QPainterPath> &subs) {
+            for (const QPainterPath &sp : subs)
+                drawArea->addImportedLogoSubpath(sp);
+        });
+        connect(m_viewModel, &CustomEditorViewModel::importFailed,
+                this, [this](const QString &msg) {
+            QMessageBox::warning(this, tr("Erreur"), msg);
+        });
+    }
 
     // Ajout des vues et de drawArea dans le widget "drawingWidget"
     if (ui->drawingWidget) {
@@ -652,7 +650,6 @@ CustomEditor::~CustomEditor()
 void CustomEditor::goToMainWindow()
 {
     this->close();
-    if (auto mw = resolveMainWindow()) mw->showFullScreen();
 }
 
 void CustomEditor::closeEditor()
@@ -670,12 +667,9 @@ void CustomEditor::openKeyboardDialog()
 }
 
 void CustomEditor::saveCustomShape() {
-    // Récupère toutes les formes (traits) du CustomDrawArea
     QList<QPolygonF> shapes = drawArea->getCustomShapes();
-    if (shapes.isEmpty()) {
-        //qDebug() << "Aucune forme à enregistrer.";
+    if (shapes.isEmpty())
         return;
-    }
 
     bool ok = false;
     QString shapeName;
@@ -684,51 +678,23 @@ void CustomEditor::saveCustomShape() {
                                           tr("Entrez un nom pour votre forme :"),
                                           QLineEdit::Normal, "", &ok);
         if (!ok)
-            return; // Annulation
+            return;
         if (shapeName.isEmpty())
             continue;
-        // custom.cpp ── dans saveCustomShape()
-        if (Inventory::getInstance()->shapeNameExists(shapeName))
-        {
-            // Boîte d'avertissement SANS boutons, modale, fermée après 2,5 s
+        if (m_viewModel && m_viewModel->shapeNameExists(shapeName)) {
             QMessageBox msg(QMessageBox::Warning,
                             tr("Nom déjà utilisé"),
                             tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
                             QMessageBox::NoButton,
-                            this);               // parent
-
-            QTimer::singleShot(2300, &msg, &QMessageBox::accept); // auto-fermeture
-            msg.exec();                                           // MODAL et bloquant
-
-            ok = false;    // force une nouvelle itération du do/while
+                            this);
+            QTimer::singleShot(2300, &msg, &QMessageBox::accept);
+            msg.exec();
+            ok = false;
         }
-    } while(!ok);
+    } while (!ok);
 
-    // Calculer le rectangle englobant toutes les formes
-    QRectF boundingRect;
-    for (const QPolygonF &poly : shapes) {
-        boundingRect = boundingRect.united(poly.boundingRect());
-    }
-
-    int padding = 10;
-    QSize imageSize(qRound(boundingRect.width()) + 2 * padding,
-                    qRound(boundingRect.height()) + 2 * padding);
-    QImage previewImage(imageSize, QImage::Format_ARGB32_Premultiplied);
-    previewImage.fill(Qt::white);
-
-    // Dessiner toutes les formes dans l'image
-    QPainter painter(&previewImage);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.translate(-boundingRect.topLeft() + QPointF(padding, padding));
-    QPen pen(Qt::black, 2);
-    painter.setPen(pen);
-    for (const QPolygonF &poly : shapes) {
-        painter.drawPolyline(poly);
-    }
-    painter.end();
-
-    // Sauvegarde de l'image dans l'inventory
-    Inventory::getInstance()->addSavedCustomShape(shapes, shapeName);
+    if (m_viewModel)
+        m_viewModel->saveShape(shapes, shapeName);
 }
 
 void CustomEditor::importerLogo()
@@ -750,32 +716,9 @@ void CustomEditor::importerLogo()
         );
     bool includeInternal = (reply == QMessageBox::Yes);
 
-    LogoImporter importer;
-    QPainterPath outline = importer.importLogo(filePath, includeInternal, 128);
-    if (outline.isEmpty()) {
-        //qDebug() << "Le chemin importé est vide, vérifiez l'image ou la méthode d'import.";
-        return;
-    }
-
-    QRectF br = outline.boundingRect();
-    double maxDimension = std::max(br.width(), br.height());
-    if (maxDimension < 0.0001)
-        return;
-    double scaleFactor = 300.0 / maxDimension;
-    QTransform transform;
-    transform.translate(-br.x(), -br.y());
-    transform.scale(scaleFactor, scaleFactor);
-    QPainterPath scaledOutline = transform.map(outline);
-    QRectF scaledBounds = scaledOutline.boundingRect();
-    QPointF drawingCenter(drawArea->width() / 2.0, drawArea->height() / 2.0);
-    QPointF offset = drawingCenter - scaledBounds.center();
-    scaledOutline.translate(offset);
-    //qDebug() << "Bounding rect final (centré):" << scaledOutline.boundingRect();
-
-    QList<QPainterPath> subpaths = PathGenerator::separateIntoSubpaths(scaledOutline);    //qDebug() << "Nombre de sous-chemins importés:" << subpaths.size();
-    for (const QPainterPath &sp : subpaths) {
-        drawArea->addImportedLogoSubpath(sp);
-    }
+    if (m_viewModel)
+        m_viewModel->importLogo(filePath, includeInternal,
+                                QSizeF(drawArea->width(), drawArea->height()));
 }
 
 void CustomEditor::importerImageCouleur()
@@ -783,29 +726,12 @@ void CustomEditor::importerImageCouleur()
     QString filePath = QFileDialog::getOpenFileName(
         this, tr("Sélectionner une image"),
         "",  tr("Images (*.png *.jpg *.bmp *.webp)"));
-    if (filePath.isEmpty()) return;
-
-    QPainterPath edge;
-    if (!m_imageImporter.loadAndProcess(filePath, edge)) {
-        QMessageBox::warning(this, tr("Erreur"),
-                             tr("Contour introuvable."));
+    if (filePath.isEmpty())
         return;
-    }
 
-    // mise à l'échelle + centrage (identique à importerLogo)
-    QRectF br = edge.boundingRect();
-    double scale = 300.0 / std::max(br.width(), br.height());
-    QTransform T;
-    T.translate(-br.x(), -br.y());
-    T.scale(scale, scale);
-    QPainterPath scaled = T.map(edge);
-    scaled.translate(QPointF(drawArea->width()/2.0,
-                             drawArea->height()/2.0) -
-                     scaled.boundingRect().center());
-
-    QList<QPainterPath> subs = PathGenerator::separateIntoSubpaths(scaled);
-    for (const QPainterPath &sp : subs)
-        drawArea->addImportedLogoSubpath(sp);
+    if (m_viewModel)
+        m_viewModel->importImageColor(filePath,
+                                      QSizeF(drawArea->width(), drawArea->height()));
 }
 
 void CustomEditor::onCopyPasteClicked()

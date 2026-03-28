@@ -64,6 +64,14 @@ InventoryController::InventoryController(InventoryModel &model)
 void InventoryController::initialize()
 {
     m_model.load();
+    if (m_model.baseShapeOrder().isEmpty()) {
+        m_model.baseShapeOrder() = {ShapeModel::Type::Circle,
+                                    ShapeModel::Type::Rectangle,
+                                    ShapeModel::Type::Triangle,
+                                    ShapeModel::Type::Star,
+                                    ShapeModel::Type::Heart};
+        m_model.save();
+    }
 }
 
 void InventoryController::addCustomShape(const QList<QPolygonF> &polygons, const QString &name)
@@ -405,4 +413,62 @@ InventoryViewState InventoryController::buildFolderState(const QString &folderNa
 
     InventorySortFilterService::sortItems(state.items, sortMode);
     return state;
+}
+
+bool InventoryController::shapeNameExists(const QString &name) const
+{
+    return InventoryQueryService::shapeNameExists(m_model.customShapes(), name);
+}
+
+QStringList InventoryController::getAllShapeNames(Language lang) const
+{
+    return InventoryQueryService::getAllShapeNames(m_model.customShapes(), lang);
+}
+
+QList<LayoutData> InventoryController::getLayoutsForShape(const QString &shapeName) const
+{
+    return InventoryMutationService::getLayoutsForShape(m_model.customShapes(), shapeName);
+}
+
+QList<LayoutData> InventoryController::getLayoutsForBaseShape(ShapeModel::Type type) const
+{
+    return InventoryMutationService::getLayoutsForBaseShape(m_model.baseShapeLayouts(), type);
+}
+
+bool InventoryController::folderIsEmpty(const QString &folderName) const
+{
+    return InventoryQueryService::folderIsEmpty(folderName,
+                                                m_model.folders(),
+                                                m_model.customShapes(),
+                                                m_model.baseShapeFolders());
+}
+
+QString InventoryController::parentFolderOf(const QString &folderName) const
+{
+    return InventoryQueryService::parentFolderOf(m_model.folders(), folderName);
+}
+
+const QList<CustomShapeData> &InventoryController::customShapes() const
+{
+    return m_model.customShapes();
+}
+
+const QList<InventoryFolder> &InventoryController::folders() const
+{
+    return m_model.folders();
+}
+
+const QMap<ShapeModel::Type, QString> &InventoryController::baseShapeFolders() const
+{
+    return m_model.baseShapeFolders();
+}
+
+Language InventoryController::language() const
+{
+    return m_model.languageRef();
+}
+
+void InventoryController::setLanguage(Language lang)
+{
+    m_model.languageRef() = lang;
 }

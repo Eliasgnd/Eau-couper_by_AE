@@ -34,3 +34,35 @@ release/
 
 # Sauvegardes de fichiers UI
 *.ui.save
+
+# Binaire compilé
+/machineDecoupeIHM
+
+# Fichier Qt généré manquant
+moc_predefs.h
+
+# Node.js (outils Claude, pas dépendances du projet)
+node_modules/
+package.json
+package-lock.json
+
+# Claude Code - fichiers internes
+.claude/agents/
+.claude/commands/
+.claude/get-shit-done/
+.claude/gsd-file-manifest.json
+.claude/helpers/
+.claude/hooks/
+.claude/memory.db
+.claude/package.json
+.claude/settings.json
+.claude/skills/
+.claude-flow/
+.planning/
+
+# Swarm / MCP
+.swarm/
+.mcp.json
+
+# Fichier vide créé par accident
+/git

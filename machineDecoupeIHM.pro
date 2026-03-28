@@ -65,6 +65,7 @@ HEADERS += \
     viewmodels/WorkspaceViewModel.h \
     viewmodels/MainWindowViewModel.h \
     viewmodels/InventoryViewModel.h \
+    viewmodels/CustomEditorViewModel.h \
     ui/widgets/ShapeVisualization.h \
     ui/widgets/shapevisualization/ShapeVisualizationViewModel.h \
     ui/widgets/shapevisualization/LayoutManager.h \
@@ -186,6 +187,7 @@ SOURCES += \
     domain/inventory/InventoryModel.cpp \
     infrastructure/persistence/InventoryRepository.cpp \
     viewmodels/InventoryViewModel.cpp \
+    viewmodels/CustomEditorViewModel.cpp \
     viewmodels/MainWindowViewModel.cpp \
     infrastructure/hardware/MotorControl.cpp \
     infrastructure/hardware/Raspberry.cpp \

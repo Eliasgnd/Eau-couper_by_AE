@@ -47,3 +47,18 @@ void MainWindowViewModel::setAiGenerating(bool generating)
     m_aiGenerating = generating;
     emit aiGeneratingChanged(generating);
 }
+
+void MainWindowViewModel::setAiStatus(const QString &status)
+{
+    emit aiStatusChanged(status);
+}
+
+void MainWindowViewModel::setShapeProgress(int current, int total)
+{
+    emit shapeProgressChanged(current, total);
+}
+
+void MainWindowViewModel::setAiImageReceived()
+{
+    emit aiImageReceived();
+}

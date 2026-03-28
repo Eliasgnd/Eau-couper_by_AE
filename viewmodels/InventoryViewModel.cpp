@@ -44,6 +44,8 @@ void InventoryViewModel::addCustomShape(const QList<QPolygonF> &polygons, const 
 void InventoryViewModel::selectFolder(const QString &folderName)
 {
     m_controller.onFolderSelected(folderName);
+    m_state.inFolderView = true;
+    m_state.currentFolder = folderName;
     rebuildState();
 }
 
@@ -99,8 +101,147 @@ bool InventoryViewModel::deleteCustomShape(int index)
     return ok;
 }
 
+void InventoryViewModel::navigateToFolder(const QString &folderName)
+{
+    m_state.inFolderView = true;
+    m_state.currentFolder = folderName;
+    rebuildState();
+}
+
+bool InventoryViewModel::moveCustomShapeToFolder(int index, const QString &folderName)
+{
+    bool ok = m_controller.moveCustomShapeToFolder(index, folderName);
+    if (ok) rebuildState();
+    return ok;
+}
+
+bool InventoryViewModel::removeCustomShapeFromFolderToParent(int index)
+{
+    bool ok = m_controller.removeCustomShapeFromFolderToParent(index);
+    if (ok) rebuildState();
+    return ok;
+}
+
+bool InventoryViewModel::moveBaseShapeToFolder(ShapeModel::Type type, const QString &folderName)
+{
+    bool ok = m_controller.moveBaseShapeToFolder(type, folderName);
+    if (ok) rebuildState();
+    return ok;
+}
+
+bool InventoryViewModel::removeBaseShapeFromFolderToParent(ShapeModel::Type type)
+{
+    bool ok = m_controller.removeBaseShapeFromFolderToParent(type);
+    if (ok) rebuildState();
+    return ok;
+}
+
+bool InventoryViewModel::addLayoutToCustomShape(const QString &shapeName, const LayoutData &layout)
+{
+    return m_controller.addLayoutToCustomShape(shapeName, layout);
+}
+
+bool InventoryViewModel::renameLayoutForCustomShape(const QString &shapeName, int index, const QString &newName)
+{
+    return m_controller.renameLayoutForCustomShape(shapeName, index, newName);
+}
+
+bool InventoryViewModel::deleteLayoutForCustomShape(const QString &shapeName, int index)
+{
+    return m_controller.deleteLayoutForCustomShape(shapeName, index);
+}
+
+bool InventoryViewModel::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
+{
+    return m_controller.addLayoutToBaseShape(type, layout);
+}
+
+bool InventoryViewModel::renameLayoutForBaseShape(ShapeModel::Type type, int index, const QString &newName)
+{
+    return m_controller.renameLayoutForBaseShape(type, index, newName);
+}
+
+bool InventoryViewModel::deleteLayoutForBaseShape(ShapeModel::Type type, int index)
+{
+    return m_controller.deleteLayoutForBaseShape(type, index);
+}
+
+bool InventoryViewModel::incrementLayoutUsageForCustomShape(const QString &shapeName, int index)
+{
+    return m_controller.incrementLayoutUsageForCustomShape(shapeName, index);
+}
+
+bool InventoryViewModel::incrementLayoutUsageForBaseShape(ShapeModel::Type type, int index)
+{
+    return m_controller.incrementLayoutUsageForBaseShape(type, index);
+}
+
+bool InventoryViewModel::shapeNameExists(const QString &name) const
+{
+    return m_controller.shapeNameExists(name);
+}
+
+QStringList InventoryViewModel::getAllShapeNames(Language lang) const
+{
+    return m_controller.getAllShapeNames(lang);
+}
+
+QList<LayoutData> InventoryViewModel::getLayoutsForShape(const QString &shapeName) const
+{
+    return m_controller.getLayoutsForShape(shapeName);
+}
+
+QList<LayoutData> InventoryViewModel::getLayoutsForBaseShape(ShapeModel::Type type) const
+{
+    return m_controller.getLayoutsForBaseShape(type);
+}
+
+bool InventoryViewModel::folderIsEmpty(const QString &folderName) const
+{
+    return m_controller.folderIsEmpty(folderName);
+}
+
+QString InventoryViewModel::parentFolderOf(const QString &folderName) const
+{
+    return m_controller.parentFolderOf(folderName);
+}
+
+Language InventoryViewModel::language() const
+{
+    return m_controller.language();
+}
+
+void InventoryViewModel::setLanguage(Language lang)
+{
+    m_controller.setLanguage(lang);
+}
+
+const QList<CustomShapeData> &InventoryViewModel::customShapes() const
+{
+    return m_controller.customShapes();
+}
+
+const QList<InventoryFolder> &InventoryViewModel::folders() const
+{
+    return m_controller.folders();
+}
+
+const QMap<ShapeModel::Type, QString> &InventoryViewModel::baseShapeFolders() const
+{
+    return m_controller.baseShapeFolders();
+}
+
 void InventoryViewModel::navigateBack()
 {
+    if (m_state.inFolderView) {
+        const QString parent = m_controller.parentFolderOf(m_state.currentFolder);
+        if (parent.isEmpty()) {
+            m_state.inFolderView = false;
+            m_state.currentFolder.clear();
+        } else {
+            m_state.currentFolder = parent;
+        }
+    }
     rebuildState();
 }
 

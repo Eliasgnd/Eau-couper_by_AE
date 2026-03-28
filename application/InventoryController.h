@@ -6,6 +6,8 @@
 
 #include "ShapeModel.h"
 #include "InventoryViewState.h"
+#include "Language.h"
+#include "InventoryDomainTypes.h"
 
 class InventoryModel;
 struct LayoutData;
@@ -48,6 +50,21 @@ public:
                                         const QString &filterText,
                                         InventorySortMode sortMode,
                                         InventoryFilterMode filterMode) const;
+
+    // Queries
+    bool shapeNameExists(const QString &name) const;
+    QStringList getAllShapeNames(Language lang) const;
+    QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
+    QList<LayoutData> getLayoutsForBaseShape(ShapeModel::Type type) const;
+    bool folderIsEmpty(const QString &folderName) const;
+    QString parentFolderOf(const QString &folderName) const;
+
+    // Read-only data accessors (for ViewModel — View must not call these directly)
+    const QList<CustomShapeData> &customShapes() const;
+    const QList<InventoryFolder> &folders() const;
+    const QMap<ShapeModel::Type, QString> &baseShapeFolders() const;
+    Language language() const;
+    void setLanguage(Language lang);
 
 private:
     InventoryModel &m_model;

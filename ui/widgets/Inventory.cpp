@@ -1,16 +1,13 @@
 #include "Inventory.h"
 #include "ui_Inventory.h"
 #include "ShapeModel.h"
-#include "MainWindow.h"
 #include <QApplication>
 #include "Language.h"
 #include "ScreenUtils.h"
-#include "InventoryStorage.h"
-#include "InventoryQueryService.h"
-#include "InventoryMutationService.h"
 #include "InventoryModel.h"
 #include "InventoryController.h"
 #include "InventoryViewModel.h"
+#include "InventoryDomainTypes.h"
 
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -36,27 +33,7 @@
 #include <QSvgRenderer>
 #include <algorithm>
 
-#define m_customShapes (m_model->customShapes())
-#define m_baseShapeLayouts (m_model->baseShapeLayouts())
-#define m_baseShapeFolders (m_model->baseShapeFolders())
-#define m_baseUsageCount (m_model->baseUsageCount())
-#define m_baseLastUsed (m_model->baseLastUsed())
-#define m_baseShapeOrder (m_model->baseShapeOrder())
-#define m_folders (m_model->folders())
-#define currentLanguage (m_model->languageRef())
 
-namespace {
-MainWindow* resolveMainWindow()
-{
-    const auto widgets = QApplication::topLevelWidgets();
-    for (QWidget *w : widgets) {
-        if (auto *mw = qobject_cast<MainWindow*>(w)) {
-            return mw;
-        }
-    }
-    return nullptr;
-}
-}
 
 // -----------------------------------------------------------------------------
 // Static instance (singleton)
@@ -66,30 +43,17 @@ Inventory* Inventory::instance = nullptr;
 // -----------------------------------------------------------------------------
 // Constructor / Destructor
 // -----------------------------------------------------------------------------
-Inventory::Inventory(QWidget *parent)
+Inventory::Inventory(InventoryViewModel *vm, QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventory)
 {
     ui->setupUi(this);
 
-    m_model = new InventoryModel();
-    m_controller = new InventoryController(*m_model);
-
-    m_controller->initialize();
-
-    // --- ViewModel : couche de présentation entre UI et Controller ---
-    m_viewModel = new InventoryViewModel(*m_controller, this);
+    m_viewModel = vm;
+    m_viewModel->setParent(this);
     connect(m_viewModel, &InventoryViewModel::stateChanged,
             this, &Inventory::renderState);
 
-    if (m_baseShapeOrder.isEmpty()) {
-        m_baseShapeOrder = {ShapeModel::Type::Circle,
-                            ShapeModel::Type::Rectangle,
-                            ShapeModel::Type::Triangle,
-                            ShapeModel::Type::Star,
-                            ShapeModel::Type::Heart};
-    }
-
-    updateTranslations(currentLanguage);
+    updateTranslations(m_viewModel->language());
 
     // Place window on secondary screen if available
     ScreenUtils::placeOnSecondaryScreen(this);
@@ -137,8 +101,6 @@ Inventory::Inventory(QWidget *parent)
 Inventory::~Inventory()
 {
     qDebug() << "Fermeture de l'Inventory (l'instance reste vivante via le singleton)";
-    delete m_controller;
-    delete m_model;
     delete ui;
 }
 
@@ -149,7 +111,11 @@ Inventory* Inventory::getInstance()
 {
     if (!instance) {
         qDebug() << "Création de l'instance Inventory";
-        instance = new Inventory();
+        static auto *s_model      = new InventoryModel();
+        static auto *s_controller = new InventoryController(*s_model);
+        s_controller->initialize();
+        auto *vm = new InventoryViewModel(*s_controller);
+        instance = new Inventory(vm);
     }
     return instance;
 }
@@ -186,7 +152,7 @@ QPixmap Inventory::renderColoredSvg(const QString &filePath, const QColor &color
 void Inventory::goToMainWindow()
 {
     hide();
-    if (auto mw = resolveMainWindow()) mw->showFullScreen();
+    emit navigationBackRequested();
 }
 
 // -----------------------------------------------------------------------------
@@ -195,10 +161,9 @@ void Inventory::goToMainWindow()
 void Inventory::displayShapes(const QString &filter /* = QString() */)
 {
     emit searchRequested(filter);
-    const InventoryViewState state = m_controller->buildRootState(filter,
-                                                                  currentSortMode(),
-                                                                  currentFilterMode());
-    renderState(state);
+    m_viewModel->setFilterMode(currentFilterMode());
+    m_viewModel->setSortMode(currentSortMode());
+    m_viewModel->setSearchText(filter);
 }
 
 // -----------------------------------------------------------------------------
@@ -206,10 +171,10 @@ void Inventory::displayShapes(const QString &filter /* = QString() */)
 // -----------------------------------------------------------------------------
 QFrame* Inventory::addCustomShapeToGrid(int index)
 {
-    if (index < 0 || index >= m_customShapes.size())
+    if (index < 0 || index >= m_viewModel->customShapes().size())
         return nullptr;
 
-    const CustomShapeData &data = m_customShapes.at(index);
+    const CustomShapeData &data = m_viewModel->customShapes().at(index);
 
     // Build a path containing every polygon of the shape
     QPainterPath path;
@@ -248,20 +213,15 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
     menuButton->setStyleSheet("border: none; font-size: 14px;");
 
     auto *menu = new QMenu(menuButton);
-    QAction *renameAction = menu->addAction(currentLanguage == Language::French ? "Renommer"  : "Rename");
-    QAction *deleteAction = menu->addAction(currentLanguage == Language::French ? "Supprimer" : "Delete");
+    QAction *renameAction = menu->addAction(m_viewModel->language() == Language::French ? "Renommer"  : "Rename");
+    QAction *deleteAction = menu->addAction(m_viewModel->language() == Language::French ? "Supprimer" : "Delete");
 
-    const QString currentFolderName = m_customShapes[index].folder;
+    const QString currentFolderName = m_viewModel->customShapes().at(index).folder;
 
     if (!currentFolderName.isEmpty()) {
         QAction *removeFromFolder = menu->addAction("❌ Retirer du dossier");
         connect(removeFromFolder, &QAction::triggered, this, [this, index]() {
-            if (!m_controller->removeCustomShapeFromFolderToParent(index))
-                return;
-            if (inFolderView)
-                displayShapesInFolder(currentFolder, ui->searchBar->text());
-            else
-                displayShapes(ui->searchBar->text());
+            m_viewModel->removeCustomShapeFromFolderToParent(index);
         });
 
     }
@@ -275,19 +235,14 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
         QString name = QInputDialog::getText(this, "Nouveau dossier", "Nom du dossier :", QLineEdit::Normal, "", &ok);
         if (ok && !name.trimmed().isEmpty()) {
             QString cleanName = name.trimmed();
-            QString parent = inFolderView ? currentFolder : "";
-            if (!m_controller->createFolder(cleanName, parent))
+            QString parent = m_viewModel->inFolderView() ? m_viewModel->currentFolder() : "";
+            if (!m_viewModel->createFolder(cleanName, parent))
                 return;
-            if (!m_controller->moveCustomShapeToFolder(index, cleanName))
-                return;
-            if (inFolderView)
-                displayShapesInFolder(currentFolder, ui->searchBar->text());
-            else
-                displayShapes(ui->searchBar->text());
+            m_viewModel->moveCustomShapeToFolder(index, cleanName);
         }
     });
 
-        for (const InventoryFolder &folder : m_folders) {
+        for (const InventoryFolder &folder : m_viewModel->folders()) {
             if (inFolderView && folder.parentFolder != currentFolder)
                 continue;  // 👉 dans un dossier, ne proposer que ses sous-dossiers
 
@@ -303,9 +258,7 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
                         int idx = frame->property("CustomShapeIndex").toInt(&ok);
                         if (!ok)
                             return;
-                        if (!m_controller->moveCustomShapeToFolder(idx, folder.name))
-                            return;
-                        displayShapes();
+                        m_viewModel->moveCustomShapeToFolder(idx, folder.name);
                     });
         }
 
@@ -317,14 +270,14 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
     connect(renameAction, &QAction::triggered, [this, label, index]() {
         bool ok = false;
         const QString newName = QInputDialog::getText(nullptr,
-                                                      currentLanguage == Language::French ? tr("Renommer la forme") : tr("Rename shape"),
-                                                      currentLanguage == Language::French ? tr("Nouveau nom :")       : tr("New name:"),
+                                                      m_viewModel->language() == Language::French ? tr("Renommer la forme") : tr("Rename shape"),
+                                                      m_viewModel->language() == Language::French ? tr("Nouveau nom :")       : tr("New name:"),
                                                       QLineEdit::Normal,
                                                       label->text(),
                                                       &ok);
-        if (ok && !newName.isEmpty() && index >= 0 && index < m_customShapes.size()) {
+        if (ok && !newName.isEmpty() && index >= 0 && index < m_viewModel->customShapes().size()) {
             label->setText(newName);
-            m_controller->renameCustomShape(index, newName);
+            m_viewModel->renameCustomShape(index, newName);
         }
     });
 
@@ -332,8 +285,7 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
         bool ok = false;
         const int idx = frame->property("CustomShapeIndex").toInt(&ok);
         if (ok)
-            m_controller->deleteCustomShape(idx);
-        displayShapes();
+            m_viewModel->deleteCustomShape(idx);
     });
 
     auto *headerLayout = new QHBoxLayout();
@@ -358,13 +310,12 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
 // -----------------------------------------------------------------------------
 void Inventory::addSavedCustomShape(const QList<QPolygonF> &polygons, const QString &name)
 {
-    if (shapeNameExists(name)) {
+    if (m_viewModel->shapeNameExists(name)) {
         qDebug() << "Forme déjà enregistrée avec ce nom";
         return;
     }
 
-    m_controller->addCustomShape(polygons, name);
-    displayShapes();
+    m_viewModel->addCustomShape(polygons, name);
 }
 
 // -----------------------------------------------------------------------------
@@ -372,7 +323,7 @@ void Inventory::addSavedCustomShape(const QList<QPolygonF> &polygons, const QStr
 // -----------------------------------------------------------------------------
 void Inventory::updateTranslations(Language lang)
 {
-    currentLanguage = lang;
+    m_viewModel->setLanguage(lang);
     if (ui->buttonMenu)
         ui->buttonMenu->setText(QString());
 
@@ -393,7 +344,7 @@ void Inventory::changeEvent(QEvent *event)
 // -----------------------------------------------------------------------------
 bool Inventory::shapeNameExists(const QString &name) const
 {
-    return InventoryQueryService::shapeNameExists(m_customShapes, name);
+    return m_viewModel->shapeNameExists(name);
 }
 
 // -----------------------------------------------------------------------------
@@ -402,11 +353,6 @@ bool Inventory::shapeNameExists(const QString &name) const
 void Inventory::onSearchTextChanged(const QString &text)
 {
     emit searchRequested(text);
-    if (inFolderView) {
-        displayShapesInFolder(currentFolder, text);
-    } else {
-        displayShapes(text);
-    }
 }
 
 void Inventory::onClearSearchClicked()
@@ -427,38 +373,24 @@ void Inventory::onCreateFolderClicked()
                                          &ok);
     if (ok && !name.trimmed().isEmpty()) {
         QString clean = name.trimmed();
-        QString parent = inFolderView ? currentFolder : QString();
-        if (m_controller->createFolder(clean, parent)) {
-
-            if (inFolderView)
-                displayShapesInFolder(currentFolder, ui->searchBar->text());
-            else
-                displayShapes(ui->searchBar->text());
-        }
+        QString parent = m_viewModel->inFolderView() ? m_viewModel->currentFolder() : QString();
+        m_viewModel->createFolder(clean, parent);
     }
 }
 
 void Inventory::onSortChanged(int)
 {
     emit sortModeRequested(currentSortMode());
-    if (inFolderView)
-        displayShapesInFolder(currentFolder, ui->searchBar->text());
-    else
-        displayShapes(ui->searchBar->text());
 }
 
 void Inventory::onFilterChanged(int)
 {
     emit filterModeRequested(currentFilterMode());
-    if (inFolderView)
-        displayShapesInFolder(currentFolder, ui->searchBar->text());
-    else
-        displayShapes(ui->searchBar->text());
 }
 
 QStringList Inventory::getAllShapeNames() const
 {
-    return InventoryQueryService::getAllShapeNames(m_customShapes, currentLanguage);
+    return m_viewModel->getAllShapeNames(m_viewModel->language());
 }
 
 // -----------------------------------------------------------------------------
@@ -466,22 +398,22 @@ QStringList Inventory::getAllShapeNames() const
 // -----------------------------------------------------------------------------
 void Inventory::addLayoutToShape(const QString &shapeName, const LayoutData &layout)
 {
-    m_controller->addLayoutToCustomShape(shapeName, layout);
+    m_viewModel->addLayoutToCustomShape(shapeName, layout);
 }
 
 void Inventory::renameLayout(const QString &shapeName, int index, const QString &newName)
 {
-    m_controller->renameLayoutForCustomShape(shapeName, index, newName);
+    m_viewModel->renameLayoutForCustomShape(shapeName, index, newName);
 }
 
 void Inventory::deleteLayout(const QString &shapeName, int index)
 {
-    m_controller->deleteLayoutForCustomShape(shapeName, index);
+    m_viewModel->deleteLayoutForCustomShape(shapeName, index);
 }
 
 QList<LayoutData> Inventory::getLayoutsForShape(const QString &shapeName) const
 {
-    return InventoryMutationService::getLayoutsForShape(m_customShapes, shapeName);
+    return m_viewModel->getLayoutsForShape(shapeName);
 }
 
 // -----------------------------------------------------------------------------
@@ -489,32 +421,32 @@ QList<LayoutData> Inventory::getLayoutsForShape(const QString &shapeName) const
 // -----------------------------------------------------------------------------
 void Inventory::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
 {
-    m_controller->addLayoutToBaseShape(type, layout);
+    m_viewModel->addLayoutToBaseShape(type, layout);
 }
 
 void Inventory::renameBaseLayout(ShapeModel::Type type, int index, const QString &newName)
 {
-    m_controller->renameLayoutForBaseShape(type, index, newName);
+    m_viewModel->renameLayoutForBaseShape(type, index, newName);
 }
 
 void Inventory::deleteBaseLayout(ShapeModel::Type type, int index)
 {
-    m_controller->deleteLayoutForBaseShape(type, index);
+    m_viewModel->deleteLayoutForBaseShape(type, index);
 }
 
 QList<LayoutData> Inventory::getLayoutsForBaseShape(ShapeModel::Type type) const
 {
-    return InventoryMutationService::getLayoutsForBaseShape(m_baseShapeLayouts, type);
+    return m_viewModel->getLayoutsForBaseShape(type);
 }
 
 void Inventory::incrementLayoutUsage(const QString &shapeName, int index)
 {
-    m_controller->incrementLayoutUsageForCustomShape(shapeName, index);
+    m_viewModel->incrementLayoutUsageForCustomShape(shapeName, index);
 }
 
 void Inventory::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
 {
-    m_controller->incrementLayoutUsageForBaseShape(type, index);
+    m_viewModel->incrementLayoutUsageForBaseShape(type, index);
 }
 
 QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &name)
@@ -551,16 +483,11 @@ QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &nam
 
     QMenu *menu = new QMenu(menuButton);
 
-    const QString currentFolderName = m_baseShapeFolders.value(type);
+    const QString currentFolderName = m_viewModel->baseShapeFolders().value(type);
     if (!currentFolderName.isEmpty()) {
         QAction *removeFromFolder = menu->addAction("❌ Retirer du dossier");
         connect(removeFromFolder, &QAction::triggered, this, [this, type]() {
-            if (!m_controller->removeBaseShapeFromFolderToParent(type))
-                return;
-            if (inFolderView)
-                displayShapesInFolder(currentFolder, ui->searchBar->text());
-            else
-                displayShapes();
+            m_viewModel->removeBaseShapeFromFolderToParent(type);
         });
     }
 
@@ -577,30 +504,22 @@ QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &nam
 
         if (ok && !name.trimmed().isEmpty()) {
             QString cleanName = name.trimmed();
-            QString parent    = inFolderView ? currentFolder : "";
-            if (!m_controller->createFolder(cleanName, parent))
+            QString parent    = m_viewModel->inFolderView() ? m_viewModel->currentFolder() : "";
+            if (!m_viewModel->createFolder(cleanName, parent))
                 return;
-            if (!m_controller->moveBaseShapeToFolder(type, cleanName))
-                return;
-
-            if (inFolderView)
-                displayShapesInFolder(currentFolder, ui->searchBar->text());
-            else
-                displayShapes(ui->searchBar->text());
+            m_viewModel->moveBaseShapeToFolder(type, cleanName);
         }
     });
 
     // ➕ 2) Lister ensuite les dossiers existants (s’il y en a)
-    for (const InventoryFolder &folder : m_folders) {
+    for (const InventoryFolder &folder : m_viewModel->folders()) {
     if (inFolderView && folder.parentFolder != currentFolder) continue;
     if (!inFolderView && !folder.parentFolder.isEmpty())      continue;
 
     QAction *folderAction = folderSubMenu->addAction(folder.name);
     connect(folderAction, &QAction::triggered, this,
             [this, type, folder]() {
-                if (!m_controller->moveBaseShapeToFolder(type, folder.name))
-                    return;
-                displayShapes();
+                m_viewModel->moveBaseShapeToFolder(type, folder.name);
             });
 }
 
@@ -685,17 +604,14 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
         bool ok;
         QString newName = QInputDialog::getText(this, "Renommer le dossier", "Nouveau nom :", QLineEdit::Normal, folderName, &ok);
         if (ok && !newName.trimmed().isEmpty()) {
-            if (!m_controller->renameFolder(folderName, newName.trimmed()))
+            if (!m_viewModel->renameFolder(folderName, newName.trimmed()))
                 return;
             label->setText(newName.trimmed());
-            displayShapes();
         }
     });
 
     connect(deleteAction, &QAction::triggered, this, [this, folderName]() {
-        if (!m_controller->deleteFolder(folderName))
-            return;
-        displayShapes();
+        m_viewModel->deleteFolder(folderName);
     });
 
     connect(menuButton, &QPushButton::clicked, this, [menu, menuButton]() {
@@ -707,12 +623,9 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
 
 void Inventory::displayShapesInFolder(const QString &folderName, const QString &filter)
 {
+    Q_UNUSED(filter)
     emit folderOpenRequested(folderName);
-    const InventoryViewState state = m_controller->buildFolderState(folderName,
-                                                                    filter,
-                                                                    currentSortMode(),
-                                                                    currentFilterMode());
-    renderState(state);
+    m_viewModel->navigateToFolder(folderName);
 }
 
 void Inventory::renderState(const InventoryViewState &state)
@@ -774,11 +687,7 @@ void Inventory::renderState(const InventoryViewState &state)
         retourButton->setFixedSize(120, 40);
         connect(retourButton, &QPushButton::clicked, this, [this]() {
             emit returnRequested();
-            QString parent = InventoryQueryService::parentFolderOf(m_folders, currentFolder);
-            if (parent.isEmpty())
-                displayShapes();
-            else
-                displayShapesInFolder(parent, "");
+            m_viewModel->navigateBack();
         });
         auto *backItem = new QListWidgetItem(listWidget);
         backItem->setSizeHint(retourButton->size());
@@ -806,21 +715,9 @@ InventoryFilterMode Inventory::currentFilterMode() const
 
 bool Inventory::folderIsEmpty(const QString& folderName) const
 {
-    return InventoryQueryService::folderIsEmpty(folderName,
-                                                m_folders,
-                                                m_customShapes,
-                                                m_baseShapeFolders);
+    return m_viewModel->folderIsEmpty(folderName);
 }
 
-bool Inventory::folderContainsMatchingShape(const QString &folderName, const QString &text) const
-{
-    return InventoryQueryService::folderContainsMatchingShape(folderName,
-                                                              text,
-                                                              m_folders,
-                                                              m_customShapes,
-                                                              m_baseShapeFolders,
-                                                              currentLanguage);
-}
 
 void Inventory::onItemClicked(QListWidgetItem *item)
 {
@@ -829,29 +726,20 @@ void Inventory::onItemClicked(QListWidgetItem *item)
     int t = item->data(Qt::UserRole).toInt();
     if (t == 0) {
         QString name = item->data(Qt::UserRole + 1).toString();
-        m_controller->onFolderSelected(name);
-        displayShapesInFolder(name, ui->searchBar->text());
+        m_viewModel->selectFolder(name);
     } else if (t == 1) {
         ShapeModel::Type type = static_cast<ShapeModel::Type>(item->data(Qt::UserRole + 1).toInt());
-        m_controller->onBaseShapeSelected(type);
+        m_viewModel->selectBaseShape(type);
         emit shapeSelected(type, 150, 220);
         goToMainWindow();
     } else if (t == 2) {
         QString name = item->data(Qt::UserRole + 1).toString();
         QList<QPolygonF> polygons;
         QString resolvedName;
-        if (m_controller->onCustomShapeSelected(name, polygons, resolvedName)) {
+        if (m_viewModel->selectCustomShape(name, polygons, resolvedName)) {
             emit customShapeSelected(polygons, resolvedName);
             goToMainWindow();
         }
     }
 }
 
-#undef m_customShapes
-#undef m_baseShapeLayouts
-#undef m_baseShapeFolders
-#undef m_baseUsageCount
-#undef m_baseLastUsed
-#undef m_baseShapeOrder
-#undef m_folders
-#undef currentLanguage

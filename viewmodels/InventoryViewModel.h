@@ -6,7 +6,9 @@
 #include <QPolygonF>
 
 #include "InventoryViewState.h"
+#include "InventoryDomainTypes.h"
 #include "ShapeModel.h"
+#include "Language.h"
 
 class InventoryController;
 
@@ -41,6 +43,7 @@ public:
 public slots:
     // --- Actions utilisateur relayées depuis la View ---
     void addCustomShape(const QList<QPolygonF> &polygons, const QString &name);
+    void navigateToFolder(const QString &folderName);
     void selectFolder(const QString &folderName);
     void selectBaseShape(ShapeModel::Type type);
     bool selectCustomShape(const QString &shapeName,
@@ -54,8 +57,37 @@ public slots:
     bool renameCustomShape(int index, const QString &newName);
     bool deleteCustomShape(int index);
 
+    bool moveCustomShapeToFolder(int index, const QString &folderName);
+    bool removeCustomShapeFromFolderToParent(int index);
+    bool moveBaseShapeToFolder(ShapeModel::Type type, const QString &folderName);
+    bool removeBaseShapeFromFolderToParent(ShapeModel::Type type);
+
+    bool addLayoutToCustomShape(const QString &shapeName, const LayoutData &layout);
+    bool renameLayoutForCustomShape(const QString &shapeName, int index, const QString &newName);
+    bool deleteLayoutForCustomShape(const QString &shapeName, int index);
+    bool addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout);
+    bool renameLayoutForBaseShape(ShapeModel::Type type, int index, const QString &newName);
+    bool deleteLayoutForBaseShape(ShapeModel::Type type, int index);
+    bool incrementLayoutUsageForCustomShape(const QString &shapeName, int index);
+    bool incrementLayoutUsageForBaseShape(ShapeModel::Type type, int index);
+
     void navigateBack();
     void refresh();
+
+    // --- Requêtes (lecture seule) ---
+    bool shapeNameExists(const QString &name) const;
+    QStringList getAllShapeNames(Language lang) const;
+    QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
+    QList<LayoutData> getLayoutsForBaseShape(ShapeModel::Type type) const;
+    bool folderIsEmpty(const QString &folderName) const;
+    QString parentFolderOf(const QString &folderName) const;
+
+    // --- Accesseurs de données (lus par la View — pas d'accès direct au Model) ---
+    Language language() const;
+    void setLanguage(Language lang);
+    const QList<CustomShapeData> &customShapes() const;
+    const QList<InventoryFolder> &folders() const;
+    const QMap<ShapeModel::Type, QString> &baseShapeFolders() const;
 
 signals:
     // --- Notifications vers la View ---

@@ -22,8 +22,6 @@ QT_END_NAMESPACE
 // -----------------------------------------------------------------------------
 // Inventory widget
 // -----------------------------------------------------------------------------
-class InventoryModel;
-class InventoryController;
 class InventoryViewModel;
 
 class Inventory : public QWidget
@@ -31,7 +29,7 @@ class Inventory : public QWidget
     Q_OBJECT
 
 public:
-    explicit Inventory(QWidget *parent = nullptr);
+    explicit Inventory(InventoryViewModel *viewModel, QWidget *parent = nullptr);
     ~Inventory() override;
 
     // Singleton accessor
@@ -64,6 +62,7 @@ public:
 
     // Utility helpers
     bool shapeNameExists(const QString &name) const;
+    InventoryViewModel *viewModel() const { return m_viewModel; }
 
     // Internationalisation
     void updateTranslations(Language lang);
@@ -77,6 +76,7 @@ signals:
     void filterModeRequested(InventoryFilterMode mode);
     void folderOpenRequested(const QString &folderName);
     void returnRequested();
+    void navigationBackRequested();
 
 protected:
     // React to palette / language changes
@@ -108,8 +108,6 @@ private:
     Ui::Inventory *ui {nullptr};
     static Inventory *instance;
 
-    InventoryModel      *m_model      {nullptr};
-    InventoryController *m_controller {nullptr};
     InventoryViewModel  *m_viewModel  {nullptr};
 
     QFrame *createFolderCard(const QString &folderName);
@@ -121,7 +119,6 @@ private:
     InventorySortMode currentSortMode() const;
     InventoryFilterMode currentFilterMode() const;
     bool folderIsEmpty(const QString &folderName) const;
-    bool folderContainsMatchingShape(const QString &folderName, const QString &text) const;
 };
 
 #endif // INVENTAIRE_H

@@ -1,6 +1,5 @@
 #include "WifiConfigDialog.h"
 #include "ui_WifiConfigDialog.h"
-#include "MainWindow.h"
 
 #include "WifiNmcliParsers.h"
 #include <QMessageBox>
@@ -17,18 +16,6 @@
 #include <QApplication>
 #include <QProgressDialog>
 
-namespace {
-MainWindow* resolveMainWindow()
-{
-    const auto widgets = QApplication::topLevelWidgets();
-    for (QWidget *w : widgets) {
-        if (auto *mw = qobject_cast<MainWindow*>(w)) {
-            return mw;
-        }
-    }
-    return nullptr;
-}
-}
 
 static void showToast(QWidget *parent, const QString &text, int ms = 1800) {
     auto *lbl = new QLabel(text, parent);
@@ -79,7 +66,6 @@ WifiConfigDialog::WifiConfigDialog(QWidget *parent)
 
     connect(ui->backButton, &QPushButton::clicked, this, [this]{
         close();
-        if (auto mw = resolveMainWindow()) mw->showFullScreen();
     });
 
     // Sélection dans la table -> remplit selectedSsidLine
@@ -141,8 +127,6 @@ WifiConfigDialog::~WifiConfigDialog()
 void WifiConfigDialog::closeEvent(QCloseEvent *event)
 {
     QWidget::closeEvent(event);
-    if (auto mw = resolveMainWindow())
-        mw->showFullScreen();
 }
 
 // ================== NMCLI helpers ==================

@@ -43,7 +43,7 @@ MainWindowCoordinator::MainWindowCoordinator(DialogManager *navigationController
 void MainWindowCoordinator::setViewModel(MainWindowViewModel *viewModel)
 {
     m_viewModel = viewModel;
-    // Connecter les signaux du CuttingService au ViewModel
+    // CuttingService → ViewModel
     connect(m_cuttingService, &CuttingService::progressUpdated,
             m_viewModel,      &MainWindowViewModel::setCutProgress);
     connect(m_cuttingService, &CuttingService::finished,
@@ -52,6 +52,18 @@ void MainWindowCoordinator::setViewModel(MainWindowViewModel *viewModel)
             m_viewModel,      &MainWindowViewModel::setControlsEnabled);
     connect(m_cuttingService, &CuttingService::statusMessage,
             this,             &MainWindowCoordinator::aiGenerationStatus);
+    // ShapeCoordinator progress → ViewModel
+    connect(m_shapeController, &ShapeCoordinator::progressUpdated,
+            m_viewModel,       &MainWindowViewModel::setShapeProgress);
+    // AI status → ViewModel
+    connect(this, &MainWindowCoordinator::aiGenerationStatus,
+            m_viewModel, &MainWindowViewModel::setAiStatus);
+    // AI image ready → ViewModel
+    connect(this, &MainWindowCoordinator::imageReadyForImport, m_viewModel,
+            [this]() { m_viewModel->setAiImageReceived(); });
+    // DialogManager::imageReuseRequested → openImageInCustom
+    connect(m_navigationController, &DialogManager::imageReuseRequested,
+            this, &MainWindowCoordinator::openImageInCustom);
 }
 
 void MainWindowCoordinator::setMainWindow(MainWindow *window) {
@@ -116,6 +128,7 @@ bool MainWindowCoordinator::loadLanguage(Language lang) {
 
 void MainWindowCoordinator::changeLanguage(Language lang) {
     const bool ok = loadLanguage(lang);
+    m_model->setLanguage(lang);
     if (m_viewModel) m_viewModel->setLanguage(lang, ok);
 }
 
@@ -195,6 +208,9 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(m_navigationController, &DialogManager::requestOpenInventory, this,
             []() { Inventory::getInstance()->showFullScreen(); });
 
+    connect(Inventory::getInstance(), &Inventory::navigationBackRequested, view,
+            [view]() { view->showFullScreen(); });
+
     // --- imageReadyForImport → ouvre dans l'éditeur custom ---
     connect(this, &MainWindowCoordinator::imageReadyForImport, this,
             [this](const QString &path, bool internalContours, bool colorEdges) {
@@ -214,9 +230,9 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
 
     // --- Feedback AI → AIDialogCoordinator ---
     connect(this, &MainWindowCoordinator::aiGenerationStatus,
-            view->aiServiceManager(), &AIDialogCoordinator::onGenerationStatus);
+            m_aiServiceManager, &AIDialogCoordinator::onGenerationStatus);
     connect(this, &MainWindowCoordinator::aiImageReady,
-            view->aiServiceManager(), &AIDialogCoordinator::onAiImageReady);
+            m_aiServiceManager, &AIDialogCoordinator::onAiImageReady);
 }
 
 // =======================================================================
