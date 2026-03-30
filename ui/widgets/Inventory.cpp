@@ -4,8 +4,6 @@
 #include <QApplication>
 #include "Language.h"
 #include "ScreenUtils.h"
-#include "InventoryModel.h"
-#include "InventoryController.h"
 #include "InventoryViewModel.h"
 #include "InventoryDomainTypes.h"
 
@@ -34,11 +32,6 @@
 #include <algorithm>
 
 
-
-// -----------------------------------------------------------------------------
-// Static instance (singleton)
-// -----------------------------------------------------------------------------
-Inventory* Inventory::instance = nullptr;
 
 // -----------------------------------------------------------------------------
 // Constructor / Destructor
@@ -100,24 +93,7 @@ Inventory::Inventory(InventoryViewModel *vm, QWidget *parent)
 
 Inventory::~Inventory()
 {
-    qDebug() << "Fermeture de l'Inventory (l'instance reste vivante via le singleton)";
     delete ui;
-}
-
-// -----------------------------------------------------------------------------
-// Singleton accessor
-// -----------------------------------------------------------------------------
-Inventory* Inventory::getInstance()
-{
-    if (!instance) {
-        qDebug() << "Création de l'instance Inventory";
-        static auto *s_model      = new InventoryModel();
-        static auto *s_controller = new InventoryController(*s_model);
-        s_controller->initialize();
-        auto *vm = new InventoryViewModel(*s_controller);
-        instance = new Inventory(vm);
-    }
-    return instance;
 }
 
 QPixmap Inventory::renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size)

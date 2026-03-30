@@ -34,7 +34,9 @@
       "Bash(xargs wc:*)",
       "Bash(echo \"  \\(from $f\\)\" done)",
       "Bash(qmake6 machineDecoupeIHM.pro -o /tmp/Makefile_check)",
-      "Bash(qmake6 machineDecoupeIHM.pro)"
+      "Bash(qmake6 machineDecoupeIHM.pro)",
+      "Bash(qmake6:*)",
+      "Bash(./placement_tests 2>&1)"
     ]
   },
   "enableAllProjectMcpServers": true,

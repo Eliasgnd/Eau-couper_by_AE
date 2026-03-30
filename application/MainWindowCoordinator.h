@@ -18,6 +18,7 @@
 class MainWindow; // Forward declaration
 class ShapeVisualization;
 class OpenAIService;
+class Inventory;
 
 class MainWindowCoordinator : public QObject {
     Q_OBJECT
@@ -37,6 +38,7 @@ public:
     void setDialogParent(QWidget *parent) { m_dialogParent = parent; }
     void setMainWindow(MainWindow *window);
     void setShapeVisualization(ShapeVisualization *visualization);
+    void setInventory(Inventory *inventory);
     void connectToView(MainWindow *view);
     void setViewModel(MainWindowViewModel *viewModel);
     MainWindowViewModel *viewModel() const { return m_viewModel; }
@@ -137,6 +139,7 @@ private:
     MainWindow *m_view       = nullptr;
     ShapeVisualization *m_shapeVisualization = nullptr;
     MainWindowViewModel *m_viewModel = nullptr;
+    Inventory *m_inventory = nullptr;
 
     CuttingService *m_cuttingService = nullptr;
     OpenAIService *m_aiService = nullptr;

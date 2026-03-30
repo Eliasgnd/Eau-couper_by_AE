@@ -2,8 +2,8 @@
 #define DOSSIERWIDGET_H
 
 #include <QWidget>
-#include <QFileInfoList>
 #include "Language.h"
+#include "FolderViewModel.h"
 
 class QLineEdit;
 class QComboBox;
@@ -38,11 +38,10 @@ private slots:
 
 private:
     // Helpers
-    void rebuildFileList();           // (re)scanne le disque + tri + filtre + recherche
-    void clearGrid();                 // supprime les widgets du grid
-    void loadNextPage();              // charge la page suivante dans le grid
-    QWidget* buildCard(const QFileInfo &info); // crée une vignette
-    QString detectSource(const QString &absPath) const;
+    void refreshAndDisplay();       // refresh VM + reset pagination + load first page
+    void clearGrid();
+    void loadNextPage();
+    QWidget* buildCard(const QFileInfo &info);
     void renameFile(const QFileInfo &fi);
     void deleteFile(const QFileInfo &fi);
     void viewFile(const QFileInfo &fi);
@@ -52,23 +51,20 @@ private:
     // UI
     Ui::FolderWidget *ui = nullptr;
 
-    // Widgets créés dynamiquement (barre d’outils)
+    // Widgets créés dynamiquement (barre d'outils)
     QComboBox   *m_sourceFilter = nullptr;
     QLineEdit   *m_searchEdit   = nullptr;
     QSlider     *m_zoomSlider   = nullptr;
 
-    // Données
-    Language     m_lang        {Language::French};
-    bool         m_newestFirst {true};
-    int          m_pageSize    = 40;
-    int          m_currentPage = 0;
-    int          m_thumbSize   = 150;    // taille côté miniature
-    QString      m_searchText;
-    int          m_filterIndex = 0;      // 0 = Tous, 1 = IA, 2 = Wi-Fi, 3 = Bluetooth, 4 = Autres
+    // ViewModel
+    FolderViewModel *m_vm = nullptr;
 
-    QFileInfoList m_allFiles;            // tous les fichiers bruts
-    QFileInfoList m_filteredFiles;       // après tri/filtre/recherche
-    bool          m_loading     = false; // évite double load
+    // Display state
+    Language m_lang        {Language::French};
+    int      m_pageSize    = 40;
+    int      m_currentPage = 0;
+    int      m_thumbSize   = 150;
+    bool     m_loading     = false;
 };
 
 #endif // DOSSIERWIDGET_H

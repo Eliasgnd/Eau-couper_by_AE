@@ -15,7 +15,7 @@ class KeyboardDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit KeyboardDialog(QWidget *parent = nullptr);  // Constructeur du clavier
+    explicit KeyboardDialog(const QStringList &shapeNames = {}, QWidget *parent = nullptr);  // Constructeur du clavier
     QString getText() const;  // Récupère le texte saisi
 
 private slots:
@@ -74,6 +74,7 @@ private:
     QListWidget *suggestionList = nullptr; // Suggestion de noms
 
     void updateSuggestions();
+    QStringList m_shapeNames;
     QStringList usageHistory;
     void loadUsageHistory();
     void saveUsageHistory() const;

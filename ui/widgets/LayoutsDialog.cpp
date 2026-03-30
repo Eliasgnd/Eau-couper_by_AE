@@ -21,12 +21,13 @@
 #include <QDateTime>
 
 #include <algorithm>
-#include "Inventory.h"
+#include "InventoryViewModel.h"
 
 LayoutsDialog::LayoutsDialog(const QString &shapeName,
                            const QList<LayoutData> &layouts,
                            const QList<QPolygonF> &shapePolygons,
                            Language lang,
+                           InventoryViewModel *vm,
                            bool isBaseShape,
                            ShapeModel::Type baseType,
                            QWidget *parent)
@@ -37,7 +38,8 @@ LayoutsDialog::LayoutsDialog(const QString &shapeName,
     m_lang(lang),
     m_shapeName(shapeName),
     m_isBaseShape(isBaseShape),
-    m_baseType(baseType)
+    m_baseType(baseType),
+    m_vm(vm)
 {
     ui->setupUi(this);
 
@@ -182,9 +184,9 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
             if (index >= 0 && index < m_layouts.size()) {
                 m_layouts[index].name = newName;
                 if (m_isBaseShape)
-                    Inventory::getInstance()->renameBaseLayout(m_baseType, index, newName);
+                    m_vm->renameLayoutForBaseShape(m_baseType, index, newName);
                 else
-                    Inventory::getInstance()->renameLayout(m_shapeName, index, newName);
+                    m_vm->renameLayoutForCustomShape(m_shapeName, index, newName);
             }
         }
     });
@@ -193,9 +195,9 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
         if (index >= 0 && index < m_layouts.size()) {
             m_layouts.removeAt(index);
             if (m_isBaseShape)
-                Inventory::getInstance()->deleteBaseLayout(m_baseType, index);
+                m_vm->deleteLayoutForBaseShape(m_baseType, index);
             else
-                Inventory::getInstance()->deleteLayout(m_shapeName, index);
+                m_vm->deleteLayoutForCustomShape(m_shapeName, index);
             displayLayouts();
         }
     });
@@ -334,9 +336,9 @@ bool LayoutsDialog::eventFilter(QObject *obj, QEvent *event)
             } else if (idx >= 0 && idx < m_layouts.size()) {
                 LayoutData ld = m_layouts.at(idx);
                 if (m_isBaseShape)
-                    Inventory::getInstance()->incrementBaseLayoutUsage(m_baseType, idx);
+                    m_vm->incrementLayoutUsageForBaseShape(m_baseType, idx);
                 else
-                    Inventory::getInstance()->incrementLayoutUsage(m_shapeName, idx);
+                    m_vm->incrementLayoutUsageForCustomShape(m_shapeName, idx);
                 ld.usageCount++;
                 ld.lastUsed = QDateTime::currentDateTime();
                 m_layouts[idx].usageCount = ld.usageCount;

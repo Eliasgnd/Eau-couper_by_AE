@@ -60,6 +60,11 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
             this, &CustomDrawArea::supprimerModeChanged);
     connect(m_modeManager.get(), &DrawModeManager::gommeModeChanged,
             this, &CustomDrawArea::gommeModeChanged);
+    // Selection overlays — relay from manager to widget's own signals
+    connect(m_modeManager.get(), &DrawModeManager::shapeSelectionChanged,
+            this, &CustomDrawArea::shapeSelection);
+    connect(m_modeManager.get(), &DrawModeManager::multiSelectionChanged,
+            this, &CustomDrawArea::multiSelectionModeChanged);
 
     connect(m_transformer.get(), &ViewTransformer::zoomChanged,
             this, &CustomDrawArea::zoomChanged);
@@ -77,8 +82,8 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
 {
     Q_ASSERT(m_modeManager   != nullptr);
     Q_ASSERT(m_drawingState  != nullptr);
-    if (m_selectMode) cancelSelection();
-    if (m_closeMode)  cancelCloseMode();
+    if (m_modeManager->isSelectMode()) cancelSelection();
+    if (m_modeManager->isCloseMode())  cancelCloseMode();
     m_drawingState->gommeErasing = false;
     m_drawingState->pointByPointPoints.clear();
     m_drawing = false;
@@ -170,36 +175,29 @@ void CustomDrawArea::startShapeSelection()
     cancelDeplacerMode();
     cancelSupprimerMode();
     cancelGommeMode();
-    m_selectMode          = true;
-    m_connectSelectionMode= true;
     m_shapeManager->clearSelection();
-    emit shapeSelection(true);
+    m_modeManager->startSelectConnect();
     update();
 }
 
 void CustomDrawArea::cancelSelection()
 {
-    if (!m_selectMode) return;
-    m_selectMode = false;
+    if (!m_modeManager->isSelectMode()) return;
     m_shapeManager->clearSelection();
-    if (m_connectSelectionMode) emit shapeSelection(false);
-    else emit multiSelectionModeChanged(false);
-    m_connectSelectionMode = false;
+    m_modeManager->cancelAnySelection();
     update();
 }
 
 void CustomDrawArea::toggleMultiSelectMode()
 {
-    if (!m_selectMode) {
+    if (!m_modeManager->isSelectMode()) {
         cancelCloseMode();
         cancelSupprimerMode();
         cancelDeplacerMode();
         cancelGommeMode();
-        m_selectMode           = true;
-        m_connectSelectionMode = false;
         m_shapeManager->clearSelection();
-        emit multiSelectionModeChanged(true);
-    } else if (!m_connectSelectionMode) {
+        m_modeManager->startSelectMulti();
+    } else if (m_modeManager->isMultiSelectMode()) {
         cancelSelection();
     }
     update();
@@ -219,9 +217,7 @@ void CustomDrawArea::deleteSelectedShapes()
     m_historyManager->commitDeleteShapes(selected);
 
     m_shapeManager->clearSelection();
-    if (m_selectMode && !m_connectSelectionMode) emit multiSelectionModeChanged(false);
-    m_selectMode           = false;
-    m_connectSelectionMode = false;
+    m_modeManager->cancelAnySelection();
 }
 
 void CustomDrawArea::copySelectedShapes()
@@ -230,7 +226,7 @@ void CustomDrawArea::copySelectedShapes()
     m_shapeManager->copySelectedShapes();
 }
 
-void CustomDrawArea::enablePasteMode() { m_pasteMode = true; }
+void CustomDrawArea::enablePasteMode() { m_modeManager->enablePasteMode(); }
 
 void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
 {
@@ -264,7 +260,7 @@ int  CustomDrawArea::gridSpacing()                const { Q_ASSERT(m_renderer); 
 bool CustomDrawArea::isDeplacerMode()  const { return getDrawMode() == DrawMode::Deplacer; }
 bool CustomDrawArea::isSupprimerMode() const { return getDrawMode() == DrawMode::Supprimer; }
 bool CustomDrawArea::isGommeMode()     const { return getDrawMode() == DrawMode::Gomme; }
-bool CustomDrawArea::isConnectMode()   const { return m_selectMode && m_connectSelectionMode; }
+bool CustomDrawArea::isConnectMode()   const { return m_modeManager->isConnectMode(); }
 
 void CustomDrawArea::onDrawModeChanged(DrawModeManager::DrawMode mode)
 {
@@ -282,13 +278,10 @@ void CustomDrawArea::startCloseMode()
     cancelDeplacerMode();
     cancelSupprimerMode();
     cancelGommeMode();
-    m_closeMode = true;
     m_modeManager->startCloseMode();
 }
 void CustomDrawArea::cancelCloseMode()
 {
-    if (!m_closeMode) return;
-    m_closeMode = false;
     m_modeManager->cancelCloseMode();
 }
 void CustomDrawArea::startDeplacerMode()
@@ -440,7 +433,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
     m_drawingState->currentPoint = logical;
 
-    if (m_closeMode) {
+    if (m_modeManager->isCloseMode()) {
         const int hit = hitTestShape(logical);
         if (hit >= 0) {
             auto oldState = m_historyManager->getCurrentState();
@@ -453,15 +446,14 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 m_historyManager->commitSnapshot(oldState, shapes, tr("Fermer tracé"));
             }
         }
-        m_closeMode = false;
-        emit closeModeChanged(false);
+        m_modeManager->cancelCloseMode();
         update();
         return;
     }
 
-    if (event->button() == Qt::RightButton && m_pasteMode) {
+    if (event->button() == Qt::RightButton && m_modeManager->isPasteMode()) {
         pasteCopiedShapes(logical);
-        m_pasteMode = false;
+        m_modeManager->cancelPasteMode();
         return;
     }
 
@@ -472,7 +464,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         return;
     }
 
-    if (m_selectMode && getDrawMode() != DrawMode::Deplacer) {
+    if (m_modeManager->isSelectMode() && getDrawMode() != DrawMode::Deplacer) {
         const int hit = hitTestShape(logical);
         if (hit >= 0) {
             m_lastSelectClick = logical;
@@ -484,15 +476,16 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 selected.push_back(hit);
             m_shapeManager->setSelectedShapes(selected);
 
-            if (m_connectSelectionMode && selected.size() == 2) {
+            if (m_modeManager->isConnectMode() && selected.size() == 2) {
                 auto old = m_historyManager->getCurrentState();
                 m_shapeManager->connectNearestEndpoints(selected[0], selected[1]);
                 m_shapeManager->mergeShapesAndConnector(selected[0], selected[1]);
                 m_historyManager->commitSnapshot(old, m_shapeManager->shapes(), tr("Connecter formes"));
-                m_selectMode = false; m_connectSelectionMode = false;
                 m_shapeManager->clearSelection();
-                emit shapeSelection(false);
-            } else if (!m_connectSelectionMode) {
+                m_modeManager->cancelSelectConnect();
+            } else if (m_modeManager->isMultiSelectMode()) {
+                // signal already emitted by DrawModeManager on startSelectMulti;
+                // emit again to keep the button highlighted after each click
                 emit multiSelectionModeChanged(true);
             }
             update();

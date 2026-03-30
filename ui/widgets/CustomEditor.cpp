@@ -660,7 +660,8 @@ void CustomEditor::closeEditor()
 
 void CustomEditor::openKeyboardDialog()
 {
-    KeyboardDialog clavier(this);
+    QStringList names = m_viewModel ? m_viewModel->getAllShapeNames() : QStringList{};
+    KeyboardDialog clavier(names, this);
     if (clavier.exec() == QDialog::Accepted) {
         QString texteSaisi = clavier.getText();
     }

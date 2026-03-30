@@ -130,12 +130,8 @@ private:
     int  m_nextShapeId    = 1;
     int  m_smoothingLevel = 1;
     bool m_twoFingersOn   = false;
-    bool m_pasteMode      = false;
 
-    // --- Modes de sélection/interaction (candidats à migrer dans DrawModeManager à l'étape 3) ---
-    bool     m_selectMode          = false;
-    bool     m_connectSelectionMode= false;
-    bool     m_closeMode           = false;
+    // --- Position mémorisée pour le hit-test sélection ---
     QPointF  m_lastSelectClick;
 
     // Snapshot pour permettre Undo/Redo d'un déplacement de forme.

@@ -1,5 +1,6 @@
 #include "CustomEditorViewModel.h"
 #include "InventoryViewModel.h"
+#include "Language.h"
 #include "LogoImporter.h"
 #include "PathGenerator.h"
 #include <cmath>
@@ -15,6 +16,11 @@ CustomEditorViewModel::CustomEditorViewModel(InventoryViewModel &inventoryVm,
 bool CustomEditorViewModel::shapeNameExists(const QString &name) const
 {
     return m_inventoryVm.shapeNameExists(name);
+}
+
+QStringList CustomEditorViewModel::getAllShapeNames() const
+{
+    return m_inventoryVm.getAllShapeNames(Language::French);
 }
 
 void CustomEditorViewModel::saveShape(const QList<QPolygonF> &shapes,

@@ -66,7 +66,7 @@ QPainterPath buildPrototypePath(ShapeModel::Type model,
 
 ShapeVisualization::ShapeVisualization(QWidget *parent)
     : QWidget(parent),
-    m_projectModel(new ShapeVisualizationViewModel(this))
+    m_projectModel(nullptr)
 {
     // >>> ICI (dans le corps), on peut écrire du code :
     // Le widget garde un ratio fixe (B : ratio au niveau du widget)
@@ -113,20 +113,10 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &ShapeVisualization::handleSelectionChanged);
 
-    connect(m_projectModel, &ShapeVisualizationViewModel::dataChanged,
-            this, [this]() {
-                if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
-                    displayCustomShapes(m_projectModel->customShapes());
-                else
-                    redraw();
-            });
-
     // Fit initial
     QTimer::singleShot(0, this, [this](){
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
     });
-
-    redraw();
 }
 
 void ShapeVisualization::resizeEvent(QResizeEvent* e) {
@@ -155,6 +145,7 @@ bool ShapeVisualization::eventFilter(QObject *watched, QEvent *event)
 
 void ShapeVisualization::setModel(ShapeModel::Type model)
 {
+    if (!m_projectModel) return;
     if (!editingEnabled)
         return;
     if (!m_interactionEnabled)
@@ -169,6 +160,7 @@ void ShapeVisualization::setModel(ShapeModel::Type model)
 
 void ShapeVisualization::updateDimensions(int largeur, int longueur)
 {
+    if (!m_projectModel) return;
     if (!editingEnabled)
         return;
     if (!m_interactionEnabled) {
@@ -185,6 +177,7 @@ void ShapeVisualization::updateDimensions(int largeur, int longueur)
 
 void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int width, int height)
 {
+    if (!m_projectModel) return;
     if (!editingEnabled)
         return;
     if (!m_interactionEnabled) {
@@ -205,6 +198,7 @@ void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int wid
 
 void ShapeVisualization::setSpacing(int newSpacing)
 {
+    if (!m_projectModel) return;
     if (!editingEnabled)
         return;
     if (!m_interactionEnabled) {
@@ -226,6 +220,7 @@ void ShapeVisualization::setPredefinedMode()
 {
     qDebug() << "[DEBUG] setPredefinedMode() appelé";
 
+    if (!m_projectModel) return;
     if (!m_interactionEnabled) {
         emit actionRefused(kInteractionLockedReason);
         return;
@@ -243,6 +238,7 @@ void ShapeVisualization::setPredefinedMode()
 
 void ShapeVisualization::redraw()
 {
+    if (!m_projectModel) return;
     scene->clear();
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
@@ -310,6 +306,7 @@ void ShapeVisualization::redraw()
 
 void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 {
+    if (!m_projectModel) return;
     if (!m_interactionEnabled) {
         emit actionRefused(kInteractionLockedReason);
         return;
@@ -442,6 +439,7 @@ void ShapeVisualization::deleteSelectedShapes()
 
 void ShapeVisualization::addShapeBottomRight()
 {
+    if (!m_projectModel) return;
     if (!m_interactionEnabled)
     {
         emit actionRefused(kInteractionLockedReason);
@@ -503,6 +501,7 @@ void ShapeVisualization::addShapeBottomRight()
 }
 
 void ShapeVisualization::setCustomMode() {
+    if (!m_projectModel) return;
     cancelOptimization();
     m_projectModel->setCustomMode(true);
     emit optimizationStateChanged(false);
@@ -582,11 +581,13 @@ bool ShapeVisualization::isInteractionEnabled() const
 
 void ShapeVisualization::cancelOptimization()
 {
+    if (!m_projectModel) return;
     m_projectModel->setOptimizationRunning(false);
 }
 
 void ShapeVisualization::setOptimizationRunning(bool running)
 {
+    if (!m_projectModel) return;
     m_projectModel->setOptimizationRunning(running);
 }
 
@@ -688,6 +689,7 @@ void ShapeVisualization::resetAllShapeColors()
 
 void ShapeVisualization::applyLayout(const LayoutData &layout)
 {
+    if (!m_projectModel) return;
     if (!m_projectModel->isCustomMode())
         return;
 
@@ -704,6 +706,7 @@ void ShapeVisualization::applyLayout(const LayoutData &layout)
 
 LayoutData ShapeVisualization::captureCurrentLayout(const QString &name) const
 {
+    if (!m_projectModel) return {};
     return LayoutManager::captureLayout(scene,
                                         name,
                                         m_projectModel->currentLargeur(),

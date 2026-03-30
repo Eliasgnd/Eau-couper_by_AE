@@ -7,10 +7,11 @@
 #include <QString>
 #include <QPainterPath>
 #include "Language.h"
-#include "Inventory.h"
+#include "InventoryDomainTypes.h"
 #include "ShapeModel.h"
 
 class QWidget;
+class InventoryViewModel;
 class CustomEditor;
 class WifiTransferWidget;
 class WifiConfigDialog;
@@ -24,7 +25,7 @@ class DialogManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit DialogManager(QObject *parent = nullptr);
+    explicit DialogManager(InventoryViewModel *vm, QObject *parent = nullptr);
 
     void showInventory(QWidget *from, QWidget *inventory);
     void openCustomEditor(QWidget *from, Language language);
@@ -48,6 +49,9 @@ public:
     void handleSaveLayoutRequest(QWidget *parent,
                                  ShapeVisualization *shapeVisualization,
                                  ShapeModel::Type selectedShapeType);
+
+private:
+    InventoryViewModel *m_vm {nullptr};
 
 signals:
     void customShapeApplied(QList<QPolygonF> shapes);

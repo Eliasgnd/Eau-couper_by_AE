@@ -66,6 +66,8 @@ HEADERS += \
     viewmodels/MainWindowViewModel.h \
     viewmodels/InventoryViewModel.h \
     viewmodels/CustomEditorViewModel.h \
+    viewmodels/WifiConfigViewModel.h \
+    viewmodels/FolderViewModel.h \
     ui/widgets/ShapeVisualization.h \
     ui/widgets/shapevisualization/ShapeVisualizationViewModel.h \
     ui/widgets/shapevisualization/LayoutManager.h \
@@ -188,6 +190,8 @@ SOURCES += \
     infrastructure/persistence/InventoryRepository.cpp \
     viewmodels/InventoryViewModel.cpp \
     viewmodels/CustomEditorViewModel.cpp \
+    viewmodels/WifiConfigViewModel.cpp \
+    viewmodels/FolderViewModel.cpp \
     viewmodels/MainWindowViewModel.cpp \
     infrastructure/hardware/MotorControl.cpp \
     infrastructure/hardware/Raspberry.cpp \

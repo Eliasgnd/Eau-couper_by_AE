@@ -6,12 +6,15 @@
 #include <QPolygonF>
 #include <QFrame>
 #include <QString>
-#include "Inventory.h" // for LayoutData
+#include "InventoryDomainTypes.h"
+#include "ShapeModel.h"
 #include "Language.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class LayoutsDialog; }
 QT_END_NAMESPACE
+
+class InventoryViewModel;
 
 class LayoutsDialog : public QWidget
 {
@@ -21,6 +24,7 @@ public:
                  const QList<LayoutData> &layouts,
                  const QList<QPolygonF> &shapePolygons,
                  Language lang,
+                 InventoryViewModel *vm,
                  bool isBaseShape = false,
                  ShapeModel::Type baseType = ShapeModel::Type::Circle,
                  QWidget *parent = nullptr);
@@ -53,6 +57,7 @@ private:
     QString m_shapeName;
     bool m_isBaseShape {false};
     ShapeModel::Type m_baseType {ShapeModel::Type::Circle};
+    InventoryViewModel *m_vm {nullptr};
 };
 
 #endif // DISPOSITIONS_H

@@ -67,7 +67,7 @@ bool KeyboardEventFilter::eventFilter(QObject *obj, QEvent *event)
             // 2) sinon → clavier alphabétique
             else {
                 m_keyboardActive = true;
-                KeyboardDialog txtDlg(le->window());
+                KeyboardDialog txtDlg({}, le->window());
 
                 // 🔁 Mise à jour de la barre de recherche si on édite celle-ci
                 connect(&txtDlg, &KeyboardDialog::textChangedExternally, le, [le](const QString &text){

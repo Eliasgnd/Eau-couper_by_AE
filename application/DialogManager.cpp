@@ -2,6 +2,7 @@
 
 #include "CustomEditor.h"
 #include "CustomEditorViewModel.h"
+#include "InventoryViewModel.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
 #include "BluetoothReceiverDialog.h"
@@ -17,8 +18,9 @@
 #include <QTimer>
 #include <QMessageBox>
 
-DialogManager::DialogManager(QObject *parent)
+DialogManager::DialogManager(InventoryViewModel *vm, QObject *parent)
     : QObject(parent)
+    , m_vm(vm)
 {
 }
 
@@ -35,7 +37,7 @@ void DialogManager::openCustomEditor(QWidget *from, Language language)
     if (from)
         from->hide();
 
-    auto *vm = new CustomEditorViewModel(*Inventory::getInstance()->viewModel());
+    auto *vm = new CustomEditorViewModel(*m_vm);
     CustomEditor *customWindow = new CustomEditor(vm, language);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
     connect(customWindow, &CustomEditor::applyCustomShapeSignal,
@@ -56,7 +58,7 @@ void DialogManager::openCustomEditorWithImportedPath(QWidget *from,
     if (from)
         from->hide();
 
-    auto *vm = new CustomEditorViewModel(*Inventory::getInstance()->viewModel());
+    auto *vm = new CustomEditorViewModel(*m_vm);
     CustomEditor *customWindow = new CustomEditor(vm, language);
     customWindow->setAttribute(Qt::WA_DeleteOnClose);
     connect(customWindow, &CustomEditor::applyCustomShapeSignal,
@@ -162,7 +164,7 @@ void DialogManager::openLayoutsDialog(QWidget *from,
     if (from)
         from->hide();
 
-    auto *dialog = new LayoutsDialog(shapeName, layouts, shapePolygons, language, isBaseShape, baseType);
+    auto *dialog = new LayoutsDialog(shapeName, layouts, shapePolygons, language, m_vm, isBaseShape, baseType);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &LayoutsDialog::layoutSelected, this, [this, isBaseShape, baseType](const LayoutData &layout) {
         if (isBaseShape) {
@@ -226,7 +228,7 @@ void DialogManager::handleSaveLayoutRequest(QWidget *parent,
                 return false;
             if (shapeName.isEmpty())
                 continue;
-            if (Inventory::getInstance()->shapeNameExists(shapeName)) {
+            if (m_vm->shapeNameExists(shapeName)) {
                 QMessageBox msg(QMessageBox::Warning,
                                 tr("Nom déjà utilisé"),
                                 tr("Ce nom est déjà utilisé, veuillez en choisir un autre."),
@@ -238,7 +240,7 @@ void DialogManager::handleSaveLayoutRequest(QWidget *parent,
             }
         } while (!ok);
 
-        Inventory::getInstance()->addSavedCustomShape(shapes, shapeName);
+        m_vm->addCustomShape(shapes, shapeName);
         shapeVisualization->setCurrentCustomShapeName(shapeName);
         return true;
     };
@@ -254,9 +256,9 @@ void DialogManager::handleSaveLayoutRequest(QWidget *parent,
 
         LayoutData layout = shapeVisualization->captureCurrentLayout(name);
         if (shapeVisualization->isCustomMode())
-            Inventory::getInstance()->addLayoutToShape(shapeVisualization->currentCustomShapeName(), layout);
+            m_vm->addLayoutToCustomShape(shapeVisualization->currentCustomShapeName(), layout);
         else
-            Inventory::getInstance()->addLayoutToBaseShape(selectedShapeType, layout);
+            m_vm->addLayoutToBaseShape(selectedShapeType, layout);
     };
 
     if (shapeVisualization->isCustomMode() && shapeVisualization->currentCustomShapeName().isEmpty()) {

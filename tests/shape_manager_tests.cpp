@@ -1,6 +1,6 @@
 #include "shape_manager_tests.h"
 
-#include "drawing/ShapeManager.h"
+#include "ShapeManager.h"
 
 #include <QtTest>
 

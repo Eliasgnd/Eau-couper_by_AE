@@ -1,6 +1,9 @@
 #include "MainWindow.h"
 #include "ui_mainwindow.h"
 #include "Inventory.h"
+#include "InventoryModel.h"
+#include "InventoryController.h"
+#include "InventoryViewModel.h"
 #include "ShapeVisualization.h"
 #include "ImageImportService.h"
 #include "AspectRatioWrapper.h"
@@ -12,6 +15,7 @@
 #include "BaseShapeNamingService.h"
 #include "WorkspaceViewModel.h"
 #include "MainWindowViewModel.h"
+#include "ShapeVisualizationViewModel.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -43,12 +47,23 @@ MainWindow::MainWindow(QWidget *parent,
         m_model = new WorkspaceViewModel(this);
     }
 
+    // --- Inventory (créé ici pour injection — pas de singleton) ---
+    {
+        auto *invModel      = new InventoryModel();
+        auto *invController = new InventoryController(*invModel);
+        invController->initialize();
+        auto *invVm         = new InventoryViewModel(*invController, this);
+        m_inventory         = new Inventory(invVm);
+        // invModel et invController ont la même durée de vie que le processus
+        // (identique au comportement de l'ancien singleton statique)
+    }
+
     // --- Coordinator ---
     if (coordinator) {
         m_coordinator = coordinator;
         m_ownsCoordinator = false;
     } else {
-        auto *navigation = new DialogManager(this);
+        auto *navigation = new DialogManager(m_inventory->viewModel(), this);
         auto *ai         = new AIDialogCoordinator(this);
         auto *shape      = new ShapeCoordinator(ui->shapeVisualizationWidget, this);
         m_coordinator    = new MainWindowCoordinator(navigation, ai, shape, m_model, this);
@@ -56,6 +71,7 @@ MainWindow::MainWindow(QWidget *parent,
     }
 
     m_coordinator->setDialogParent(this);
+    m_coordinator->setInventory(m_inventory);
 
     // Créer et injecter le ViewModel — il sert de pont entre Coordinator et View
     m_viewModel = new MainWindowViewModel(this);
@@ -155,6 +171,8 @@ void MainWindow::applyStyleSheets()
 void MainWindow::setupModels()
 {
     shapeVisualization = qobject_cast<ShapeVisualization*>(ui->shapeVisualizationWidget);
+    auto *svVm = new ShapeVisualizationViewModel(this);
+    shapeVisualization->setProjectModel(svVm);
 }
 
 // =======================================================================

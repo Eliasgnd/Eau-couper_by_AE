@@ -18,6 +18,7 @@ class ShapeVisualization;
 class MainWindowCoordinator;
 class WorkspaceViewModel;
 class MainWindowViewModel;
+class Inventory;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -135,6 +136,7 @@ private:
     MainWindowCoordinator *m_coordinator    = nullptr;
     MainWindowViewModel   *m_viewModel      = nullptr;
     bool                   m_ownsCoordinator = false;
+    Inventory             *m_inventory      = nullptr;
 };
 
 #endif // MAINWINDOW_H

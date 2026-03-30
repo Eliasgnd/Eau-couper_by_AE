@@ -5,8 +5,7 @@
 #include <QString>
 #include <QCloseEvent>
 
-#include "WifiNmcliClient.h"
-#include "WifiProfileService.h"
+#include "WifiConfigViewModel.h"
 
 namespace Ui { class WifiConfigDialog; }
 
@@ -21,29 +20,24 @@ protected:
     void closeEvent(QCloseEvent *event) override;
 
 private slots:
-    void scanNetworks();                 // Scan et remplit la table + combo (compat)
-    void connectSelected();              // Connexion au réseau choisi
-    void checkConnectionStatus();        // Rafraîchit l'état (réseau courant, IP, signal)
-    void onHiddenSsidToggled(bool on);   // Gère l'UI SSID caché
-    void showDiagnostics();              // Affiche & copie les infos de diagnostic
-    void onAutoScanToggled(bool on);     // Active/désactive l’auto-scan
-
-    // État des identifiants / actions
-    void updateCredentialStateForCurrentSsid();  // Met à jour l'UI selon SSID/sécurité/secret
-    void forgetCurrentNetwork();                 // Supprime le profil NM (« oublier »)
-    void disconnectFromSelected();               // Déconnecte du réseau sélectionné
+    void scanNetworks();
+    void connectSelected();
+    void checkConnectionStatus();
+    void onHiddenSsidToggled(bool on);
+    void showDiagnostics();
+    void onAutoScanToggled(bool on);
+    void updateCredentialStateForCurrentSsid();
+    void forgetCurrentNetwork();
+    void disconnectFromSelected();
 
 private:
-    // Helpers NMCLI/UI
-    void populateNetworksFromScan(const QString &nmcliOutput);
-    void setBusy(bool busy);                     // Spinner + disable UI
+    void populateNetworksFromScan(const QList<WifiConfigViewModel::ScannedNetwork> &networks);
+    void setBusy(bool busy);
     void updateStatusLabel(const QString &msg, bool ok);
-private:
-    Ui::WifiConfigDialog *ui = nullptr;
-    QTimer *_statusTimer = nullptr;
-    QTimer *_scanTimer   = nullptr;
-    bool _busy = false;
 
-    WifiNmcliClient m_nmcli;
-    WifiProfileService m_wifiProfileService;
+    Ui::WifiConfigDialog  *ui           = nullptr;
+    WifiConfigViewModel   *m_vm         = nullptr;
+    QTimer                *_statusTimer = nullptr;
+    QTimer                *_scanTimer   = nullptr;
+    bool                   _busy        = false;
 };

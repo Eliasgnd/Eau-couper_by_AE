@@ -1,10 +1,10 @@
 #include "KeyboardDialog.h"
-#include "Inventory.h"
 #include <QTimer>
 #include <QDebug>
 #include <QRegularExpression>
 
-KeyboardDialog::KeyboardDialog(QWidget *parent) : QDialog(parent), majusculeActive(true)
+KeyboardDialog::KeyboardDialog(const QStringList &shapeNames, QWidget *parent)
+    : QDialog(parent), majusculeActive(true), m_shapeNames(shapeNames)
 {
     setWindowTitle("KeyboardDialog Virtuel AZERTY");
     setFixedSize(650, 540);  // Augmenter la taille pour un meilleur affichage
@@ -624,9 +624,7 @@ void KeyboardDialog::updateSuggestions()
     QString pattern = "^" + QRegularExpression::escape(currentText);
     QRegularExpression rx(pattern, QRegularExpression::CaseInsensitiveOption);
 
-    QStringList matches = Inventory::getInstance()
-                              ->getAllShapeNames()
-                              .filter(rx);
+    QStringList matches = m_shapeNames.filter(rx);
 
     if (!matches.isEmpty()) {
         // Tri par historique : les noms dans usageHistory en premier

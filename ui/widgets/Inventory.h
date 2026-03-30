@@ -32,8 +32,6 @@ public:
     explicit Inventory(InventoryViewModel *viewModel, QWidget *parent = nullptr);
     ~Inventory() override;
 
-    // Singleton accessor
-    static Inventory* getInstance();
 
     // Public attributes -------------------------------------------------------
     bool gros_cavu {false};
@@ -106,7 +104,6 @@ private:
     // Data members
     // ---------------------------------------------------------------------
     Ui::Inventory *ui {nullptr};
-    static Inventory *instance;
 
     InventoryViewModel  *m_viewModel  {nullptr};
 

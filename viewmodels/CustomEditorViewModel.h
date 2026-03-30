@@ -24,6 +24,7 @@ public:
 
     // --- Query (called from View before triggering save) ---
     bool shapeNameExists(const QString &name) const;
+    QStringList getAllShapeNames() const;
 
 public slots:
     // --- Commands ---

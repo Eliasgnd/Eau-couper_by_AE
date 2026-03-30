@@ -5,6 +5,7 @@
 #include "ShapeVisualization.h"
 #include "WorkspaceViewModel.h"
 #include "Inventory.h"
+#include "InventoryViewModel.h"
 #include "BaseShapeNamingService.h"
 #include "ImageImportService.h"
 #include "OpenAIService.h"
@@ -29,12 +30,6 @@ MainWindowCoordinator::MainWindowCoordinator(DialogManager *navigationController
             this, &MainWindowCoordinator::generationStatusChanged);
     connect(m_aiServiceManager, &AIDialogCoordinator::imageReadyForImport,
             this, &MainWindowCoordinator::imageReadyForImport);
-
-    // Inventory → Coordinator
-    connect(Inventory::getInstance(), &Inventory::shapeSelected,
-            this, &MainWindowCoordinator::onShapeSelectedFromInventory);
-    connect(Inventory::getInstance(), &Inventory::customShapeSelected,
-            this, &MainWindowCoordinator::onCustomShapeSelected);
 
     // CuttingService → ViewModel (connexion différée car m_viewModel est null ici)
     // La connexion est établie dans setViewModel() dès que le ViewModel est disponible.
@@ -64,6 +59,17 @@ void MainWindowCoordinator::setViewModel(MainWindowViewModel *viewModel)
     // DialogManager::imageReuseRequested → openImageInCustom
     connect(m_navigationController, &DialogManager::imageReuseRequested,
             this, &MainWindowCoordinator::openImageInCustom);
+}
+
+void MainWindowCoordinator::setInventory(Inventory *inventory)
+{
+    m_inventory = inventory;
+    if (!m_inventory)
+        return;
+    connect(m_inventory, &Inventory::shapeSelected,
+            this, &MainWindowCoordinator::onShapeSelectedFromInventory);
+    connect(m_inventory, &Inventory::customShapeSelected,
+            this, &MainWindowCoordinator::onCustomShapeSelected);
 }
 
 void MainWindowCoordinator::setMainWindow(MainWindow *window) {
@@ -206,9 +212,9 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
             [view]() { view->showFullScreen(); });
 
     connect(m_navigationController, &DialogManager::requestOpenInventory, this,
-            []() { Inventory::getInstance()->showFullScreen(); });
+            [this]() { if (m_inventory) m_inventory->showFullScreen(); });
 
-    connect(Inventory::getInstance(), &Inventory::navigationBackRequested, view,
+    connect(m_inventory, &Inventory::navigationBackRequested, view,
             [view]() { view->showFullScreen(); });
 
     // --- imageReadyForImport → ouvre dans l'éditeur custom ---
@@ -283,7 +289,7 @@ void MainWindowCoordinator::onDeleteShapeRequested() { m_shapeController->delete
 
 void MainWindowCoordinator::onInventoryRequested()
 {
-    openInventory(m_view, Inventory::getInstance());
+    openInventory(m_view, m_inventory);
 }
 
 void MainWindowCoordinator::onCustomEditorRequested()
@@ -390,7 +396,7 @@ void MainWindowCoordinator::onCustomShapeSelected(const QList<QPolygonF> &polygo
                                              m_model->largeur(), m_model->longueur()))
         return;
 
-    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForShape(name);
+    QList<LayoutData> layouts = m_inventory->viewModel()->getLayoutsForShape(name);
     if (!layouts.isEmpty()) {
         m_navigationController->openLayoutsDialog(m_dialogParent, name,
                                                   layouts, polygons,
@@ -404,7 +410,7 @@ void MainWindowCoordinator::onCustomShapeSelected(const QList<QPolygonF> &polygo
 void MainWindowCoordinator::onShapeSelectedFromInventory(ShapeModel::Type type)
 {
     m_shapeController->setSelectedShapeType(type);
-    QList<LayoutData> layouts = Inventory::getInstance()->getLayoutsForBaseShape(type);
+    QList<LayoutData> layouts = m_inventory->viewModel()->getLayoutsForBaseShape(type);
     if (!layouts.isEmpty()) {
         QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
         QString name = BaseShapeNamingService::baseShapeName(type, m_model->language());
