@@ -22,6 +22,9 @@ const double CLIPPER_SCALE = 1000.0;
 // --- LES PARAMÈTRES DE PERFORMANCE GLOBAUX ---
 const double DECIMATION_TOLERANCE = 5.0;
 const double DECIMATION_MARGIN = 1.5;
+// Epsilon de simplification des zones (en unités Clipper) après chaque Difference.
+// Réduit l'accumulation de sommets sans affecter la qualité du placement.
+const double ZONE_SIMPLIFY_EPSILON = 1.5 * CLIPPER_SCALE;
 
 // 1. EXTRACTION ROBUSTE AVEC PRÉCISION VARIABLE
 Paths64 extractAllPaths(const QPainterPath &path, double tolerance) {
@@ -126,22 +129,23 @@ QByteArray hashPath(const QPainterPath& path) {
     return QCryptographicHash::hash(data, QCryptographicHash::Md5);
 }
 
-// 3. LA FONCTION MAGIQUE : LE SUPER-BLOC (En Haute Définition !)
+// 3. LA FONCTION MAGIQUE : LE SUPER-BLOC (En Haute Définition, calcul parallèle par angle)
 OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>& angles, int spacing) {
     // PRÉCISION EXTRÊME : Tolérance de 0.5 pixels pour que les deux pièces s'emboîtent au millimètre
     Paths64 hdClipA = extractAllPaths(base, 0.5);
     QRectF boundsA = base.boundingRect();
-    double bestArea = std::numeric_limits<double>::max();
-    QPainterPath bestPathB;
 
-    for (int angle : angles) {
+    // Chaque angle est indépendant : on calcule tous les NFP en parallèle.
+    // Retourne {aire_min, meilleure_position_B} pour chaque angle.
+    auto processAngle = [&](int angle) -> QPair<double, QPainterPath> {
         QTransform rot; rot.rotate(angle);
         QPainterPath pathB = rot.map(base);
-        Paths64 hdClipB = extractAllPaths(pathB, 0.5); // Haute définition
+        Paths64 hdClipB = extractAllPaths(pathB, 0.5);
         QRectF boundsB = pathB.boundingRect();
-
-        // MARGE EXACTE : Pas de marge de sécurité interne, juste l'espacement demandé par l'utilisateur
         Paths64 nfp = calculateNFP(hdClipA, hdClipB, static_cast<double>(spacing));
+
+        double bestArea = std::numeric_limits<double>::max();
+        QPainterPath bestPathB;
 
         for (const Path64& poly : nfp) {
             for (const Point64& pt : poly) {
@@ -149,7 +153,6 @@ OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>&
                 double dy = static_cast<double>(pt.y) / CLIPPER_SCALE;
                 QRectF combinedBounds = boundsA.united(boundsB.translated(dx, dy));
                 double area = combinedBounds.width() * combinedBounds.height();
-
                 if (area < bestArea) {
                     bestArea = area;
                     QTransform t; t.translate(dx, dy);
@@ -157,17 +160,27 @@ OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>&
                 }
             }
         }
+        return {bestArea, bestPathB};
+    };
+
+    QList<QPair<double, QPainterPath>> results = QtConcurrent::blockingMapped(angles, processAngle);
+
+    // Sélection du meilleur résultat parmi tous les angles
+    double globalBestArea = std::numeric_limits<double>::max();
+    QPainterPath globalBestPathB;
+    for (const auto& r : results) {
+        if (r.first < globalBestArea) {
+            globalBestArea = r.first;
+            globalBestPathB = r.second;
+        }
     }
 
     OrientedShape superBloc;
     superBloc.pieceCount = 2;
-    QRectF totalBounds = boundsA.united(bestPathB.boundingRect());
+    QRectF totalBounds = boundsA.united(globalBestPathB.boundingRect());
     QTransform align; align.translate(-totalBounds.x(), -totalBounds.y());
-
-    superBloc.originalPaths << align.map(base) << align.map(bestPathB);
+    superBloc.originalPaths << align.map(base) << align.map(globalBestPathB);
     superBloc.bounds = QRectF(0, 0, totalBounds.width(), totalBounds.height());
-
-    // On ne génère pas de clipperPaths HD ici, ce sera géré en "Low-Poly" dans le run principal.
     return superBloc;
 }
 
@@ -299,7 +312,9 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
                     for (const Point64& pt : path) {
                         double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
                         double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
-                        double score = (py * 10000.0) + px;
+                        // Score bas-gauche calibré sur la largeur réelle du container :
+                        // chaque rangée de hauteur 1px vaut exactement W px → remplissage gauche→droite, ligne par ligne.
+                        double score = py * W + px;
 
                         if (score < bestScore) {
                             bestScore = score; bestX = px; bestY = py; bestId = shape.id;
@@ -318,7 +333,7 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
                     for (const Point64& pt : path) {
                         double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
                         double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
-                        double score = (py * 10000.0) + px;
+                        double score = py * W + px;
 
                         if (score < bestScore) {
                             bestScore = score; bestX = px; bestY = py; bestId = shape.id;
@@ -341,6 +356,8 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
                 Paths64 nfp = globalCache.dictionary[qMakePair(bestId, shape.id)];
                 Paths64 translatedNfp = translateClipper(nfp, bestX, bestY);
                 allowedZones[shape.id] = Difference(allowedZones[shape.id], translatedNfp, FillRule::NonZero);
+                // Réduit les sommets accumulés pour maintenir les performances au fil des placements
+                allowedZones[shape.id] = SimplifyPaths(allowedZones[shape.id], ZONE_SIMPLIFY_EPSILON);
             }
 
             piecesPlaced += winnerShape.pieceCount;
