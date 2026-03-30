@@ -1,4 +1,4 @@
-QT += core gui widgets svg network bluetooth httpserver openglwidgets
+QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = machineDecoupeIHM
@@ -21,6 +21,18 @@ win32 {
         LIBS += -lopencv_world4120   # Mode release
     }
 }
+
+# ==== EXTERNAL LIBRARIES (Clipper2) ====
+# On définit le chemin vers clipper2 par rapport à la racine du projet
+CLIPPER2_PATH = $$PWD/external/clipper2
+
+INCLUDEPATH += \
+    $${CLIPPER2_PATH}/include
+
+SOURCES += \
+    $${CLIPPER2_PATH}/src/clipper.engine.cpp \
+    $${CLIPPER2_PATH}/src/clipper.offset.cpp \
+    $${CLIPPER2_PATH}/src/clipper.rectclip.cpp
 
 # ==== INCLUDEPATH ====
 INCLUDEPATH += \

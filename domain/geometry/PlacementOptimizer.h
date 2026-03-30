@@ -3,7 +3,6 @@
 #include <QList>
 #include <QPainterPath>
 #include <QRectF>
-
 #include <functional>
 
 struct PlacementParams {
@@ -11,13 +10,13 @@ struct PlacementParams {
     QRectF containerRect;
     int shapeCount = 0;
     int spacing = 0;
-    int step = 5;
+    int step = 5; // <-- REMIS : Requis par ShapeCoordinator
     QList<int> angles;
 };
 
 struct PlacementResult {
     QList<QPainterPath> placedPaths;
-    int totalPositions = 0;
+    int totalPositions = 0; // <-- REMIS : Requis par ShapeCoordinator
     int processedPositions = 0;
     bool cancelled = false;
 };
