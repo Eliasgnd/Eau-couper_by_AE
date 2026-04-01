@@ -1,6 +1,5 @@
 #include "PlacementOptimizer.h"
 #include <QTransform>
-#include <QMap>
 #include <QPair>
 #include <limits>
 #include <QtGlobal>
@@ -8,6 +7,8 @@
 #include <QCoreApplication>
 #include <QtConcurrent/QtConcurrent>
 #include <QThreadPool>
+#include <unordered_map>
+#include <algorithm>
 
 // --- INCLUSION DE CLIPPER2 ---
 #include "clipper2/clipper.h"
@@ -19,12 +20,20 @@ namespace {
 
 const double CLIPPER_SCALE = 1000.0;
 
-// --- LES PARAMÈTRES DE PERFORMANCE GLOBAUX ---
+// --- PARAMÈTRES DE PERFORMANCE ---
 const double DECIMATION_TOLERANCE = 5.0;
-const double DECIMATION_MARGIN = 1.5;
-// Epsilon de simplification des zones (en unités Clipper) après chaque Difference.
-// Réduit l'accumulation de sommets sans affecter la qualité du placement.
-const double ZONE_SIMPLIFY_EPSILON = 1.5 * CLIPPER_SCALE;
+const double DECIMATION_MARGIN    = 1.5;
+// Epsilon faible : ne pas perdre de positions valides
+const double ZONE_SIMPLIFY_EPSILON = 0.1 * CLIPPER_SCALE;
+// Fréquence de purge des candidats devenus invalides
+const int PURGE_EVERY_N_PIECES = 10;
+
+// --- CLÉ DE DICTIONNAIRE COMPACTE ---
+// Remplace QMap<QPair<int,int>> (O(log N)) par unordered_map (O(1) amorti)
+inline uint64_t dictKey(int a, int b) {
+    return (static_cast<uint64_t>(static_cast<uint32_t>(a)) << 32) |
+            static_cast<uint64_t>(static_cast<uint32_t>(b));
+}
 
 // 1. EXTRACTION ROBUSTE AVEC PRÉCISION VARIABLE
 Paths64 extractAllPaths(const QPainterPath &path, double tolerance) {
@@ -56,8 +65,8 @@ Paths64 extractAllPaths(const QPainterPath &path, double tolerance) {
 }
 
 Paths64 translateClipper(const Paths64 &paths, double dx, double dy) {
-    int64_t idx = dx * CLIPPER_SCALE;
-    int64_t idy = dy * CLIPPER_SCALE;
+    int64_t idx = static_cast<int64_t>(dx * CLIPPER_SCALE);
+    int64_t idy = static_cast<int64_t>(dy * CLIPPER_SCALE);
     Paths64 res;
     res.reserve(paths.size());
     for (const auto &path : paths) {
@@ -68,12 +77,10 @@ Paths64 translateClipper(const Paths64 &paths, double dx, double dy) {
     return res;
 }
 
-// Inversion mathématique rigoureuse
 Path64 invertShape(const Path64& shape) {
     Path64 inverted; inverted.reserve(shape.size());
-    for (int i = shape.size() - 1; i >= 0; --i) {
+    for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i)
         inverted.push_back(Point64(-shape[i].x, -shape[i].y));
-    }
     return inverted;
 }
 
@@ -87,9 +94,8 @@ Paths64 calculateNFP(const Paths64& stationary, const Paths64& orbiting, double 
             totalNfp = Union(totalNfp, nfp, FillRule::NonZero);
         }
     }
-    if (margin > 0.0) {
+    if (margin > 0.0)
         totalNfp = InflatePaths(totalNfp, margin * CLIPPER_SCALE, JoinType::Round, EndType::Polygon);
-    }
     return totalNfp;
 }
 
@@ -114,7 +120,8 @@ struct CacheData {
     QList<OrientedShape> singleShapes;
     QList<OrientedShape> superShapes;
     QList<OrientedShape> allShapes;
-    QMap<QPair<int, int>, Paths64> dictionary;
+    // O(1) amorti vs O(log N) pour QMap
+    std::unordered_map<uint64_t, Paths64> dictionary;
 };
 
 CacheData globalCache;
@@ -129,14 +136,11 @@ QByteArray hashPath(const QPainterPath& path) {
     return QCryptographicHash::hash(data, QCryptographicHash::Md5);
 }
 
-// 3. LA FONCTION MAGIQUE : LE SUPER-BLOC (En Haute Définition, calcul parallèle par angle)
+// 3. SUPER-BLOC (calcul parallèle par angle)
 OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>& angles, int spacing) {
-    // PRÉCISION EXTRÊME : Tolérance de 0.5 pixels pour que les deux pièces s'emboîtent au millimètre
     Paths64 hdClipA = extractAllPaths(base, 0.5);
     QRectF boundsA = base.boundingRect();
 
-    // Chaque angle est indépendant : on calcule tous les NFP en parallèle.
-    // Retourne {aire_min, meilleure_position_B} pour chaque angle.
     auto processAngle = [&](int angle) -> QPair<double, QPainterPath> {
         QTransform rot; rot.rotate(angle);
         QPainterPath pathB = rot.map(base);
@@ -146,7 +150,6 @@ OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>&
 
         double bestArea = std::numeric_limits<double>::max();
         QPainterPath bestPathB;
-
         for (const Path64& poly : nfp) {
             for (const Point64& pt : poly) {
                 double dx = static_cast<double>(pt.x) / CLIPPER_SCALE;
@@ -165,7 +168,6 @@ OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>&
 
     QList<QPair<double, QPainterPath>> results = QtConcurrent::blockingMapped(angles, processAngle);
 
-    // Sélection du meilleur résultat parmi tous les angles
     double globalBestArea = std::numeric_limits<double>::max();
     QPainterPath globalBestPathB;
     for (const auto& r : results) {
@@ -184,7 +186,23 @@ OrientedShape createOptimalSuperBloc(const QPainterPath& base, const QList<int>&
     return superBloc;
 }
 
-} // namespace anonyme
+// 4. FILTRE DE ZONE : bbox pré-calculée (rejet rapide) + règle NonZero (trous)
+// La Rect64 évite ~70-80% des appels PointInPolygon inutiles.
+bool isInsideZone(const Point64& pt, const Rect64& bbox, const Paths64& zone) {
+    if (bbox.IsEmpty()) return false;
+    if (pt.x < bbox.left || pt.x > bbox.right || pt.y < bbox.top || pt.y > bbox.bottom)
+        return false;
+    int winding = 0;
+    for (const Path64& path : zone) {
+        auto res = PointInPolygon(pt, path);
+        if (res == PointInPolygonResult::IsOn) return true;
+        if (res == PointInPolygonResult::IsInside)
+            winding += IsPositive(path) ? 1 : -1;
+    }
+    return winding != 0;
+}
+
+} // namespace
 
 
 PlacementResult PlacementOptimizer::run(const PlacementParams &params,
@@ -208,8 +226,8 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
         QCoreApplication::processEvents();
 
         globalCache.shapeHash = currentHash;
-        globalCache.angles = angles;
-        globalCache.spacing = params.spacing;
+        globalCache.angles    = angles;
+        globalCache.spacing   = params.spacing;
         globalCache.singleShapes.clear();
         globalCache.superShapes.clear();
         globalCache.allShapes.clear();
@@ -217,65 +235,73 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
 
         int nextId = 0;
 
-        // A. Génération des simples (En version Low-Poly pour la vitesse globale)
+        // A. Formes simples (low-poly pour vitesse)
         for (int angle : angles) {
             QTransform rot; rot.rotate(angle);
             QPainterPath path = rot.map(params.prototypePath);
             OrientedShape shape = {nextId++, 1, {path}, extractAllPaths(path, DECIMATION_TOLERANCE), path.boundingRect()};
             globalCache.singleShapes << shape;
-            globalCache.allShapes << shape;
+            globalCache.allShapes    << shape;
         }
 
-        // B. Génération des Super-Blocs
+        // B. Super-blocs de 2 pièces
         OrientedShape baseSuperBloc = createOptimalSuperBloc(params.prototypePath, angles, params.spacing);
         for (int angle : angles) {
             QTransform rot; rot.rotate(angle);
             OrientedShape shape;
             shape.id = nextId++;
             shape.pieceCount = 2;
-            for(const QPainterPath& p : baseSuperBloc.originalPaths) shape.originalPaths << rot.map(p);
-
-            QPainterPath combined; for(const auto& p: shape.originalPaths) combined.addPath(p);
-
-            // On extrait la doublette complète en Low-Poly !
+            for (const QPainterPath& p : baseSuperBloc.originalPaths) shape.originalPaths << rot.map(p);
+            QPainterPath combined;
+            for (const auto& p : shape.originalPaths) combined.addPath(p);
             shape.clipperPaths = extractAllPaths(combined, DECIMATION_TOLERANCE);
             shape.bounds = combined.boundingRect();
             globalCache.superShapes << shape;
-            globalCache.allShapes << shape;
+            globalCache.allShapes   << shape;
         }
 
-        // C. Calcul Multithread du Dictionnaire NFP
-        // La marge secrète (DECIMATION_MARGIN) est ajoutée ici pour compenser la géométrie Low-Poly
-        struct NfpJob { int idA; int idB; Paths64 pathsA; Paths64 pathsB; double margin; };
+        // C. Calcul multithread du dictionnaire NFP → unordered_map O(1)
+        struct NfpJob    { int idA; int idB; Paths64 pathsA; Paths64 pathsB; double margin; };
         struct NfpResult { int idA; int idB; Paths64 nfp; };
 
         QList<NfpJob> jobs;
-        for (const OrientedShape& shapeA : globalCache.allShapes) {
-            for (const OrientedShape& shapeB : globalCache.allShapes) {
-                jobs.append({shapeA.id, shapeB.id, shapeA.clipperPaths, shapeB.clipperPaths, params.spacing + DECIMATION_MARGIN});
-            }
-        }
+        for (const OrientedShape& shapeA : globalCache.allShapes)
+            for (const OrientedShape& shapeB : globalCache.allShapes)
+                jobs.append({shapeA.id, shapeB.id, shapeA.clipperPaths, shapeB.clipperPaths,
+                              params.spacing + DECIMATION_MARGIN});
 
         auto computeNfpTask = [](const NfpJob& job) -> NfpResult {
             return {job.idA, job.idB, calculateNFP(job.pathsA, job.pathsB, job.margin)};
         };
 
-        auto reduceNfpTask = [](QMap<QPair<int, int>, Paths64>& dictionary, const NfpResult& res) {
-            dictionary[qMakePair(res.idA, res.idB)] = res.nfp;
+        auto reduceNfpTask = [](std::unordered_map<uint64_t, Paths64>& dict, const NfpResult& res) {
+            dict[dictKey(res.idA, res.idB)] = res.nfp;
         };
 
-        globalCache.dictionary = QtConcurrent::blockingMappedReduced<QMap<QPair<int, int>, Paths64>>(
-            jobs, computeNfpTask, reduceNfpTask
-            );
+        globalCache.dictionary =
+            QtConcurrent::blockingMappedReduced<std::unordered_map<uint64_t, Paths64>>(
+                jobs, computeNfpTask, reduceNfpTask);
     }
 
-    // --- PHASE 3 : PLACEMENT OPTIMISÉ (Instantané + Bouche-Trou) ---
-    QMap<int, Paths64> allowedZones;
+    // --- PHASE 3 : PLACEMENT PAR NFP-VERTEX SEARCH INCRÉMENTAL ---
+    //
+    // Optimisations vs version précédente :
+    //  - persistentCandidates : liste incrémentale, on n'ajoute que les nouveaux sommets NFP
+    //    de la pièce qui vient d'être placée (O(N) total au lieu de O(N²))
+    //  - zoneBboxes : bounding box pré-calculée → rejet rapide dans isInsideZone
+    //  - purge périodique : toutes les PURGE_EVERY_N_PIECES pièces, supprime les
+    //    candidats invalides pour éviter l'accumulation mémoire
+    //  - une seule passe translateClipper par pièce placée (zone + candidats partagés)
+
+    std::unordered_map<int, Paths64>             allowedZones;
+    std::unordered_map<int, Rect64>              zoneBboxes;
+    std::unordered_map<int, std::vector<Point64>> persistentCandidates;
+
     for (const OrientedShape& shape : globalCache.allShapes) {
-        double minX = -shape.bounds.left() + params.spacing;
-        double minY = -shape.bounds.top() + params.spacing;
-        double maxX = W - shape.bounds.right() - params.spacing;
-        double maxY = H - shape.bounds.bottom() - params.spacing;
+        double minX = -shape.bounds.left()   + params.spacing;
+        double minY = -shape.bounds.top()    + params.spacing;
+        double maxX =  W - shape.bounds.right()  - params.spacing;
+        double maxY =  H - shape.bounds.bottom() - params.spacing;
 
         if (maxX >= minX && maxY >= minY) {
             Path64 ifpRect;
@@ -287,6 +313,13 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
         } else {
             allowedZones[shape.id] = Paths64();
         }
+
+        zoneBboxes[shape.id] = GetBounds(allowedZones[shape.id]);
+
+        // Candidats initiaux : coins de l'IFP
+        auto& cands = persistentCandidates[shape.id];
+        for (const Path64& p : allowedZones[shape.id])
+            cands.insert(cands.end(), p.begin(), p.end());
     }
 
     QList<PlacedShape> placedShapes;
@@ -299,74 +332,82 @@ PlacementResult PlacementOptimizer::run(const PlacementParams &params,
 
         bool piecePlacedThisTurn = false;
         double bestX = 0, bestY = 0;
-        int bestId = -1;
+        int bestId  = -1;
         double bestScore = std::numeric_limits<double>::max();
         OrientedShape winnerShape;
-
         int remaining = params.shapeCount - piecesPlaced;
 
-        // TENTATIVE 1 : Placer un Super-Bloc
-        if (remaining >= 2) {
-            for (const OrientedShape& shape : globalCache.superShapes) {
-                for (const Path64& path : allowedZones[shape.id]) {
-                    for (const Point64& pt : path) {
-                        double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
-                        double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
-                        // Score bas-gauche calibré sur la largeur réelle du container :
-                        // chaque rangée de hauteur 1px vaut exactement W px → remplissage gauche→droite, ligne par ligne.
-                        double score = py * W + px;
+        // Évalue les formes via les candidats persistants (NFP-vertex search)
+        auto tryShapes = [&](const QList<OrientedShape>& shapes) {
+            for (const OrientedShape& shape : shapes) {
+                const Paths64& zone = allowedZones[shape.id];
+                if (zone.empty()) continue;
+                const Rect64& bbox                       = zoneBboxes[shape.id];
+                const std::vector<Point64>& candidates   = persistentCandidates[shape.id];
 
-                        if (score < bestScore) {
-                            bestScore = score; bestX = px; bestY = py; bestId = shape.id;
-                            piecePlacedThisTurn = true;
-                            winnerShape = shape;
-                        }
+                for (const Point64& pt : candidates) {
+                    if (!isInsideZone(pt, bbox, zone)) continue;
+                    double px    = static_cast<double>(pt.x) / CLIPPER_SCALE;
+                    double py    = static_cast<double>(pt.y) / CLIPPER_SCALE;
+                    double score = py * W + px;
+                    if (score < bestScore) {
+                        bestScore = score; bestX = px; bestY = py; bestId = shape.id;
+                        piecePlacedThisTurn = true;
+                        winnerShape = shape;
                     }
                 }
             }
-        }
+        };
 
-        // TENTATIVE 2 : Le "Bouche-Trou" (Fallback)
-        if (!piecePlacedThisTurn) {
-            for (const OrientedShape& shape : globalCache.singleShapes) {
-                for (const Path64& path : allowedZones[shape.id]) {
-                    for (const Point64& pt : path) {
-                        double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
-                        double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
-                        double score = py * W + px;
-
-                        if (score < bestScore) {
-                            bestScore = score; bestX = px; bestY = py; bestId = shape.id;
-                            piecePlacedThisTurn = true;
-                            winnerShape = shape;
-                        }
-                    }
-                }
-            }
-        }
+        if (remaining >= 2) tryShapes(globalCache.superShapes);
+        if (!piecePlacedThisTurn) tryShapes(globalCache.singleShapes);
 
         if (piecePlacedThisTurn) {
             placedShapes.push_back({bestId, bestX, bestY});
-            for (const QPainterPath& p : winnerShape.originalPaths) {
+            for (const QPainterPath& p : winnerShape.originalPaths)
                 result.placedPaths << p.translated(bestX, bestY);
-            }
 
+            // Une seule passe : translateClipper est réutilisé pour zone ET candidats
             for (const OrientedShape& shape : globalCache.allShapes) {
-                if (allowedZones[shape.id].empty()) continue;
-                Paths64 nfp = globalCache.dictionary[qMakePair(bestId, shape.id)];
-                Paths64 translatedNfp = translateClipper(nfp, bestX, bestY);
-                allowedZones[shape.id] = Difference(allowedZones[shape.id], translatedNfp, FillRule::NonZero);
-                // Réduit les sommets accumulés pour maintenir les performances au fil des placements
-                allowedZones[shape.id] = SimplifyPaths(allowedZones[shape.id], ZONE_SIMPLIFY_EPSILON);
+                auto it = globalCache.dictionary.find(dictKey(bestId, shape.id));
+                if (it == globalCache.dictionary.end()) continue;
+
+                Paths64 translatedNfp = translateClipper(it->second, bestX, bestY);
+
+                // Mise à jour zone + bbox
+                Paths64& zone = allowedZones[shape.id];
+                if (!zone.empty()) {
+                    zone = Difference(zone, translatedNfp, FillRule::NonZero);
+                    zone = SimplifyPaths(zone, ZONE_SIMPLIFY_EPSILON);
+                    zoneBboxes[shape.id] = zone.empty() ? Rect64(0,0,0,0) : GetBounds(zone);
+                }
+
+                // Ajout incrémental des candidats NFP (positions tangentes à la pièce placée)
+                auto& cands = persistentCandidates[shape.id];
+                for (const Path64& p : translatedNfp)
+                    cands.insert(cands.end(), p.begin(), p.end());
             }
 
             piecesPlaced += winnerShape.pieceCount;
+
+            // Purge périodique : évite l'accumulation de candidats invalides
+            if (piecesPlaced % PURGE_EVERY_N_PIECES == 0) {
+                for (const OrientedShape& shape : globalCache.allShapes) {
+                    auto& cands         = persistentCandidates[shape.id];
+                    const Paths64& zone = allowedZones[shape.id];
+                    const Rect64& bbox  = zoneBboxes[shape.id];
+                    cands.erase(
+                        std::remove_if(cands.begin(), cands.end(),
+                            [&](const Point64& pt) { return !isInsideZone(pt, bbox, zone); }),
+                        cands.end());
+                }
+            }
         } else {
             break;
         }
     }
 
     result.processedPositions = piecesPlaced;
-    result.totalPositions = params.shapeCount;
+    result.totalPositions     = params.shapeCount;
     return result;
 }
