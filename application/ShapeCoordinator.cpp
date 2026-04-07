@@ -239,14 +239,16 @@ void ShapeCoordinator::runOptimization(const QList<int> &angles)
     params.containerRect = m_visualization->getScene()->sceneRect();
     params.shapeCount = model->shapeCount();
     params.spacing = model->spacing();
-    params.step = 5;
+    //params.step = 5;
     params.angles = angles;
 
-    const PlacementResult result = PlacementOptimizer::run(
+    PlacementOptimizer optimizer;
+    const PlacementResult result = optimizer.run(
         params,
         [this](int current, int total) {
             emit progressUpdated(current, total);
-            qApp->processEvents();
+            // qApp->processEvents() supprimé : causait une ré-entrance
+            // si le bouton était cliqué pendant l'optimisation
             return true;
         });
 

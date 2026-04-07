@@ -36,7 +36,9 @@
       "Bash(qmake6 machineDecoupeIHM.pro -o /tmp/Makefile_check)",
       "Bash(qmake6 machineDecoupeIHM.pro)",
       "Bash(qmake6:*)",
-      "Bash(./placement_tests 2>&1)"
+      "Bash(./placement_tests 2>&1)",
+      "Read(//usr/lib/qt6/**)",
+      "Read(//usr/**)"
     ]
   },
   "enableAllProjectMcpServers": true,

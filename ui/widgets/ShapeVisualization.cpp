@@ -594,6 +594,11 @@ void ShapeVisualization::setOptimizationRunning(bool running)
 
 void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placedPaths, bool optimized)
 {
+    // scene->clear() détruit tous les items Qt (m_sheetBorder, m_cutMarkers…)
+    // → on invalide les pointeurs AVANT la suppression pour éviter les dangling pointers
+    m_sheetBorder = nullptr;
+    m_cutMarkers.clear();
+
     scene->clear();
     scene->clearSelection();
 
@@ -606,6 +611,11 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
         scene->addItem(item);
         item->setSelected(false);
     }
+
+    // Restaurer le cadre du plateau (supprimé par scene->clear())
+    m_sheetBorder = scene->addRect(scene->sceneRect(),
+                                   QPen(Qt::white, 2), QBrush(Qt::NoBrush));
+    m_sheetBorder->setZValue(1000);
 
     emit shapesPlacedCount(placedPaths.size());
     emit optimizationStateChanged(optimized);

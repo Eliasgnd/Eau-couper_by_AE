@@ -1,40 +1,79 @@
+# ==== PROJET ====
+TARGET = machineDecoupeIHM
+TEMPLATE = app
 QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-
-TARGET = machineDecoupeIHM
 CONFIG += c++17
 
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
     CONFIG += link_pkgconfig
     PKGCONFIG += opencv4 libgpiod
+    # Sur Linux, NLopt s'installe via : sudo apt install libnlopt-dev
+    LIBS += -lnlopt
 }
 
 # ==== PLATEFORME WINDOWS ====
 win32 {
+    # Suppression de l'avertissement de caractères non conformes (C4828)
+    QMAKE_CXXFLAGS += /wd4828
+
+    # OpenCV
     INCLUDEPATH += C:/opencv/build/include
     LIBS += -LC:/opencv/build/x64/vc16/lib
-
     CONFIG(debug, debug|release) {
-        LIBS += -lopencv_world4120d  # Mode debug
+        LIBS += -lopencv_world4120d
     } else {
-        LIBS += -lopencv_world4120   # Mode release
+        LIBS += -lopencv_world4120
     }
 }
 
-# ==== EXTERNAL LIBRARIES (Clipper2) ====
-# On définit le chemin vers clipper2 par rapport à la racine du projet
+# ==============================================================================
+# ==== EXTERNAL LIBRARIES (Clipper1, Clipper2, Boost, libnest2d, NLopt) ====
+# ==============================================================================
+
+# --- 1. Clipper 1 (Version 6.4.2 - REQUIS par libnest2d) ---
+# D'après tes erreurs, les fichiers sont dans le sous-dossier /cpp/
+CLIPPER1_PATH = $$PWD/external/clipper1/cpp
+INCLUDEPATH += $$CLIPPER1_PATH
+SOURCES += $$CLIPPER1_PATH/clipper.cpp
+HEADERS += $$CLIPPER1_PATH/clipper.hpp
+
+# --- 2. Clipper 2 (Pour tes propres fonctions de marge) ---
 CLIPPER2_PATH = $$PWD/external/clipper2
-
-INCLUDEPATH += \
-    $${CLIPPER2_PATH}/include
-
+INCLUDEPATH += $$CLIPPER2_PATH/include
 SOURCES += \
-    $${CLIPPER2_PATH}/src/clipper.engine.cpp \
-    $${CLIPPER2_PATH}/src/clipper.offset.cpp \
-    $${CLIPPER2_PATH}/src/clipper.rectclip.cpp
+    $$CLIPPER2_PATH/src/clipper.engine.cpp \
+    $$CLIPPER2_PATH/src/clipper.offset.cpp \
+    $$CLIPPER2_PATH/src/clipper.rectclip.cpp
 
-# ==== INCLUDEPATH ====
+# --- 3. Boost (Moteur géométrique - Header-only) ---
+# Important : Pointer vers la racine où se trouve le dossier /boost/ (après b2 headers)
+INCLUDEPATH += $$PWD/external/boost
+
+# --- 4. libnest2d (Moteur d'emboîtement - Header-only) ---
+INCLUDEPATH += $$PWD/external/libnest2d/include
+DEFINES += LIBNEST2D_GEOMETRIES_clipper
+DEFINES += LIBNEST2D_OPTIMIZER_nlopt   # ← AJOUTER cette ligne
+
+# NLopt Windows
+# --- NLopt (Windows) ---
+win32 {
+    NLOPT_PATH = $$PWD/external/nlopt
+    INCLUDEPATH += $$NLOPT_PATH/build      # nlopt.hpp
+    INCLUDEPATH += $$NLOPT_PATH/src/api    # nlopt.h  ← c'est ici
+    LIBS += -L$$NLOPT_PATH/build/Release -lnlopt
+}
+
+# ==============================================================================
+# ==== PROJET SOURCES & HEADERS ====
+# ==============================================================================
+
+# Fichiers de l'optimization
+HEADERS += domain/geometry/optimization/PlacementOptimizer.h
+SOURCES += domain/geometry/optimization/PlacementOptimizer.cpp
+
+# ==== INCLUDEPATH GÉNÉRAL ====
 INCLUDEPATH += \
     . \
     ui/mainwindow \
@@ -49,6 +88,7 @@ INCLUDEPATH += \
     domain \
     domain/shapes \
     domain/geometry \
+    domain/geometry/optimization \
     domain/inventory \
     domain/interfaces \
     infrastructure \
@@ -123,7 +163,6 @@ HEADERS += \
     domain/shapes/ShapeManager.h \
     domain/shapes/PathGenerator.h \
     domain/geometry/GeometryUtils.h \
-    domain/geometry/PlacementOptimizer.h \
     domain/inventory/InventoryModel.h \
     domain/inventory/InventoryDomainTypes.h \
     domain/inventory/InventorySnapshot.h \
@@ -197,7 +236,6 @@ SOURCES += \
     domain/shapes/ShapeManager.cpp \
     domain/shapes/PathGenerator.cpp \
     domain/geometry/GeometryUtils.cpp \
-    domain/geometry/PlacementOptimizer.cpp \
     domain/inventory/InventoryModel.cpp \
     infrastructure/persistence/InventoryRepository.cpp \
     viewmodels/InventoryViewModel.cpp \
