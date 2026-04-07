@@ -32,12 +32,6 @@ win32 {
 # ==== EXTERNAL LIBRARIES (Clipper1, Clipper2, Boost, libnest2d, NLopt) ====
 # ==============================================================================
 
-# --- 1. Clipper 1 (Version 6.4.2 - REQUIS par libnest2d) ---
-# D'après tes erreurs, les fichiers sont dans le sous-dossier /cpp/
-CLIPPER1_PATH = $$PWD/external/clipper1/cpp
-INCLUDEPATH += $$CLIPPER1_PATH
-SOURCES += $$CLIPPER1_PATH/clipper.cpp
-HEADERS += $$CLIPPER1_PATH/clipper.hpp
 
 # --- 2. Clipper 2 (Pour tes propres fonctions de marge) ---
 CLIPPER2_PATH = $$PWD/external/clipper2
@@ -46,24 +40,6 @@ SOURCES += \
     $$CLIPPER2_PATH/src/clipper.engine.cpp \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
     $$CLIPPER2_PATH/src/clipper.rectclip.cpp
-
-# --- 3. Boost (Moteur géométrique - Header-only) ---
-# Important : Pointer vers la racine où se trouve le dossier /boost/ (après b2 headers)
-INCLUDEPATH += $$PWD/external/boost
-
-# --- 4. libnest2d (Moteur d'emboîtement - Header-only) ---
-INCLUDEPATH += $$PWD/external/libnest2d/include
-DEFINES += LIBNEST2D_GEOMETRIES_clipper
-DEFINES += LIBNEST2D_OPTIMIZER_nlopt   # ← AJOUTER cette ligne
-
-# NLopt Windows
-# --- NLopt (Windows) ---
-win32 {
-    NLOPT_PATH = $$PWD/external/nlopt
-    INCLUDEPATH += $$NLOPT_PATH/build      # nlopt.hpp
-    INCLUDEPATH += $$NLOPT_PATH/src/api    # nlopt.h  ← c'est ici
-    LIBS += -L$$NLOPT_PATH/build/Release -lnlopt
-}
 
 # ==============================================================================
 # ==== PROJET SOURCES & HEADERS ====

@@ -1,4 +1,3 @@
-#include "PlacementOptimizer.h"
 #include <QTransform>
 #include <QPair>
 #include <limits>
@@ -9,19 +8,26 @@
 #include <QThreadPool>
 #include <unordered_map>
 #include <algorithm>
+#include <QMutex>
+#include <QPainterPath>
+#include <QDataStream>
+#include <QDebug> // 👇 NOUVEAU: Inclusion pour le débogage
 
 #include "clipper2/clipper.h"
 #include "clipper2/clipper.minkowski.h"
+#include "PlacementOptimizer.h"
+#include "clipper2/clipper.offset.h"
+
 
 using namespace Clipper2Lib;
 
 namespace {
 
 const double CLIPPER_SCALE         = 1000.0;
-const double DECIMATION_TOLERANCE  = 0.5;    // Précision max pour éviter les chevauchements
-const double DECIMATION_MARGIN     = 1.5;
-const double ZONE_SIMPLIFY_EPSILON = 0.5 * CLIPPER_SCALE;
-const int    MAX_POLY_POINTS       = 250;    // Garde les courbes fluides
+const double DECIMATION_TOLERANCE  = 0.5;
+const double DECIMATION_MARGIN     = -0.05;
+const double ZONE_SIMPLIFY_EPSILON = 0.005 * CLIPPER_SCALE;
+const int    MAX_POLY_POINTS       = 250;
 
 inline uint64_t dictKey(int a, int b) {
     return (static_cast<uint64_t>(static_cast<uint32_t>(a)) << 32) |
@@ -38,11 +44,33 @@ Path64 decimatePath(const Path64 &src, int maxPoints) {
     return out;
 }
 
-Paths64 extractAllPaths(const QPainterPath &path, double tolerance) {
+// Nouvelle signature avec flag
+Paths64 extractAllPaths(const QPainterPath &path, double tolerance, bool isSuperBloc = false) {
     Paths64 res;
     QPointF lastPt;
     double toleranceSq = tolerance * tolerance;
 
+    // Compter les vrais sous-chemins séparés
+    int realSubPathCount = 0;
+    for (int i = 0; i < path.elementCount(); ++i)
+        if (path.elementAt(i).type == QPainterPath::MoveToElement)
+            ++realSubPathCount;
+
+    // BOUCLIER : seulement si c'est un super-bloc (plusieurs pièces intentionnelles)
+    // PAS pour une forme simple concave (C, U...) qui a plusieurs sous-chemins Qt
+    if (isSuperBloc && realSubPathCount > 1) {
+        QTransform scale;
+        scale.scale(CLIPPER_SCALE, CLIPPER_SCALE);
+        QRectF bbox = scale.map(path).boundingRect();
+        Path64 p64;
+        p64.push_back(Point64(std::round(bbox.left()),   std::round(bbox.top())));
+        p64.push_back(Point64(std::round(bbox.right()),  std::round(bbox.top())));
+        p64.push_back(Point64(std::round(bbox.right()),  std::round(bbox.bottom())));
+        p64.push_back(Point64(std::round(bbox.left()),   std::round(bbox.bottom())));
+        return {p64};
+    }
+
+    // Toutes les formes → contour réel
     for (const QPolygonF &poly : path.simplified().toSubpathPolygons()) {
         if (poly.boundingRect().width() * poly.boundingRect().height() < 1.0)
             continue;
@@ -88,25 +116,59 @@ Path64 invertShape(const Path64 &shape) {
     return inv;
 }
 
+Paths64 fanTriangulate(const Path64 &path) {
+    if (path.size() < 3) return {path};
+    double cx = 0, cy = 0;
+    for (const auto &pt : path) { cx += pt.x; cy += pt.y; }
+    cx /= path.size(); cy /= path.size();
+    Point64 center(static_cast<int64_t>(cx), static_cast<int64_t>(cy));
+    Paths64 tris;
+    size_t n = path.size();
+    for (size_t i = 0; i < n; ++i) {
+        Path64 tri = {center, path[i], path[(i+1)%n]};
+        if (std::abs(Area(tri)) > 100)
+            tris.push_back(tri);
+    }
+    return tris.empty() ? Paths64{path} : tris;
+}
+
 Paths64 calculateNFP(const Paths64 &stationary, const Paths64 &orbiting, double margin) {
-    Paths64 statSimp = SimplifyPaths(stationary, ZONE_SIMPLIFY_EPSILON / 2.0);
-    Paths64 orbSimp  = SimplifyPaths(orbiting,   ZONE_SIMPLIFY_EPSILON / 2.0);
+    // Simplification ultra précise pour préserver la concavité
+    Paths64 statSimp = SimplifyPaths(stationary, 1.0);
+    Paths64 orbSimp  = SimplifyPaths(orbiting,   1.0);
     for (auto &p : statSimp) p = decimatePath(p, MAX_POLY_POINTS);
     for (auto &p : orbSimp)  p = decimatePath(p, MAX_POLY_POINTS);
+
+    // Forcer orientation positive
+    for (auto &p : statSimp) if (Area(p) < 0) std::reverse(p.begin(), p.end());
+    for (auto &p : orbSimp)  if (Area(p) < 0) std::reverse(p.begin(), p.end());
 
     Paths64 totalNfp;
     for (const Path64 &statPath : statSimp) {
         for (const Path64 &orbPath : orbSimp) {
-            Path64  invOrb = invertShape(orbPath);
-            Paths64 nfp    = MinkowskiSum(invOrb, statPath, true);
+            Path64 invOrb = invertShape(orbPath);
+            Paths64 nfp = MinkowskiSum(invOrb, statPath, true);
+
+            // Garder uniquement le plus grand path (les autres sont des artefacts)
+            if (nfp.size() > 1) {
+                double maxArea = 0;
+                Path64 best;
+                for (const auto &p : nfp) {
+                    double a = std::abs(Area(p));
+                    if (a > maxArea) { maxArea = a; best = p; }
+                }
+                nfp = {best};
+            }
+
             totalNfp = Union(totalNfp, nfp, FillRule::NonZero);
         }
     }
-    if (margin > 0.0)
-        totalNfp = InflatePaths(totalNfp, margin * CLIPPER_SCALE, JoinType::Round, EndType::Polygon);
 
-    if (!totalNfp.empty())
-        totalNfp = SimplifyPaths(totalNfp, ZONE_SIMPLIFY_EPSILON);
+    if (margin != 0.0 && std::abs(margin) > 0.001)
+        totalNfp = InflatePaths(totalNfp, margin * CLIPPER_SCALE,
+                                JoinType::Round, EndType::Polygon);
+
+    // PAS de SimplifyPaths ici — ça détruirait les creux du NFP concave
 
     return totalNfp;
 }
@@ -128,6 +190,7 @@ struct OrientedShape {
     QList<QPainterPath> originalPaths;
     Paths64 clipperPaths;
     QRectF bounds;
+    int angle;
 };
 
 struct CacheData {
@@ -153,19 +216,24 @@ QByteArray hashPath(const QPainterPath &path) {
 }
 
 OrientedShape createOptimalSuperBloc(const QPainterPath &base, const QList<int> &angles, int spacing) {
-    Paths64 hdClipA = extractAllPaths(base, 0.5);
+    qDebug() << "[SUPERBLOC] Début de la création du super bloc avec espacement:" << spacing;
+
+    Paths64 hdClipA = extractAllPaths(base, DECIMATION_TOLERANCE);
     QRectF  boundsA = base.boundingRect();
 
     auto processAngle = [&](int angle) -> QPair<double, QPainterPath> {
         QTransform rot; rot.rotate(angle);
         QPainterPath pathB   = rot.map(base);
-        Paths64      hdClipB = extractAllPaths(pathB, 0.5);
+        Paths64      hdClipB = extractAllPaths(pathB, DECIMATION_TOLERANCE);
         QRectF       boundsB = pathB.boundingRect();
-        Paths64      nfp     = calculateNFP(hdClipA, hdClipB, static_cast<double>(spacing));
+
+        // Utiliser le VRAI NFP pour trouver où B s'emboîte dans A
+        Paths64 nfp = calculateNFP(hdClipA, hdClipB, static_cast<double>(spacing));
 
         double       bestArea  = std::numeric_limits<double>::max();
         QPainterPath bestPathB;
 
+        // Tester tous les points du NFP → position qui minimise la surface totale
         for (const Path64 &poly : nfp) {
             for (const Point64 &pt : poly) {
                 double dx = static_cast<double>(pt.x) / CLIPPER_SCALE;
@@ -179,22 +247,32 @@ OrientedShape createOptimalSuperBloc(const QPainterPath &base, const QList<int> 
                 }
             }
         }
+
+        // Fallback si NFP vide
+        if (bestPathB.isEmpty()) {
+            QTransform t; t.translate(boundsA.right() - boundsB.left(), 0);
+            bestPathB = t.map(pathB);
+            bestArea  = boundsA.united(bestPathB.boundingRect()).width() *
+                       boundsA.united(bestPathB.boundingRect()).height();
+        }
+
         return {bestArea, bestPathB};
     };
 
     QList<QPair<double, QPainterPath>> results;
-    if (angles.size() > 1)
-        results = QtConcurrent::blockingMapped(angles, processAngle);
-    else
-        results << processAngle(angles.first());
+    if (angles.size() > 1) results = QtConcurrent::blockingMapped(angles, processAngle);
+    else results << processAngle(angles.first());
 
     double globalBestArea = std::numeric_limits<double>::max();
     QPainterPath globalBestPathB;
     for (const auto &r : results) {
         if (r.first < globalBestArea) {
-            globalBestArea = r.first; globalBestPathB = r.second;
+            globalBestArea = r.first;
+            globalBestPathB = r.second;
         }
     }
+
+    qDebug() << "[SUPERBLOC] Meilleur score obtenu :" << globalBestArea;
 
     OrientedShape superBloc;
     superBloc.pieceCount = 2;
@@ -202,10 +280,37 @@ OrientedShape createOptimalSuperBloc(const QPainterPath &base, const QList<int> 
     QTransform align; align.translate(-totalBounds.x(), -totalBounds.y());
     superBloc.originalPaths << align.map(base) << align.map(globalBestPathB);
     superBloc.bounds = QRectF(0, 0, totalBounds.width(), totalBounds.height());
+
     return superBloc;
 }
 
+// ── CONFIGURATION D'UN SCÉNARIO ──
+struct ScenarioConfig {
+    bool useSuperBlocs;
+    bool gravityLeftTop;
+    QList<int> allowedAngles;
+
+    // Fonction utilitaire pour le debug
+    QString toString() const {
+        return QString("Scen[GLT:%1, SuperB:%2, Angles:%3]")
+            .arg(gravityLeftTop ? "OUI" : "NON")
+            .arg(useSuperBlocs ? "OUI" : "NON")
+            .arg(allowedAngles.size());
+    }
+};
+
+// ── RÉSULTAT D'UN SCÉNARIO ──
+struct ScenarioResult {
+    bool cancelled = false;
+    int piecesPlaced = 0;
+    double boundingArea = std::numeric_limits<double>::max();
+    QList<QPainterPath> placedPaths;
+};
+
+static QMutex progressMutex;
+
 } // namespace
+
 
 // ============================================================================
 // RUN FUNCTION
@@ -214,20 +319,39 @@ PlacementResult PlacementOptimizer::run(
     const PlacementParams &params,
     const std::function<bool(int, int)> &onProgress)
 {
-    PlacementResult result;
-    if (params.shapeCount <= 0 || params.prototypePath.isEmpty()) return result;
+    qDebug() << "\n=======================================================";
+    qDebug() << "[OPTIMIZER] Lancement d'une nouvelle optimisation !";
+    qDebug() << "[OPTIMIZER] Quantité de pièces à placer:" << params.shapeCount;
+    qDebug() << "[OPTIMIZER] Zone conteneur :" << params.containerRect;
+
+    PlacementResult finalResult;
+    if (params.shapeCount <= 0 || params.prototypePath.isEmpty()) {
+        qDebug() << "[OPTIMIZER] ERREUR : 0 forme ou prototype vide. Annulation.";
+        return finalResult;
+    }
 
     const double W = params.containerRect.width();
     const double H = params.containerRect.height();
-    QList<int> angles = params.angles.isEmpty() ? QList<int>{0} : params.angles;
 
-    // ── PHASE 1 : CACHE ──
+    QList<int> angles = params.angles;
+    if (!angles.contains(180)) {
+        angles.append(180);
+    }
+    if (angles.isEmpty()) {
+        angles = QList<int>{0, 180};
+    }
+    qDebug() << "[OPTIMIZER] Angles utilisés :" << angles;
+
+    // ── PHASE 1 : CACHE & NFP ──
     QByteArray currentHash = hashPath(params.prototypePath);
     bool cacheValid = (globalCache.shapeHash == currentHash &&
                        globalCache.angles    == angles      &&
                        globalCache.spacing   == params.spacing);
 
+    qDebug() << "[CACHE] Vérification du cache... Valide ?" << (cacheValid ? "OUI" : "NON");
+
     if (!cacheValid) {
+        qDebug() << "[CACHE] Cache invalide ou absent. Recalcul des formes et NFP...";
         if (onProgress) onProgress(0, params.shapeCount);
         QCoreApplication::processEvents();
 
@@ -240,72 +364,69 @@ PlacementResult PlacementOptimizer::run(
         globalCache.dictionary.clear();
 
         int nextId = 0;
-
+        // Création des formes simples (1 pièce)
+        qDebug() << "[INIT] Génération des formes simples pour" << angles.size() << "angles...";
         for (int angle : angles) {
             QTransform rot; rot.rotate(angle);
             QPainterPath path = rot.map(params.prototypePath);
             OrientedShape shape = {
-                nextId++, 1, {path},
-                extractAllPaths(path, DECIMATION_TOLERANCE),
-                path.boundingRect()
+                nextId++, 1, {path}, extractAllPaths(path, DECIMATION_TOLERANCE), path.boundingRect(), angle
             };
-            globalCache.singleShapes << shape;
-            globalCache.allShapes    << shape;
+            globalCache.singleShapes << shape; globalCache.allShapes << shape;
         }
 
+        // Création des super-blocs (2 pièces imbriquées)
+        qDebug() << "[INIT] Génération des super-blocs...";
         OrientedShape baseSuperBloc = createOptimalSuperBloc(params.prototypePath, angles, params.spacing);
         for (int angle : angles) {
             QTransform rot; rot.rotate(angle);
             OrientedShape shape;
-            shape.id         = nextId++;
-            shape.pieceCount = 2;
-            for (const QPainterPath &p : baseSuperBloc.originalPaths)
-                shape.originalPaths << rot.map(p);
+            shape.id = nextId++; shape.pieceCount = 2; shape.angle = angle;
+            for (const QPainterPath &p : baseSuperBloc.originalPaths) shape.originalPaths << rot.map(p);
 
             QPainterPath combined;
             for (const auto &p : shape.originalPaths) combined.addPath(p);
-
-            shape.clipperPaths = extractAllPaths(combined, DECIMATION_TOLERANCE);
+            shape.clipperPaths = extractAllPaths(combined, DECIMATION_TOLERANCE, true);
             shape.bounds       = combined.boundingRect();
 
-            globalCache.superShapes << shape;
-            globalCache.allShapes   << shape;
+            globalCache.superShapes << shape; globalCache.allShapes << shape;
         }
 
-        struct NfpJob    { int idA, idB; Paths64 pathsA, pathsB; double margin; };
+        // Calcul des NFP
+        struct NfpJob { int idA, idB; Paths64 pathsA, pathsB; double margin; };
         struct NfpResult { int idA, idB; Paths64 nfp; };
-
         QList<NfpJob> jobs;
-        const auto &shapes = globalCache.allShapes;
-        for (int i = 0; i < shapes.size(); ++i) {
-            for (int j = i; j < shapes.size(); ++j) {
-                jobs.append({shapes[i].id, shapes[j].id,
-                             shapes[i].clipperPaths, shapes[j].clipperPaths,
+
+        for (int i = 0; i < globalCache.allShapes.size(); ++i) {
+            for (int j = i; j < globalCache.allShapes.size(); ++j) {
+                jobs.append({globalCache.allShapes[i].id, globalCache.allShapes[j].id,
+                             globalCache.allShapes[i].clipperPaths, globalCache.allShapes[j].clipperPaths,
                              params.spacing + DECIMATION_MARGIN});
             }
         }
 
+        qDebug() << "[NFP] Lancement de" << jobs.size() << "tâches Minkowski (NFP) en parallèle...";
         auto computeNfp = [](const NfpJob &job) -> NfpResult {
             return {job.idA, job.idB, calculateNFP(job.pathsA, job.pathsB, job.margin)};
         };
 
         int threadCount = qMin(QThreadPool::globalInstance()->maxThreadCount(), 4);
         QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
-
         QList<NfpResult> nfpResults = QtConcurrent::blockingMapped(jobs, std::function<NfpResult(const NfpJob&)>(computeNfp));
-
         QThreadPool::globalInstance()->setMaxThreadCount(QThread::idealThreadCount());
 
+        qDebug() << "[NFP] Tâches terminées. Remplissage du dictionnaire...";
         for (const NfpResult &res : nfpResults) {
             globalCache.dictionary[dictKey(res.idA, res.idB)] = res.nfp;
-            if (res.idA != res.idB)
-                globalCache.dictionary[dictKey(res.idB, res.idA)] = mirrorNFP(res.nfp);
+            if (res.idA != res.idB) globalCache.dictionary[dictKey(res.idB, res.idA)] = mirrorNFP(res.nfp);
         }
+    } else {
+        qDebug() << "[CACHE] Utilisation des formes et NFP existants en mémoire.";
     }
 
-    // ── PHASE 2 : ZONES IFP ──
-    std::unordered_map<int, Paths64> allowedZones;
-
+    // ── ZONES INITIALES DE PLACEMENT ──
+    qDebug() << "[ZONES] Création des zones initiales possibles (Inner Fit Polygon rectangulaires)...";
+    std::unordered_map<int, Paths64> initialZones;
     for (const OrientedShape &shape : globalCache.allShapes) {
         double minX = -shape.bounds.left()      + params.spacing;
         double minY = -shape.bounds.top()       + params.spacing;
@@ -318,106 +439,190 @@ PlacementResult PlacementOptimizer::run(
             ifpRect.push_back(Point64(maxX*CLIPPER_SCALE, minY*CLIPPER_SCALE));
             ifpRect.push_back(Point64(maxX*CLIPPER_SCALE, maxY*CLIPPER_SCALE));
             ifpRect.push_back(Point64(minX*CLIPPER_SCALE, maxY*CLIPPER_SCALE));
-            allowedZones[shape.id] = {ifpRect};
+            initialZones[shape.id] = {ifpRect};
         } else {
-            allowedZones[shape.id] = Paths64();
+            qDebug() << "[ZONES] ATTENTION: La forme d'ID" << shape.id << "ne rentre pas dans le conteneur !";
+            initialZones[shape.id] = Paths64();
         }
     }
 
-    // ── PHASE 3 : PLACEMENT GRAVITY FILL (Minimisation de l'encombrement) ──
-    int piecesPlaced = 0;
+    // ── PHASE 2 : CRÉATION DES SCÉNARIOS ──
+    QList<ScenarioConfig> scenarios;
+    QList<int> horizAngles, vertAngles;
 
-    // NOUVEAU : On garde en mémoire l'encombrement global de toutes les pièces posées
-    QRectF currentPlacedBounds;
+    for (int a : angles) {
+        if (a % 180 == 0) horizAngles << a;
+        else if (a % 90 == 0) vertAngles << a;
+    }
 
-    while (piecesPlaced < params.shapeCount) {
-        if (onProgress && !onProgress(piecesPlaced, params.shapeCount)) {
-            result.cancelled = true;
-            break;
+    scenarios << ScenarioConfig{true, false, angles} << ScenarioConfig{false, false, angles}
+              << ScenarioConfig{true, true, angles}  << ScenarioConfig{false, true, angles};
+
+    if (!horizAngles.isEmpty() && horizAngles.size() < angles.size()) {
+        scenarios << ScenarioConfig{true, false, horizAngles} << ScenarioConfig{true, true, horizAngles};
+    }
+
+    if (!vertAngles.isEmpty() && vertAngles.size() < angles.size()) {
+        scenarios << ScenarioConfig{true, false, vertAngles} << ScenarioConfig{true, true, vertAngles};
+    }
+
+    qDebug() << "[SCENARIOS] Prêt à lancer" << scenarios.size() << "scénarios en parallèle.";
+
+    // ── PHASE 3 : LE MOTEUR D'EXÉCUTION ──
+    auto executeScenario = [&](const ScenarioConfig &config) -> ScenarioResult {
+        QString sName = config.toString(); // Nom du scenario pour le debug
+        // qDebug() << "[EXEC] Démarrage :" << sName; // (Dé-commente si tu veux voir le début exact)
+
+        ScenarioResult res;
+        auto localZones = initialZones;
+
+        QList<OrientedShape> mySingles, mySupers;
+        for (const auto &s : globalCache.singleShapes) if (config.allowedAngles.contains(s.angle)) mySingles << s;
+        if (config.useSuperBlocs) {
+            for (const auto &s : globalCache.superShapes) if (config.allowedAngles.contains(s.angle)) mySupers << s;
         }
 
-        bool          found     = false;
-        double        bestX = 0, bestY = 0;
-        double        bestScore = std::numeric_limits<double>::max();
-        int           bestId    = -1;
-        OrientedShape winner;
+        struct PlacementCandidate {
+            bool found = false;
+            double x = 0, y = 0, score = std::numeric_limits<double>::max();
+            OrientedShape shape;
+        };
 
-        auto tryShapes = [&](const QList<OrientedShape> &shapes) {
-            for (const OrientedShape &shape : shapes) {
-                const Paths64 &zone = allowedZones[shape.id];
-                if (zone.empty()) continue;
+        QRectF globalBoundingBox;
 
-                for (const Path64 &path : zone) {
-                    for (const Point64 &pt : path) {
-                        double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
-                        double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
+        while (res.piecesPlaced < params.shapeCount) {
+            if (onProgress) {
+                QMutexLocker locker(&progressMutex);
+                if (!onProgress(res.piecesPlaced, params.shapeCount)) {
+                    qDebug() << "[EXEC]" << sName << "-> ANNULATION par l'utilisateur !";
+                    res.cancelled = true;
+                    break;
+                }
+            }
 
-                        // ── LA MAGIE DU GRAVITY FILL EST ICI ──
+            auto findBest = [&](const QList<OrientedShape> &shapes) -> PlacementCandidate {
+                PlacementCandidate best;
+                for (const OrientedShape &shape : shapes) {
+                    const Paths64 &zone = localZones[shape.id];
+                    if (zone.empty()) continue;
 
-                        // 1. On simule la boîte englobante de la pièce à cette position
-                        QRectF candidateRect = shape.bounds.translated(px, py);
+                    for (const Path64 &path : zone) {
+                        size_t n = path.size();
+                        for (size_t i = 0; i < n; ++i) {
+                            // Tester le sommet ET le milieu du segment suivant
+                            QList<Point64> pts = {
+                                path[i],
+                                Point64((path[i].x + path[(i+1)%n].x) / 2,
+                                        (path[i].y + path[(i+1)%n].y) / 2)
+                            };
 
-                        // 2. On fusionne avec la boîte englobante globale actuelle
-                        QRectF simulatedBounds = currentPlacedBounds.isValid() ?
-                                                     currentPlacedBounds.united(candidateRect) :
-                                                     candidateRect;
-
-                        // 3. Le score principal est la surface totale de l'encombrement (on veut la minimiser)
-                        double areaScore = simulatedBounds.width() * simulatedBounds.height();
-
-                        // 4. Critère secondaire (Tie-Breaker) : si la surface est identique (ex: on bouche un trou),
-                        // on pousse vers le bas à gauche.
-                        double score = areaScore + (py * 0.1) + (px * 0.01);
-
-                        if (score < bestScore) {
-                            bestScore = score;
-                            bestX = px;
-                            bestY = py;
-                            bestId = shape.id;
-                            found = true;
-                            winner = shape;
+                            for (const Point64 &pt : pts) {
+                                double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
+                                double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
+                                double score = config.gravityLeftTop
+                                                   ? ((px * 1000.0) + py)
+                                                   : ((py * 1000.0) + px);
+                                if (score < best.score) {
+                                    best.score = score; best.x = px; best.y = py;
+                                    best.shape = shape; best.found = true;
+                                }
+                            }
                         }
                     }
                 }
+                return best;
+            };
+
+            PlacementCandidate bestSuper = findBest(mySupers);
+            PlacementCandidate bestSingle = findBest(mySingles);
+            PlacementCandidate winner;
+
+            if (bestSuper.found && bestSingle.found) {
+                double tolerance = config.gravityLeftTop ? (bestSingle.shape.bounds.width() * 0.6)
+                                                         : (bestSingle.shape.bounds.height() * 0.6);
+                double valSuper  = config.gravityLeftTop ? bestSuper.x : bestSuper.y;
+                double valSingle = config.gravityLeftTop ? bestSingle.x : bestSingle.y;
+
+                if (valSuper <= valSingle + tolerance) winner = bestSuper;
+                else winner = bestSingle;
             }
-        };
+            else if (bestSuper.found) winner = bestSuper;
+            else if (bestSingle.found) winner = bestSingle;
+            else {
+                // IMPORTANT : Si aucun placement trouvé, c'est qu'il n'y a plus de place !
+                qDebug() << "[EXEC]" << sName << "-> PLUS DE PLACE. Pièces placées :" << res.piecesPlaced << "/" << params.shapeCount;
+                break;
+            }
 
-        if (params.shapeCount - piecesPlaced >= 2)
-            tryShapes(globalCache.superShapes);
+            // Enregistrement du gagnant
+            for (const QPainterPath &p : winner.shape.originalPaths) {
+                QPainterPath placed = p.translated(winner.x, winner.y);
+                res.placedPaths << placed;
+                globalBoundingBox = globalBoundingBox.united(placed.boundingRect());
+            }
 
-        if (!found)
-            tryShapes(globalCache.singleShapes);
+            // qDebug() << "[EXEC]" << sName << "-> Placement forme ID" << winner.shape.id << "en (" << winner.x << "," << winner.y << ") Score:" << winner.score;
 
-        if (!found) break;
+            // Mise à jour des zones libres (Soustraction des NFP traduits)
+            for (const OrientedShape &shape : globalCache.allShapes) {
+                auto it = globalCache.dictionary.find(dictKey(winner.shape.id, shape.id));
+                if (it == globalCache.dictionary.end()) continue;
 
-        for (const QPainterPath &p : winner.originalPaths)
-            result.placedPaths << p.translated(bestX, bestY);
+                Paths64 tNfp = translateClipper(it->second, winner.x, winner.y);
+                Paths64 &zone = localZones[shape.id];
 
-        // NOUVEAU : On met à jour l'encombrement global avec la pièce gagnante
-        QRectF placedRect = winner.bounds.translated(bestX, bestY);
-        currentPlacedBounds = currentPlacedBounds.isValid() ?
-                                  currentPlacedBounds.united(placedRect) :
-                                  placedRect;
-
-        for (const OrientedShape &shape : globalCache.allShapes) {
-            auto it = globalCache.dictionary.find(dictKey(bestId, shape.id));
-            if (it == globalCache.dictionary.end()) continue;
-
-            Paths64  tNfp = translateClipper(it->second, bestX, bestY);
-            Paths64 &zone = allowedZones[shape.id];
-
-            if (!zone.empty()) {
-                zone = Difference(zone, tNfp, FillRule::NonZero);
-                if (zone.size() > 4 || (!zone.empty() && zone[0].size() > 20)) {
-                    zone = SimplifyPaths(zone, ZONE_SIMPLIFY_EPSILON);
+                if (!zone.empty()) {
+                    zone = Difference(zone, tNfp, FillRule::NonZero);
+                    // Simplification de la zone pour éviter une explosion de la complexité
+                    if (zone.size() > 8 || (!zone.empty() && zone[0].size() > 100)) {
+                        zone = SimplifyPaths(zone, ZONE_SIMPLIFY_EPSILON);
+                    }
                 }
             }
+            res.piecesPlaced += winner.shape.pieceCount;
         }
 
-        piecesPlaced += winner.pieceCount;
+        res.boundingArea = globalBoundingBox.width() * globalBoundingBox.height();
+        qDebug() << "[EXEC]" << sName << "-> TERMINÉ avec" << res.piecesPlaced << "pièces. Surface occupée:" << res.boundingArea;
+        return res;
+    };
+
+    // ── PHASE 4 : DÉMARRAGE EN PARALLÈLE ──
+    qDebug() << "[OPTIMIZER] Lancement des scénarios...";
+    QList<ScenarioResult> results = QtConcurrent::blockingMapped(scenarios, std::function<ScenarioResult(const ScenarioConfig&)>(executeScenario));
+
+    // ── PHASE 5 : ÉLECTION DU GAGNANT ──
+    qDebug() << "[OPTIMIZER] Scénarios terminés. Élection du meilleur résultat...";
+    ScenarioResult bestScenario;
+    bestScenario.piecesPlaced = -1;
+
+    int winnerIndex = -1;
+    for (int i = 0; i < results.size(); ++i) {
+        const ScenarioResult &res = results[i];
+        if (res.cancelled) {
+            qDebug() << "[OPTIMIZER] Processus annulé.";
+            return finalResult;
+        }
+
+        if (res.piecesPlaced > bestScenario.piecesPlaced) {
+            bestScenario = res;
+            winnerIndex = i;
+        }
+        else if (res.piecesPlaced == bestScenario.piecesPlaced) {
+            // Si égalité de pièces, on prend celui qui emballe le tout dans la plus petite surface
+            if (res.boundingArea < bestScenario.boundingArea) {
+                bestScenario = res;
+                winnerIndex = i;
+            }
+        }
     }
 
-    result.processedPositions = piecesPlaced;
-    result.totalPositions     = params.shapeCount;
-    return result;
+    qDebug() << "[OPTIMIZER] >>> GAGNANT ÉLU: Scénario #" << winnerIndex
+             << "avec" << bestScenario.piecesPlaced << "pièces (Surface:" << bestScenario.boundingArea << ") <<<";
+    qDebug() << "=======================================================\n";
+
+    finalResult.placedPaths        = bestScenario.placedPaths;
+    finalResult.processedPositions = bestScenario.piecesPlaced;
+    finalResult.totalPositions     = params.shapeCount;
+    return finalResult;
 }
