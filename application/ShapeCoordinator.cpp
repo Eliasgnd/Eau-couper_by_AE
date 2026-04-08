@@ -19,6 +19,14 @@ ShapeCoordinator::ShapeCoordinator(ShapeVisualization *visualization, QObject *p
 }
 
 namespace {
+QPainterPath normalizePathToOrigin(const QPainterPath &path)
+{
+    const QRectF bounds = path.boundingRect();
+    if (!bounds.isValid())
+        return path;
+    return path.translated(-bounds.left(), -bounds.top());
+}
+
 QPainterPath buildPrototypePath(ShapeModel::Type model,
                                 int largeur,
                                 int longueur,
@@ -37,7 +45,7 @@ QPainterPath buildPrototypePath(ShapeModel::Type model,
         const double scaleY = (customBounds.height() > 0) ? (longueur / customBounds.height()) : 1.0;
         QTransform scaleTransform;
         scaleTransform.scale(scaleX, scaleY);
-        return scaleTransform.map(prototypePath);
+        return normalizePathToOrigin(scaleTransform.map(prototypePath));
     }
 
     QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(model, largeur, longueur);
@@ -54,8 +62,9 @@ QPainterPath buildPrototypePath(ShapeModel::Type model,
     else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
         prototypePath.addPolygon(polyItem->polygon());
 
-    return prototypePath;
+    return normalizePathToOrigin(prototypePath);
 }
+
 }
 
 ShapeModel::Type ShapeCoordinator::selectedShapeType() const
