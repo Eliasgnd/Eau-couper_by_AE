@@ -602,7 +602,12 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
     scene->clear();
     scene->clearSelection();
 
+    const QRectF placementBounds = scene->sceneRect().adjusted(0.5, 0.5, -0.5, -0.5);
+    int acceptedCount = 0;
     for (const QPainterPath &path : placedPaths) {
+        if (!placementBounds.contains(path.boundingRect()))
+            continue;
+
         auto *item = new QGraphicsPathItem(path);
         item->setPen(QPen(Qt::black, 1));
         item->setBrush(Qt::NoBrush);
@@ -610,6 +615,7 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(item);
         item->setSelected(false);
+        ++acceptedCount;
     }
 
     // Restaurer le cadre du plateau (supprimé par scene->clear())
@@ -617,7 +623,7 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
                                    QPen(Qt::white, 2), QBrush(Qt::NoBrush));
     m_sheetBorder->setZValue(1000);
 
-    emit shapesPlacedCount(placedPaths.size());
+    emit shapesPlacedCount(acceptedCount);
     emit optimizationStateChanged(optimized);
 }
 
