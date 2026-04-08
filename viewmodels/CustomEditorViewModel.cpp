@@ -6,6 +6,23 @@
 #include <cmath>
 #include <QTransform>
 
+namespace {
+void closeOpenSubpaths(QList<QPainterPath> &subpaths)
+{
+    for (QPainterPath &subpath : subpaths) {
+        if (subpath.elementCount() < 3)
+            continue;
+
+        const QPainterPath::Element first = subpath.elementAt(0);
+        const QPainterPath::Element last = subpath.elementAt(subpath.elementCount() - 1);
+        if (!qFuzzyCompare(first.x + 1.0, last.x + 1.0) ||
+            !qFuzzyCompare(first.y + 1.0, last.y + 1.0)) {
+            subpath.closeSubpath();
+        }
+    }
+}
+}
+
 CustomEditorViewModel::CustomEditorViewModel(InventoryViewModel &inventoryVm,
                                              QObject *parent)
     : QObject(parent)
@@ -42,6 +59,7 @@ void CustomEditorViewModel::importLogo(const QString &filePath,
     }
 
     QList<QPainterPath> subpaths = scaledAndCentered(outline, drawAreaSize);
+    closeOpenSubpaths(subpaths);
     emit subpathsReady(subpaths);
 }
 
@@ -55,21 +73,9 @@ void CustomEditorViewModel::importImageColor(const QString &filePath,
     }
 
     QList<QPainterPath> subpaths = scaledAndCentered(edge, drawAreaSize);
-    // Les contours issus d'image couleur sont souvent ouverts (détection de bords).
-    // En les fermant ici, on obtient des polygones exploitables pour la visualisation
-    // ET l'optimisation de placement (comportement identique aux formes dessinées).
-    for (QPainterPath &subpath : subpaths) {
-        if (subpath.elementCount() < 3)
-            continue;
-
-        const QPainterPath::Element first = subpath.elementAt(0);
-        const QPainterPath::Element last = subpath.elementAt(subpath.elementCount() - 1);
-        if (!qFuzzyCompare(first.x + 1.0, last.x + 1.0) ||
-            !qFuzzyCompare(first.y + 1.0, last.y + 1.0)) {
-            subpath.closeSubpath();
-        }
-    }
-
+    // Les contours importés peuvent être ouverts.
+    // On les ferme pour produire des polygones exploitables côté optimisation.
+    closeOpenSubpaths(subpaths);
     emit subpathsReady(subpaths);
 }
 
