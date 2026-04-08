@@ -193,9 +193,16 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(view, &MainWindow::generateAiRequested, this, &MainWindowCoordinator::onGenerateAiRequested);
 
     // --- DialogManager → View (layout, shapes, fullscreen) ---
-    connect(m_navigationController, &DialogManager::customShapeApplied,
-            view, [view](const QList<QPolygonF> &shapes) {
-                view->displayCustomShapes(shapes, QString());
+    connect(m_navigationController, &DialogManager::customShapeApplied, this,
+            [this](const QList<QPolygonF> &shapes) {
+                if (!m_shapeController)
+                    return;
+                if (!m_shapeController->loadCustomShapes(shapes, QString(),
+                                                         m_model->largeur(),
+                                                         m_model->longueur())) {
+                    return;
+                }
+                emit requestShowFullScreen();
             });
 
     connect(m_navigationController, &DialogManager::layoutSelected,
