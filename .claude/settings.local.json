@@ -38,7 +38,8 @@
       "Bash(qmake6:*)",
       "Bash(./placement_tests 2>&1)",
       "Read(//usr/lib/qt6/**)",
-      "Read(//usr/**)"
+      "Read(//usr/**)",
+      "Read(//tmp/**)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -3,9 +3,8 @@
 
 #include <QObject>
 #include <QPolygonF>
+#include <QPainterPath>
 #include <QList>
-
-#include "ShapeModel.h"
 
 class ShapeVisualizationViewModel : public QObject
 {
@@ -14,17 +13,19 @@ class ShapeVisualizationViewModel : public QObject
 public:
     explicit ShapeVisualizationViewModel(QObject *parent = nullptr);
 
-    ShapeModel::Type currentModel() const;
+    int currentModel() const;
     int currentLargeur() const;
     int currentLongueur() const;
     int shapeCount() const;
     int spacing() const;
     QList<QPolygonF> customShapes() const;
 
-    void setCurrentModel(ShapeModel::Type model);
+    void setCurrentModel(int model);
     void setDimensions(int largeur, int longueur);
     void setShapeCount(int count);
     void setSpacing(int spacing);
+    // Mise à jour groupée — émet dataChanged() une seule fois
+    void setShapeConfig(int model, int largeur, int longueur, int count);
     void setCustomShapes(const QList<QPolygonF> &shapes);
     void clearCustomShapes();
 
@@ -37,13 +38,17 @@ public:
     void setOptimizationRunning(bool running);
     void setCustomShapeName(const QString &name);
 
+    // Retourne le QPainterPath de la forme prototype (utilisé par la View pour le rendu)
+    // En mode prédéfini : calcule via ShapeModel. En mode custom : utilise les formes custom.
+    QPainterPath prototypeShapePath() const;
+
 signals:
     void dataChanged();
     void customModeChanged(bool custom);
     void optimizationRunningChanged(bool running);
 
 private:
-    ShapeModel::Type m_currentModel {ShapeModel::Type::Circle};
+    int m_currentModel {0};
     int m_currentLargeur {0};
     int m_currentLongueur {0};
     int m_shapeCount {0};

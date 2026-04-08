@@ -8,7 +8,6 @@
 #include <QPainterPath>
 #include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
-#include "ShapeModel.h"
 #include "Inventory.h"
 #include "shapevisualization/ShapeVisualizationViewModel.h"
 
@@ -25,9 +24,7 @@ public:
     explicit ShapeVisualization(QWidget *parent = nullptr);
 
     // --- API existante ---
-    void setModel(ShapeModel::Type model);
     void updateDimensions(int largeur, int longueur);
-    void setShapeCount(int count, ShapeModel::Type, int, int);
     void setSpacing(int newSpacing);
     void setPredefinedMode();
     void colorPositionRed (const QPoint& position);

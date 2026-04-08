@@ -3,7 +3,7 @@
 #include <QPainterPath>
 #include <QList>
 
-#include "GeometryUtils.h"
+#include "ShapeValidationResult.h"
 
 class ShapeValidationService
 {

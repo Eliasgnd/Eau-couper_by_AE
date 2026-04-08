@@ -10,7 +10,6 @@
 #include <QStringList>
 #include <QListWidget>
 #include <QDateTime>
-#include "ShapeModel.h"
 #include "Language.h"
 #include "InventoryViewState.h"
 #include "InventoryDomainTypes.h"
@@ -48,15 +47,8 @@ public:
     void deleteLayout(const QString &shapeName, int index);
     QList<LayoutData> getLayoutsForShape(const QString &shapeName) const;
 
-    // Layouts for base (built‑in) shapes
-    void addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout);
-    void renameBaseLayout(ShapeModel::Type type, int index, const QString &newName);
-    void deleteBaseLayout(ShapeModel::Type type, int index);
-    QList<LayoutData> getLayoutsForBaseShape(ShapeModel::Type type) const;
-
     // Usage statistics
     void incrementLayoutUsage(const QString &shapeName, int index);
-    void incrementBaseLayoutUsage(ShapeModel::Type type, int index);
 
     // Utility helpers
     bool shapeNameExists(const QString &name) const;
@@ -67,7 +59,6 @@ public:
 
     QPixmap renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size);
 signals:
-    void shapeSelected(ShapeModel::Type type, int width, int height);
     void customShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
     void searchRequested(const QString &text);
     void sortModeRequested(InventorySortMode mode);
@@ -108,7 +99,8 @@ private:
     InventoryViewModel  *m_viewModel  {nullptr};
 
     QFrame *createFolderCard(const QString &folderName);
-    QFrame *createBaseShapeCard(ShapeModel::Type type, const QString &name);
+    // type est stocké comme int (ShapeModel::Type) dans l'InventoryViewItem::payload
+    QFrame *createBaseShapeCard(int shapeTypeInt, const QString &name);
     bool inFolderView = false;
     QString currentFolder;
 

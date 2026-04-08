@@ -125,11 +125,7 @@ QPainterPath buildProxyPath(const QPainterPath &path);
 QPixmap rasterFallback(const QPainterPath &path, int res = 512);
 QRectF combinedBoundingRect(const QList<QPolygonF> &polygons);
 
-struct ShapeValidationResult {
-    bool allValid = true;
-    QSet<int> outOfBoundsIndices;
-    QSet<int> collisionIndices;
-};
+#include "ShapeValidationResult.h"
 
 double evaluateWasteArea(const QList<QPainterPath> &placedPaths,
                          int drawingWidth,
