@@ -66,7 +66,8 @@ void MainWindowCoordinator::setInventory(Inventory *inventory)
     m_inventory = inventory;
     if (!m_inventory)
         return;
-    connect(m_inventory, &Inventory::shapeSelected,
+    // La sélection de forme prédéfinie passe par le ViewModel (plus par la View directement)
+    connect(m_inventory->viewModel(), &InventoryViewModel::baseShapeSelected,
             this, &MainWindowCoordinator::onShapeSelectedFromInventory);
     connect(m_inventory, &Inventory::customShapeSelected,
             this, &MainWindowCoordinator::onCustomShapeSelected);
@@ -200,8 +201,14 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(m_navigationController, &DialogManager::layoutSelected,
             view, &MainWindow::applyLayout);
 
+    // Le Coordinator calcule les polygones et le nom (domain) avant de les passer à la View.
+    // La View ne connaît plus ShapeModel::Type.
     connect(m_navigationController, &DialogManager::baseShapeLayoutSelected,
-            view, &MainWindow::applyBaseShapeLayout);
+            view, [this, view](ShapeModel::Type type, const LayoutData &layout) {
+                const QList<QPolygonF> polys = ShapeModel::shapePolygons(type, 100, 100);
+                const QString name = BaseShapeNamingService::baseShapeName(type, m_model->language());
+                view->displayBaseShapeLayout(polys, name, layout);
+            });
 
     connect(m_navigationController, &DialogManager::baseShapeOnlySelected, this,
             [this](ShapeModel::Type type) {

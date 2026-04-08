@@ -4,6 +4,7 @@
 #include <QString>
 #include <QList>
 #include <QPolygonF>
+#include <QPainterPath>
 
 #include "InventoryViewState.h"
 #include "InventoryDomainTypes.h"
@@ -89,12 +90,19 @@ public slots:
     const QList<InventoryFolder> &folders() const;
     const QMap<ShapeModel::Type, QString> &baseShapeFolders() const;
 
+    // Retourne le QPainterPath pour l'aperçu (thumbnail) d'une forme prédéfinie.
+    // La View utilise ce path pour créer un QGraphicsPathItem — sans appeler ShapeModel directement.
+    QPainterPath baseShapePreviewPath(ShapeModel::Type type, int size = 70) const;
+
 signals:
     // --- Notifications vers la View ---
     void stateChanged(const InventoryViewState &state);
     void searchTextChanged(const QString &text);
     void sortModeChanged(InventorySortMode mode);
     void filterModeChanged(InventoryFilterMode mode);
+    // Émis quand l'utilisateur choisit une forme prédéfinie — l'Application se connecte ici,
+    // plus sur le signal de la View (Inventory::shapeSelected supprimé en Phase 4).
+    void baseShapeSelected(ShapeModel::Type type);
 
 private:
     void rebuildState();

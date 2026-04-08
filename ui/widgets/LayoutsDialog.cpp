@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include "InventoryViewModel.h"
+#include "ShapeModel.h"
 
 LayoutsDialog::LayoutsDialog(const QString &shapeName,
                            const QList<LayoutData> &layouts,
@@ -29,7 +30,7 @@ LayoutsDialog::LayoutsDialog(const QString &shapeName,
                            Language lang,
                            InventoryViewModel *vm,
                            bool isBaseShape,
-                           ShapeModel::Type baseType,
+                           int baseType,
                            QWidget *parent)
     : QWidget(parent),
     ui(new Ui::LayoutsDialog),
@@ -184,7 +185,7 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
             if (index >= 0 && index < m_layouts.size()) {
                 m_layouts[index].name = newName;
                 if (m_isBaseShape)
-                    m_vm->renameLayoutForBaseShape(m_baseType, index, newName);
+                    m_vm->renameLayoutForBaseShape(static_cast<ShapeModel::Type>(m_baseType), index, newName);
                 else
                     m_vm->renameLayoutForCustomShape(m_shapeName, index, newName);
             }
@@ -195,7 +196,7 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
         if (index >= 0 && index < m_layouts.size()) {
             m_layouts.removeAt(index);
             if (m_isBaseShape)
-                m_vm->deleteLayoutForBaseShape(m_baseType, index);
+                m_vm->deleteLayoutForBaseShape(static_cast<ShapeModel::Type>(m_baseType), index);
             else
                 m_vm->deleteLayoutForCustomShape(m_shapeName, index);
             displayLayouts();
@@ -336,7 +337,7 @@ bool LayoutsDialog::eventFilter(QObject *obj, QEvent *event)
             } else if (idx >= 0 && idx < m_layouts.size()) {
                 LayoutData ld = m_layouts.at(idx);
                 if (m_isBaseShape)
-                    m_vm->incrementLayoutUsageForBaseShape(m_baseType, idx);
+                    m_vm->incrementLayoutUsageForBaseShape(static_cast<ShapeModel::Type>(m_baseType), idx);
                 else
                     m_vm->incrementLayoutUsageForCustomShape(m_shapeName, idx);
                 ld.usageCount++;

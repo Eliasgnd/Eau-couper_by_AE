@@ -82,6 +82,7 @@ HEADERS += \
     application/ShapeCoordinator.h \
     application/CuttingService.h \
     application/ImageImportService.h \
+    application/AppFactory.h \
     application/DialogManager.h \
     application/AIDialogCoordinator.h \
     application/InventoryController.h \
@@ -155,13 +156,15 @@ HEADERS += \
     infrastructure/imaging/LogoImporter.h \
     infrastructure/imaging/ImageEdgeImporter.h \
     infrastructure/imaging/skeletonizer.h \
-    shared/Language.h
+    shared/Language.h \
+    shared/ShapeValidationResult.h
 
 # ==== SOURCES ====
 SOURCES += \
     main.cpp \
     ui/mainwindow/MainWindow.cpp \
     ui/mainwindow/MainWindowMenuBuilder.cpp \
+    application/AppFactory.cpp \
     application/MainWindowCoordinator.cpp \
     application/ShapeCoordinator.cpp \
     application/CuttingService.cpp \

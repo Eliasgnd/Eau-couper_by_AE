@@ -393,40 +393,17 @@ QList<LayoutData> Inventory::getLayoutsForShape(const QString &shapeName) const
 }
 
 // -----------------------------------------------------------------------------
-// Layout management – Built-in shapes
+// Layout management – Custom shapes (usage)
 // -----------------------------------------------------------------------------
-void Inventory::addLayoutToBaseShape(ShapeModel::Type type, const LayoutData &layout)
-{
-    m_viewModel->addLayoutToBaseShape(type, layout);
-}
-
-void Inventory::renameBaseLayout(ShapeModel::Type type, int index, const QString &newName)
-{
-    m_viewModel->renameLayoutForBaseShape(type, index, newName);
-}
-
-void Inventory::deleteBaseLayout(ShapeModel::Type type, int index)
-{
-    m_viewModel->deleteLayoutForBaseShape(type, index);
-}
-
-QList<LayoutData> Inventory::getLayoutsForBaseShape(ShapeModel::Type type) const
-{
-    return m_viewModel->getLayoutsForBaseShape(type);
-}
-
 void Inventory::incrementLayoutUsage(const QString &shapeName, int index)
 {
     m_viewModel->incrementLayoutUsageForCustomShape(shapeName, index);
 }
 
-void Inventory::incrementBaseLayoutUsage(ShapeModel::Type type, int index)
+QFrame* Inventory::createBaseShapeCard(int shapeTypeInt, const QString &name)
 {
-    m_viewModel->incrementLayoutUsageForBaseShape(type, index);
-}
+    const ShapeModel::Type type = static_cast<ShapeModel::Type>(shapeTypeInt);
 
-QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &name)
-{
     auto *scene = new QGraphicsScene();
     auto *view  = new QGraphicsView(scene);
     view->setFixedSize(120, 120);
@@ -435,9 +412,9 @@ QFrame* Inventory::createBaseShapeCard(ShapeModel::Type type, const QString &nam
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    const QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(type, 70, 70);
-    if (!shapes.isEmpty()) {
-        QGraphicsItem *shapeItem = shapes.first();
+    const QPainterPath previewPath = m_viewModel->baseShapePreviewPath(type);
+    if (!previewPath.isEmpty()) {
+        auto *shapeItem = new QGraphicsPathItem(previewPath);
         scene->addItem(shapeItem);
         scene->setSceneRect(shapeItem->boundingRect().adjusted(-5, -5, 5, 5));
         view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
@@ -636,8 +613,7 @@ void Inventory::renderState(const InventoryViewState &state)
             type = 0;
             payload = entry.payload;
         } else if (entry.kind == InventoryViewItem::Kind::BaseShape) {
-            const auto shapeType = static_cast<ShapeModel::Type>(entry.payload.toInt());
-            frame = createBaseShapeCard(shapeType, entry.displayName);
+            frame = createBaseShapeCard(entry.payload.toInt(), entry.displayName);
             type = 1;
             payload = entry.payload;
         } else if (entry.kind == InventoryViewItem::Kind::CustomShape) {
@@ -704,9 +680,8 @@ void Inventory::onItemClicked(QListWidgetItem *item)
         QString name = item->data(Qt::UserRole + 1).toString();
         m_viewModel->selectFolder(name);
     } else if (t == 1) {
-        ShapeModel::Type type = static_cast<ShapeModel::Type>(item->data(Qt::UserRole + 1).toInt());
-        m_viewModel->selectBaseShape(type);
-        emit shapeSelected(type, 150, 220);
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(item->data(Qt::UserRole + 1).toInt());
+        m_viewModel->selectBaseShape(type);  // émet baseShapeSelected(type) via ViewModel
         goToMainWindow();
     } else if (t == 2) {
         QString name = item->data(Qt::UserRole + 1).toString();

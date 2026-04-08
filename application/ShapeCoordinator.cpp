@@ -6,11 +6,6 @@
 #include "ShapeVisualizationViewModel.h"
 
 #include <QApplication>
-#include <QGraphicsEllipseItem>
-#include <QGraphicsPathItem>
-#include <QGraphicsPolygonItem>
-#include <QGraphicsRectItem>
-#include <QTransform>
 #include <QMessageBox>
 
 ShapeCoordinator::ShapeCoordinator(ShapeVisualization *visualization, QObject *parent)
@@ -26,45 +21,6 @@ QPainterPath normalizePathToOrigin(const QPainterPath &path)
         return path;
     return path.translated(-bounds.left(), -bounds.top());
 }
-
-QPainterPath buildPrototypePath(ShapeModel::Type model,
-                                int largeur,
-                                int longueur,
-                                bool isCustomMode,
-                                const QList<QPolygonF> &customShapes)
-{
-    QPainterPath prototypePath;
-
-    if (isCustomMode && !customShapes.isEmpty()) {
-        for (const QPolygonF &poly : customShapes)
-            prototypePath.addPolygon(poly);
-        prototypePath = prototypePath.simplified();
-
-        const QRectF customBounds = prototypePath.boundingRect();
-        const double scaleX = (customBounds.width() > 0) ? (largeur / customBounds.width()) : 1.0;
-        const double scaleY = (customBounds.height() > 0) ? (longueur / customBounds.height()) : 1.0;
-        QTransform scaleTransform;
-        scaleTransform.scale(scaleX, scaleY);
-        return normalizePathToOrigin(scaleTransform.map(prototypePath));
-    }
-
-    QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(model, largeur, longueur);
-    if (shapesList.isEmpty())
-        return {};
-
-    QGraphicsItem *prototype = shapesList.first();
-    if (auto pathItem = dynamic_cast<QGraphicsPathItem*>(prototype))
-        prototypePath = pathItem->path();
-    else if (auto rectItem = dynamic_cast<QGraphicsRectItem*>(prototype))
-        prototypePath.addRect(rectItem->rect());
-    else if (auto ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(prototype))
-        prototypePath.addEllipse(ellipseItem->rect());
-    else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
-        prototypePath.addPolygon(polyItem->polygon());
-
-    return normalizePathToOrigin(prototypePath);
-}
-
 }
 
 ShapeModel::Type ShapeCoordinator::selectedShapeType() const
@@ -88,7 +44,10 @@ void ShapeCoordinator::updateShapeCount(int count, int largeur, int longueur)
 {
     if (!m_visualization)
         return;
-    m_visualization->setShapeCount(count, m_selectedShapeType, largeur, longueur);
+    auto *model = m_visualization->projectModel();
+    if (!model)
+        return;
+    model->setShapeConfig(static_cast<int>(m_selectedShapeType), largeur, longueur, count);
 }
 
 void ShapeCoordinator::updateSpacing(int value)
@@ -103,8 +62,10 @@ void ShapeCoordinator::setPredefinedShape(ShapeModel::Type type)
     if (!m_visualization)
         return;
     m_selectedShapeType = type;
-    m_visualization->setPredefinedMode();
-    m_visualization->setModel(type);
+    m_visualization->setPredefinedMode();  // remet le ViewModel en mode prédéfini, déjà appelle redraw
+    auto *model = m_visualization->projectModel();
+    if (model)
+        model->setCurrentModel(static_cast<int>(type));  // déclenche dataChanged → redraw avec le bon type
 }
 
 void ShapeCoordinator::moveSelectedShape(int dx, int dy)
@@ -231,11 +192,7 @@ void ShapeCoordinator::runOptimization(const QList<int> &angles)
     m_visualization->setSpacing(0);
     m_visualization->setOptimizationRunning(true);
 
-    const QPainterPath prototypePath = buildPrototypePath(model->currentModel(),
-                                                          model->currentLargeur(),
-                                                          model->currentLongueur(),
-                                                          m_visualization->isCustomMode(),
-                                                          model->customShapes());
+    const QPainterPath prototypePath = normalizePathToOrigin(model->prototypeShapePath());
 
     if (prototypePath.isEmpty()) {
         m_visualization->setOptimizationRunning(false);

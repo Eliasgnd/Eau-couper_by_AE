@@ -2,7 +2,6 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include "ShapeModel.h"
 #include "Language.h"
 #include <QList>
 #include <QPolygonF>
@@ -26,7 +25,8 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr,
                         MainWindowCoordinator *coordinator = nullptr,
-                        WorkspaceViewModel *model = nullptr);
+                        WorkspaceViewModel *model = nullptr,
+                        Inventory *inventory = nullptr);
     ~MainWindow();
 
     ShapeVisualization* getShapeVisualization() const;
@@ -43,7 +43,7 @@ public slots:
     void applySelectedLayoutToControls(const LayoutData &layout);
     void displayCustomShapes(const QList<QPolygonF> &shapes, const QString &name = QString());
     void applyLayout(const LayoutData &layout);
-    void applyBaseShapeLayout(ShapeModel::Type type, const LayoutData &layout);
+    void displayBaseShapeLayout(const QList<QPolygonF> &polys, const QString &name, const LayoutData &layout);
 
     // --- Signaux émis par la View vers le Controller ---
 signals:

@@ -164,7 +164,7 @@ void DialogManager::openLayoutsDialog(QWidget *from,
     if (from)
         from->hide();
 
-    auto *dialog = new LayoutsDialog(shapeName, layouts, shapePolygons, language, m_vm, isBaseShape, baseType);
+    auto *dialog = new LayoutsDialog(shapeName, layouts, shapePolygons, language, m_vm, isBaseShape, static_cast<int>(baseType));
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &LayoutsDialog::layoutSelected, this, [this, isBaseShape, baseType](const LayoutData &layout) {
         if (isBaseShape) {

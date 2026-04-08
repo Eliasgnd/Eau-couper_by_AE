@@ -1,6 +1,5 @@
 #include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
-#include "GeometryUtils.h"
 #include "shapevisualization/GeometryTransformHelper.h"
 #include "shapevisualization/GridPlacementService.h"
 #include "ImageExporter.h"
@@ -24,44 +23,6 @@
 
 namespace {
 const QString kInteractionLockedReason = QStringLiteral("Interaction verrouillée, modification impossible.");
-
-QPainterPath buildPrototypePath(ShapeModel::Type model,
-                                int largeur,
-                                int longueur,
-                                bool isCustomMode,
-                                const QList<QPolygonF> &customShapes)
-{
-    QPainterPath prototypePath;
-
-    if (isCustomMode && !customShapes.isEmpty()) {
-        for (const QPolygonF &poly : customShapes)
-            prototypePath.addPolygon(poly);
-        prototypePath = prototypePath.simplified();
-
-        const QRectF customBounds = prototypePath.boundingRect();
-        const double scaleX = (customBounds.width() > 0) ? (largeur / customBounds.width()) : 1.0;
-        const double scaleY = (customBounds.height() > 0) ? (longueur / customBounds.height()) : 1.0;
-        QTransform scaleTransform;
-        scaleTransform.scale(scaleX, scaleY);
-        return scaleTransform.map(prototypePath);
-    }
-
-    QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(model, largeur, longueur);
-    if (shapesList.isEmpty())
-        return {};
-
-    QGraphicsItem *prototype = shapesList.first();
-    if (auto pathItem = dynamic_cast<QGraphicsPathItem*>(prototype))
-        prototypePath = pathItem->path();
-    else if (auto rectItem = dynamic_cast<QGraphicsRectItem*>(prototype))
-        prototypePath.addRect(rectItem->rect());
-    else if (auto ellipseItem = dynamic_cast<QGraphicsEllipseItem*>(prototype))
-        prototypePath.addEllipse(ellipseItem->rect());
-    else if (auto polyItem = dynamic_cast<QGraphicsPolygonItem*>(prototype))
-        prototypePath.addPolygon(polyItem->polygon());
-
-    return prototypePath;
-}
 }
 
 ShapeVisualization::ShapeVisualization(QWidget *parent)
@@ -138,21 +99,6 @@ bool ShapeVisualization::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
-void ShapeVisualization::setModel(ShapeModel::Type model)
-{
-    if (!m_projectModel) return;
-    if (!editingEnabled)
-        return;
-    if (!m_interactionEnabled)
-        return;
-    cancelOptimization();
-
-    m_projectModel->setCurrentModel(model);
-    setPredefinedMode();
-    redraw();
-    update();
-}
-
 void ShapeVisualization::updateDimensions(int largeur, int longueur)
 {
     if (!m_projectModel) return;
@@ -164,27 +110,6 @@ void ShapeVisualization::updateDimensions(int largeur, int longueur)
     }
     cancelOptimization();
     m_projectModel->setDimensions(largeur, longueur);
-    if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
-        displayCustomShapes(m_projectModel->customShapes());
-    else
-        redraw();
-}
-
-void ShapeVisualization::setShapeCount(int count, ShapeModel::Type type, int width, int height)
-{
-    if (!m_projectModel) return;
-    if (!editingEnabled)
-        return;
-    if (!m_interactionEnabled) {
-        emit actionRefused(kInteractionLockedReason);
-        return;
-    }
-
-    cancelOptimization();
-
-    m_projectModel->setShapeCount(count);
-    m_projectModel->setCurrentModel(type);
-    m_projectModel->setDimensions(width, height);
     if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
         displayCustomShapes(m_projectModel->customShapes());
     else
@@ -246,25 +171,20 @@ void ShapeVisualization::redraw()
         return;
 
 
-    int adaptedLargeur = m_projectModel->currentLargeur();
-    int adaptedLongueur = m_projectModel->currentLongueur();
-
-    QList<QGraphicsItem*> shapes = ShapeModel::generateShapes(m_projectModel->currentModel(), adaptedLargeur, adaptedLongueur);
-    if (shapes.isEmpty()) {
-        //qDebug() << "Erreur : generateShapes a retourné une liste vide.";
+    const QPainterPath prototypePath = m_projectModel->prototypeShapePath();
+    if (prototypePath.isEmpty()) {
         emit shapesPlacedCount(0);
         return;
     }
-    QGraphicsItem *prototype = shapes.first();
 
-    QRectF bounds = prototype->boundingRect();
-    qreal effectiveWidth = bounds.width();
-    qreal effectiveHeight = bounds.height();
+    const QRectF bounds = prototypePath.boundingRect();
+    const qreal effectiveWidth  = bounds.width();
+    const qreal effectiveHeight = bounds.height();
     if (effectiveWidth <= 0 || effectiveHeight <= 0) {
-        //qDebug() << "Erreur : dimensions invalides pour la forme.";
         emit shapesPlacedCount(0);
         return;
     }
+
     GridPlacementRequest request;
     request.containerSize = QSizeF(drawingWidth, drawingHeight);
     request.shapeSize = QSizeF(effectiveWidth, effectiveHeight);
@@ -273,22 +193,10 @@ void ShapeVisualization::redraw()
     const QList<QPointF> positions = GridPlacementService::computePositions(request);
 
     for (const QPointF &position : positions) {
-
-        QGraphicsItem *shapeCopy = nullptr;
-        if (auto rect = dynamic_cast<QGraphicsRectItem*>(prototype))
-            shapeCopy = new QGraphicsRectItem(rect->rect());
-        else if (auto ellipse = dynamic_cast<QGraphicsEllipseItem*>(prototype))
-            shapeCopy = new QGraphicsEllipseItem(ellipse->rect());
-        else if (auto polygon = dynamic_cast<QGraphicsPolygonItem*>(prototype))
-            shapeCopy = new QGraphicsPolygonItem(polygon->polygon());
-        else if (auto path = dynamic_cast<QGraphicsPathItem*>(prototype))
-            shapeCopy = new QGraphicsPathItem(path->path());
-
-        if (!shapeCopy) {
-            //qDebug() << "Erreur : Impossible de copier la forme !";
-            continue;
-        }
-        QPointF offsetCorrection(-bounds.x(), -bounds.y());
+        auto *shapeCopy = new QGraphicsPathItem(prototypePath);
+        shapeCopy->setPen(QPen(Qt::black, 1));
+        shapeCopy->setBrush(Qt::NoBrush);
+        const QPointF offsetCorrection(-bounds.x(), -bounds.y());
         shapeCopy->setPos(position.x() + offsetCorrection.x(),
                           position.y() + offsetCorrection.y());
         shapeCopy->setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -475,13 +383,16 @@ void ShapeVisualization::addShapeBottomRight()
         newItem->setPos(drawingWidth - bounds.width() + offset.x(),
                         drawingHeight - bounds.height() + offset.y());
     } else {
-        QList<QGraphicsItem*> shapesList = ShapeModel::generateShapes(m_projectModel->currentModel(), m_projectModel->currentLargeur(), m_projectModel->currentLongueur());
-        if (shapesList.isEmpty())
+        const QPainterPath shapePath = m_projectModel->prototypeShapePath();
+        if (shapePath.isEmpty())
             return;
 
-        newItem = shapesList.takeFirst();
-        QRectF bounds = newItem->boundingRect();
-        QPointF offset(-bounds.x(), -bounds.y());
+        const QRectF bounds = shapePath.boundingRect();
+        auto *pathItem = new QGraphicsPathItem(shapePath);
+        pathItem->setPen(QPen(Qt::black, 1));
+        pathItem->setBrush(Qt::NoBrush);
+        newItem = pathItem;
+        const QPointF offset(-bounds.x(), -bounds.y());
         newItem->setPos(drawingWidth - bounds.width() + offset.x(),
                         drawingHeight - bounds.height() + offset.y());
     }

@@ -1,9 +1,6 @@
 #include "MainWindow.h"
 #include "ui_mainwindow.h"
 #include "Inventory.h"
-#include "InventoryModel.h"
-#include "InventoryController.h"
-#include "InventoryViewModel.h"
 #include "ShapeVisualization.h"
 #include "ImageImportService.h"
 #include "AspectRatioWrapper.h"
@@ -35,7 +32,8 @@
 
 MainWindow::MainWindow(QWidget *parent,
                        MainWindowCoordinator *coordinator,
-                       WorkspaceViewModel *model)
+                       WorkspaceViewModel *model,
+                       Inventory *inventory)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
@@ -47,16 +45,8 @@ MainWindow::MainWindow(QWidget *parent,
         m_model = new WorkspaceViewModel(this);
     }
 
-    // --- Inventory (créé ici pour injection — pas de singleton) ---
-    {
-        auto *invModel      = new InventoryModel();
-        auto *invController = new InventoryController(*invModel);
-        invController->initialize();
-        auto *invVm         = new InventoryViewModel(*invController, this);
-        m_inventory         = new Inventory(invVm);
-        // invModel et invController ont la même durée de vie que le processus
-        // (identique au comportement de l'ancien singleton statique)
-    }
+    // --- Inventory (injecté depuis l'extérieur via AppFactory) ---
+    m_inventory = inventory;
 
     // --- Coordinator ---
     if (coordinator) {
@@ -338,14 +328,14 @@ void MainWindow::applyLayout(const LayoutData &layout)
     applySelectedLayoutToControls(layout);
 }
 
-void MainWindow::applyBaseShapeLayout(ShapeModel::Type type, const LayoutData &layout)
+void MainWindow::displayBaseShapeLayout(const QList<QPolygonF> &polys,
+                                        const QString &name,
+                                        const LayoutData &layout)
 {
     if (!shapeVisualization) return;
-    QList<QPolygonF> shapePolys = ShapeModel::shapePolygons(type, 100, 100);
     shapeVisualization->setCustomMode();
-    shapeVisualization->displayCustomShapes(shapePolys);
-    shapeVisualization->setCurrentCustomShapeName(
-        BaseShapeNamingService::baseShapeName(type, m_viewModel->currentLanguage()));
+    shapeVisualization->displayCustomShapes(polys);
+    shapeVisualization->setCurrentCustomShapeName(name);
     shapeVisualization->applyLayout(layout);
     applySelectedLayoutToControls(layout);
 }

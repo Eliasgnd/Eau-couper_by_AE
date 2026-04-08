@@ -52,6 +52,7 @@ void InventoryViewModel::selectFolder(const QString &folderName)
 void InventoryViewModel::selectBaseShape(ShapeModel::Type type)
 {
     m_controller.onBaseShapeSelected(type);
+    emit baseShapeSelected(type);
 }
 
 bool InventoryViewModel::selectCustomShape(const QString &shapeName,
@@ -258,4 +259,13 @@ void InventoryViewModel::rebuildState()
         m_state = m_controller.buildRootState(m_searchText, m_sortMode, m_filterMode);
 
     emit stateChanged(m_state);
+}
+
+QPainterPath InventoryViewModel::baseShapePreviewPath(ShapeModel::Type type, int size) const
+{
+    const QList<QPolygonF> polys = ShapeModel::shapePolygons(type, size, size);
+    QPainterPath path;
+    for (const QPolygonF &poly : polys)
+        path.addPolygon(poly);
+    return path;
 }

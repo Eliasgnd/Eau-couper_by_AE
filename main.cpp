@@ -2,6 +2,8 @@
 #include "MainWindow.h"
 #include "WorkspaceViewModel.h"
 #include "KeyboardEventFilter.h"
+#include "AppFactory.h"
+#include "Inventory.h"
 
 int main(int argc, char *argv[])
 {
@@ -11,13 +13,14 @@ int main(int argc, char *argv[])
     KeyboardEventFilter filter(&app);
     app.installEventFilter(&filter);
 
-    // WorkspaceViewModel est le seul objet injectable avant la création de MainWindow.
-    // DialogManager, AIDialogCoordinator et ShapeCoordinator sont créés
+    // La pile Inventory est construite par AppFactory et injectée dans MainWindow.
+    // DialogManager, AIDialogCoordinator et ShapeCoordinator sont toujours créés
     // à l'intérieur de MainWindow car ShapeCoordinator dépend de ShapeVisualization
     // (widget instancié lors de ui->setupUi).
     // Toutes les connexions View ↔ Coordinator sont établies dans connectToView().
     WorkspaceViewModel model;
-    MainWindow w(nullptr, nullptr, &model);
+    Inventory *inventory = AppFactory::createInventory();
+    MainWindow w(nullptr, nullptr, &model, inventory);
 
     filter.setShapeVisualization(w.getShapeVisualization());
 

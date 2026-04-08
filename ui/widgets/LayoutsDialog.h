@@ -7,7 +7,6 @@
 #include <QFrame>
 #include <QString>
 #include "InventoryDomainTypes.h"
-#include "ShapeModel.h"
 #include "Language.h"
 
 QT_BEGIN_NAMESPACE
@@ -26,7 +25,7 @@ public:
                  Language lang,
                  InventoryViewModel *vm,
                  bool isBaseShape = false,
-                 ShapeModel::Type baseType = ShapeModel::Type::Circle,
+                 int baseType = 0,
                  QWidget *parent = nullptr);
     ~LayoutsDialog();
 
@@ -56,7 +55,7 @@ private:
     Language m_lang {Language::French};
     QString m_shapeName;
     bool m_isBaseShape {false};
-    ShapeModel::Type m_baseType {ShapeModel::Type::Circle};
+    int m_baseType {0};
     InventoryViewModel *m_vm {nullptr};
 };
 
