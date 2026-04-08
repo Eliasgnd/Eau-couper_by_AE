@@ -1,56 +1,17 @@
 #include "pathplanner.h"
 
-#include <QSet>
-#include <QHash>
-#include <QPoint>
+#include <QGraphicsItem>
+#include <QGraphicsPathItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsPolygonItem>
-#include <QGraphicsPathItem>
 #include <QPainterPath>
-#include <QtMath>
-#include <limits>
+#include <QSet>
+#include <QLineF>
 
 // ---------------------------------------------------------------------------
-//  1.  Fonctions de hachage Qt-compatibles
-// ---------------------------------------------------------------------------
-#include <QtGlobal>                    // QT_VERSION, …
-#include <QtCore/qhashfunctions.h>
-
-#ifndef qHashMulti
-template <typename T1, typename T2>
-static inline uint qHashMulti(uint seed, const T1 &t1, const T2 &t2) noexcept
-{
-    seed = QtPrivate::QHashCombine()(seed, t1);
-    seed = QtPrivate::QHashCombine()(seed, t2);
-    return seed;
-}
-#endif
-
-/*---------------------------------------*
- * a) Hash pour QPoint (si Qt ≤ 5.14)    *
- *---------------------------------------*/
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-static inline uint qHash(const QPoint &pt, uint seed = 0) noexcept
-{
-    seed ^= uint(pt.x()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-    seed ^= uint(pt.y()) + 0x9e3779b9u + (seed << 6) + (seed >> 2);
-    return seed;
-}
-#endif
-
-/*-----------------------------------------------------------*
- * b) Hash pour QPair<QPoint,QPoint> (non fourni par Qt)     *
- *-----------------------------------------------------------*/
-static inline uint qHash(const QPair<QPoint, QPoint> &key,
-                         uint seed = 0) noexcept
-{
-    seed = qHashMulti(seed, key.first, key.second);
-    return seed;
-}
-
-// ---------------------------------------------------------------------------
-//  2.  Aide pour fusionner des segments non orientés
+//  Clé unique pour identifier un segment indépendamment de son sens
+//  (Sert à éviter de découper deux fois la même ligne)
 // ---------------------------------------------------------------------------
 static inline quint64 keySeg(const QPoint &p1, const QPoint &p2)
 {
@@ -60,7 +21,7 @@ static inline quint64 keySeg(const QPoint &p1, const QPoint &p2)
 }
 
 // ---------------------------------------------------------------------------
-//  3.  Extraction des segments
+//  Extraction des segments individuels (gère les bords et les trous internes)
 // ---------------------------------------------------------------------------
 QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
 {
@@ -68,6 +29,9 @@ QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
     QSet<quint64>  seen;
 
     for (QGraphicsItem *it : sc->items()) {
+        // Ignorer les éléments invisibles ou les curseurs d'UI (zValue >= 50)
+        if (!it->isVisible() || it->zValue() >= 50) continue;
+
         QPainterPath path;
 
         if (auto *r = qgraphicsitem_cast<QGraphicsRectItem *>(it))
@@ -79,93 +43,31 @@ QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
         else if (auto *polyItem = qgraphicsitem_cast<QGraphicsPolygonItem *>(it))
             path.addPolygon(polyItem->polygon());
         else
-            continue;                                   // Non pris en charge
+            continue; // Forme non prise en charge
 
         path = it->mapToScene(path);
-        QPolygonF poly = path.toFillPolygon();
-        const int n    = poly.size();
 
-        for (int i = 0; i < n; ++i) {
-            const QPoint p1 = poly[i].toPoint();
-            const QPoint p2 = poly[(i + 1) % n].toPoint();
-            if (p1 == p2)
-                continue;
+        // toSubpathPolygons isole strictement l'extérieur et les trous internes !
+        QList<QPolygonF> subPolygons = path.toSubpathPolygons();
 
-            const quint64 k = keySeg(p1, p2);
-            if (seen.contains(k))
-                continue;                               // Segment déjà ajouté
+        for (const QPolygonF& poly : subPolygons) {
+            const int n = poly.size();
+            if (n < 2) continue;
 
-            seen.insert(k);
-            out.append({ p1, p2, QLineF(p1, p2).length() });
+            // On s'arrête à n-1 car toSubpathPolygons boucle déjà le dernier point sur le premier
+            for (int i = 0; i < n - 1; ++i) {
+                const QPoint p1 = poly[i].toPoint();
+                const QPoint p2 = poly[i + 1].toPoint();
+
+                if (p1 == p2) continue;
+
+                const quint64 k = keySeg(p1, p2);
+                if (seen.contains(k)) continue;  // Ce segment a déjà été ajouté
+
+                seen.insert(k);
+                out.append({ p1, p2, QLineF(p1, p2).length() });
+            }
         }
     }
     return out;
-}
-
-// ---------------------------------------------------------------------------
-//  4.  Construction d’un chemin eulérien (Hierholzer + appairage glouton)
-// ---------------------------------------------------------------------------
-QVector<QPoint> PathPlanner::buildEulerPath(const QList<Segment> &segs)
-{
-    if (segs.isEmpty())
-        return {};
-
-    // --- Adjacences ---------------------------------------------------------
-    QHash<QPoint, QVector<QPoint>> adj;
-    for (const Segment &s : segs) {
-        adj[s.a].append(s.b);
-        adj[s.b].append(s.a);
-    }
-    if (adj.isEmpty())
-        return {};
-
-    // --- Sommets de degré impair -------------------------------------------
-    QVector<QPoint> odd;
-    for (auto it = adj.cbegin(); it != adj.cend(); ++it)
-        if (it.value().size() & 1)
-            odd.append(it.key());
-
-    // --- Appairage glouton (ajoute des arêtes fictives) ---------------------
-    while (odd.size() > 1) {
-        const QPoint p = odd.takeLast();
-        int   bestIdx  = 0;
-        qreal bestDist = std::numeric_limits<qreal>::infinity();
-
-        for (int i = 0; i < odd.size(); ++i) {
-            const qreal d = QLineF(p, odd[i]).length();
-            if (d < bestDist) {
-                bestDist = d;
-                bestIdx  = i;
-            }
-        }
-        const QPoint q = odd.takeAt(bestIdx);
-        adj[p].append(q);
-        adj[q].append(p);
-    }
-
-    // --- Parcours d’Hierholzer ---------------------------------------------
-    QVector<QPoint> stack, path;
-    stack.append(adj.begin().key());
-
-    QSet<QPair<QPoint, QPoint>> used;
-    while (!stack.isEmpty()) {
-        QPoint v = stack.last();
-        if (!adj[v].isEmpty()) {
-            QPoint u = adj[v].takeLast();
-            QPair<QPoint, QPoint> edge(v, u);
-
-            if (used.contains(edge))
-                continue;
-
-            used.insert(edge);
-            used.insert({ u, v });
-            stack.append(u);
-        } else {
-            path.append(v);
-            stack.removeLast();
-        }
-    }
-
-    std::reverse(path.begin(), path.end());
-    return path;
 }

@@ -1,128 +1,78 @@
 #include "TrajetMotor.h"
-#include "pathplanner.h"          // définitions de PathPlanner / Segment
+#include "pathplanner.h"
 #include <QSet>
 #include <QLineF>
 #include <QThread>
 #include <QApplication>
 #include <QGraphicsEllipseItem>
+#include <QGraphicsLineItem>
+#include <QStringList>            // Requis pour le Buffer G-Code
 #include <algorithm>
 #include <limits>
 #include <QMessageBox>
 #include "MainWindow.h"
 
-// --- décommentez si Segment est imbriqué dans la classe PathPlanner ---------
-// using Segment = PathPlanner::Segment;
-// ---------------------------------------------------------------------------
-
-static constexpr int    VIS_DELAY_MS  = 15;   // délai visualisation (ms)
-static constexpr double mmPerPx       = 1.0;  // calibration plateau
-static constexpr int    VIS_SAMPLE_PX = 1;    // pas entre deux points affichés
-
-TrajetMotor::TrajetMotor(ShapeVisualization* visu, QWidget* parent)
-    : QWidget(parent), m_visu(visu)
-{}
+// --- Constantes de calibration ---
+static constexpr double mmPerPx = 1.0;  // Calibration plateau
 
 // -----------------------------------------------------------------------------
-// Estimation du nombre total d'opérations (déplacements + coupes)
+// Clé unique pour identifier un segment indépendamment de son sens
 // -----------------------------------------------------------------------------
-static int estimateTotalOperations(const QList<Segment>& segs)
-{
-    if (segs.isEmpty())
-        return 0;
-
-    const auto key = [](const QPoint& a, const QPoint& b) {
-        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
-        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
-        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
-    };
-
-    QSet<quint64> done;
-    QPoint cur = segs.first().a;
-    int ops = 0;
-
-    while (done.size() < segs.size()) {
-        int    bestIdx = -1;
-        double bestDi  = std::numeric_limits<double>::max();
-        for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(key(segs[i].a, segs[i].b))) continue;
-            const double d = QLineF(cur, segs[i].a).length();
-            if (d < bestDi) { bestDi = d; bestIdx = i; }
-        }
-        if (bestIdx < 0) break;
-        const auto s = segs[bestIdx];
-
-        if (cur != s.a)
-            ++ops;                     // déplacement
-        ++ops;                         // coupe
-
-        done.insert(key(s.a, s.b));
-        cur = s.b;
-    }
-
-    return ops;
+static inline quint64 keySeg(const QPoint &p1, const QPoint &p2) {
+    quint32 k1 = (static_cast<quint32>(p1.x()) << 16) | (static_cast<quint16>(p1.y()) & 0xFFFF);
+    quint32 k2 = (static_cast<quint32>(p2.x()) << 16) | (static_cast<quint16>(p2.y()) & 0xFFFF);
+    return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
 }
 
 // -----------------------------------------------------------------------------
-// Estimation du nombre total de pas (pour une progression fluide)
+// Estimation du nombre total de pas (incluant le départ et retour à l'origine)
 // -----------------------------------------------------------------------------
-static int estimateTotalSteps(const QList<Segment>& segs)
+static int estimateTotalSteps(const QList<Segment>& segs, const QPoint& homePos)
 {
-    if (segs.isEmpty())
-        return 0;
+    if (segs.isEmpty()) return 0;
 
-    const auto key = [](const QPoint& a, const QPoint& b) {
-        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
-        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
-        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
-    };
     const auto stepLen = [](const QPoint& a, const QPoint& b) {
         return std::max(std::abs(a.x() - b.x()), std::abs(a.y() - b.y()));
     };
 
     QSet<quint64> done;
-    QPoint cur = segs.first().a;
+    QPoint cur = homePos;
     int steps = 0;
 
     while (done.size() < segs.size()) {
-        int    bestIdx = -1;
-        double bestDi  = std::numeric_limits<double>::max();
+        int bestIdx = -1;
+        double bestDi = std::numeric_limits<double>::max();
+        bool reverseCut = false;
+
         for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(key(segs[i].a, segs[i].b))) continue;
-            const double d = QLineF(cur, segs[i].a).length();
-            if (d < bestDi) { bestDi = d; bestIdx = i; }
+            if (done.contains(keySeg(segs[i].a, segs[i].b))) continue;
+
+            double d_a = QLineF(cur, segs[i].a).length();
+            double d_b = QLineF(cur, segs[i].b).length();
+
+            if (d_a < bestDi) { bestDi = d_a; bestIdx = i; reverseCut = false; }
+            if (d_b < bestDi) { bestDi = d_b; bestIdx = i; reverseCut = true; }
         }
         if (bestIdx < 0) break;
         const auto s = segs[bestIdx];
 
-        steps += stepLen(cur, s.a);
-        steps += stepLen(s.a, s.b);
+        QPoint realStart = reverseCut ? s.b : s.a;
+        QPoint realEnd   = reverseCut ? s.a : s.b;
 
-        done.insert(key(s.a, s.b));
-        cur = s.b;
+        steps += stepLen(cur, realStart);
+        steps += stepLen(realStart, realEnd);
+
+        done.insert(keySeg(s.a, s.b));
+        cur = realEnd;
     }
+    steps += stepLen(cur, homePos); // Retour au point zéro
 
     return steps;
 }
 
-// -----------------------------------------------------------------------------
-// Helper pour colorier un segment
-// -----------------------------------------------------------------------------
-static void drawSegment(ShapeVisualization* v,
-                        const QPoint& a, const QPoint& b,
-                        bool cut)
-{
-    const int dx    = b.x() - a.x();
-    const int dy    = b.y() - a.y();
-    const int steps = std::max(std::abs(dx), std::abs(dy));
-    if (steps == 0) return;
-
-    for (int s = 1; s <= steps; s += VIS_SAMPLE_PX) {
-        const double t = static_cast<double>(s) / steps;
-        const QPoint p(qRound(a.x() + t * dx),
-                       qRound(a.y() + t * dy));
-        cut ? v->colorPositionRed(p) : v->colorPositionBlue(p);
-    }
-}
+TrajetMotor::TrajetMotor(ShapeVisualization* visu, QWidget* parent)
+    : QWidget(parent), m_visu(visu)
+{}
 
 // -----------------------------------------------------------------------------
 // Lancement de la découpe
@@ -130,10 +80,9 @@ static void drawSegment(ShapeVisualization* v,
 void TrajetMotor::executeTrajet()
 {
     m_interrupted = false;
-    qDebug() << "[DEBUG] executeTrajet() exécuté dans instance" << this;
 
     if (m_running) {
-        qWarning() << "Découpe déjà en cours (pause ou non).";
+        qWarning() << "Découpe déjà en cours.";
         return;
     }
     if (!m_visu || !m_visu->getScene()) return;
@@ -141,192 +90,189 @@ void TrajetMotor::executeTrajet()
     m_running       = true;
     m_paused        = false;
     m_stopRequested = false;
-    m_visu->setInteractionEnabled(false);
+    m_visu->setDecoupeEnCours(true);
 
-    // 1) Extraction des segments ----------------------------------------------
+    // --- DÉFINITION DU POINT ORIGINE (HOME) ---
+    QPoint homePos(600, 400);
+
+    // --- CRÉATION DU BUFFER  ---
+    QStringList commandBuffer;
+    commandBuffer << "G90 ; Mode de positionnement Absolu (mm)";
+    commandBuffer << "G21 ; Unites en millimètres";
+    commandBuffer << "M5  ; Assure que le jet d'eau est coupé au depart";
+
+    // 1) Extraction des segments
     const QList<Segment> segs = PathPlanner::extractSegments(m_visu->getScene());
     if (segs.isEmpty()) {
-        qWarning() << "Aucun segment à découper";
         m_running = false;
+        m_visu->setDecoupeEnCours(false);
         return;
     }
 
-    // 2) Progression -----------------------------------------------------------
-    m_totalSteps      = estimateTotalSteps(segs);
+    // 2) Progression
+    m_totalSteps      = estimateTotalSteps(segs, homePos);
     m_progressCounter = 0;
     emit decoupeProgress(m_totalSteps, m_totalSteps);
-    
 
-    // 3) Curseur vert ----------------------------------------------------------
+    // 3) Curseur vert
     auto *head = new QGraphicsEllipseItem(-3, -3, 6, 6);
     head->setBrush(Qt::green);
     head->setPen(Qt::NoPen);
     head->setZValue(60);
     m_visu->getScene()->addItem(head);
 
-    // 4) Boucle principale -----------------------------------------------------
-    const auto key = [](const QPoint& a, const QPoint& b) {
-        const quint32 k1 = (static_cast<quint32>(a.x()) << 16) | quint16(a.y());
-        const quint32 k2 = (static_cast<quint32>(b.x()) << 16) | quint16(b.y());
-        return (static_cast<quint64>(qMin(k1, k2)) << 32) | qMax(k1, k2);
-    };
+    // 4) Boucle principale
     QSet<quint64> done;
-
-    QPoint cur = segs.first().a;
+    QPoint cur = homePos;
     head->setPos(cur.x() - 3, cur.y() - 3);
-    m_visu->colorPositionBlue(cur);
 
     while (done.size() < segs.size()) {
 
-        // ---------- STOP -------------------------------------------------------
         if (m_stopRequested) break;
-
-        // ---------- PAUSE ------------------------------------------------------
         while (m_paused && !m_stopRequested) {
             QApplication::processEvents();
             QThread::msleep(30);
         }
         if (m_stopRequested) break;
 
-        // ---------- Cherche segment le plus proche ----------------------------
         int    bestIdx = -1;
         double bestDi  = std::numeric_limits<double>::max();
+        bool   reverseCut = false;
+
         for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(key(segs[i].a, segs[i].b))) continue;
-            const double d = QLineF(cur, segs[i].a).length();
-            if (d < bestDi) { bestDi = d; bestIdx = i; }
+            if (done.contains(keySeg(segs[i].a, segs[i].b))) continue;
+
+            const double d_a = QLineF(cur, segs[i].a).length();
+            const double d_b = QLineF(cur, segs[i].b).length();
+
+            if (d_a < bestDi) { bestDi = d_a; bestIdx = i; reverseCut = false; }
+            if (d_b < bestDi) { bestDi = d_b; bestIdx = i; reverseCut = true; }
         }
         if (bestIdx < 0) break;
         const auto s = segs[bestIdx];
 
-        // ---------- Déplacement rapide (bleu) ---------------------------------
-        if (cur != s.a) {
+        QPoint realStart = reverseCut ? s.b : s.a;
+        QPoint realEnd   = reverseCut ? s.a : s.b;
 
+        // ---------- Déplacement rapide (bleu) ------------------
+        if (cur != realStart) {
             m_motor.stopJet();
+            commandBuffer << "M5 ; Arrêt du jet";
+            commandBuffer << QString("G0 X%1 Y%2").arg(realStart.x() * mmPerPx).arg(realStart.y() * mmPerPx);
 
-           moveHeadProgressive(cur, s.a, head, false);
-
-            // Ensuite, on commande le moteur pour aller à la position finale
-            m_motor.moveRapid(s.a.x() * mmPerPx, s.a.y() * mmPerPx);
-
+            moveHeadProgressive(cur, realStart, head, false);
+            m_motor.moveRapid(realStart.x() * mmPerPx, realStart.y() * mmPerPx);
         }
-        cur = s.a;
-
+        cur = realStart;
 
         // ---------- Coupe (rouge) ---------------------------------------------
         m_motor.startJet();
-       moveHeadProgressive(s.a, s.b, head, true);
-        // Puis déplacement réel du moteur à la position cible
-        m_motor.moveCut(s.b.x() * mmPerPx, s.b.y() * mmPerPx);
+        commandBuffer << "M3 ; Démarrage du jet";
+        // F1000 représente la vitesse d'avance (Feedrate) en mm/min
+        commandBuffer << QString("G1 X%1 Y%2 F1000").arg(realEnd.x() * mmPerPx).arg(realEnd.y() * mmPerPx);
 
-        // ---------- Progression ------------------------------------------------
-        done.insert(key(s.a, s.b));
+        moveHeadProgressive(realStart, realEnd, head, true);
+        m_motor.moveCut(realEnd.x() * mmPerPx, realEnd.y() * mmPerPx);
 
-        cur = s.b;
+        done.insert(keySeg(s.a, s.b));
+        cur = realEnd;
     }
 
-    // 5) Nettoyage -------------------------------------------------------------
+    // --- RETOUR AU POINT DE DÉPART (HOME) ---
+    if (!m_stopRequested && cur != homePos) {
+        m_motor.stopJet();
+        commandBuffer << "M5 ; Arrêt du jet";
+        commandBuffer << QString("G0 X%1 Y%2 ; Retour Origine").arg(homePos.x() * mmPerPx).arg(homePos.y() * mmPerPx);
+
+        moveHeadProgressive(cur, homePos, head, false);
+        m_motor.moveRapid(homePos.x() * mmPerPx, homePos.y() * mmPerPx);
+    }
+
+    commandBuffer << "M30 ; Fin du programme de découpe";
+
+    // --- AFFICHAGE DU BUFFER DANS LE TERMINAL ---
+    qDebug() << "\n============= BUFFER  (G-CODE) =============";
+    for (const QString& cmd : commandBuffer) {
+        qDebug().noquote() << cmd; // .noquote() enlève les guillemets superflus dans le terminal
+    }
+    qDebug() << "=================================================\n";
+
+    // Nettoyage Final
     m_motor.stopJet();
-    m_visu->resetCutMarkers();          // suppression points/curseur
+    m_visu->resetCutMarkers();
     m_visu->getScene()->removeItem(head);
     delete head;
     emit decoupeProgress(0, m_totalSteps);
 
-    qDebug() << "Découpe terminée – Pas X=" << m_motor.getStepsX()
-             << " Y=" << m_motor.getStepsY();
-    qDebug() << "[DEBUG] m_mainWindow == nullptr ?" << (m_mainWindow == nullptr);
-
     if (m_mainWindow) {
-        QMetaObject::invokeMethod(m_mainWindow, "setParamWidgetsEnabled",
-                                  Qt::QueuedConnection, Q_ARG(bool, true));
-        qDebug() << "[DEBUG] invokeMethod vers setSpinboxSliderEnabled(true)";
-
-        QMetaObject::invokeMethod(m_mainWindow, "setSpinboxSliderEnabled",
-                                  Qt::QueuedConnection, Q_ARG(bool, true));
+        QMetaObject::invokeMethod(m_mainWindow, "setSpinboxSliderEnabled", Qt::QueuedConnection, Q_ARG(bool, true));
     }
 
-    if (m_visu)
-        m_visu->setInteractionEnabled(true);
-
+    if (m_visu) m_visu->setDecoupeEnCours(false);
     m_running = false;
+
     QMetaObject::invokeMethod(m_mainWindow, [this]() {
-        QString titre;
-        QString message;
-
-        if (m_interrupted) {
-            titre = "Découpe interrompue";
-            message = "La découpe a été arrêtée manuellement.";
-        } else {
-            titre = "Découpe terminée";
-            message = "La découpe s'est terminée avec succès.";
-        }
-
-        QMessageBox* msg = new QMessageBox(QMessageBox::Information,
-                                           titre,
-                                           message,
-                                           QMessageBox::Ok,
-                                           m_mainWindow);
+        QString titre = m_interrupted ? "Découpe interrompue" : "Découpe terminée";
+        QString message = m_interrupted ? "La découpe a été arrêtée manuellement." : "La découpe s'est terminée avec succès.";
+        QMessageBox* msg = new QMessageBox(QMessageBox::Information, titre, message, QMessageBox::Ok, m_mainWindow);
         msg->setModal(false);
         msg->show();
     }, Qt::QueuedConnection);
-
-
 }
 
 // -----------------------------------------------------------------------------
 // Slots Pause / Reprendre / Stop
 // -----------------------------------------------------------------------------
-void TrajetMotor::pause()
-{
-    if (m_running) { m_paused = true;  m_motor.stopJet(); }
-}
-
-void TrajetMotor::resume()
-{
-    if (m_running) { m_paused = false; }
-}
-
-void TrajetMotor::stopCut()
-{
-    if (m_visu)
-        m_visu->setInteractionEnabled(true);
+void TrajetMotor::pause() { if (m_running) { m_paused = true;  m_motor.stopJet(); } }
+void TrajetMotor::resume() { if (m_running) { m_paused = false; } }
+void TrajetMotor::stopCut() {
+    if (m_visu) m_visu->setDecoupeEnCours(false);
     if (!m_running) return;
-    m_stopRequested = true;
-    m_paused        = false;
-    m_interrupted = true;
-    m_motor.stopJet();
+    m_stopRequested = true; m_paused = false; m_interrupted = true; m_motor.stopJet();
 }
+void TrajetMotor::setMainWindow(MainWindow* mainWindow) { m_mainWindow = mainWindow; }
 
-void TrajetMotor::setMainWindow(MainWindow* mainWindow)
+// -----------------------------------------------------------------------------
+// moveHeadProgressive : Tracé par petits segments fixes (Effet "Trace" réel)
+// -----------------------------------------------------------------------------
+void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end, QGraphicsEllipseItem* head, bool cut)
 {
-    m_mainWindow = mainWindow;
-    qDebug() << "[DEBUG] m_mainWindow défini dans TrajetMotor";
-    qDebug() << "[DEBUG] setMainWindow appelé pour instance" << this;
-}
+    double dist = QLineF(start, end).length();
+    if (dist <= 0) return;
 
-void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,QGraphicsEllipseItem* head, bool cut)
-{
-    int dx = end.x() - start.x();
-    int dy = end.y() - start.y();
-    int steps = std::max(std::abs(dx), std::abs(dy));
-    if (steps == 0) return;
+    QPen pen(cut ? Qt::red : Qt::blue, 1.5);
+    double stepPx = cut ? 3.0 : 12.0;
+    int delayMs = cut ? 2 : 4;
 
-    for (int step = 1; step <= steps; ++step) {
-        double t = static_cast<double>(step) / steps;
-        int x = qRound(start.x() + t * dx);
-        int y = qRound(start.y() + t * dy);
+    QPointF currentPos = start;
 
-        QPoint pos(x, y);
-        head->setPos(x - 3, y - 3);
+    for (double d = stepPx; d < dist; d += stepPx) {
+        double t = d / dist;
+        QPointF nextPos(start.x() + t * (end.x() - start.x()), start.y() + t * (end.y() - start.y()));
 
-        // Coloration dynamique
-        cut ? m_visu->colorPositionRed(pos)
-            : m_visu->colorPositionBlue(pos);
+        QGraphicsLineItem* stepLine = new QGraphicsLineItem(currentPos.x(), currentPos.y(), nextPos.x(), nextPos.y());
+        stepLine->setPen(pen);
+        m_visu->getScene()->addItem(stepLine);
+        m_visu->addCutMarker(stepLine);
+
+        head->setPos(nextPos.x() - 3, nextPos.y() - 3);
+        currentPos = nextPos;
 
         QApplication::processEvents();
-        QThread::msleep(VIS_DELAY_MS);
+        QThread::msleep(delayMs);
 
-        ++m_progressCounter;
+        m_progressCounter += stepPx;
+        if (m_progressCounter > m_totalSteps) m_progressCounter = m_totalSteps;
         emit decoupeProgress(m_totalSteps - m_progressCounter, m_totalSteps);
+    }
+
+    if (currentPos != end) {
+        QGraphicsLineItem* finalLine = new QGraphicsLineItem(currentPos.x(), currentPos.y(), end.x(), end.y());
+        finalLine->setPen(pen);
+        m_visu->getScene()->addItem(finalLine);
+        m_visu->addCutMarker(finalLine);
+
+        head->setPos(end.x() - 3, end.y() - 3);
+        QApplication::processEvents();
     }
 }

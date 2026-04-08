@@ -536,6 +536,18 @@ void ShapeVisualization::resetCutMarkers()
     m_cutMarkers.clear();
 }
 
+void ShapeVisualization::setDecoupeEnCours(bool running)
+{
+    setInteractionEnabled(!running);
+    setEditingEnabled(!running);
+}
+
+void ShapeVisualization::addCutMarker(QGraphicsItem* item)
+{
+    if (item && !m_cutMarkers.contains(item))
+        m_cutMarkers << item;
+}
+
 QGraphicsScene* ShapeVisualization::getScene() const {
     return scene;
 }

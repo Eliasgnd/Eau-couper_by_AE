@@ -2,23 +2,21 @@
 
 #include <QGraphicsScene>
 #include <QPoint>
-#include <QVector>
 #include <QList>
 
-/** Représentation d'un segment de coupe. */
+/** Représentation d'un segment de coupe simple. */
 struct Segment
 {
     QPoint a, b;   //!< Extrémités en pixels
     double len;    //!< Longueur en pixels
 };
 
-/** Outils d’extraction / calcul de parcours eulérien. */
+/** Outil d’extraction de parcours pour la découpe. */
 class PathPlanner
 {
 public:
-    //! Extrait tous les segments présents dans la scène (fusion des côtés communs).
+    //! Extrait les contours et les trous des formes dessinées sur la scène
     static QList<Segment> extractSegments(QGraphicsScene *scene);
-
-    //! Construit (heuristiquement) un chemin eulérien et renvoie la liste des points.
-    static QVector<QPoint> buildEulerPath(const QList<Segment> &segs);
 };
+
+

@@ -73,6 +73,8 @@ public slots:
     void resetAllShapeColors();
     QList<QPoint> getBlackPixels();
     void resetCutMarkers();
+    void setDecoupeEnCours(bool running);
+    void addCutMarker(QGraphicsItem* item);
 
     // <<< AJOUT : setter taille en mm
     void setSheetSizeMm(const QSizeF& mm);
