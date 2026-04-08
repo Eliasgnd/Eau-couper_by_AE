@@ -26,7 +26,26 @@ QStringList CustomEditorViewModel::getAllShapeNames() const
 void CustomEditorViewModel::saveShape(const QList<QPolygonF> &shapes,
                                       const QString &name)
 {
-    m_inventoryVm.addCustomShape(shapes, name);
+    // (Optionnel) Vérification métier : le nom existe-t-il ?
+    if (shapeNameExists(name)) {
+        // Gérer l'erreur si nécessaire, par exemple émettre un signal d'erreur
+        // return;
+    }
+
+    // --- Étape de simplification (Ramer-Douglas-Peucker via Qt) ---
+    QList<QPolygonF> optimizedShapes;
+    for (const QPolygonF &poly : shapes) {
+        QPainterPath path;
+        path.addPolygon(poly);
+
+        // simplified() fusionne, nettoie les anomalies et allège la géométrie
+        QPainterPath cleanPath = path.simplified();
+
+        optimizedShapes.append(cleanPath.toFillPolygon());
+    }
+
+    // CORRECTION : Appel de addCustomShape (et non saveCustomShape)
+    m_inventoryVm.addCustomShape(optimizedShapes, name);
     emit shapeSaved();
 }
 
@@ -48,6 +67,10 @@ void CustomEditorViewModel::importLogo(const QString &filePath,
 void CustomEditorViewModel::importImageColor(const QString &filePath,
                                              QSizeF drawAreaSize)
 {
+    // CORRECTION : Accès aux paramètres via la méthode publique params()
+    m_imageImporter.params().epsilon_percent = 0.001; // permet de changer la qualité de l'image importer
+    m_imageImporter.params().final_simplify = true;
+
     QPainterPath edge;
     if (!m_imageImporter.loadAndProcess(filePath, edge)) {
         emit importFailed(tr("Contour introuvable."));

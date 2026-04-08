@@ -578,7 +578,17 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         m_eraserTool->eraseAlong(m_drawingState->lastEraserPos, logical);
         m_drawingState->lastEraserPos = logical;
     } else if (getDrawMode() == DrawMode::Freehand) {
-        m_drawingState->strokePoints.append(logical);
+        // AJOUT : Filtrage de distance (debounce spatial)
+        const qreal MIN_DISTANCE = 3.0; // Ignore les mouvements de moins de 3 pixels
+
+        if (m_drawingState->strokePoints.isEmpty()) {
+            m_drawingState->strokePoints.append(logical);
+        } else {
+            QPointF lastPoint = m_drawingState->strokePoints.last();
+            if (QLineF(lastPoint, logical).length() >= MIN_DISTANCE) {
+                m_drawingState->strokePoints.append(logical);
+            }
+        }
     }
     update();
 }
