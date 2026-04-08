@@ -88,11 +88,6 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     graphicsView->setBackgroundBrush(Qt::white);
     scene->setBackgroundBrush(Qt::white);
 
-    // Dessine la bordure du plateau pour visualiser la limite
-    // Utilise une bordure blanche plus visible et place-la au-dessus des formes
-    m_sheetBorder = scene->addRect(scene->sceneRect(),
-                                   QPen(Qt::white, 2), QBrush(Qt::NoBrush));
-    m_sheetBorder->setZValue(1000);
     graphicsView->setRenderHint(QPainter::Antialiasing, true);
     graphicsView->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
 
@@ -602,7 +597,7 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
     scene->clear();
     scene->clearSelection();
 
-    const QRectF placementBounds = scene->sceneRect().adjusted(0.5, 0.5, -0.5, -0.5);
+    const QRectF placementBounds = scene->sceneRect().adjusted(-1.0, -1.0, 1.0, 1.0);
     int acceptedCount = 0;
     for (const QPainterPath &path : placedPaths) {
         if (!placementBounds.contains(path.boundingRect()))
@@ -617,11 +612,6 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
         item->setSelected(false);
         ++acceptedCount;
     }
-
-    // Restaurer le cadre du plateau (supprimé par scene->clear())
-    m_sheetBorder = scene->addRect(scene->sceneRect(),
-                                   QPen(Qt::white, 2), QBrush(Qt::NoBrush));
-    m_sheetBorder->setZValue(1000);
 
     emit shapesPlacedCount(acceptedCount);
     emit optimizationStateChanged(optimized);

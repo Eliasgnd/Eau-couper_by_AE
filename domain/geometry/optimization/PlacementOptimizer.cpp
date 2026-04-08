@@ -166,7 +166,7 @@ Paths64 calculateNFP(const Paths64 &stationary, const Paths64 &orbiting, double 
 
     if (margin != 0.0 && std::abs(margin) > 0.001)
         totalNfp = InflatePaths(totalNfp, margin * CLIPPER_SCALE,
-                                JoinType::Round, EndType::Polygon);
+                                JoinType::Miter, EndType::Polygon);
 
     // PAS de SimplifyPaths ici — ça détruirait les creux du NFP concave
 
@@ -573,10 +573,6 @@ PlacementResult PlacementOptimizer::run(
 
                 if (!zone.empty()) {
                     zone = Difference(zone, tNfp, FillRule::NonZero);
-                    // Simplification de la zone pour éviter une explosion de la complexité
-                    if (zone.size() > 8 || (!zone.empty() && zone[0].size() > 100)) {
-                        zone = SimplifyPaths(zone, ZONE_SIMPLIFY_EPSILON);
-                    }
                 }
             }
             res.piecesPlaced += winner.shape.pieceCount;
