@@ -55,6 +55,21 @@ void CustomEditorViewModel::importImageColor(const QString &filePath,
     }
 
     QList<QPainterPath> subpaths = scaledAndCentered(edge, drawAreaSize);
+    // Les contours issus d'image couleur sont souvent ouverts (détection de bords).
+    // En les fermant ici, on obtient des polygones exploitables pour la visualisation
+    // ET l'optimisation de placement (comportement identique aux formes dessinées).
+    for (QPainterPath &subpath : subpaths) {
+        if (subpath.elementCount() < 3)
+            continue;
+
+        const QPainterPath::Element first = subpath.elementAt(0);
+        const QPainterPath::Element last = subpath.elementAt(subpath.elementCount() - 1);
+        if (!qFuzzyCompare(first.x + 1.0, last.x + 1.0) ||
+            !qFuzzyCompare(first.y + 1.0, last.y + 1.0)) {
+            subpath.closeSubpath();
+        }
+    }
+
     emit subpathsReady(subpaths);
 }
 
