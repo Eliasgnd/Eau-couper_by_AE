@@ -27,7 +27,7 @@ const double CLIPPER_SCALE         = 1000.0;
 const double DECIMATION_TOLERANCE  = 0.5;
 const double DECIMATION_MARGIN     = -0.05;
 const double ZONE_SIMPLIFY_EPSILON = 0.005 * CLIPPER_SCALE;
-const int    MAX_POLY_POINTS       = 250;
+const int    MAX_POLY_POINTS       = 100;
 
 inline uint64_t dictKey(int a, int b) {
     return (static_cast<uint64_t>(static_cast<uint32_t>(a)) << 32) |
@@ -233,19 +233,36 @@ OrientedShape createOptimalSuperBloc(const QPainterPath &base, const QList<int> 
         double       bestArea  = std::numeric_limits<double>::max();
         QPainterPath bestPathB;
 
-        // Tester tous les points du NFP → position qui minimise la surface totale
+        double bestDx = 0.0;
+        double bestDy = 0.0;
+        bool found = false;
+
         for (const Path64 &poly : nfp) {
             for (const Point64 &pt : poly) {
                 double dx = static_cast<double>(pt.x) / CLIPPER_SCALE;
                 double dy = static_cast<double>(pt.y) / CLIPPER_SCALE;
-                QRectF cb   = boundsA.united(boundsB.translated(dx, dy));
-                double area = cb.width() * cb.height();
+
+                // Calcul manuel pur (ultra-rapide)
+                double minX = std::min(boundsA.left(), boundsB.left() + dx);
+                double minY = std::min(boundsA.top(), boundsB.top() + dy);
+                double maxX = std::max(boundsA.right(), boundsB.right() + dx);
+                double maxY = std::max(boundsA.bottom(), boundsB.bottom() + dy);
+
+                double area = (maxX - minX) * (maxY - minY);
+
                 if (area < bestArea) {
                     bestArea = area;
-                    QTransform t; t.translate(dx, dy);
-                    bestPathB = t.map(pathB);
+                    bestDx = dx;
+                    bestDy = dy;
+                    found = true;
                 }
             }
+        }
+
+        // On génère la forme Qt complexe uniquement pour le GAGNANT
+        if (found) {
+            QTransform t; t.translate(bestDx, bestDy);
+            bestPathB = t.map(pathB);
         }
 
         // Fallback si NFP vide
@@ -410,7 +427,7 @@ PlacementResult PlacementOptimizer::run(
             return {job.idA, job.idB, calculateNFP(job.pathsA, job.pathsB, job.margin)};
         };
 
-        int threadCount = qMin(QThreadPool::globalInstance()->maxThreadCount(), 4);
+        int threadCount = QThreadPool::globalInstance()->maxThreadCount();
         QThreadPool::globalInstance()->setMaxThreadCount(threadCount);
         QList<NfpResult> nfpResults = QtConcurrent::blockingMapped(jobs, std::function<NfpResult(const NfpJob&)>(computeNfp));
         QThreadPool::globalInstance()->setMaxThreadCount(QThread::idealThreadCount());
@@ -470,23 +487,27 @@ PlacementResult PlacementOptimizer::run(
 
     // ── PHASE 3 : LE MOTEUR D'EXÉCUTION ──
     auto executeScenario = [&](const ScenarioConfig &config) -> ScenarioResult {
-        QString sName = config.toString(); // Nom du scenario pour le debug
-        // qDebug() << "[EXEC] Démarrage :" << sName; // (Dé-commente si tu veux voir le début exact)
+        QString sName = config.toString();
 
         ScenarioResult res;
         auto localZones = initialZones;
 
-        QList<OrientedShape> mySingles, mySupers;
-        for (const auto &s : globalCache.singleShapes) if (config.allowedAngles.contains(s.angle)) mySingles << s;
+        // OPTI 2 : On fait des copies modifiables pour pouvoir supprimer les formes pleines
+        QList<OrientedShape> activeSingles, activeSupers;
+        for (const auto &s : globalCache.singleShapes) if (config.allowedAngles.contains(s.angle)) activeSingles << s;
         if (config.useSuperBlocs) {
-            for (const auto &s : globalCache.superShapes) if (config.allowedAngles.contains(s.angle)) mySupers << s;
+            for (const auto &s : globalCache.superShapes) if (config.allowedAngles.contains(s.angle)) activeSupers << s;
         }
 
         struct PlacementCandidate {
             bool found = false;
             double x = 0, y = 0, score = std::numeric_limits<double>::max();
-            OrientedShape shape;
+            const OrientedShape* shape = nullptr;
         };
+
+        // OPTI 1 : Stockage temporaire abstrait avec POINTEUR (Zéro copie !)
+        struct PlacedItem { const OrientedShape* shape; double x, y; };
+        QList<PlacedItem> placedHistory;
 
         QRectF globalBoundingBox;
 
@@ -494,52 +515,51 @@ PlacementResult PlacementOptimizer::run(
             if (onProgress) {
                 QMutexLocker locker(&progressMutex);
                 if (!onProgress(res.piecesPlaced, params.shapeCount)) {
-                    qDebug() << "[EXEC]" << sName << "-> ANNULATION par l'utilisateur !";
                     res.cancelled = true;
                     break;
                 }
             }
 
-            auto findBest = [&](const QList<OrientedShape> &shapes) -> PlacementCandidate {
+            auto findBest = [&](QList<OrientedShape> &shapes) -> PlacementCandidate {
                 PlacementCandidate best;
-                for (const OrientedShape &shape : shapes) {
+                for (int i = 0; i < shapes.size(); ) {
+                    const OrientedShape &shape = shapes[i];
                     const Paths64 &zone = localZones[shape.id];
-                    if (zone.empty()) continue;
+
+                    if (zone.empty()) {
+                        shapes.removeAt(i);
+                        continue;
+                    }
 
                     for (const Path64 &path : zone) {
-                        size_t n = path.size();
-                        for (size_t i = 0; i < n; ++i) {
-                            // Tester le sommet ET le milieu du segment suivant
-                            QList<Point64> pts = {
-                                path[i],
-                                Point64((path[i].x + path[(i+1)%n].x) / 2,
-                                        (path[i].y + path[(i+1)%n].y) / 2)
-                            };
+                        for (const Point64 &pt : path) {
+                            double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
+                            double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
 
-                            for (const Point64 &pt : pts) {
-                                double px = static_cast<double>(pt.x) / CLIPPER_SCALE;
-                                double py = static_cast<double>(pt.y) / CLIPPER_SCALE;
-                                double score = config.gravityLeftTop
-                                                   ? ((px * 1000.0) + py)
-                                                   : ((py * 1000.0) + px);
-                                if (score < best.score) {
-                                    best.score = score; best.x = px; best.y = py;
-                                    best.shape = shape; best.found = true;
-                                }
+                            double score = config.gravityLeftTop ? ((px * 1000.0) + py) : ((py * 1000.0) + px);
+
+                            if (score < best.score) {
+                                best.score = score;
+                                best.x = px;
+                                best.y = py;
+                                best.shape = &shape; // On sauvegarde l'adresse
+                                best.found = true;
                             }
                         }
                     }
+                    ++i;
                 }
                 return best;
             };
 
-            PlacementCandidate bestSuper = findBest(mySupers);
-            PlacementCandidate bestSingle = findBest(mySingles);
+            PlacementCandidate bestSuper = findBest(activeSupers);
+            PlacementCandidate bestSingle = findBest(activeSingles);
             PlacementCandidate winner;
 
             if (bestSuper.found && bestSingle.found) {
-                double tolerance = config.gravityLeftTop ? (bestSingle.shape.bounds.width() * 0.6)
-                                                         : (bestSingle.shape.bounds.height() * 0.6);
+                // 👇 On utilise -> car shape est un pointeur
+                double tolerance = config.gravityLeftTop ? (bestSingle.shape->bounds.width() * 0.6)
+                                                         : (bestSingle.shape->bounds.height() * 0.6);
                 double valSuper  = config.gravityLeftTop ? bestSuper.x : bestSuper.y;
                 double valSingle = config.gravityLeftTop ? bestSingle.x : bestSingle.y;
 
@@ -549,33 +569,48 @@ PlacementResult PlacementOptimizer::run(
             else if (bestSuper.found) winner = bestSuper;
             else if (bestSingle.found) winner = bestSingle;
             else {
-                // IMPORTANT : Si aucun placement trouvé, c'est qu'il n'y a plus de place !
                 qDebug() << "[EXEC]" << sName << "-> PLUS DE PLACE. Pièces placées :" << res.piecesPlaced << "/" << params.shapeCount;
                 break;
             }
 
-            // Enregistrement du gagnant
-            for (const QPainterPath &p : winner.shape.originalPaths) {
-                QPainterPath placed = p.translated(winner.x, winner.y);
-                res.placedPaths << placed;
-                globalBoundingBox = globalBoundingBox.united(placed.boundingRect());
-            }
+            // OPTI 1 : On enregistre juste le pointeur et les datas
+            placedHistory.append({winner.shape, winner.x, winner.y});
 
-            // qDebug() << "[EXEC]" << sName << "-> Placement forme ID" << winner.shape.id << "en (" << winner.x << "," << winner.y << ") Score:" << winner.score;
+            // 👇 On utilise -> pour accéder à bounds
+            QRectF translatedBounds = winner.shape->bounds.translated(winner.x, winner.y);
+            globalBoundingBox = globalBoundingBox.united(translatedBounds);
 
-            // Mise à jour des zones libres (Soustraction des NFP traduits)
-            for (const OrientedShape &shape : globalCache.allShapes) {
-                auto it = globalCache.dictionary.find(dictKey(winner.shape.id, shape.id));
-                if (it == globalCache.dictionary.end()) continue;
+            // OPTI 3 : Mise à jour des zones libres
+            auto updateZonesForShapes = [&](const QList<OrientedShape> &shapesList) {
+                for (const OrientedShape &shape : shapesList) {
+                    Paths64 &zone = localZones[shape.id];
+                    if (zone.empty()) continue;
 
-                Paths64 tNfp = translateClipper(it->second, winner.x, winner.y);
-                Paths64 &zone = localZones[shape.id];
+                    // 👇 On utilise -> pour accéder à l'id du gagnant
+                    auto it = globalCache.dictionary.find(dictKey(winner.shape->id, shape.id));
+                    if (it == globalCache.dictionary.end()) continue;
 
-                if (!zone.empty()) {
+                    Paths64 tNfp = translateClipper(it->second, winner.x, winner.y);
                     zone = Difference(zone, tNfp, FillRule::NonZero);
+
+                    // OPTIONNEL : Nettoyage Clipper si ça ralentit sur la fin
+                    // if (!zone.empty()) zone = CleanPaths(zone, 1.5);
                 }
+            };
+
+            updateZonesForShapes(activeSingles);
+            updateZonesForShapes(activeSupers);
+
+            // 👇 On utilise -> pour accéder au pieceCount
+            res.piecesPlaced += winner.shape->pieceCount;
+        }
+
+        // OPTI 1 (Suite) : Construction des QPainterPath à la toute fin
+        for (const PlacedItem &item : placedHistory) {
+            // 👇 On utilise -> car item.shape est un pointeur
+            for (const QPainterPath &p : item.shape->originalPaths) {
+                res.placedPaths << p.translated(item.x, item.y);
             }
-            res.piecesPlaced += winner.shape.pieceCount;
         }
 
         res.boundingArea = globalBoundingBox.width() * globalBoundingBox.height();
