@@ -86,7 +86,6 @@ void MainWindow::setupUI()
     setupMenus();
     applyStyleSheets();
 
-    // Synchroniser l'état initial des sliders avec les spinboxes
     ui->Slider_longueur->setValue(ui->Longueur->value());
     ui->Slider_largeur->setValue(ui->Largeur->value());
 
@@ -98,10 +97,30 @@ void MainWindow::setupUI()
     ui->progressBar->setValue(0);
     ui->progressBar->setFormat("%p%");
     ui->progressBar->setAlignment(Qt::AlignCenter);
+
+    // --- MODIFICATIONS ICI ---
+    // 1. On force la barre de progression à garder sa hauteur même invisible
+    QSizePolicy spProgress = ui->progressBar->sizePolicy();
+    spProgress.setRetainSizeWhenHidden(true);
+    ui->progressBar->setSizePolicy(spProgress);
     ui->progressBar->setVisible(false);
 
-    if (ui->timeRemainingLabel)
+    if (ui->timeRemainingLabel) {
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
+        // 2. On fixe une largeur minimale pour le texte afin que le passage
+        // de "0s" à "14m 30s" ne redimensionne pas le layout
+        ui->timeRemainingLabel->setMinimumWidth(280);
+        ui->timeRemainingLabel->setAlignment(Qt::AlignCenter);
+    }
+
+    // 3. Verrouillage ultime : si vos boutons de contrôle sont dans un conteneur
+    // vertical principal (souvent appelé leftMenu ou sideBar), on fixe sa taille.
+    // Vérifiez le nom exact dans votre fichier .ui. Par exemple, si la colonne
+    // de gauche s'appelle widgetControls :
+    if (QWidget* leftMenu = this->findChild<QWidget*>("widgetControls")) {
+        // Ou utilisez le nom exact du QWidget qui contient vos sliders/boutons
+        leftMenu->setFixedWidth(350); // Largeur fixe stricte
+    }
 }
 
 void MainWindow::setupWorkspaceLayout()

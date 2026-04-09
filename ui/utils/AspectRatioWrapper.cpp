@@ -1,13 +1,14 @@
 #include "AspectRatioWrapper.h"
 #include <QSizePolicy>
 #include <cmath>
+#include <QDebug>
 
 AspectRatioWrapper::AspectRatioWrapper(QWidget* child, double aspect, QWidget* parent)
     : QWidget(parent), m_child(nullptr), m_aspect(aspect)
 {
     setContentsMargins(0,0,0,0);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    if (child) setChild(child); // important : passe par setChild()
+    if (child) setChild(child);
 }
 
 void AspectRatioWrapper::setAspect(double a) {
@@ -20,7 +21,7 @@ void AspectRatioWrapper::setChild(QWidget* child)
 {
     if (m_child == child) return;
     if (m_child) {
-        m_child->setParent(nullptr); // on le détache proprement
+        m_child->setParent(nullptr);
         m_child->hide();
     }
     m_child = child;
@@ -29,7 +30,7 @@ void AspectRatioWrapper::setChild(QWidget* child)
         m_child->setContentsMargins(0,0,0,0);
         m_child->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_child->show();
-        applyLetterbox(); // place immédiatement selon le ratio
+        applyLetterbox();
     }
 }
 
@@ -38,21 +39,15 @@ int AspectRatioWrapper::heightForWidth(int w) const {
     return int(std::round(w / m_aspect));
 }
 
+// --- MODIFICATIONS ICI ---
 QSize AspectRatioWrapper::sizeHint() const {
-    if (m_aspect > 0.0) {
-        int w = 900;
-        return { w, heightForWidth(w) };
-    }
-    return QWidget::sizeHint();
+    return QSize(800, 600); // Ne plus calculer de ratio ici
 }
 
 QSize AspectRatioWrapper::minimumSizeHint() const {
-    if (m_aspect > 0.0) {
-        int w = 300;
-        return { w, heightForWidth(w) };
-    }
-    return QWidget::minimumSizeHint();
+    return QSize(100, 100); // Empêche l'agrandissement forcé de la fenêtre globale
 }
+// -------------------------
 
 void AspectRatioWrapper::resizeEvent(QResizeEvent*) {
     applyLetterbox();
@@ -81,8 +76,4 @@ void AspectRatioWrapper::applyLetterbox()
         int x = (W - w) / 2;
         m_child->setGeometry(x, 0, w, H);
     }
-    qDebug() << "[ARW] wrapper=" << this->geometry()
-             << "child=" << (m_child ? m_child->geometry() : QRect())
-             << "aspect=" << m_aspect;
-
 }

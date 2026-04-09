@@ -78,8 +78,10 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
 void ShapeVisualization::resizeEvent(QResizeEvent* e) {
     QWidget::resizeEvent(e);
     if (graphicsView && scene) {
-        graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
-        qDebug() << "[FV] w,h =" << width() << height();
+        // Exécuter le fitInView en différé évite les distorsions si le layout est en train d'être calculé
+        QTimer::singleShot(0, this, [this]() {
+            graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        });
     }
 }
 
@@ -652,16 +654,14 @@ int ShapeVisualization::heightForWidth(int w) const
 
 QSize ShapeVisualization::sizeHint() const
 {
-    // Taille "agréable" par défaut tout en respectant le ratio
-    int w = 900;
-    return { w, heightForWidth(w) };
+    return QSize(800, 600); // Ne plus calculer de ratio ici
 }
 
 QSize ShapeVisualization::minimumSizeHint() const
 {
-    int w = 300;
-    return { w, heightForWidth(w) };
+    return QSize(100, 100); // Empêche l'agrandissement forcé de la fenêtre globale
 }
+
 
 QList<QPolygonF> ShapeVisualization::currentCustomShapes() const
 {
@@ -703,17 +703,18 @@ void ShapeVisualization::setSheetSizeMm(const QSizeF& mm)
     m_sheetMm = mm;
     m_aspect  = m_sheetMm.width() / m_sheetMm.height();
 
-    // La scène est exprimée en mm : on la recale sur le nouveau plateau
     scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
     if (m_sheetBorder)
         m_sheetBorder->setRect(scene->sceneRect());
 
-    // Prévenir le layout que nos contraintes ont changé
     updateGeometry();
 
-    // Recentrer / rescaler le contenu
-    if (graphicsView && scene)
-        graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    if (graphicsView && scene) {
+        // Exécuter le fitInView en différé ici aussi
+        QTimer::singleShot(0, this, [this]() {
+            graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        });
+    }
 
     emit sheetSizeMmChanged(m_sheetMm);
 }
