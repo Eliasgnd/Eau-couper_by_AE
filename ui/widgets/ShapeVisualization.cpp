@@ -1,10 +1,10 @@
 #include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
-#include "shapevisualization/GeometryTransformHelper.h"
-#include "shapevisualization/GridPlacementService.h"
+#include "GeometryTransformHelper.h"
+#include "GridPlacementService.h"
 #include "ImageExporter.h"
-#include "shapevisualization/LayoutManager.h"
-#include "shapevisualization/ShapeValidationService.h"
+#include "LayoutManager.h"
+#include "ShapeValidationService.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
 #include <QVBoxLayout>

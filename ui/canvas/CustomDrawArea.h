@@ -8,8 +8,8 @@
 #include <vector>
 #include <memory>
 
-#include "drawing/DrawModeManager.h"
-#include "drawing/DrawingState.h"
+#include "DrawModeManager.h"
+#include "DrawingState.h"
 #include "domain/shapes/ShapeManager.h"
 
 class QMouseEvent;

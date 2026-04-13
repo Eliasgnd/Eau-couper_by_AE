@@ -9,7 +9,7 @@
 #include <QGraphicsRectItem>
 #include <QSizeF>                // <<< AJOUT
 #include "Inventory.h"
-#include "shapevisualization/ShapeVisualizationViewModel.h"
+#include "ShapeVisualizationViewModel.h"
 
 // -----------------------------------------------------------------------------
 // Classe permettant la visualisation des formes dessinées

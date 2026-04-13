@@ -1,15 +1,15 @@
 #include "CustomDrawArea.h"
 
-#include "drawing/DrawModeManager.h"
-#include "drawing/DrawingState.h"
-#include "drawing/EraserTool.h"
-#include "drawing/HistoryManager.h"
-#include "drawing/MouseInteractionHandler.h"
+#include "DrawModeManager.h"
+#include "DrawingState.h"
+#include "EraserTool.h"
+#include "HistoryManager.h"
+#include "MouseInteractionHandler.h"
 #include "domain/shapes/PathGenerator.h"
 #include "domain/shapes/ShapeManager.h"
-#include "drawing/ShapeRenderer.h"
-#include "drawing/TextTool.h"
-#include "drawing/ViewTransformer.h"
+#include "ShapeRenderer.h"
+#include "TextTool.h"
+#include "ViewTransformer.h"
 
 #include <QInputDialog>
 #include <QLineF>
