@@ -29,11 +29,10 @@ win32 {
 }
 
 # ==============================================================================
-# ==== EXTERNAL LIBRARIES (Clipper1, Clipper2, Boost, libnest2d, NLopt) ====
+# ==== EXTERNAL LIBRARIES (Clipper2) ====
 # ==============================================================================
 
-
-# --- 2. Clipper 2 (Pour tes propres fonctions de marge) ---
+# --- Clipper 2 ---
 CLIPPER2_PATH = $$PWD/external/clipper2
 INCLUDEPATH += $$CLIPPER2_PATH/include
 SOURCES += \
@@ -54,13 +53,14 @@ INCLUDEPATH += \
     . \
     ui/mainwindow \
     ui/widgets \
-    ui/widgets/shapevisualization \
+    ui/canvas \
+    ui/canvas/tools \
     ui/dialogs \
     ui/utils \
-    application \
+    application/coordinators \
+    application/services \
+    application/factory \
     viewmodels \
-    drawing \
-    drawing/tools \
     domain \
     domain/shapes \
     domain/geometry \
@@ -78,31 +78,31 @@ INCLUDEPATH += \
 HEADERS += \
     ui/mainwindow/MainWindow.h \
     ui/mainwindow/MainWindowMenuBuilder.h \
-    application/MainWindowCoordinator.h \
-    application/ShapeCoordinator.h \
-    application/CuttingService.h \
-    application/ImageImportService.h \
-    application/AppFactory.h \
-    application/DialogManager.h \
-    application/AIDialogCoordinator.h \
-    application/InventoryController.h \
-    application/InventoryStorage.h \
-    application/InventoryQueryService.h \
-    application/InventoryMutationService.h \
-    application/InventorySortFilterService.h \
-    application/InventoryViewState.h \
+    application/coordinators/MainWindowCoordinator.h \
+    application/coordinators/ShapeCoordinator.h \
+    application/coordinators/DialogManager.h \
+    application/coordinators/AIDialogCoordinator.h \
+    application/services/CuttingService.h \
+    application/services/ImageImportService.h \
+    application/services/InventoryController.h \
+    application/services/InventoryStorage.h \
+    application/services/InventoryQueryService.h \
+    application/services/InventoryMutationService.h \
+    application/services/InventorySortFilterService.h \
+    application/services/InventoryViewState.h \
+    application/services/GridPlacementService.h \
+    application/services/LayoutManager.h \
+    application/services/GeometryTransformHelper.h \
+    application/services/ShapeValidationService.h \
+    application/factory/AppFactory.h \
     viewmodels/WorkspaceViewModel.h \
     viewmodels/MainWindowViewModel.h \
     viewmodels/InventoryViewModel.h \
     viewmodels/CustomEditorViewModel.h \
     viewmodels/WifiConfigViewModel.h \
     viewmodels/FolderViewModel.h \
+    viewmodels/ShapeVisualizationViewModel.h \
     ui/widgets/ShapeVisualization.h \
-    ui/widgets/shapevisualization/ShapeVisualizationViewModel.h \
-    ui/widgets/shapevisualization/LayoutManager.h \
-    ui/widgets/shapevisualization/GridPlacementService.h \
-    ui/widgets/shapevisualization/GeometryTransformHelper.h \
-    ui/widgets/shapevisualization/ShapeValidationService.h \
     ui/widgets/FolderWidget.h \
     ui/widgets/KeyboardDialog.h \
     ui/widgets/NumericKeyboardDialog.h \
@@ -121,20 +121,20 @@ HEADERS += \
     ui/utils/UiScale.h \
     ui/utils/ImageExporter.h \
     ui/utils/GestureHandler.h \
-    drawing/CustomDrawArea.h \
-    drawing/DrawingState.h \
-    drawing/ShapeRenderer.h \
-    drawing/DrawModeManager.h \
-    drawing/HistoryManager.h \
-    drawing/MouseInteractionHandler.h \
-    drawing/ViewTransformer.h \
-    drawing/EraserTool.h \
-    drawing/TextTool.h \
-    drawing/tools/pathplanner.h \
-    drawing/tools/TouchGestureReader.h \
-    drawing/tools/ImportedImageGeometryHelper.h \
-    drawing/tools/qrcodegen.hpp \
-    drawing/tools/ImagePaths.h \
+    ui/canvas/CustomDrawArea.h \
+    ui/canvas/DrawingState.h \
+    ui/canvas/ShapeRenderer.h \
+    ui/canvas/DrawModeManager.h \
+    ui/canvas/HistoryManager.h \
+    ui/canvas/MouseInteractionHandler.h \
+    ui/canvas/ViewTransformer.h \
+    ui/canvas/EraserTool.h \
+    ui/canvas/TextTool.h \
+    ui/canvas/tools/pathplanner.h \
+    ui/canvas/tools/TouchGestureReader.h \
+    ui/canvas/tools/ImportedImageGeometryHelper.h \
+    ui/canvas/tools/qrcodegen.hpp \
+    ui/canvas/tools/ImagePaths.h \
     domain/shapes/ShapeModel.h \
     domain/shapes/BaseShapeNamingService.h \
     domain/shapes/ShapeManager.h \
@@ -164,24 +164,29 @@ SOURCES += \
     main.cpp \
     ui/mainwindow/MainWindow.cpp \
     ui/mainwindow/MainWindowMenuBuilder.cpp \
-    application/AppFactory.cpp \
-    application/MainWindowCoordinator.cpp \
-    application/ShapeCoordinator.cpp \
-    application/CuttingService.cpp \
-    application/ImageImportService.cpp \
-    application/DialogManager.cpp \
-    application/AIDialogCoordinator.cpp \
-    application/InventoryController.cpp \
-    application/InventoryStorage.cpp \
-    application/InventoryQueryService.cpp \
-    application/InventoryMutationService.cpp \
-    application/InventorySortFilterService.cpp \
+    application/factory/AppFactory.cpp \
+    application/coordinators/MainWindowCoordinator.cpp \
+    application/coordinators/ShapeCoordinator.cpp \
+    application/coordinators/DialogManager.cpp \
+    application/coordinators/AIDialogCoordinator.cpp \
+    application/services/CuttingService.cpp \
+    application/services/ImageImportService.cpp \
+    application/services/InventoryController.cpp \
+    application/services/InventoryStorage.cpp \
+    application/services/InventoryQueryService.cpp \
+    application/services/InventoryMutationService.cpp \
+    application/services/InventorySortFilterService.cpp \
+    application/services/GridPlacementService.cpp \
+    application/services/LayoutManager.cpp \
+    application/services/GeometryTransformHelper.cpp \
+    application/services/ShapeValidationService.cpp \
+    viewmodels/InventoryViewModel.cpp \
+    viewmodels/CustomEditorViewModel.cpp \
+    viewmodels/WifiConfigViewModel.cpp \
+    viewmodels/FolderViewModel.cpp \
+    viewmodels/MainWindowViewModel.cpp \
+    viewmodels/ShapeVisualizationViewModel.cpp \
     ui/widgets/ShapeVisualization.cpp \
-    ui/widgets/shapevisualization/ShapeVisualizationViewModel.cpp \
-    ui/widgets/shapevisualization/LayoutManager.cpp \
-    ui/widgets/shapevisualization/GridPlacementService.cpp \
-    ui/widgets/shapevisualization/GeometryTransformHelper.cpp \
-    ui/widgets/shapevisualization/ShapeValidationService.cpp \
     ui/widgets/FolderWidget.cpp \
     ui/widgets/KeyboardDialog.cpp \
     ui/widgets/NumericKeyboardDialog.cpp \
@@ -198,18 +203,18 @@ SOURCES += \
     ui/utils/AspectRatioWrapper.cpp \
     ui/utils/ImageExporter.cpp \
     ui/utils/GestureHandler.cpp \
-    drawing/CustomDrawArea.cpp \
-    drawing/ShapeRenderer.cpp \
-    drawing/DrawModeManager.cpp \
-    drawing/HistoryManager.cpp \
-    drawing/MouseInteractionHandler.cpp \
-    drawing/ViewTransformer.cpp \
-    drawing/EraserTool.cpp \
-    drawing/TextTool.cpp \
-    drawing/tools/pathplanner.cpp \
-    drawing/tools/TouchGestureReader.cpp \
-    drawing/tools/ImportedImageGeometryHelper.cpp \
-    drawing/tools/qrcodegen.cpp \
+    ui/canvas/CustomDrawArea.cpp \
+    ui/canvas/ShapeRenderer.cpp \
+    ui/canvas/DrawModeManager.cpp \
+    ui/canvas/HistoryManager.cpp \
+    ui/canvas/MouseInteractionHandler.cpp \
+    ui/canvas/ViewTransformer.cpp \
+    ui/canvas/EraserTool.cpp \
+    ui/canvas/TextTool.cpp \
+    ui/canvas/tools/pathplanner.cpp \
+    ui/canvas/tools/TouchGestureReader.cpp \
+    ui/canvas/tools/ImportedImageGeometryHelper.cpp \
+    ui/canvas/tools/qrcodegen.cpp \
     domain/shapes/ShapeModel.cpp \
     domain/shapes/BaseShapeNamingService.cpp \
     domain/shapes/ShapeManager.cpp \
@@ -217,11 +222,6 @@ SOURCES += \
     domain/geometry/GeometryUtils.cpp \
     domain/inventory/InventoryModel.cpp \
     infrastructure/persistence/InventoryRepository.cpp \
-    viewmodels/InventoryViewModel.cpp \
-    viewmodels/CustomEditorViewModel.cpp \
-    viewmodels/WifiConfigViewModel.cpp \
-    viewmodels/FolderViewModel.cpp \
-    viewmodels/MainWindowViewModel.cpp \
     infrastructure/hardware/MotorControl.cpp \
     infrastructure/hardware/Raspberry.cpp \
     infrastructure/hardware/TrajetMotor.cpp \
