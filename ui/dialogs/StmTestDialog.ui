@@ -238,7 +238,7 @@
          <property name="currentIndex">
           <number>0</number>
          </property>
-         <!-- ---- Onglet ASCII ---- -->
+         <!-- Onglet ASCII -->
          <widget class="QWidget" name="tabAscii">
           <attribute name="title">
            <string>ASCII (X Y Z F)</string>
@@ -309,7 +309,7 @@
            </item>
           </layout>
          </widget>
-         <!-- ---- Onglet Binaire ---- -->
+         <!-- Onglet Binaire -->
          <widget class="QWidget" name="tabBinaire">
           <attribute name="title">
            <string>Binaire (Segment)</string>
