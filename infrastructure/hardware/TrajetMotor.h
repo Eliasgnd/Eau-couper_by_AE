@@ -4,6 +4,8 @@
 #include <QWidget>
 #include <QQueue>
 #include <QPointF>
+#include <atomic>
+#include <QThread>
 class MainWindow;
 class MachineViewModel;
 #include "MotorControl.h"
@@ -49,9 +51,10 @@ class TrajetMotor : public QWidget {
     Q_OBJECT
 public:
     explicit TrajetMotor(ShapeVisualization* visu, QWidget* parent = nullptr);
+    ~TrajetMotor() override;
 
     void executeTrajet();
-    bool isPaused() const { return m_running && m_paused; }
+    bool isPaused() const { return m_running && m_paused.load(); }
     void setMainWindow(MainWindow* mainWindow);
     void setMachineViewModel(MachineViewModel* vm);
 
@@ -59,34 +62,41 @@ public slots:
     void pause();
     void resume();
     void stopCut();
-    void moveHeadProgressive(const QPoint& start, const QPoint& end,QGraphicsEllipseItem* head, bool cut);
 
 signals:
     void decoupeProgress(int remaining, int total);
 
 private:
+    // Exécution réelle — tourne dans le thread worker (jamais sur le thread UI)
+    void doExecuteTrajet();
+
+    // Animation pas-à-pas — appelée depuis le thread worker uniquement.
+    // Les opérations scène sont dispatché sur le thread principal via invokeMethod.
+    void moveHeadProgressive(const QPoint& start, const QPoint& end,
+                             QGraphicsEllipseItem* head, bool cut);
+
+    void sendMoveToStm(const QPoint& from, const QPoint& to,
+                       uint8_t flags, bool isLast, double mmPerPxScale);
+
     ShapeVisualization* m_visu{};
     MotorControl        m_motor;
     CommandBuffer       m_commandBuffer;
 
-    bool m_paused        = false;
-    bool m_stopRequested = false;
-    bool m_running       = false;
+    // Flags partagés entre thread principal et worker → atomiques
+    std::atomic<bool> m_paused{false};
+    std::atomic<bool> m_stopRequested{false};
+    std::atomic<bool> m_interrupted{false};
+
+    // Uniquement modifié sur le thread principal
+    bool m_running = false;
 
     MainWindow*       m_mainWindow   = nullptr;
-    MachineViewModel* m_machine      = nullptr;  // injection optionnelle
+    MachineViewModel* m_machine      = nullptr;
 
-    int  m_totalSteps     = 0;
+    int  m_totalSteps      = 0;
     int  m_progressCounter = 0;
-    bool m_interrupted    = false;
 
-    // Envoie un mouvement vers le STM (en segments relatifs, avec découpage si trop long).
-    // from/to en pixels, mmPerPx = facteur de conversion.
-    // flags : FLAG_VALVE_ON/OFF selon le type de mouvement.
-    // isLast : ajoute FLAG_END_SEQ sur le dernier sous-segment.
-    void sendMoveToStm(const QPoint& from, const QPoint& to,
-                       uint8_t flags, bool isLast, double mmPerPxScale);
-
+    QThread *m_workerThread = nullptr;
 };
 
 #endif // TRAJETMOTOR_H
