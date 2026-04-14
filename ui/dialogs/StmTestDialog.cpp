@@ -247,7 +247,11 @@ void StmTestDialog::onConnectionChanged(bool connected)
             "padding: 4px 10px; font-weight: bold; } QPushButton:hover { background-color: #e74c3c; }");
         ui->connexionStatusLabel->setText(tr("● Connecté"));
         ui->connexionStatusLabel->setStyleSheet("color: #a6e3a1; font-weight: bold;");
-        appendLog(tr("✓ Connexion établie."), "#a6e3a1");
+        // stateChanged n'est pas émis si l'état était déjà DISCONNECTED —
+        // on met à jour le label manuellement pour indiquer l'attente du STM
+        ui->stateLabel->setText(tr("EN ATTENTE STM..."));
+        ui->stateLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #f9e2af;");
+        appendLog(tr("✓ Connexion UART établie — en attente du STM32..."), "#a6e3a1");
     } else {
         ui->connectBtn->setText(tr("Connecter"));
         ui->connectBtn->setStyleSheet(
@@ -377,13 +381,13 @@ void StmTestDialog::appendLog(const QString &text, const QString &color)
 
 void StmTestDialog::updateButtonStates(MachineState state, bool connected)
 {
-    const bool ready   = connected && (state == MachineState::READY);
-    const bool moving  = connected && (state == MachineState::MOVING);
-    const bool alarm   = connected && (state == MachineState::EMERGENCY
-                                       || state == MachineState::ALARM);
+    const bool ready  = connected && (state == MachineState::READY);
+    const bool moving = connected && (state == MachineState::MOVING);
 
-    ui->homeBtn->setEnabled(ready);
-    ui->rearmBtn->setEnabled(alarm);
+    // En mode test, HOME et RÉARMER sont accessibles dès la connexion
+    // (le STM refusera la commande si l'état n'est pas compatible)
+    ui->homeBtn->setEnabled(connected);
+    ui->rearmBtn->setEnabled(connected);
     ui->resetPosBtn->setEnabled(connected);
     ui->valveOnBtn->setEnabled(connected);
     ui->valveOffBtn->setEnabled(connected);
