@@ -90,7 +90,7 @@ private:
 
     // --- Encodage trame binaire ---
     static QByteArray encodeFrame(const StmSegment& seg);
-    static uint8_t    calcCrc8(const QByteArray& frame);
+    static uint8_t    calcChecksum(const QByteArray& frame);
 
     // --- Parsing ASCII ---
     void processLine(const QByteArray& line);

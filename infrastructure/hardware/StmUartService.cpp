@@ -79,38 +79,38 @@ QByteArray StmUartService::encodeFrame(const StmSegment& seg)
 
     frame[0] = static_cast<char>(STM_SYNC_BYTE);
 
-    // dx — int16 big-endian
-    frame[1] = static_cast<char>((seg.dx >> 8) & 0xFF);
-    frame[2] = static_cast<char>( seg.dx       & 0xFF);
+    // dx — int16 LITTLE-endian (poids faible en premier)
+    frame[1] = static_cast<char>( seg.dx        & 0xFF);
+    frame[2] = static_cast<char>((seg.dx >> 8)  & 0xFF);
 
-    // dy — int16 big-endian
-    frame[3] = static_cast<char>((seg.dy >> 8) & 0xFF);
-    frame[4] = static_cast<char>( seg.dy       & 0xFF);
+    // dy — int16 LITTLE-endian
+    frame[3] = static_cast<char>( seg.dy        & 0xFF);
+    frame[4] = static_cast<char>((seg.dy >> 8)  & 0xFF);
 
-    // dz — int16 big-endian
-    frame[5] = static_cast<char>((seg.dz >> 8) & 0xFF);
-    frame[6] = static_cast<char>( seg.dz       & 0xFF);
+    // dz — int16 LITTLE-endian
+    frame[5] = static_cast<char>( seg.dz        & 0xFF);
+    frame[6] = static_cast<char>((seg.dz >> 8)  & 0xFF);
 
-    // v_max — uint16 big-endian
-    frame[7] = static_cast<char>((seg.v_max >> 8) & 0xFF);
-    frame[8] = static_cast<char>( seg.v_max       & 0xFF);
+    // v_max — uint16 LITTLE-endian
+    frame[7] = static_cast<char>( seg.v_max       & 0xFF);
+    frame[8] = static_cast<char>((seg.v_max >> 8) & 0xFF);
 
     // flags
     frame[9] = static_cast<char>(seg.flags);
 
-    // CRC8 = XOR de tous les octets précédents
-    frame[10] = static_cast<char>(calcCrc8(frame));
+    // Checksum XOR de tous les octets précédents
+    frame[10] = static_cast<char>(calcChecksum(frame));
 
     return frame;
 }
 
-uint8_t StmUartService::calcCrc8(const QByteArray& frame)
+uint8_t StmUartService::calcChecksum(const QByteArray& frame)
 {
-    uint8_t crc = 0;
-    // XOR des octets [0..9] (le CRC se trouve en [10])
+    uint8_t checksum = 0;
+    // XOR des octets [0..9] (le checksum se trouve en [10])
     for (int i = 0; i < 10 && i < frame.size(); ++i)
-        crc ^= static_cast<uint8_t>(frame[i]);
-    return crc;
+        checksum ^= static_cast<uint8_t>(frame[i]);
+    return checksum;
 }
 
 void StmUartService::sendSegment(const StmSegment& seg)
