@@ -40,7 +40,8 @@
       "Read(//usr/lib/qt6/**)",
       "Read(//usr/**)",
       "Read(//tmp/**)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(ls /usr/bin/qmake*)"
     ]
   },
   "enableAllProjectMcpServers": true,

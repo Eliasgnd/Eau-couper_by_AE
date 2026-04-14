@@ -251,6 +251,8 @@ void MainWindow::setupViewConnections()
     connect(ui->Play,  &QPushButton::clicked, this, &MainWindow::requestStartCut);
     connect(ui->Pause, &QPushButton::clicked, this, &MainWindow::requestPauseCut);
     connect(ui->Stop,  &QPushButton::clicked, this, &MainWindow::requestStopCut);
+    connect(ui->SpinBox_vitesse, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::requestSpeedChange);
 
     // ---- AI ----
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::generateAiRequested);
@@ -310,9 +312,10 @@ void MainWindow::setupViewConnections()
     });
 
     // ---- Connexion des signaux de découpe et de langue ----
-    connect(this, &MainWindow::requestStartCut, m_coordinator, &MainWindowCoordinator::startCutting);
-    connect(this, &MainWindow::requestPauseCut, m_coordinator, &MainWindowCoordinator::pauseCutting);
-    connect(this, &MainWindow::requestStopCut,  m_coordinator, &MainWindowCoordinator::stopCutting);
+    connect(this, &MainWindow::requestStartCut,    m_coordinator, &MainWindowCoordinator::startCutting);
+    connect(this, &MainWindow::requestPauseCut,    m_coordinator, &MainWindowCoordinator::pauseCutting);
+    connect(this, &MainWindow::requestStopCut,     m_coordinator, &MainWindowCoordinator::stopCutting);
+    connect(this, &MainWindow::requestSpeedChange, m_coordinator, &MainWindowCoordinator::setCuttingSpeed);
     connect(this, &MainWindow::requestLanguageChange, m_coordinator, &MainWindowCoordinator::changeLanguage);
 }
 

@@ -4,6 +4,7 @@
 #include "MachineViewModel.h"
 
 #include <QCoreApplication>
+#include <QtGlobal>
 
 CuttingService::CuttingService(QObject *parent)
     : QObject(parent)
@@ -38,6 +39,13 @@ void CuttingService::initialize(ShapeVisualization *visualization, QWidget *dial
     }
 }
 
+void CuttingService::setCuttingSpeed(int speed_mm_s)
+{
+    m_cuttingSpeed = qBound(1, speed_mm_s, 200);
+    if (m_trajetMotor)
+        m_trajetMotor->setVcut(static_cast<double>(m_cuttingSpeed));
+}
+
 void CuttingService::startCutting()
 {
     if (!m_trajetMotor || !m_visualization) return;
@@ -47,6 +55,9 @@ void CuttingService::startCutting()
         m_pauseRequested = false;
         return;
     }
+
+    // Appliquer la vitesse configurée avant de lancer la découpe
+    m_trajetMotor->setVcut(static_cast<double>(m_cuttingSpeed));
 
     m_visualization->resetAllShapeColors();
     if (!m_visualization->validateShapes()) {

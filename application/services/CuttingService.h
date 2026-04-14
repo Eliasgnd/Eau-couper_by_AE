@@ -28,6 +28,7 @@ public slots:
     void startCutting();
     void pauseCutting();
     void stopCutting();
+    void setCuttingSpeed(int speed_mm_s);  // Vitesse de coupe en mm/s (1–200)
 
 signals:
     void progressUpdated(int percent, const QString &timeRemaining);
@@ -40,4 +41,5 @@ private:
     TrajetMotor        *m_trajetMotor      = nullptr;
     MachineViewModel   *m_machineViewModel = nullptr;
     bool                m_pauseRequested   = false;
+    int                 m_cuttingSpeed     = 10;   // mm/s, par défaut (= MotorControl::Vcut)
 };

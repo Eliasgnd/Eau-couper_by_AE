@@ -290,6 +290,11 @@ void TrajetMotor::stopCut()
 void TrajetMotor::setMainWindow(MainWindow* mainWindow) { m_mainWindow = mainWindow; }
 void TrajetMotor::setMachineViewModel(MachineViewModel* vm) { m_machine = vm; }
 
+void TrajetMotor::setVcut(double vitesse_mm_s)
+{
+    m_motor.Vcut = qBound(1.0, vitesse_mm_s, 200.0);
+}
+
 // -----------------------------------------------------------------------------
 // moveHeadProgressive — appelée depuis le thread worker.
 // Les ajouts dans la scène sont dispatched sur le thread principal (BlockingQueued),
@@ -302,8 +307,10 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,
     if (dist <= 0) return;
 
     const QPen   pen(cut ? Qt::red : Qt::blue, 1.5);
-    const double stepPx  = cut ? 3.0 : 12.0;
-    const int    delayMs = cut ? 2 : 4;
+    const double stepPx   = cut ? 3.0 : 12.0;
+    // Délai synchronisé avec la vitesse réelle : t = d/v × 1000 ms
+    const double vitesse  = cut ? m_motor.Vcut : m_motor.Vtrav;
+    const int    delayMs  = qBound(1, (int)(stepPx * mmPerPx * 1000.0 / vitesse), 500);
     QPointF      currentPos = start;
 
     for (double d = stepPx; d < dist; d += stepPx) {

@@ -68,6 +68,7 @@ public slots:
     void startCutting();
     void stopCutting();
     void pauseCutting();
+    void setCuttingSpeed(int speed_mm_s);  // Transmis depuis SpinBox_vitesse → CuttingService
 
     // --- Logique IA ---
     void requestAiGeneration(const QString& prompt,

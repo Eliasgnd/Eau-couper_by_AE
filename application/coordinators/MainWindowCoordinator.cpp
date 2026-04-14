@@ -111,6 +111,7 @@ bool MainWindowCoordinator::ensureServicesInitialized() {
 void MainWindowCoordinator::startCutting()  { m_cuttingService->startCutting();  }
 void MainWindowCoordinator::stopCutting()   { m_cuttingService->stopCutting();   }
 void MainWindowCoordinator::pauseCutting()  { m_cuttingService->pauseCutting();  }
+void MainWindowCoordinator::setCuttingSpeed(int s) { m_cuttingService->setCuttingSpeed(s); }
 
 void MainWindowCoordinator::onStmTestRequested()
 {
@@ -244,6 +245,7 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(view, &MainWindow::requestStartCut,    this, &MainWindowCoordinator::startCutting);
     connect(view, &MainWindow::requestPauseCut,    this, &MainWindowCoordinator::pauseCutting);
     connect(view, &MainWindow::requestStopCut,     this, &MainWindowCoordinator::stopCutting);
+    connect(view, &MainWindow::requestSpeedChange, this, &MainWindowCoordinator::setCuttingSpeed);
 
     // --- Test Moteurs STM ---
     connect(view, &MainWindow::stmTestRequested,   this, &MainWindowCoordinator::onStmTestRequested);

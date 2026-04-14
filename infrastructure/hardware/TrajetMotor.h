@@ -57,6 +57,7 @@ public:
     bool isPaused() const { return m_running && m_paused.load(); }
     void setMainWindow(MainWindow* mainWindow);
     void setMachineViewModel(MachineViewModel* vm);
+    void setVcut(double vitesse_mm_s);   // Vitesse de coupe (mm/s) — lue à chaque segment
 
 public slots:
     void pause();
