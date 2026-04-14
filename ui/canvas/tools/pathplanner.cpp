@@ -11,7 +11,6 @@
 
 // ---------------------------------------------------------------------------
 //  Clé unique pour identifier un segment indépendamment de son sens
-//  (Sert à éviter de découper deux fois la même ligne)
 // ---------------------------------------------------------------------------
 static inline quint64 keySeg(const QPoint &p1, const QPoint &p2)
 {
@@ -21,12 +20,17 @@ static inline quint64 keySeg(const QPoint &p1, const QPoint &p2)
 }
 
 // ---------------------------------------------------------------------------
-//  Extraction des segments individuels (gère les bords et les trous internes)
+//  Extraction des segments individuels avec filtrage des micro-segments
 // ---------------------------------------------------------------------------
 QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
 {
     QList<Segment> out;
     QSet<quint64>  seen;
+
+    // SEUIL DE FILTRAGE (en pixels/mm).
+    // Si la distance entre deux points est inférieure à ce seuil, on ignore le point.
+    // Réglez entre 0.5 (plus précis) et 2.0 (plus fluide/rapide).
+    const double MIN_DIST = 1.0;
 
     for (QGraphicsItem *it : sc->items()) {
         // Ignorer les éléments invisibles ou les curseurs d'UI (zValue >= 50)
@@ -47,25 +51,38 @@ QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
 
         path = it->mapToScene(path);
 
-        // toSubpathPolygons isole strictement l'extérieur et les trous internes !
         QList<QPolygonF> subPolygons = path.toSubpathPolygons();
 
         for (const QPolygonF& poly : subPolygons) {
             const int n = poly.size();
             if (n < 2) continue;
 
-            // On s'arrête à n-1 car toSubpathPolygons boucle déjà le dernier point sur le premier
-            for (int i = 0; i < n - 1; ++i) {
-                const QPoint p1 = poly[i].toPoint();
-                const QPoint p2 = poly[i + 1].toPoint();
+            // On garde le premier point en mémoire
+            QPointF lastSavedPoint = poly[0];
 
-                if (p1 == p2) continue;
+            for (int i = 1; i < n; ++i) {
+                QPointF currentPoint = poly[i];
+                bool isLastPoint = (i == n - 1); // Toujours envoyer le dernier point pour fermer la forme
 
-                const quint64 k = keySeg(p1, p2);
-                if (seen.contains(k)) continue;  // Ce segment a déjà été ajouté
+                // FILTRAGE : Si le point actuel est trop proche du dernier point sauvegardé,
+                // on l'ignore (sauf si c'est le point final de la boucle).
+                if (!isLastPoint && QLineF(lastSavedPoint, currentPoint).length() < MIN_DIST) {
+                    continue;
+                }
 
-                seen.insert(k);
-                out.append({ p1, p2, QLineF(p1, p2).length() });
+                const QPoint p1 = lastSavedPoint.toPoint();
+                const QPoint p2 = currentPoint.toPoint();
+
+                if (p1 != p2) {
+                    const quint64 k = keySeg(p1, p2);
+                    if (!seen.contains(k)) {
+                        seen.insert(k);
+                        out.append({ p1, p2, QLineF(p1, p2).length() });
+                    }
+                }
+
+                // On met à jour le dernier point sauvegardé
+                lastSavedPoint = currentPoint;
             }
         }
     }
