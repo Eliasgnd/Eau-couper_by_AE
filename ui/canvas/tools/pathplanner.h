@@ -1,22 +1,18 @@
 #pragma once
 
 #include <QGraphicsScene>
-#include <QPoint>
 #include <QList>
+#include <QPolygonF>
 
-/** Représentation d'un segment de coupe simple. */
-struct Segment
-{
-    QPoint a, b;   //!< Extrémités en pixels
-    double len;    //!< Longueur en pixels
+// NOUVELLE STRUCTURE : Un chemin complet
+struct ContinuousCut {
+    QPolygonF points; // La liste des points qui forment la ligne continue
+    bool isClosed;    // Vrai si le premier et le dernier point se touchent
 };
 
-/** Outil d’extraction de parcours pour la découpe. */
 class PathPlanner
 {
 public:
-    //! Extrait les contours et les trous des formes dessinées sur la scène
-    static QList<Segment> extractSegments(QGraphicsScene *scene);
+    // NOUVELLE FONCTION (remplace extractSegments)
+    static QList<ContinuousCut> extractContinuousPaths(QGraphicsScene *sc);
 };
-
-

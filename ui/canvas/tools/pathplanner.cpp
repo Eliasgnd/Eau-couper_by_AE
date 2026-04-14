@@ -6,34 +6,17 @@
 #include <QGraphicsEllipseItem>
 #include <QGraphicsPolygonItem>
 #include <QPainterPath>
-#include <QSet>
 #include <QLineF>
 
-// ---------------------------------------------------------------------------
-//  Clé unique pour identifier un segment indépendamment de son sens
-// ---------------------------------------------------------------------------
-static inline quint64 keySeg(const QPoint &p1, const QPoint &p2)
+QList<ContinuousCut> PathPlanner::extractContinuousPaths(QGraphicsScene *sc)
 {
-    quint32 k1 = (quint32(p1.x()) << 16) | quint16(p1.y());
-    quint32 k2 = (quint32(p2.x()) << 16) | quint16(p2.y());
-    return (quint64)qMin(k1, k2) << 32 | qMax(k1, k2);
-}
+    QList<ContinuousCut> outPaths;
 
-// ---------------------------------------------------------------------------
-//  Extraction des segments individuels avec filtrage des micro-segments
-// ---------------------------------------------------------------------------
-QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
-{
-    QList<Segment> out;
-    QSet<quint64>  seen;
-
-    // SEUIL DE FILTRAGE (en pixels/mm).
-    // Si la distance entre deux points est inférieure à ce seuil, on ignore le point.
-    // Réglez entre 0.5 (plus précis) et 2.0 (plus fluide/rapide).
+    // SEUIL DE FILTRAGE : 1.0 = on ignore les points espacés de moins de 1 pixel/mm
+    // C'est ce qui règle le bug de lenteur/saccade du STM32 !
     const double MIN_DIST = 1.0;
 
     for (QGraphicsItem *it : sc->items()) {
-        // Ignorer les éléments invisibles ou les curseurs d'UI (zValue >= 50)
         if (!it->isVisible() || it->zValue() >= 50) continue;
 
         QPainterPath path;
@@ -47,44 +30,35 @@ QList<Segment> PathPlanner::extractSegments(QGraphicsScene *sc)
         else if (auto *polyItem = qgraphicsitem_cast<QGraphicsPolygonItem *>(it))
             path.addPolygon(polyItem->polygon());
         else
-            continue; // Forme non prise en charge
+            continue;
 
         path = it->mapToScene(path);
 
-        QList<QPolygonF> subPolygons = path.toSubpathPolygons();
+        for (const QPolygonF& poly : path.toSubpathPolygons()) {
+            if (poly.size() < 2) continue;
 
-        for (const QPolygonF& poly : subPolygons) {
-            const int n = poly.size();
-            if (n < 2) continue;
+            ContinuousCut cut;
+            cut.isClosed = (poly.first() == poly.last());
+            cut.points.append(poly[0]);
 
-            // On garde le premier point en mémoire
-            QPointF lastSavedPoint = poly[0];
+            for (int i = 1; i < poly.size(); ++i) {
+                bool isLastPoint = (i == poly.size() - 1);
 
-            for (int i = 1; i < n; ++i) {
-                QPointF currentPoint = poly[i];
-                bool isLastPoint = (i == n - 1); // Toujours envoyer le dernier point pour fermer la forme
-
-                // FILTRAGE : Si le point actuel est trop proche du dernier point sauvegardé,
-                // on l'ignore (sauf si c'est le point final de la boucle).
-                if (!isLastPoint && QLineF(lastSavedPoint, currentPoint).length() < MIN_DIST) {
+                // On ignore les points trop proches (sauf si c'est la fin du tracé)
+                if (!isLastPoint && QLineF(cut.points.last(), poly[i]).length() < MIN_DIST) {
                     continue;
                 }
 
-                const QPoint p1 = lastSavedPoint.toPoint();
-                const QPoint p2 = currentPoint.toPoint();
-
-                if (p1 != p2) {
-                    const quint64 k = keySeg(p1, p2);
-                    if (!seen.contains(k)) {
-                        seen.insert(k);
-                        out.append({ p1, p2, QLineF(p1, p2).length() });
-                    }
+                // On évite les doublons parfaits
+                if (poly[i] != cut.points.last()) {
+                    cut.points.append(poly[i]);
                 }
+            }
 
-                // On met à jour le dernier point sauvegardé
-                lastSavedPoint = currentPoint;
+            if (cut.points.size() > 1) {
+                outPaths.append(cut);
             }
         }
     }
-    return out;
+    return outPaths;
 }

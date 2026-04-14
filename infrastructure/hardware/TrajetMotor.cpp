@@ -27,46 +27,43 @@ static inline quint64 keySeg(const QPoint &p1, const QPoint &p2) {
 // -----------------------------------------------------------------------------
 // Estimation du nombre total de pas (incluant le départ et retour à l'origine)
 // -----------------------------------------------------------------------------
-static int estimateTotalSteps(const QList<Segment>& segs, const QPoint& homePos)
+// -----------------------------------------------------------------------------
+// Estimation du nombre total de pas (version Chemins Continus)
+// -----------------------------------------------------------------------------
+static int estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos)
 {
-    if (segs.isEmpty()) return 0;
+    if (cuts.isEmpty()) return 0;
 
     const auto stepLen = [](const QPoint& a, const QPoint& b) {
         return std::max(std::abs(a.x() - b.x()), std::abs(a.y() - b.y()));
     };
 
-    QSet<quint64> done;
-    QPoint cur = homePos;
     int steps = 0;
+    QPoint cur = homePos;
+    QList<ContinuousCut> remaining = cuts; // Copie de travail
 
-    while (done.size() < segs.size()) {
-        int bestIdx = -1;
+    while (!remaining.isEmpty()) {
+        int bestIdx = 0;
         double bestDi = std::numeric_limits<double>::max();
-        bool reverseCut = false;
 
-        for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(keySeg(segs[i].a, segs[i].b))) continue;
-
-            double d_a = QLineF(cur, segs[i].a).length();
-            double d_b = QLineF(cur, segs[i].b).length();
-
-            if (d_a < bestDi) { bestDi = d_a; bestIdx = i; reverseCut = false; }
-            if (d_b < bestDi) { bestDi = d_b; bestIdx = i; reverseCut = true; }
+        // Trouver la forme la plus proche
+        for (int i = 0; i < remaining.size(); ++i) {
+            double d = QLineF(cur, remaining[i].points.first()).length();
+            if (d < bestDi) { bestDi = d; bestIdx = i; }
         }
-        if (bestIdx < 0) break;
-        const auto s = segs[bestIdx];
 
-        QPoint realStart = reverseCut ? s.b : s.a;
-        QPoint realEnd   = reverseCut ? s.a : s.b;
+        ContinuousCut cut = remaining.takeAt(bestIdx);
 
-        steps += stepLen(cur, realStart);
-        steps += stepLen(realStart, realEnd);
+        // Pas pour le trajet rapide jusqu'au début de la forme
+        steps += stepLen(cur, cut.points.first().toPoint());
 
-        done.insert(keySeg(s.a, s.b));
-        cur = realEnd;
+        // Pas pour la coupe (tout le long du chemin)
+        for (int i = 1; i < cut.points.size(); ++i) {
+            steps += stepLen(cut.points[i-1].toPoint(), cut.points[i].toPoint());
+        }
+        cur = cut.points.last().toPoint();
     }
-    steps += stepLen(cur, homePos);
-
+    steps += stepLen(cur, homePos); // Retour à la maison
     return steps;
 }
 
@@ -131,13 +128,13 @@ void TrajetMotor::doExecuteTrajet()
     commandBuffer << "G21 ; Unites en millimètres";
     commandBuffer << "M5  ; Assure que le jet d'eau est coupé au depart";
 
-    // 1) Extraction des segments (accès scène → thread principal)
-    QList<Segment> segs;
-    QMetaObject::invokeMethod(this, [this, &segs]() {
-        segs = PathPlanner::extractSegments(m_visu->getScene());
+    // 1) Extraction des CHEMINS CONTINUS
+    QList<ContinuousCut> cuts;
+    QMetaObject::invokeMethod(this, [this, &cuts]() {
+        cuts = PathPlanner::extractContinuousPaths(m_visu->getScene());
     }, Qt::BlockingQueuedConnection);
 
-    if (segs.isEmpty()) {
+    if (cuts.isEmpty()) {
         QMetaObject::invokeMethod(this, [this]() {
             m_visu->setDecoupeEnCours(false);
             m_running = false;
@@ -146,11 +143,11 @@ void TrajetMotor::doExecuteTrajet()
     }
 
     // 2) Estimation progression
-    m_totalSteps      = estimateTotalSteps(segs, homePos);
+    m_totalSteps      = estimateTotalSteps(cuts, homePos);
     m_progressCounter = 0;
     emit decoupeProgress(m_totalSteps, m_totalSteps);
 
-    // 3) Créer le curseur vert sur le thread principal
+    // 3) Créer le curseur vert (inchangé...)
     QGraphicsEllipseItem *head = nullptr;
     QMetaObject::invokeMethod(this, [this, &head, homePos]() {
         head = new QGraphicsEllipseItem(-3, -3, 6, 6);
@@ -161,12 +158,8 @@ void TrajetMotor::doExecuteTrajet()
         head->setPos(homePos.x() - 3, homePos.y() - 3);
     }, Qt::BlockingQueuedConnection);
 
-    // Helper : envoie un segment STM avec retry si buffer plein.
-    // S'exécute dans le thread worker — n'endort JAMAIS le thread principal.
-    // Timeout de sécurité : 5 s par segment (machine stoppée ou déconnectée).
-    auto sendWithRetry = [this](const QPoint& from, const QPoint& to,
-                                uint8_t flags, bool isLast)
-    {
+    // Fonction d'envoi (inchangée...)
+    auto sendWithRetry = [this](const QPoint& from, const QPoint& to, uint8_t flags, bool isLast) {
         constexpr int MAX_WAIT_MS = 5000;
         int waited = 0;
         while (!m_stopRequested) {
@@ -175,7 +168,6 @@ void TrajetMotor::doExecuteTrajet()
                 ok = sendMoveToStm(from, to, flags, isLast, mmPerPx);
             }, Qt::BlockingQueuedConnection);
             if (ok || m_stopRequested) return;
-            // Buffer plein : le worker dort, le thread UI reste réactif
             QThread::msleep(10);
             waited += 10;
             if (waited >= MAX_WAIT_MS) {
@@ -185,67 +177,63 @@ void TrajetMotor::doExecuteTrajet()
         }
     };
 
-    // 4) Boucle principale (worker thread — chemin critique sans bloc UI)
-    QSet<quint64> done;
+    // 4) NOUVELLE BOUCLE PRINCIPALE (Chemins Continus)
     QPoint cur = homePos;
 
-    while (done.size() < segs.size()) {
-
+    while (!cuts.isEmpty()) {
         if (m_stopRequested) break;
-        while (m_paused && !m_stopRequested)
-            QThread::msleep(30);
+        while (m_paused && !m_stopRequested) QThread::msleep(30);
         if (m_stopRequested) break;
 
-        int    bestIdx    = -1;
-        double bestDi     = std::numeric_limits<double>::max();
-        bool   reverseCut = false;
-
-        for (int i = 0; i < segs.size(); ++i) {
-            if (done.contains(keySeg(segs[i].a, segs[i].b))) continue;
-
-            const double d_a = QLineF(cur, segs[i].a).length();
-            const double d_b = QLineF(cur, segs[i].b).length();
-
-            if (d_a < bestDi) { bestDi = d_a; bestIdx = i; reverseCut = false; }
-            if (d_b < bestDi) { bestDi = d_b; bestIdx = i; reverseCut = true; }
+        // Trouver la forme dont le départ est le plus proche
+        int bestIdx = 0;
+        double bestDi = std::numeric_limits<double>::max();
+        for (int i = 0; i < cuts.size(); ++i) {
+            double d = QLineF(cur, cuts[i].points.first()).length();
+            if (d < bestDi) { bestDi = d; bestIdx = i; }
         }
-        if (bestIdx < 0) break;
 
-        const auto   s         = segs[bestIdx];
-        const QPoint realStart = reverseCut ? s.b : s.a;
-        const QPoint realEnd   = reverseCut ? s.a : s.b;
+        ContinuousCut currentCut = cuts.takeAt(bestIdx);
+        QPoint realStart = currentCut.points.first().toPoint();
 
-        // ---------- Déplacement rapide (bleu) ----------
+        // ---------- Déplacement rapide vers la forme (Bleu) ----------
         if (cur != realStart) {
             m_motor.stopJet();
             commandBuffer << "M5 ; Arrêt du jet";
-            commandBuffer << QString("G0 X%1 Y%2").arg(realStart.x() * mmPerPx)
-                                                   .arg(realStart.y() * mmPerPx);
+            commandBuffer << QString("G0 X%1 Y%2").arg(realStart.x() * mmPerPx).arg(realStart.y() * mmPerPx);
+
             moveHeadProgressive(cur, realStart, head, false);
             m_motor.moveRapid(realStart.x() * mmPerPx, realStart.y() * mmPerPx);
             sendWithRetry(cur, realStart, FLAG_VALVE_OFF, false);
         }
         cur = realStart;
 
-        // ---------- Coupe (rouge) ----------
+        // ---------- Coupe de la forme entière (Rouge) ----------
         m_motor.startJet();
         commandBuffer << "M3 ; Démarrage du jet";
-        commandBuffer << QString("G1 X%1 Y%2 F1000").arg(realEnd.x() * mmPerPx)
-                                                     .arg(realEnd.y() * mmPerPx);
-        moveHeadProgressive(realStart, realEnd, head, true);
-        m_motor.moveCut(realEnd.x() * mmPerPx, realEnd.y() * mmPerPx);
-        sendWithRetry(realStart, realEnd, FLAG_VALVE_ON, false);
 
-        done.insert(keySeg(s.a, s.b));
-        cur = realEnd;
+        // On parcourt tous les points de la forme SANS ÉTEINDRE LA VANNE
+        for (int i = 1; i < currentCut.points.size(); ++i) {
+            if (m_stopRequested) break;
+            while (m_paused && !m_stopRequested) QThread::msleep(30);
+
+            QPoint realEnd = currentCut.points[i].toPoint();
+
+            commandBuffer << QString("G1 X%1 Y%2 F1000").arg(realEnd.x() * mmPerPx).arg(realEnd.y() * mmPerPx);
+            moveHeadProgressive(cur, realEnd, head, true);
+            m_motor.moveCut(realEnd.x() * mmPerPx, realEnd.y() * mmPerPx);
+
+            // Le flag FLAG_VALVE_ON est maintenu sur chaque mini-segment de cette ligne continue !
+            sendWithRetry(cur, realEnd, FLAG_VALVE_ON, false);
+            cur = realEnd;
+        }
     }
 
     // --- Retour au point de départ (HOME) ---
     if (!m_stopRequested && cur != homePos) {
-        m_motor.stopJet();
+        m_motor.stopJet(); // On est sûr de couper le jet
         commandBuffer << "M5 ; Arrêt du jet";
-        commandBuffer << QString("G0 X%1 Y%2 ; Retour Origine").arg(homePos.x() * mmPerPx)
-                                                                .arg(homePos.y() * mmPerPx);
+        commandBuffer << QString("G0 X%1 Y%2 ; Retour Origine").arg(homePos.x() * mmPerPx).arg(homePos.y() * mmPerPx);
         moveHeadProgressive(cur, homePos, head, false);
         m_motor.moveRapid(homePos.x() * mmPerPx, homePos.y() * mmPerPx);
         sendWithRetry(cur, homePos, FLAG_VALVE_OFF, true);
