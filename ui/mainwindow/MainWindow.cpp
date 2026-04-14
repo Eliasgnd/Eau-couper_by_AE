@@ -76,6 +76,11 @@ MainWindow::MainWindow(QWidget *parent,
 
     // Le Coordinator connecte ses propres réactions aux signaux de la View
     m_coordinator->connectToView(this);
+
+    // Fix Cause A : SpinBox_vitesse::valueChanged(10) a été émis pendant setupUi()
+    // AVANT que setupViewConnections() établisse la connexion → valeur initiale jamais
+    // propagée vers CuttingService. On la force ici, après toutes les connexions.
+    emit requestSpeedChange(ui->SpinBox_vitesse->value());
 }
 
 // --- UI Setup ---

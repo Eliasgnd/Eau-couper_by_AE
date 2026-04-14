@@ -57,6 +57,7 @@ void CuttingService::startCutting()
     }
 
     // Appliquer la vitesse configurée avant de lancer la découpe
+    qDebug() << "[CuttingService] Démarrage coupe — Vcut =" << m_cuttingSpeed << "mm/s";
     m_trajetMotor->setVcut(static_cast<double>(m_cuttingSpeed));
 
     m_visualization->resetAllShapeColors();

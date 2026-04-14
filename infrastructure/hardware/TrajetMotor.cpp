@@ -384,6 +384,8 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
 
     const double   vitesse = (flags & FLAG_VALVE_ON) ? m_motor.Vcut : m_motor.Vtrav;
     const uint16_t arr     = speedToArr(vitesse);
+    qDebug() << "[sendMoveToStm]" << (flags & FLAG_VALVE_ON ? "COUPE" : "DÉPLACEMENT")
+             << "— vitesse =" << vitesse << "mm/s, ARR =" << arr;
 
     static constexpr int MAX_STEPS = 30000;
     const int totalAbs = qMax(qAbs(dxSteps), qAbs(dySteps));
