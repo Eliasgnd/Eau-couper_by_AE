@@ -62,6 +62,9 @@ public slots:
     // Confirmation explicite de descente Z (sécurité opérateur)
     void confirmZDescent();
 
+    // Mouvement ASCII debug : X<dx> Y<dy> Z<dz> F<arr>
+    void sendAsciiMove(int dx_steps, int dy_steps, int dz_steps, int arr);
+
 signals:
     void stateChanged(MachineState state);
     void connectionChanged(bool connected);
@@ -72,6 +75,15 @@ signals:
     void doneReceived();
     void homingProgress(const QString& message);
     void errorOccurred(const QString& code);
+
+    // Relais brut UART — chaque ligne reçue du STM (pour logs test)
+    void rxLine(const QString& line);
+
+    // Confirmations reçues du STM
+    void valveOnConfirmed();
+    void valveOffConfirmed();
+    void posResetConfirmed();
+    void homeAckConfirmed();
 
 private slots:
     // Branchés sur StmUartService
@@ -91,6 +103,11 @@ private slots:
     void onStartupBannerReceived();
     void onErrorReceived(const QString& code);
     void onComError(const QString& reason);
+    void onRawLineReceived(const QString& line);
+    void onValveOnConfirmed();
+    void onValveOffConfirmed();
+    void onPosResetConfirmed();
+    void onHomeAckConfirmed();
 
 private:
     void setState(MachineState s);

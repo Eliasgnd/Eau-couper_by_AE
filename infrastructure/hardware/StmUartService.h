@@ -73,6 +73,9 @@ signals:
     void posResetConfirmed();
     void homeAckConfirmed();
 
+    // Relais brut — chaque ligne ASCII reçue du STM (pour logs test)
+    void rawLineReceived(const QString& line);
+
 private slots:
     void onReadyRead();
     void onAckTimeout();

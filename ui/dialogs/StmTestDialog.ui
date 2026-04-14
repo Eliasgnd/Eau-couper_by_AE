@@ -250,6 +250,86 @@
          </layout>
         </widget>
        </item>
+       <!-- Mouvement ASCII debug -->
+       <item>
+        <widget class="QGroupBox" name="grpAsciiMove">
+         <property name="title">
+          <string>Mouvement ASCII (Debug) — X Y Z F</string>
+         </property>
+         <layout class="QFormLayout">
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>dX (mm) :</string>
+            </property>
+           </widget>
+           <widget class="QDoubleSpinBox" name="asciiDxSpin">
+            <property name="minimum"><double>-500.000000</double></property>
+            <property name="maximum"><double>500.000000</double></property>
+            <property name="singleStep"><double>1.000000</double></property>
+            <property name="decimals"><number>2</number></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>dY (mm) :</string>
+            </property>
+           </widget>
+           <widget class="QDoubleSpinBox" name="asciiDySpin">
+            <property name="minimum"><double>-500.000000</double></property>
+            <property name="maximum"><double>500.000000</double></property>
+            <property name="singleStep"><double>1.000000</double></property>
+            <property name="decimals"><number>2</number></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>dZ (mm) :</string>
+            </property>
+           </widget>
+           <widget class="QDoubleSpinBox" name="asciiDzSpin">
+            <property name="minimum"><double>-200.000000</double></property>
+            <property name="maximum"><double>200.000000</double></property>
+            <property name="singleStep"><double>1.000000</double></property>
+            <property name="decimals"><number>2</number></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>Vitesse (mm/s) :</string>
+            </property>
+           </widget>
+           <widget class="QDoubleSpinBox" name="asciiVitesseSpin">
+            <property name="minimum"><double>1.000000</double></property>
+            <property name="maximum"><double>200.000000</double></property>
+            <property name="value"><double>50.000000</double></property>
+            <property name="singleStep"><double>5.000000</double></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string> </string>
+            </property>
+           </widget>
+           <widget class="QPushButton" name="sendAsciiMoveBtn">
+            <property name="text">
+             <string>ENVOYER ASCII</string>
+            </property>
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string>QPushButton { background-color: #6c5ce7; color: white; border-radius: 4px; padding: 8px; font-weight: bold; font-size: 13px; } QPushButton:disabled { background-color: #bdc3c7; } QPushButton:hover { background-color: #a29bfe; }</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
        <!-- Mouvement manuel -->
        <item>
         <widget class="QGroupBox" name="grpMouvement">
@@ -352,6 +432,13 @@
              <widget class="QCheckBox" name="flagValveCheck">
               <property name="text">
                <string>VALVE_ON</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="flagValveOffCheck">
+              <property name="text">
+               <string>VALVE_OFF</string>
               </property>
              </widget>
             </item>

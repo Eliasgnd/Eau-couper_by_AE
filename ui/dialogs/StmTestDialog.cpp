@@ -56,9 +56,10 @@ void StmTestDialog::setupConnections()
     connect(ui->recoverBtn,       &QPushButton::clicked, this, &StmTestDialog::onRecoverClicked);
     connect(ui->goBtn,            &QPushButton::clicked, this, &StmTestDialog::onGoClicked);
     connect(ui->clearRecoveryBtn, &QPushButton::clicked, this, &StmTestDialog::onClearRecoveryClicked);
-    connect(ui->clearLogBtn,      &QPushButton::clicked, this, &StmTestDialog::onClearLogClicked);
-    connect(ui->copyLogBtn,       &QPushButton::clicked, this, &StmTestDialog::onCopyLogClicked);
-    connect(ui->closeBtn,         &QPushButton::clicked, this, &QDialog::close);
+    connect(ui->clearLogBtn,       &QPushButton::clicked, this, &StmTestDialog::onClearLogClicked);
+    connect(ui->copyLogBtn,        &QPushButton::clicked, this, &StmTestDialog::onCopyLogClicked);
+    connect(ui->closeBtn,          &QPushButton::clicked, this, &QDialog::close);
+    connect(ui->sendAsciiMoveBtn,  &QPushButton::clicked, this, &StmTestDialog::onSendAsciiMoveClicked);
 
     // MachineViewModel → slots locaux
     connect(m_vm, &MachineViewModel::stateChanged,
@@ -79,6 +80,10 @@ void StmTestDialog::setupConnections()
             this, &StmTestDialog::onRecoveryAvailable);
     connect(m_vm, &MachineViewModel::doneReceived,
             this, &StmTestDialog::onDoneReceived);
+
+    // Réception brute STM — toutes les lignes ASCII reçues du STM
+    connect(m_vm, &MachineViewModel::rxLine,
+            this, &StmTestDialog::onRxLine);
 }
 
 // ----------------------------------------------------------
@@ -167,8 +172,9 @@ void StmTestDialog::onSendSegmentClicked()
     seg.dz    = static_cast<int16_t>(mmToSteps(ui->dzSpin->value()));
     seg.v_max = speedToArr(ui->vitesseSpin->value());
     seg.flags = 0;
-    if (ui->flagValveCheck->isChecked())  seg.flags |= FLAG_VALVE_ON;
-    if (ui->flagEndSeqCheck->isChecked()) seg.flags |= FLAG_END_SEQ;
+    if (ui->flagValveCheck->isChecked())    seg.flags |= FLAG_VALVE_ON;
+    if (ui->flagValveOffCheck->isChecked()) seg.flags |= FLAG_VALVE_OFF;
+    if (ui->flagEndSeqCheck->isChecked())   seg.flags |= FLAG_END_SEQ;
 
     appendLog(tr("→ TX Segment : dX=%1 dY=%2 dZ=%3 pas | ARR=%4 | flags=0x%5")
               .arg(seg.dx).arg(seg.dy).arg(seg.dz)
@@ -305,6 +311,49 @@ void StmTestDialog::onDoneReceived()
 }
 
 // ----------------------------------------------------------
+//  Mouvement ASCII debug
+// ----------------------------------------------------------
+
+void StmTestDialog::onSendAsciiMoveClicked()
+{
+    const int dx  = mmToSteps(ui->asciiDxSpin->value());
+    const int dy  = mmToSteps(ui->asciiDySpin->value());
+    const int dz  = mmToSteps(ui->asciiDzSpin->value());
+    const int arr = static_cast<int>(speedToArr(ui->asciiVitesseSpin->value()));
+    appendLog(tr("→ TX ASCII : X%1 Y%2 Z%3 F%4").arg(dx).arg(dy).arg(dz).arg(arr), "#a29bfe");
+    m_vm->sendAsciiMove(dx, dy, dz, arr);
+}
+
+// ----------------------------------------------------------
+//  Réception brute STM → log
+// ----------------------------------------------------------
+
+void StmTestDialog::onRxLine(const QString& line)
+{
+    QString color = "#cdd6f4";
+    if (line.startsWith("ACK"))
+        color = "#89dceb";
+    else if (line == QLatin1String("NAK"))
+        color = "#f38ba8";
+    else if (line == QLatin1String("DONE") || line == QLatin1String("READY"))
+        color = "#a6e3a1";
+    else if (line.startsWith("HOMING") || line.endsWith(" OK") || line == QLatin1String("HOMED"))
+        color = "#f9e2af";
+    else if (line.startsWith("EMERGENCY") || line.startsWith("ALM_") || line == QLatin1String("LIM_HIT"))
+        color = "#f38ba8";
+    else if (line.startsWith("ERR:"))
+        color = "#f38ba8";
+    else if (line.startsWith("RECOVERY"))
+        color = "#fab387";
+    else if (line.startsWith("VALVE") || line == QLatin1String("POS_RESET") || line == QLatin1String("ACK:HOME"))
+        color = "#a6e3a1";
+    else if (line.startsWith("=== CNC") || line.startsWith("INFO:"))
+        color = "#cba6f7";
+
+    appendLog(QString::fromLatin1("\u2190 RX : ") + line, color);
+}
+
+// ----------------------------------------------------------
 //  Helpers
 // ----------------------------------------------------------
 
@@ -339,6 +388,7 @@ void StmTestDialog::updateButtonStates(MachineState state, bool connected)
     ui->valveOnBtn->setEnabled(connected);
     ui->valveOffBtn->setEnabled(connected);
     ui->sendSegmentBtn->setEnabled(ready || moving);
+    ui->sendAsciiMoveBtn->setEnabled(ready);
     ui->recoverBtn->setEnabled(ready && m_vm->hasRecovery());
     ui->goBtn->setEnabled(connected && state == MachineState::RECOVERY_WAIT);
     ui->clearRecoveryBtn->setEnabled(connected);

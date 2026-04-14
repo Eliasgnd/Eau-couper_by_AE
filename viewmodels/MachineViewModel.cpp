@@ -43,6 +43,16 @@ MachineViewModel::MachineViewModel(QObject* parent)
             this,   &MachineViewModel::onErrorReceived);
     connect(m_uart, &StmUartService::comError,
             this,   &MachineViewModel::onComError);
+    connect(m_uart, &StmUartService::rawLineReceived,
+            this,   &MachineViewModel::onRawLineReceived);
+    connect(m_uart, &StmUartService::valveOnConfirmed,
+            this,   &MachineViewModel::onValveOnConfirmed);
+    connect(m_uart, &StmUartService::valveOffConfirmed,
+            this,   &MachineViewModel::onValveOffConfirmed);
+    connect(m_uart, &StmUartService::posResetConfirmed,
+            this,   &MachineViewModel::onPosResetConfirmed);
+    connect(m_uart, &StmUartService::homeAckConfirmed,
+            this,   &MachineViewModel::onHomeAckConfirmed);
 }
 
 MachineViewModel::~MachineViewModel() = default;
@@ -312,4 +322,25 @@ void MachineViewModel::onComError(const QString& reason)
 {
     setStatus(tr("Erreur communication : %1").arg(reason));
     emit errorOccurred(reason);
+}
+
+void MachineViewModel::onRawLineReceived(const QString& line)
+{
+    emit rxLine(line);
+}
+
+void MachineViewModel::onValveOnConfirmed()  { emit valveOnConfirmed(); }
+void MachineViewModel::onValveOffConfirmed() { emit valveOffConfirmed(); }
+void MachineViewModel::onPosResetConfirmed() { emit posResetConfirmed(); }
+void MachineViewModel::onHomeAckConfirmed()  { emit homeAckConfirmed(); }
+
+void MachineViewModel::sendAsciiMove(int dx_steps, int dy_steps, int dz_steps, int arr)
+{
+    if (!m_connected || m_state != MachineState::READY) {
+        setStatus(tr("Mouvement ASCII impossible : machine non prête."));
+        return;
+    }
+    const QString cmd = QString("X%1 Y%2 Z%3 F%4")
+        .arg(dx_steps).arg(dy_steps).arg(dz_steps).arg(arr);
+    m_uart->sendAsciiCommand(cmd);
 }

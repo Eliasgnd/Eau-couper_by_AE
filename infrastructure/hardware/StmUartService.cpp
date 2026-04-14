@@ -191,6 +191,7 @@ void StmUartService::onReadyRead()
 
 void StmUartService::processLine(const QByteArray& line)
 {
+    emit rawLineReceived(QString::fromUtf8(line));
     qDebug() << "[STM-UART] RX :" << line;
 
     // --- ACK|buf=<n>|seg=<s> ---
@@ -248,6 +249,10 @@ void StmUartService::processLine(const QByteArray& line)
     }
 
     // --- Homing errors ---
+    if (line == "ERR:HOMING_TIMEOUT") {
+        emit homingError(QStringLiteral("TIMEOUT"));
+        return;
+    }
     if (line.startsWith("ERR:HOMING_")) {
         QString axis = QString::fromUtf8(line.mid(11)); // après "ERR:HOMING_"
         emit homingError(axis);
@@ -298,6 +303,13 @@ void StmUartService::processLine(const QByteArray& line)
     // --- Erreurs STM ---
     if (line.startsWith("ERR:")) {
         emit errorReceived(QString::fromUtf8(line.mid(4)));
+        return;
+    }
+
+    // --- AU au démarrage ---
+    if (line.startsWith("EMERGENCY AT STARTUP")) {
+        emit emergencyTriggered();
+        emit startupBannerReceived();
         return;
     }
 

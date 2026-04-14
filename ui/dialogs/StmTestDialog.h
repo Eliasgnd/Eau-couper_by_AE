@@ -48,6 +48,9 @@ private slots:
     void onClearLogClicked();
     void onCopyLogClicked();
 
+    // --- Bouton mouvement ASCII ---
+    void onSendAsciiMoveClicked();
+
     // --- Réactions MachineViewModel ---
     void onStateChanged(MachineState state);
     void onConnectionChanged(bool connected);
@@ -58,6 +61,9 @@ private slots:
     void onErrorOccurred(const QString &code);
     void onRecoveryAvailable(RecoveryData data);
     void onDoneReceived();
+
+    // --- Réception brute STM (log) ---
+    void onRxLine(const QString &line);
 
 private:
     void setupConnections();
