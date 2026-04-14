@@ -242,10 +242,11 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
             });
 
     // --- Découpe (View → Coordinator) ---
-    connect(view, &MainWindow::requestStartCut,    this, &MainWindowCoordinator::startCutting);
-    connect(view, &MainWindow::requestPauseCut,    this, &MainWindowCoordinator::pauseCutting);
-    connect(view, &MainWindow::requestStopCut,     this, &MainWindowCoordinator::stopCutting);
-    connect(view, &MainWindow::requestSpeedChange, this, &MainWindowCoordinator::setCuttingSpeed);
+    connect(view, &MainWindow::requestStartCut, this, &MainWindowCoordinator::startCutting);
+    connect(view, &MainWindow::requestPauseCut, this, &MainWindowCoordinator::pauseCutting);
+    connect(view, &MainWindow::requestStopCut,  this, &MainWindowCoordinator::stopCutting);
+    // Note : requestSpeedChange → setCuttingSpeed est déjà connecté dans
+    // MainWindow::setupViewConnections() — ne pas dupliquer ici.
 
     // --- Test Moteurs STM ---
     connect(view, &MainWindow::stmTestRequested,   this, &MainWindowCoordinator::onStmTestRequested);

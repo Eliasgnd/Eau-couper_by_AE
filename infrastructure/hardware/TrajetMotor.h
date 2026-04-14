@@ -76,7 +76,7 @@ private:
     void moveHeadProgressive(const QPoint& start, const QPoint& end,
                              QGraphicsEllipseItem* head, bool cut);
 
-    void sendMoveToStm(const QPoint& from, const QPoint& to,
+    bool sendMoveToStm(const QPoint& from, const QPoint& to,
                        uint8_t flags, bool isLast, double mmPerPxScale);
 
     ShapeVisualization* m_visu{};

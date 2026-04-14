@@ -161,6 +161,30 @@ void TrajetMotor::doExecuteTrajet()
         head->setPos(homePos.x() - 3, homePos.y() - 3);
     }, Qt::BlockingQueuedConnection);
 
+    // Helper : envoie un segment STM avec retry si buffer plein.
+    // S'exécute dans le thread worker — n'endort JAMAIS le thread principal.
+    // Timeout de sécurité : 5 s par segment (machine stoppée ou déconnectée).
+    auto sendWithRetry = [this](const QPoint& from, const QPoint& to,
+                                uint8_t flags, bool isLast)
+    {
+        constexpr int MAX_WAIT_MS = 5000;
+        int waited = 0;
+        while (!m_stopRequested) {
+            bool ok = false;
+            QMetaObject::invokeMethod(this, [this, from, to, flags, isLast, &ok]() {
+                ok = sendMoveToStm(from, to, flags, isLast, mmPerPx);
+            }, Qt::BlockingQueuedConnection);
+            if (ok || m_stopRequested) return;
+            // Buffer plein : le worker dort, le thread UI reste réactif
+            QThread::msleep(10);
+            waited += 10;
+            if (waited >= MAX_WAIT_MS) {
+                qWarning() << "TrajetMotor: timeout buffer STM plein, segment abandonné";
+                return;
+            }
+        }
+    };
+
     // 4) Boucle principale (worker thread — chemin critique sans bloc UI)
     QSet<quint64> done;
     QPoint cur = homePos;
@@ -199,10 +223,7 @@ void TrajetMotor::doExecuteTrajet()
                                                    .arg(realStart.y() * mmPerPx);
             moveHeadProgressive(cur, realStart, head, false);
             m_motor.moveRapid(realStart.x() * mmPerPx, realStart.y() * mmPerPx);
-            const QPoint from = cur, to = realStart;
-            QMetaObject::invokeMethod(this, [this, from, to]() {
-                sendMoveToStm(from, to, FLAG_VALVE_OFF, false, mmPerPx);
-            }, Qt::BlockingQueuedConnection);
+            sendWithRetry(cur, realStart, FLAG_VALVE_OFF, false);
         }
         cur = realStart;
 
@@ -213,12 +234,7 @@ void TrajetMotor::doExecuteTrajet()
                                                      .arg(realEnd.y() * mmPerPx);
         moveHeadProgressive(realStart, realEnd, head, true);
         m_motor.moveCut(realEnd.x() * mmPerPx, realEnd.y() * mmPerPx);
-        {
-            const QPoint from = realStart, to = realEnd;
-            QMetaObject::invokeMethod(this, [this, from, to]() {
-                sendMoveToStm(from, to, FLAG_VALVE_ON, false, mmPerPx);
-            }, Qt::BlockingQueuedConnection);
-        }
+        sendWithRetry(realStart, realEnd, FLAG_VALVE_ON, false);
 
         done.insert(keySeg(s.a, s.b));
         cur = realEnd;
@@ -232,10 +248,7 @@ void TrajetMotor::doExecuteTrajet()
                                                                 .arg(homePos.y() * mmPerPx);
         moveHeadProgressive(cur, homePos, head, false);
         m_motor.moveRapid(homePos.x() * mmPerPx, homePos.y() * mmPerPx);
-        const QPoint from = cur, to = homePos;
-        QMetaObject::invokeMethod(this, [this, from, to]() {
-            sendMoveToStm(from, to, FLAG_VALVE_OFF, true, mmPerPx);
-        }, Qt::BlockingQueuedConnection);
+        sendWithRetry(cur, homePos, FLAG_VALVE_OFF, true);
     }
 
     commandBuffer << "M30 ; Fin du programme de découpe";
@@ -307,10 +320,10 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,
     if (dist <= 0) return;
 
     const QPen   pen(cut ? Qt::red : Qt::blue, 1.5);
-    const double stepPx   = cut ? 3.0 : 12.0;
-    // Délai synchronisé avec la vitesse réelle : t = d/v × 1000 ms
-    const double vitesse  = cut ? m_motor.Vcut : m_motor.Vtrav;
-    const int    delayMs  = qBound(1, (int)(stepPx * mmPerPx * 1000.0 / vitesse), 500);
+    const double stepPx  = cut ? 3.0 : 12.0;
+    // Animation visuelle rapide — indépendante de la vitesse réelle (Vcut).
+    // La vitesse machine est encodée dans le champ v_max de chaque segment STM.
+    const int    delayMs = cut ? 2 : 1;
     QPointF      currentPos = start;
 
     for (double d = stepPx; d < dist; d += stepPx) {
@@ -356,12 +369,13 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,
 
 // -----------------------------------------------------------------------------
 // sendMoveToStm — envoie un déplacement en segments relatifs vers le STM.
+// Retourne true si tous les chunks ont été acceptés, false si le buffer STM est plein.
 // Doit être appelé depuis le thread principal (via invokeMethod depuis le worker).
 // -----------------------------------------------------------------------------
-void TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
+bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
                                  uint8_t flags, bool isLast, double mmPerPxScale)
 {
-    if (!m_machine) return;
+    if (!m_machine) return true;  // Pas de machine = rien à envoyer, on continue
 
     const double dxMm    = (to.x() - from.x()) * mmPerPxScale;
     const double dyMm    = (to.y() - from.y()) * mmPerPxScale;
@@ -374,9 +388,10 @@ void TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
     static constexpr int MAX_STEPS = 30000;
     const int totalAbs = qMax(qAbs(dxSteps), qAbs(dySteps));
 
-    if (totalAbs == 0) return;
+    if (totalAbs == 0) return true;
 
     const int numChunks = (totalAbs + MAX_STEPS - 1) / MAX_STEPS;
+    bool allSent = true;
 
     for (int i = 0; i < numChunks; ++i) {
         const double t0 = static_cast<double>(i)     / numChunks;
@@ -395,6 +410,8 @@ void TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
         if (isLast && i == numChunks - 1)
             seg.flags |= FLAG_END_SEQ;
 
-        m_machine->sendSegment(seg);
+        if (!m_machine->sendSegment(seg))
+            allSent = false;
     }
+    return allSent;
 }
