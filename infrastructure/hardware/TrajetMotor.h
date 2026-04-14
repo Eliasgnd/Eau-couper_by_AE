@@ -5,8 +5,10 @@
 #include <QQueue>
 #include <QPointF>
 class MainWindow;
+class MachineViewModel;
 #include "MotorControl.h"
 #include "ShapeVisualization.h"
+#include "StmProtocol.h"
 
 // --- Types de commandes machine ---
 enum class CommandType {
@@ -51,6 +53,7 @@ public:
     void executeTrajet();
     bool isPaused() const { return m_running && m_paused; }
     void setMainWindow(MainWindow* mainWindow);
+    void setMachineViewModel(MachineViewModel* vm);
 
 public slots:
     void pause();
@@ -70,11 +73,19 @@ private:
     bool m_stopRequested = false;
     bool m_running       = false;
 
-    MainWindow* m_mainWindow = nullptr;
+    MainWindow*       m_mainWindow   = nullptr;
+    MachineViewModel* m_machine      = nullptr;  // injection optionnelle
 
-    int m_totalSteps = 0;
-    int m_progressCounter = 0;
-    bool m_interrupted = false;
+    int  m_totalSteps     = 0;
+    int  m_progressCounter = 0;
+    bool m_interrupted    = false;
+
+    // Envoie un mouvement vers le STM (en segments relatifs, avec découpage si trop long).
+    // from/to en pixels, mmPerPx = facteur de conversion.
+    // flags : FLAG_VALVE_ON/OFF selon le type de mouvement.
+    // isLast : ajoute FLAG_END_SEQ sur le dernier sous-segment.
+    void sendMoveToStm(const QPoint& from, const QPoint& to,
+                       uint8_t flags, bool isLast, double mmPerPxScale);
 
 };
 

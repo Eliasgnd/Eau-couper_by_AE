@@ -5,6 +5,7 @@
 
 class ShapeVisualization;
 class TrajetMotor;
+class MachineViewModel;
 class QWidget;
 
 // Service responsable de l'exécution de la séquence de découpe avec le moteur.
@@ -20,6 +21,9 @@ public:
     // Doit être appelé avant startCutting().
     void initialize(ShapeVisualization *visualization, QWidget *dialogParent);
 
+    // Injecte le MachineViewModel pour la communication UART avec le STM32.
+    void setMachineViewModel(MachineViewModel *vm);
+
 public slots:
     void startCutting();
     void pauseCutting();
@@ -32,7 +36,8 @@ signals:
     void statusMessage(const QString &message);
 
 private:
-    ShapeVisualization *m_visualization  = nullptr;
-    TrajetMotor        *m_trajetMotor    = nullptr;
-    bool                m_pauseRequested = false;
+    ShapeVisualization *m_visualization    = nullptr;
+    TrajetMotor        *m_trajetMotor      = nullptr;
+    MachineViewModel   *m_machineViewModel = nullptr;
+    bool                m_pauseRequested   = false;
 };

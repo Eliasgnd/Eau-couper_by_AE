@@ -242,6 +242,7 @@ void MainWindow::setupViewConnections()
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::testGpioRequested);
     connect(ui->buttonFileReceiver,        &QPushButton::clicked, this, &MainWindow::bluetoothReceiverRequested);
     connect(ui->buttonWifiTransfer,        &QPushButton::clicked, this, &MainWindow::wifiTransferRequested);
+    connect(ui->buttonTestMoteurs,         &QPushButton::clicked, this, &MainWindow::stmTestRequested);
 
     // ---- Sauvegarde ----
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, &MainWindow::saveLayoutRequested);

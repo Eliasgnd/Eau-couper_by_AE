@@ -1,4 +1,5 @@
 #include "TrajetMotor.h"
+#include "MachineViewModel.h"
 #include "pathplanner.h"
 #include <QSet>
 #include <QLineF>
@@ -162,6 +163,7 @@ void TrajetMotor::executeTrajet()
 
             moveHeadProgressive(cur, realStart, head, false);
             m_motor.moveRapid(realStart.x() * mmPerPx, realStart.y() * mmPerPx);
+            sendMoveToStm(cur, realStart, FLAG_VALVE_OFF, /*isLast=*/false, mmPerPx);
         }
         cur = realStart;
 
@@ -173,6 +175,9 @@ void TrajetMotor::executeTrajet()
 
         moveHeadProgressive(realStart, realEnd, head, true);
         m_motor.moveCut(realEnd.x() * mmPerPx, realEnd.y() * mmPerPx);
+        // FLAG_END_SEQ uniquement si ce segment coupe se termine déjà à l'origine
+        // (pas de retour home nécessaire) — sinon c'est le home return qui le porte
+        sendMoveToStm(realStart, realEnd, FLAG_VALVE_ON, /*isLast=*/false, mmPerPx);
 
         done.insert(keySeg(s.a, s.b));
         cur = realEnd;
@@ -186,6 +191,8 @@ void TrajetMotor::executeTrajet()
 
         moveHeadProgressive(cur, homePos, head, false);
         m_motor.moveRapid(homePos.x() * mmPerPx, homePos.y() * mmPerPx);
+        // Dernier mouvement de la séquence → FLAG_END_SEQ + fermeture vanne
+        sendMoveToStm(cur, homePos, FLAG_VALVE_OFF, true, mmPerPx);
     }
 
     commandBuffer << "M30 ; Fin du programme de découpe";
@@ -231,6 +238,56 @@ void TrajetMotor::stopCut() {
     m_stopRequested = true; m_paused = false; m_interrupted = true; m_motor.stopJet();
 }
 void TrajetMotor::setMainWindow(MainWindow* mainWindow) { m_mainWindow = mainWindow; }
+void TrajetMotor::setMachineViewModel(MachineViewModel* vm) { m_machine = vm; }
+
+// -----------------------------------------------------------------------------
+// sendMoveToStm — envoie un déplacement en segments relatifs vers le STM.
+// Découpe automatiquement si le déplacement dépasse la capacité int16_t (511 mm).
+// -----------------------------------------------------------------------------
+void TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
+                                 uint8_t flags, bool isLast, double mmPerPxScale)
+{
+    if (!m_machine) return;
+
+    // Déplacement total en mm puis en pas
+    const double dxMm = (to.x() - from.x()) * mmPerPxScale;
+    const double dyMm = (to.y() - from.y()) * mmPerPxScale;
+    const int    dxSteps = static_cast<int>(dxMm * STEPS_PER_MM);
+    const int    dySteps = static_cast<int>(dyMm * STEPS_PER_MM);
+
+    // Valeur ARR basée sur les vitesses de MotorControl
+    const double vitesse = (flags & FLAG_VALVE_ON) ? m_motor.Vcut : m_motor.Vtrav;
+    const uint16_t arr   = speedToArr(vitesse);
+
+    // Découpage en sous-segments si le déplacement dépasse int16_t (±32767 pas ≈ 511 mm)
+    static constexpr int MAX_STEPS = 30000; // marge de sécurité
+    const int totalAbs = qMax(qAbs(dxSteps), qAbs(dySteps));
+
+    if (totalAbs == 0) return;
+
+    const int numChunks = (totalAbs + MAX_STEPS - 1) / MAX_STEPS;
+
+    for (int i = 0; i < numChunks; ++i) {
+        const double t0 = static_cast<double>(i)     / numChunks;
+        const double t1 = static_cast<double>(i + 1) / numChunks;
+
+        const int chunkDx = static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0);
+        const int chunkDy = static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0);
+
+        StmSegment seg;
+        seg.dx    = static_cast<int16_t>(chunkDx);
+        seg.dy    = static_cast<int16_t>(chunkDy);
+        seg.dz    = 0;
+        seg.v_max = arr;
+        seg.flags = flags;
+
+        // FLAG_END_SEQ uniquement sur le dernier sous-segment du dernier mouvement
+        if (isLast && i == numChunks - 1)
+            seg.flags |= FLAG_END_SEQ;
+
+        m_machine->sendSegment(seg);
+    }
+}
 
 // -----------------------------------------------------------------------------
 // moveHeadProgressive : Tracé par petits segments fixes (Effet "Trace" réel)

@@ -71,6 +71,7 @@ signals:
     void testGpioRequested();
     void bluetoothReceiverRequested();
     void wifiTransferRequested();
+    void stmTestRequested();
 
     // Optimisation
     void optimizePlacement1Requested(bool checked);

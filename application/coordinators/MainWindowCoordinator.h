@@ -13,6 +13,7 @@
 #include "ShapeCoordinator.h"
 #include "WorkspaceViewModel.h"
 #include "MainWindowViewModel.h"
+#include "MachineViewModel.h"
 #include "CuttingService.h"
 
 class MainWindow; // Forward declaration
@@ -110,6 +111,7 @@ public slots:
 
     void onSaveLayoutRequested();
     void onGenerateAiRequested();
+    void onStmTestRequested();
 
     // Réactions aux événements de l'Inventory
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
@@ -141,8 +143,9 @@ private:
     MainWindowViewModel *m_viewModel = nullptr;
     Inventory *m_inventory = nullptr;
 
-    CuttingService *m_cuttingService = nullptr;
-    OpenAIService *m_aiService = nullptr;
+    CuttingService   *m_cuttingService    = nullptr;
+    MachineViewModel *m_machineViewModel  = nullptr;
+    OpenAIService    *m_aiService         = nullptr;
     QTranslator m_translator;
     Language m_currentLanguage = Language::French;
 };

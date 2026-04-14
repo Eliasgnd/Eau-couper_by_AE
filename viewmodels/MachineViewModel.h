@@ -1,0 +1,113 @@
+#pragma once
+
+#include <QObject>
+#include <QString>
+#include "StmProtocol.h"
+
+class StmUartService;
+
+// ============================================================
+//  MachineViewModel — ViewModel MVVM pour le contrôle machine
+//
+//  Responsabilités :
+//   - Maintenir l'état global de la machine (MachineState)
+//   - Exposer la position courante en mm
+//   - Fournir les commandes que la Vue peut déclencher
+//   - Gérer le flow control (buffer STM)
+//   - Protéger la sécurité Z (pas de descente sans confirmation)
+//
+//  La Vue ne parle JAMAIS à StmUartService directement.
+// ============================================================
+class MachineViewModel : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit MachineViewModel(QObject* parent = nullptr);
+    ~MachineViewModel() override;
+
+    // --- Accès à l'état (lecture seule) ---
+    MachineState  state()        const { return m_state; }
+    bool          isConnected()  const { return m_connected; }
+    int           bufferLevel()  const { return m_bufferLevel; }
+    double        posX_mm()      const { return stepsToMm(m_posX); }
+    double        posY_mm()      const { return stepsToMm(m_posY); }
+    double        posZ_mm()      const { return stepsToMm(m_posZ); }
+    QString       statusMessage()const { return m_statusMessage; }
+    bool          hasRecovery()  const { return m_hasRecovery; }
+    RecoveryData  recoveryInfo() const { return m_recovery; }
+
+    // --- Accès au service UART (pour injection dans TrajetMotor) ---
+    StmUartService* uartService() const { return m_uart; }
+
+public slots:
+    // Connexion au port série
+    void connectToStm(const QString& portName);
+    void disconnectFromStm();
+
+    // Commandes machine → STM (les préconditions d'état sont vérifiées ici)
+    void sendHome();            // HOME — homing complet
+    void sendPositionReset();   // H   — reset logique position
+    void sendRearm();           // R   — réarmement après EMERGENCY/ALARM
+    void sendValveOn();         // V+  — ouvre vanne manuellement
+    void sendValveOff();        // V-  — ferme vanne manuellement
+    void sendRecover();         // RECOVER — demande données recovery (si READY)
+    void sendGo();              // GO — confirme reprise (si RECOVERY_WAIT)
+    void sendClear();           // CLEAR — annule recovery
+
+    // Envoi d'un segment de trajectoire (appelé par TrajetMotor)
+    // Retourne false si le buffer est plein (flow control) ou état incompatible
+    bool sendSegment(const StmSegment& seg);
+
+    // Confirmation explicite de descente Z (sécurité opérateur)
+    void confirmZDescent();
+
+signals:
+    void stateChanged(MachineState state);
+    void connectionChanged(bool connected);
+    void bufferLevelChanged(int level);
+    void positionChanged(double x_mm, double y_mm, double z_mm);
+    void statusMessageChanged(const QString& message);
+    void recoveryAvailable(RecoveryData data);
+    void doneReceived();
+    void homingProgress(const QString& message);
+    void errorOccurred(const QString& code);
+
+private slots:
+    // Branchés sur StmUartService
+    void onConnectionChanged(bool connected);
+    void onAckReceived(int bufLevel, int segIndex);
+    void onNakReceived();
+    void onDoneReceived();
+    void onHomingMessage(const QString& msg);
+    void onHomingError(const QString& axis);
+    void onEmergencyTriggered();
+    void onAlarmTriggered(const QString& axis);
+    void onRecoveryAvailable(RecoveryData data);
+    void onRecoveryDataReceived(RecoveryData data);
+    void onRecoveryOk();
+    void onRecoveryCleared();
+    void onReadyReceived();
+    void onStartupBannerReceived();
+    void onErrorReceived(const QString& code);
+    void onComError(const QString& reason);
+
+private:
+    void setState(MachineState s);
+    void setStatus(const QString& msg);
+
+    StmUartService* m_uart          = nullptr;
+
+    MachineState    m_state         = MachineState::DISCONNECTED;
+    bool            m_connected     = false;
+    int             m_bufferLevel   = 0;
+    int             m_posX          = 0;   // en pas moteur
+    int             m_posY          = 0;
+    int             m_posZ          = 0;
+    QString         m_statusMessage;
+
+    bool            m_hasRecovery   = false;
+    RecoveryData    m_recovery;
+
+    bool            m_zDescentConfirmed = false;  // sécurité descente Z
+};
