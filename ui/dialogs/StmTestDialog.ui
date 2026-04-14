@@ -60,26 +60,22 @@
               <property name="editable">
                <bool>true</bool>
               </property>
-              <item>
-               <property name="text">
-                <string>/dev/serial0</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>/dev/ttyAMA0</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>/dev/ttyUSB0</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>COM3</string>
-               </property>
-              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="refreshPortsBtn">
+              <property name="text">
+               <string>⟳</string>
+              </property>
+              <property name="toolTip">
+               <string>Rafraîchir la liste des ports</string>
+              </property>
+              <property name="styleSheet">
+               <string>QPushButton { background-color: #2980b9; color: white; border-radius: 4px; padding: 4px 8px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #3498db; }</string>
+              </property>
+              <property name="maximumWidth">
+               <number>36</number>
+              </property>
              </widget>
             </item>
             <item>

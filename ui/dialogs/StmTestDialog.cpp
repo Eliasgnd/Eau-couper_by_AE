@@ -5,6 +5,7 @@
 #include <QDateTime>
 #include <QClipboard>
 #include <QApplication>
+#include <QSerialPortInfo>
 
 // ============================================================
 //  StmTestDialog — implémentation
@@ -20,6 +21,7 @@ StmTestDialog::StmTestDialog(MachineViewModel *vm, QWidget *parent)
     resize(1000, 700);
 
     setupConnections();
+    refreshPortList();
 
     // Initialiser l'état depuis le ViewModel courant
     onConnectionChanged(m_vm->isConnected());
@@ -44,6 +46,7 @@ void StmTestDialog::setupConnections()
 {
     // Boutons UI → slots locaux
     connect(ui->connectBtn,       &QPushButton::clicked, this, &StmTestDialog::onConnectClicked);
+    connect(ui->refreshPortsBtn,  &QPushButton::clicked, this, &StmTestDialog::onRefreshPortsClicked);
     connect(ui->homeBtn,          &QPushButton::clicked, this, &StmTestDialog::onHomeClicked);
     connect(ui->rearmBtn,         &QPushButton::clicked, this, &StmTestDialog::onRearmClicked);
     connect(ui->resetPosBtn,      &QPushButton::clicked, this, &StmTestDialog::onResetPosClicked);
@@ -76,6 +79,32 @@ void StmTestDialog::setupConnections()
             this, &StmTestDialog::onRecoveryAvailable);
     connect(m_vm, &MachineViewModel::doneReceived,
             this, &StmTestDialog::onDoneReceived);
+}
+
+// ----------------------------------------------------------
+//  Rafraîchissement de la liste des ports
+// ----------------------------------------------------------
+
+void StmTestDialog::refreshPortList()
+{
+    const QString current = ui->portCombo->currentText();
+    ui->portCombo->clear();
+
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo &info : ports)
+        ui->portCombo->addItem(info.portName());
+
+    // Restaurer la sélection précédente si le port est encore disponible
+    const int idx = ui->portCombo->findText(current);
+    if (idx >= 0)
+        ui->portCombo->setCurrentIndex(idx);
+
+    appendLog(tr("→ %1 port(s) série détecté(s).").arg(ports.size()), "#cba6f7");
+}
+
+void StmTestDialog::onRefreshPortsClicked()
+{
+    refreshPortList();
 }
 
 // ----------------------------------------------------------

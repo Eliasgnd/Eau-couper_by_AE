@@ -1,5 +1,6 @@
 #include "StmUartService.h"
 #include <QDebug>
+#include <QSerialPortInfo>
 
 // ============================================================
 //  StmUartService — implémentation

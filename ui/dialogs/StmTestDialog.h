@@ -29,6 +29,7 @@ public:
 private slots:
     // --- Boutons connexion ---
     void onConnectClicked();
+    void onRefreshPortsClicked();
 
     // --- Boutons commandes ---
     void onHomeClicked();
@@ -60,6 +61,7 @@ private slots:
 
 private:
     void setupConnections();
+    void refreshPortList();
     void updateButtonStates(MachineState state, bool connected);
     void appendLog(const QString &text, const QString &color = QString());
     QString stateToString(MachineState state) const;
