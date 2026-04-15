@@ -350,10 +350,13 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
-    // --- SEG_DONE|seg=N|x=X|y=Y (position réelle après exécution physique) ---
+    // --- SEG_DONE|seg=N|x=X|y=Y ---
     if (line.startsWith("SEG_DONE|")) {
         int seg = 0, x = 0, y = 0;
-        for (const QByteArray& part : line.mid(9).split('|')) {
+
+        // CORRECTION : On stocke le split dans une variable constante
+        const QList<QByteArray> parts = line.mid(9).split('|');
+        for (const QByteArray& part : parts) {
             if      (part.startsWith("seg=")) seg = part.mid(4).toInt();
             else if (part.startsWith("x="))   x   = part.mid(2).toInt();
             else if (part.startsWith("y="))   y   = part.mid(2).toInt();
@@ -382,7 +385,10 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 {
     // Format : seg=<s>|x=<x>|y=<y>|z=<z>
     RecoveryData data;
-    for (const QByteArray& part : payload.split('|')) {
+
+    // CORRECTION : On stocke le split dans une variable constante
+    const QList<QByteArray> parts = payload.split('|');
+    for (const QByteArray& part : parts) {
         if (part.startsWith("seg=")) data.seg = part.mid(4).toInt();
         else if (part.startsWith("x=")) data.x = part.mid(2).toInt();
         else if (part.startsWith("y=")) data.y = part.mid(2).toInt();
@@ -401,9 +407,10 @@ void StmUartService::retransmitLastFrame()
     qDebug() << "[STM-UART] Retransmission du batch complet suite à NAK (" << m_nakCount << "/" << MAX_NAK_RETRY << ")";
     m_waitingAck = true;
 
-    // On renvoie tout le lot non acquitté
-    for (const QByteArray& frame : std::as_const(m_unackedBatch)) {
-        m_serial.write(frame);
+    // Remplacement de la boucle range-based par un for classique
+    const int batchSize = m_unackedBatch.size();
+    for (int i = 0; i < batchSize; ++i) {
+        m_serial.write(m_unackedBatch[i]);
     }
     m_ackTimer.start();
 }
