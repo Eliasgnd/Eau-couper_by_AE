@@ -213,7 +213,7 @@ void StmUartService::processLine(const QByteArray& line)
     }
 
     // --- NAK ---
-    if (line == "NAK") {
+    if (line == "NAK" || line.endsWith("NAK")) {
         m_ackTimer.stop();
         m_waitingAck = false;
         ++m_nakCount;
@@ -230,13 +230,13 @@ void StmUartService::processLine(const QByteArray& line)
     }
 
     // --- DONE ---
-    if (line == "DONE") {
+    if (line == "DONE" || line.endsWith("DONE")) {
         emit doneReceived();
         return;
     }
 
     // --- READY ---
-    if (line == "READY") {
+    if (line == "READY" || line.endsWith("READY")) {
         emit readyReceived();
         return;
     }
