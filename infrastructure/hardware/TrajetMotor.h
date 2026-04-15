@@ -2,50 +2,18 @@
 #define TRAJETMOTOR_H
 
 #include <QWidget>
-#include <QQueue>
 #include <QPointF>
 #include <atomic>
 #include <QThread>
+
+// Forward declarations
 class MainWindow;
 class MachineViewModel;
-#include "MotorControl.h"
+class QGraphicsEllipseItem;
+
 #include "ShapeVisualization.h"
 #include "StmProtocol.h"
-
-// --- Types de commandes machine ---
-enum class CommandType {
-    MoveRapid,
-    MoveCut,
-    JetOn,
-    JetOff,
-    Wait
-};
-
-// --- Structure d'une instruction ---
-struct MachineCommand {
-    CommandType type;
-    QPointF targetPos;
-    int delayMs;
-
-    static MachineCommand rapid(QPointF pos) { return {CommandType::MoveRapid, pos, 0}; }
-    static MachineCommand cut(QPointF pos) { return {CommandType::MoveCut, pos, 0}; }
-    static MachineCommand jetOn() { return {CommandType::JetOn, QPointF(), 0}; }
-    static MachineCommand jetOff() { return {CommandType::JetOff, QPointF(), 0}; }
-    static MachineCommand wait(int ms) { return {CommandType::Wait, QPointF(), ms}; }
-};
-
-// --- Le gestionnaire de file d'attente ---
-class CommandBuffer {
-public:
-    void push(const MachineCommand& cmd) { m_queue.enqueue(cmd); }
-    MachineCommand pop() { return m_queue.dequeue(); }
-    bool isEmpty() const { return m_queue.isEmpty(); }
-    int size() const { return m_queue.size(); }
-    void clear() { m_queue.clear(); }
-private:
-    QQueue<MachineCommand> m_queue;
-};
-
+#include "pathplanner.h"
 
 class TrajetMotor : public QWidget {
     Q_OBJECT
@@ -53,11 +21,19 @@ public:
     explicit TrajetMotor(ShapeVisualization* visu, QWidget* parent = nullptr);
     ~TrajetMotor() override;
 
+    // Lance le thread de découpe
     void executeTrajet();
+
+    // État de la machine
     bool isPaused() const { return m_running && m_paused.load(); }
+
+    // Setters pour les dépendances
     void setMainWindow(MainWindow* mainWindow);
     void setMachineViewModel(MachineViewModel* vm);
-    void setVcut(double vitesse_mm_s);   // Vitesse de coupe (mm/s) — lue à chaque segment
+
+    // Configuration des vitesses (mm/s)
+    void setVcut(double vitesse_mm_s);
+    void setVtravel(double vitesse_mm_s);
 
 public slots:
     void pause();
@@ -68,36 +44,39 @@ signals:
     void decoupeProgress(int remaining, int total);
 
 private:
-    // Exécution réelle — tourne dans le thread worker (jamais sur le thread UI)
+    // Fonction tournant dans le thread séparé
     void doExecuteTrajet();
 
-    // Animation pas-à-pas — appelée depuis le thread worker uniquement.
-    // Les opérations scène sont dispatché sur le thread principal via invokeMethod.
+    // Animation visuelle sur le canvas
     void moveHeadProgressive(const QPoint& start, const QPoint& end,
                              QGraphicsEllipseItem* head, bool cut);
 
+    // Envoi effectif des segments au STM32 via le ViewModel
     bool sendMoveToStm(const QPoint& from, const QPoint& to,
                        uint8_t flags, bool isLast, double mmPerPxScale);
 
-    ShapeVisualization* m_visu{};
-    MotorControl        m_motor;
-    CommandBuffer       m_commandBuffer;
+    // Calcul de la progression totale
+    int estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos);
 
-    // Flags partagés entre thread principal et worker → atomiques
+    // Dépendances
+    ShapeVisualization* m_visu = nullptr;
+    MainWindow* m_mainWindow = nullptr;
+    MachineViewModel* m_machine = nullptr;
+
+    // Paramètres de vitesse (remplace MotorControl)
+    double m_vCut  = 10.0;   // mm/s
+    double m_vTrav = 150.0;  // mm/s (vitesse de déplacement rapide)
+
+    // Contrôle du thread
     std::atomic<bool> m_paused{false};
     std::atomic<bool> m_stopRequested{false};
     std::atomic<bool> m_interrupted{false};
+    bool              m_running = false;
+    QThread* m_workerThread = nullptr;
 
-    // Uniquement modifié sur le thread principal
-    bool m_running = false;
-
-    MainWindow*       m_mainWindow   = nullptr;
-    MachineViewModel* m_machine      = nullptr;
-
-    int  m_totalSteps      = 0;
-    int  m_progressCounter = 0;
-
-    QThread *m_workerThread = nullptr;
+    // Progression
+    int m_totalSteps      = 0;
+    int m_progressCounter = 0;
 };
 
 #endif // TRAJETMOTOR_H

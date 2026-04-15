@@ -38,14 +38,16 @@ INCLUDEPATH += $$CLIPPER2_PATH/include
 SOURCES += \
     $$CLIPPER2_PATH/src/clipper.engine.cpp \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
-    $$CLIPPER2_PATH/src/clipper.rectclip.cpp
+    $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
+    ui/canvas/tools/pathoptimizer.cpp
 
 # ==============================================================================
 # ==== PROJET SOURCES & HEADERS ====
 # ==============================================================================
 
 # Fichiers de l'optimization
-HEADERS += domain/geometry/optimization/PlacementOptimizer.h
+HEADERS += domain/geometry/optimization/PlacementOptimizer.h \
+    ui/canvas/tools/pathoptimizer.h
 SOURCES += domain/geometry/optimization/PlacementOptimizer.cpp
 
 # ==== INCLUDEPATH GÉNÉRAL ====
@@ -145,9 +147,7 @@ HEADERS += \
     domain/inventory/InventoryDomainTypes.h \
     domain/inventory/InventorySnapshot.h \
     domain/interfaces/IInventoryRepository.h \
-    domain/interfaces/IMotorControl.h \
     infrastructure/persistence/InventoryRepository.h \
-    infrastructure/hardware/MotorControl.h \
     infrastructure/hardware/Raspberry.h \
     infrastructure/hardware/TrajetMotor.h \
     infrastructure/hardware/StmProtocol.h \
@@ -227,7 +227,6 @@ SOURCES += \
     domain/geometry/GeometryUtils.cpp \
     domain/inventory/InventoryModel.cpp \
     infrastructure/persistence/InventoryRepository.cpp \
-    infrastructure/hardware/MotorControl.cpp \
     infrastructure/hardware/Raspberry.cpp \
     infrastructure/hardware/TrajetMotor.cpp \
     infrastructure/hardware/StmUartService.cpp \

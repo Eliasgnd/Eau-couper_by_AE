@@ -1,18 +1,16 @@
+// Dans pathplanner.h
 #pragma once
-
 #include <QGraphicsScene>
 #include <QList>
 #include <QPolygonF>
 
-// NOUVELLE STRUCTURE : Un chemin complet
 struct ContinuousCut {
-    QPolygonF points; // La liste des points qui forment la ligne continue
-    bool isClosed;    // Vrai si le premier et le dernier point se touchent
+    QPolygonF points;
+    bool isClosed;
+    int depth = 0; // NOUVEAU : 0 = Contour externe, 1 = Trou intérieur, 2 = Trou dans un trou...
 };
 
-class PathPlanner
-{
+class PathPlanner {
 public:
-    // NOUVELLE FONCTION (remplace extractSegments)
     static QList<ContinuousCut> extractContinuousPaths(QGraphicsScene *sc);
 };
