@@ -3,6 +3,9 @@
 
 #include <QWidget>
 #include <QPointF>
+#include <QMutex>
+#include <QWaitCondition>
+#include <QVector>
 #include <atomic>
 #include <QThread>
 
@@ -40,22 +43,27 @@ public slots:
     void resume();
     void stopCut();
 
+    // Appelés depuis le thread principal via les signaux MachineViewModel
+    void onSegmentExecuted(int seg, int x_steps, int y_steps);
+    void onMachineDone();
+
 signals:
     void decoupeProgress(int remaining, int total);
+    void decoupeFinished(bool success);
 
 private:
     // Fonction tournant dans le thread séparé
     void doExecuteTrajet();
 
-    // Animation visuelle sur le canvas
-    void moveHeadProgressive(const QPoint& start, const QPoint& end,
-                             QGraphicsEllipseItem* head, bool cut);
+    // Pré-construction du plan de segments (un bool isCut par chunk STM)
+    void appendSegPlan(const QPoint& from, const QPoint& to,
+                       bool isCut, QVector<bool>& plan) const;
 
     // Envoi effectif des segments au STM32 via le ViewModel
     bool sendMoveToStm(const QPoint& from, const QPoint& to,
                        uint8_t flags, bool isLast, double mmPerPxScale);
 
-    // Calcul de la progression totale
+    // Calcul de la progression totale (utilisé comme fallback si déconnecté)
     int estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos);
 
     // Dépendances
@@ -63,7 +71,7 @@ private:
     MainWindow* m_mainWindow = nullptr;
     MachineViewModel* m_machine = nullptr;
 
-    // Paramètres de vitesse (remplace MotorControl)
+    // Paramètres de vitesse
     double m_vCut  = 10.0;   // mm/s
     double m_vTrav = 150.0;  // mm/s (vitesse de déplacement rapide)
 
@@ -74,9 +82,26 @@ private:
     bool              m_running = false;
     QThread* m_workerThread = nullptr;
 
+    // Attente signal DONE du STM
+    QMutex             m_doneMutex;
+    QWaitCondition     m_doneCond;
+    std::atomic<bool>  m_doneReceived{false};
+
+    // Visualisation pilotée par SEG_DONE
+    QGraphicsEllipseItem* m_head = nullptr;
+    QPointF               m_lastHeadPos;
+    QVector<bool>         m_segIsCut;   // plan pré-construit : true = coupe (rouge)
+    int                   m_execCount = 0;
+
     // Progression
-    int m_totalSteps      = 0;
-    int m_progressCounter = 0;
+    int m_totalSteps = 0;
+
+    // Point de repos machine (en pixels = mm)
+    static constexpr int HOME_X = 600;
+    static constexpr int HOME_Y = 400;
+
+    // Taille maximale d'un chunk STM (identique à sendMoveToStm)
+    static constexpr int MAX_STEPS_CHUNK = 30000;
 };
 
 #endif // TRAJETMOTOR_H

@@ -76,6 +76,13 @@ signals:
     // Relais brut — chaque ligne ASCII reçue du STM (pour logs test)
     void rawLineReceived(const QString& line);
 
+    // Progression d'exécution réelle (SEG_DONE)
+    void segDoneReceived(int seg, int x_steps, int y_steps);
+
+    // Pause / Reprise confirmées par le STM
+    void pausedConfirmed();
+    void resumedConfirmed();
+
 private slots:
     void onReadyRead();
     void onAckTimeout();

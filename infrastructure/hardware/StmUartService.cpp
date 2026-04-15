@@ -327,6 +327,30 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
+    // --- SEG_DONE|seg=N|x=X|y=Y (position réelle après exécution physique) ---
+    if (line.startsWith("SEG_DONE|")) {
+        int seg = 0, x = 0, y = 0;
+        for (const QByteArray& part : line.mid(9).split('|')) {
+            if      (part.startsWith("seg=")) seg = part.mid(4).toInt();
+            else if (part.startsWith("x="))   x   = part.mid(2).toInt();
+            else if (part.startsWith("y="))   y   = part.mid(2).toInt();
+        }
+        emit segDoneReceived(seg, x, y);
+        return;
+    }
+
+    // --- PAUSED / PAUSE_HOLD — machine en attente après segment courant ---
+    if (line == "PAUSED" || line == "PAUSE_HOLD") {
+        emit pausedConfirmed();
+        return;
+    }
+
+    // --- RESUMED — machine reprend depuis son buffer ---
+    if (line == "RESUMED") {
+        emit resumedConfirmed();
+        return;
+    }
+
     // Message non reconnu — on logge sans émettre de signal d'erreur
     qDebug() << "[STM-UART] Message non parsé :" << line;
 }

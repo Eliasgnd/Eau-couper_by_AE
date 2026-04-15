@@ -53,6 +53,14 @@ MachineViewModel::MachineViewModel(QObject* parent)
             this,   &MachineViewModel::onPosResetConfirmed);
     connect(m_uart, &StmUartService::homeAckConfirmed,
             this,   &MachineViewModel::onHomeAckConfirmed);
+
+    // Exécution réelle et contrôle pause/stop
+    connect(m_uart, &StmUartService::segDoneReceived,
+            this,   &MachineViewModel::onSegDoneReceived);
+    connect(m_uart, &StmUartService::pausedConfirmed,
+            this,   &MachineViewModel::onPausedConfirmed);
+    connect(m_uart, &StmUartService::resumedConfirmed,
+            this,   &MachineViewModel::onResumedConfirmed);
 }
 
 MachineViewModel::~MachineViewModel() = default;
@@ -333,6 +341,42 @@ void MachineViewModel::onValveOnConfirmed()  { emit valveOnConfirmed(); }
 void MachineViewModel::onValveOffConfirmed() { emit valveOffConfirmed(); }
 void MachineViewModel::onPosResetConfirmed() { emit posResetConfirmed(); }
 void MachineViewModel::onHomeAckConfirmed()  { emit homeAckConfirmed(); }
+
+void MachineViewModel::sendPause()
+{
+    if (!m_connected) return;
+    m_uart->sendAsciiCommand(QStringLiteral("PAUSE"));
+}
+
+void MachineViewModel::sendResume()
+{
+    if (!m_connected) return;
+    m_uart->sendAsciiCommand(QStringLiteral("RESUME"));
+}
+
+void MachineViewModel::sendStop()
+{
+    if (!m_connected) return;
+    m_uart->sendAsciiCommand(QStringLiteral("AU"));
+}
+
+void MachineViewModel::onSegDoneReceived(int seg, int x, int y)
+{
+    m_posX = x;
+    m_posY = y;
+    emit positionChanged(stepsToMm(x), stepsToMm(y), stepsToMm(m_posZ));
+    emit segmentDone(seg, x, y);
+}
+
+void MachineViewModel::onPausedConfirmed()
+{
+    emit machinePaused();
+}
+
+void MachineViewModel::onResumedConfirmed()
+{
+    emit machineResumed();
+}
 
 void MachineViewModel::sendAsciiMove(int dx_steps, int dy_steps, int dz_steps, int arr)
 {

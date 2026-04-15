@@ -65,6 +65,11 @@ public slots:
     // Mouvement ASCII debug : X<dx> Y<dy> Z<dz> F<arr>
     void sendAsciiMove(int dx_steps, int dy_steps, int dz_steps, int arr);
 
+    // Commandes de contrôle découpe
+    void sendPause();   // PAUSE  — stoppe après le segment courant
+    void sendResume();  // RESUME — reprend depuis le buffer STM
+    void sendStop();    // AU     — arrêt d'urgence, vide le buffer STM
+
 signals:
     void stateChanged(MachineState state);
     void connectionChanged(bool connected);
@@ -75,6 +80,13 @@ signals:
     void doneReceived();
     void homingProgress(const QString& message);
     void errorOccurred(const QString& code);
+
+    // Exécution réelle — un segment physiquement terminé par le STM
+    void segmentDone(int seg, int x_steps, int y_steps);
+
+    // Pause / reprise confirmées par le STM
+    void machinePaused();
+    void machineResumed();
 
     // Relais brut UART — chaque ligne reçue du STM (pour logs test)
     void rxLine(const QString& line);
@@ -108,6 +120,11 @@ private slots:
     void onValveOffConfirmed();
     void onPosResetConfirmed();
     void onHomeAckConfirmed();
+
+    // Nouveaux slots — réponses STM
+    void onSegDoneReceived(int seg, int x, int y);
+    void onPausedConfirmed();
+    void onResumedConfirmed();
 
 private:
     void setState(MachineState s);
