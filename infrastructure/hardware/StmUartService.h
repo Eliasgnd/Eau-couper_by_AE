@@ -36,6 +36,8 @@ public:
     void sendSegment(const StmSegment& seg);
     void sendAsciiCommand(const QString& cmd);   // envoie cmd + "\r\n"
 
+    bool isWaitingAck() const { return m_waitingAck; }
+
 signals:
     // Connexion
     void connectionChanged(bool connected);
@@ -93,7 +95,7 @@ private:
     QTimer       m_ackTimer;
     QByteArray   m_readBuffer;
 
-    QByteArray   m_lastFrame;          // dernière trame binaire envoyée (pour retry)
+    QList<QByteArray> m_unackedBatch;
     int          m_nakCount        = 0; // NAK consécutifs sur la trame courante
     int          m_segsSinceLastAck = 0; // segments envoyés depuis le dernier ACK reçu
 

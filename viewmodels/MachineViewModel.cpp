@@ -164,31 +164,36 @@ void MachineViewModel::sendClear()
 
 bool MachineViewModel::sendSegment(const StmSegment& seg)
 {
+    // 1. Vérification de la connexion
     if (!m_connected) return false;
 
-    // Vérification de l'état
+    // 2. Vérification de l'état de la machine
     if (m_state != MachineState::READY && m_state != MachineState::MOVING)
         return false;
 
-    // Sécurité : refuser descente Z sans confirmation opérateur
+    // 3. Sécurité : refuser descente Z sans confirmation opérateur
     if (seg.dz < 0 && !m_zDescentConfirmed) {
         setStatus(tr("Descente Z bloquée — confirmation opérateur requise."));
         return false;
     }
     m_zDescentConfirmed = false; // Reset après usage
 
-    // Flow control : estimation du niveau courant du buffer STM.
-    // m_bufferLevel = niveau confirmé par le dernier ACK reçu.
-    // m_sentSinceLastAck = segments envoyés depuis (non encore confirmés).
-    const int estimatedLevel = m_bufferLevel + m_sentSinceLastAck;
-    if ((STM_BUFFER_MAX - estimatedLevel) < 1) {
-        setStatus(tr("Buffer STM plein — attente ACK."));
+    // ==========================================
+    // 4. NOUVEAU CONTROLE DE FLUX (Remplace l'ancien calcul m_bufferLevel)
+    // ==========================================
+    // Si l'UART attend un ACK, on refuse la nouvelle trajectoire.
+    // Le thread TrajetMotor patientera 10ms et réessayera tout seul.
+    if (m_uart->isWaitingAck()) {
         return false;
     }
 
+    // 5. Mise à jour de l'état et envoi
     setState(MachineState::MOVING);
     m_uart->sendSegment(seg);
-    ++m_sentSinceLastAck;
+
+    // NB: On a retiré le ++m_sentSinceLastAck ici car c'est désormais
+    // StmUartService qui gère son propre batch en interne.
+
     return true;
 }
 

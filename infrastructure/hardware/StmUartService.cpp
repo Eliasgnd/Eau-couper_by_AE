@@ -46,7 +46,7 @@ void StmUartService::open(const QString& portName)
         m_nakCount          = 0;
         m_waitingAck        = false;
         m_segsSinceLastAck  = 0;
-        m_lastFrame.clear();
+        m_unackedBatch.clear();
         emit connectionChanged(true);
         qDebug() << "[STM-UART] Port ouvert :" << portName;
     } else {
@@ -116,24 +116,14 @@ uint8_t StmUartService::calcChecksum(const QByteArray& frame)
 
 void StmUartService::sendSegment(const StmSegment& seg)
 {
-    if (!m_serial.isOpen()) {
-        emit comError(tr("Port série non ouvert."));
-        return;
-    }
+    if (!m_serial.isOpen()) return;
 
-    m_lastFrame = encodeFrame(seg);
+    QByteArray frame = encodeFrame(seg);
+    m_unackedBatch.append(frame); // On stocke la trame dans le batch en cours
     ++m_segsSinceLastAck;
 
-    // Vérification retour write() — détecte la perte silencieuse si le buffer OS est plein
-    const qint64 written = m_serial.write(m_lastFrame);
-    if (written != m_lastFrame.size()) {
-        emit comError(tr("Erreur écriture série : %1/%2 octets écrits.")
-                      .arg(written).arg(m_lastFrame.size()));
-        return;
-    }
+    m_serial.write(frame);
 
-    // Le STM envoie ACK toutes les STM_ACK_BATCH trames reçues (+ sur END_SEQ / HOME_SEQ).
-    // On ne démarre le timer que sur ces bornes, pas à chaque trame individuelle.
     const bool isBatchBoundary = (m_segsSinceLastAck >= STM_ACK_BATCH);
     const bool isEndSeq        = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
 
@@ -215,7 +205,8 @@ void StmUartService::processLine(const QByteArray& line)
         m_ackTimer.stop();
         m_waitingAck        = false;
         m_nakCount          = 0;
-        m_segsSinceLastAck  = 0;   // reset compteur de batch — le STM a bien reçu N segments
+        m_segsSinceLastAck  = 0;
+        m_unackedBatch.clear();
 
         // Parse : ACK|buf=<n>|seg=<s>
         int bufLevel = 0, segIndex = 0;
@@ -238,7 +229,7 @@ void StmUartService::processLine(const QByteArray& line)
 
         if (m_nakCount >= MAX_NAK_RETRY) {
             m_nakCount = 0;
-            m_lastFrame.clear();
+            m_unackedBatch.clear();
             emit comError(tr("3 NAK consécutifs — anomalie de communication."));
         } else {
             retransmitLastFrame();
@@ -391,10 +382,14 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 
 void StmUartService::retransmitLastFrame()
 {
-    if (m_lastFrame.isEmpty()) return;
-    qDebug() << "[STM-UART] Retransmission NAK" << m_nakCount << "/" << MAX_NAK_RETRY;
+    if (m_unackedBatch.isEmpty()) return;
+    qDebug() << "[STM-UART] Retransmission du batch complet suite à NAK (" << m_nakCount << "/" << MAX_NAK_RETRY << ")";
     m_waitingAck = true;
-    m_serial.write(m_lastFrame);
+
+    // On renvoie tout le lot non acquitté
+    for (const QByteArray& frame : m_unackedBatch) {
+        m_serial.write(frame);
+    }
     m_ackTimer.start();
 }
 
@@ -403,7 +398,7 @@ void StmUartService::onAckTimeout()
     if (!m_waitingAck) return;
     m_waitingAck = false;
     m_nakCount   = 0;
-    m_lastFrame.clear();
+    m_unackedBatch.clear();
     emit comError(tr("Timeout ACK — pas de réponse STM en %1 ms.").arg(ACK_TIMEOUT_MS));
 }
 
