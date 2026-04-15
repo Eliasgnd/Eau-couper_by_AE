@@ -41,7 +41,8 @@
       "Read(//usr/**)",
       "Read(//tmp/**)",
       "Bash(xargs grep:*)",
-      "Bash(ls /usr/bin/qmake*)"
+      "Bash(ls /usr/bin/qmake*)",
+      "Bash(/c/Qt/6.10.2/msvc2022_64/bin/qmake6.exe machineDecoupeIHM.pro -spec win32-msvc)"
     ]
   },
   "enableAllProjectMcpServers": true,

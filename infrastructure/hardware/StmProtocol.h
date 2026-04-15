@@ -10,7 +10,8 @@
 static constexpr int    STEPS_PER_MM   = 64;        // pas moteur par mm
 static constexpr int    STM_BUFFER_MAX = 4096;       // taille buffer STM (segments)
 static constexpr int    UART_BAUDRATE  = 115200;
-static constexpr int    ACK_TIMEOUT_MS = 2000;       // timeout ACK par trame (ms)
+static constexpr int    STM_ACK_BATCH  = 100;        // ACK STM toutes les N trames reçues
+static constexpr int    ACK_TIMEOUT_MS = 5000;       // timeout ACK batch (ms) — étendu pour couvrir 100 trames
 static constexpr int    MAX_NAK_RETRY  = 3;          // NAK consécutifs avant erreur
 
 // --- Flags de segment (byte [9] de la trame binaire) ---

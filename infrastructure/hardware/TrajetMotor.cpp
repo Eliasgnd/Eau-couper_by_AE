@@ -52,7 +52,16 @@ void TrajetMotor::executeTrajet()
     m_doneReceived  = false;
     m_execCount     = 0;
     m_segIsCut.clear();
+    m_animQueue.clear();
     m_visu->setDecoupeEnCours(true);
+
+    // Timer single-shot qui pilote l'animation frame par frame
+    if (!m_animTimer) {
+        m_animTimer = new QTimer(this);
+        m_animTimer->setSingleShot(true);
+        connect(m_animTimer, &QTimer::timeout,
+                this, &TrajetMotor::onAnimStep);
+    }
 
     m_workerThread = QThread::create([this]() { doExecuteTrajet(); });
     m_workerThread->setObjectName("TrajetWorker");
@@ -116,7 +125,7 @@ void TrajetMotor::doExecuteTrajet()
         m_head->setZValue(60);
         m_visu->getScene()->addItem(m_head);
         m_head->setPos(homePos.x() - 3, homePos.y() - 3);
-        m_lastHeadPos = homePos;
+        m_animCurrentPos = homePos;   // position initiale de l'animation
     }, Qt::BlockingQueuedConnection);
 
     // 4. Boucle d'envoi des segments au STM (sans animation temporelle)
@@ -163,6 +172,9 @@ void TrajetMotor::doExecuteTrajet()
     // 6. Nettoyage final sur le thread principal
     const bool success = !m_interrupted.load();
     QMetaObject::invokeMethod(this, [this, success]() {
+        if (m_animTimer) m_animTimer->stop();
+        m_animQueue.clear();
+
         if (m_head) {
             m_visu->getScene()->removeItem(m_head);
             delete m_head;
@@ -198,34 +210,61 @@ void TrajetMotor::appendSegPlan(const QPoint& from, const QPoint& to,
 }
 
 // ----------------------------------------------------------
-//  Slot : un segment physiquement exécuté par le STM (thread principal)
+//  Slot : correction de position depuis le STM réel (SEG_DONE)
+//
+//  Le STM envoie SEG_DONE toutes les 100 exécutions.
+//  L'animation est pilotée localement par onAnimStep() — ce slot
+//  sert uniquement à corriger la dérive de position éventuelle.
 // ----------------------------------------------------------
 
 void TrajetMotor::onSegmentExecuted(int /*seg*/, int x_steps, int y_steps)
 {
     if (!m_head) return;
-    if (m_execCount >= m_segIsCut.size()) return;
+    const QPointF realPos(HOME_X + x_steps / static_cast<double>(STEPS_PER_MM),
+                          HOME_Y + y_steps / static_cast<double>(STEPS_PER_MM));
+    // Correction de la position de référence
+    m_animCurrentPos = realPos;
+    m_head->setPos(realPos.x() - 3, realPos.y() - 3);
+}
 
-    const bool isCut = m_segIsCut[m_execCount++];
+// ----------------------------------------------------------
+//  Slot : avance l'animation d'un frame (pilote Pi-side)
+//
+//  Appelé par m_animTimer (single-shot) — s'enchaîne seul
+//  frame par frame, avec un délai proportionnel au temps
+//  d'exécution simulé de chaque chunk STM.
+// ----------------------------------------------------------
 
-    // Conversion pas moteur → pixels canvas (homePos = origine STM)
-    const QPointF newPos(HOME_X + x_steps / static_cast<double>(STEPS_PER_MM),
-                         HOME_Y + y_steps / static_cast<double>(STEPS_PER_MM));
+void TrajetMotor::onAnimStep()
+{
+    if (m_animQueue.isEmpty() || !m_head) return;
 
-    // Tracé du sillage
+    const SegAnimFrame frame = m_animQueue.dequeue();
+
+    // Type de tracé (utilise le plan pré-construit si disponible)
+    const bool isCut = (m_execCount < m_segIsCut.size())
+                       ? m_segIsCut[m_execCount] : frame.isCut;
+
+    // Tracé du sillage depuis la position courante vers la nouvelle
     auto* line = new QGraphicsLineItem(
-        m_lastHeadPos.x(), m_lastHeadPos.y(), newPos.x(), newPos.y());
+        m_animCurrentPos.x(), m_animCurrentPos.y(),
+        frame.canvasPos.x(),  frame.canvasPos.y());
     line->setPen(QPen(isCut ? Qt::red : Qt::blue, 1.5));
     m_visu->getScene()->addItem(line);
     m_visu->addCutMarker(line);
 
     // Déplacement de la tête
-    m_head->setPos(newPos.x() - 3, newPos.y() - 3);
-    m_lastHeadPos = newPos;
+    m_head->setPos(frame.canvasPos.x() - 3, frame.canvasPos.y() - 3);
+    m_animCurrentPos = frame.canvasPos;
+    ++m_execCount;
 
     // Mise à jour progression
     const int remaining = qMax(0, m_segIsCut.size() - m_execCount);
     emit decoupeProgress(remaining, qMax(1, m_segIsCut.size()));
+
+    // Planifier le prochain frame si la file n'est pas vide
+    if (!m_animQueue.isEmpty())
+        m_animTimer->start(m_animQueue.head().durationMs);
 }
 
 // ----------------------------------------------------------
@@ -300,6 +339,27 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
             if (accepted) break;
             QThread::msleep(10);
         }
+
+        if (accepted && !m_stopRequested) {
+            // Position canvas de la fin de ce chunk (interpolation linéaire from→to)
+            // Note : t1 est déjà déclaré dans la boucle externe pour les calculs de seg
+            const QPointF chunkEnd(
+                from.x() + (to.x() - from.x()) * t1,
+                from.y() + (to.y() - from.y()) * t1);
+
+            // Temps d'exécution simulé :  pas × ARR (µs/pas) → ms
+            // STM G491 : prescaler=170, CLK=170 MHz → 1 tick = 1 µs
+            const int steps      = qMax(qAbs(seg.dx), qAbs(seg.dy));
+            const int durationMs = qMax(1, static_cast<int>(steps * seg.v_max / 1000));
+            const bool isCutChunk = (flags & FLAG_VALVE_ON) != 0;
+
+            // Enqueue sur le thread principal (QueuedConnection = FIFO garanti)
+            QMetaObject::invokeMethod(this, [this, chunkEnd, isCutChunk, durationMs]() {
+                m_animQueue.enqueue({chunkEnd, isCutChunk, durationMs});
+                if (!m_animTimer->isActive())
+                    m_animTimer->start(durationMs);
+            }, Qt::QueuedConnection);
+        }
     }
     return true;
 }
@@ -320,6 +380,9 @@ void TrajetMotor::resume()
 
 void TrajetMotor::stopCut()
 {
+    if (m_animTimer) m_animTimer->stop();
+    m_animQueue.clear();
+
     m_stopRequested = true;
     m_paused        = false;
     m_interrupted   = true;

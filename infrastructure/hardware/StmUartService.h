@@ -93,8 +93,9 @@ private:
     QTimer       m_ackTimer;
     QByteArray   m_readBuffer;
 
-    QByteArray   m_lastFrame;    // dernière trame binaire envoyée (pour retry)
-    int          m_nakCount = 0; // NAK consécutifs sur la trame courante
+    QByteArray   m_lastFrame;          // dernière trame binaire envoyée (pour retry)
+    int          m_nakCount        = 0; // NAK consécutifs sur la trame courante
+    int          m_segsSinceLastAck = 0; // segments envoyés depuis le dernier ACK reçu
 
     bool         m_waitingAck = false;
 

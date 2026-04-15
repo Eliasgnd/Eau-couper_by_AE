@@ -143,5 +143,6 @@ private:
     bool            m_hasRecovery   = false;
     RecoveryData    m_recovery;
 
-    bool            m_zDescentConfirmed = false;  // sécurité descente Z
+    bool            m_zDescentConfirmed  = false;  // sécurité descente Z
+    int             m_sentSinceLastAck   = 0;      // segments envoyés depuis le dernier ACK (estimation buffer)
 };

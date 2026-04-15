@@ -43,8 +43,9 @@ void StmUartService::open(const QString& portName)
 
     if (m_serial.open(QIODevice::ReadWrite)) {
         m_readBuffer.clear();
-        m_nakCount    = 0;
-        m_waitingAck  = false;
+        m_nakCount          = 0;
+        m_waitingAck        = false;
+        m_segsSinceLastAck  = 0;
         m_lastFrame.clear();
         emit connectionChanged(true);
         qDebug() << "[STM-UART] Port ouvert :" << portName;
@@ -120,12 +121,27 @@ void StmUartService::sendSegment(const StmSegment& seg)
         return;
     }
 
-    m_lastFrame  = encodeFrame(seg);
-    m_nakCount   = 0;
-    m_waitingAck = true;
+    m_lastFrame = encodeFrame(seg);
+    ++m_segsSinceLastAck;
 
-    m_serial.write(m_lastFrame);
-    m_ackTimer.start();
+    // Vérification retour write() — détecte la perte silencieuse si le buffer OS est plein
+    const qint64 written = m_serial.write(m_lastFrame);
+    if (written != m_lastFrame.size()) {
+        emit comError(tr("Erreur écriture série : %1/%2 octets écrits.")
+                      .arg(written).arg(m_lastFrame.size()));
+        return;
+    }
+
+    // Le STM envoie ACK toutes les STM_ACK_BATCH trames reçues (+ sur END_SEQ / HOME_SEQ).
+    // On ne démarre le timer que sur ces bornes, pas à chaque trame individuelle.
+    const bool isBatchBoundary = (m_segsSinceLastAck >= STM_ACK_BATCH);
+    const bool isEndSeq        = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
+
+    if (isBatchBoundary || isEndSeq) {
+        m_nakCount   = 0;
+        m_waitingAck = true;
+        m_ackTimer.start();
+    }
 }
 
 // ----------------------------------------------------------
@@ -197,8 +213,9 @@ void StmUartService::processLine(const QByteArray& line)
     // --- ACK|buf=<n>|seg=<s> ---
     if (line.startsWith("ACK|buf=")) {
         m_ackTimer.stop();
-        m_waitingAck = false;
-        m_nakCount   = 0;
+        m_waitingAck        = false;
+        m_nakCount          = 0;
+        m_segsSinceLastAck  = 0;   // reset compteur de batch — le STM a bien reçu N segments
 
         // Parse : ACK|buf=<n>|seg=<s>
         int bufLevel = 0, segIndex = 0;

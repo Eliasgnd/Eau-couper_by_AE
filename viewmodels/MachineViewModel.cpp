@@ -177,14 +177,18 @@ bool MachineViewModel::sendSegment(const StmSegment& seg)
     }
     m_zDescentConfirmed = false; // Reset après usage
 
-    // Flow control : vérifier l'espace disponible dans le buffer STM
-    if ((STM_BUFFER_MAX - m_bufferLevel) < 1) {
-        setStatus(tr("Buffer STM plein — attente DONE."));
+    // Flow control : estimation du niveau courant du buffer STM.
+    // m_bufferLevel = niveau confirmé par le dernier ACK reçu.
+    // m_sentSinceLastAck = segments envoyés depuis (non encore confirmés).
+    const int estimatedLevel = m_bufferLevel + m_sentSinceLastAck;
+    if ((STM_BUFFER_MAX - estimatedLevel) < 1) {
+        setStatus(tr("Buffer STM plein — attente ACK."));
         return false;
     }
 
     setState(MachineState::MOVING);
     m_uart->sendSegment(seg);
+    ++m_sentSinceLastAck;
     return true;
 }
 
@@ -213,6 +217,7 @@ void MachineViewModel::onConnectionChanged(bool connected)
 void MachineViewModel::onAckReceived(int bufLevel, int segIndex)
 {
     Q_UNUSED(segIndex)
+    m_sentSinceLastAck = 0;   // le STM a confirmé la réception du batch
     if (m_bufferLevel != bufLevel) {
         m_bufferLevel = bufLevel;
         emit bufferLevelChanged(bufLevel);
@@ -228,7 +233,8 @@ void MachineViewModel::onDoneReceived()
 {
     setState(MachineState::READY);
     setStatus(tr("Trajectoire terminée."));
-    m_bufferLevel = 0;
+    m_bufferLevel      = 0;
+    m_sentSinceLastAck = 0;
     emit bufferLevelChanged(0);
     emit doneReceived();
 }
@@ -309,7 +315,8 @@ void MachineViewModel::onReadyReceived()
 {
     setState(MachineState::READY);
     setStatus(tr("Machine prête."));
-    m_bufferLevel = 0;
+    m_bufferLevel      = 0;
+    m_sentSinceLastAck = 0;
 }
 
 void MachineViewModel::onStartupBannerReceived()

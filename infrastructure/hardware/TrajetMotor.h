@@ -6,6 +6,8 @@
 #include <QMutex>
 #include <QWaitCondition>
 #include <QVector>
+#include <QQueue>
+#include <QTimer>
 #include <atomic>
 #include <QThread>
 
@@ -47,6 +49,10 @@ public slots:
     void onSegmentExecuted(int seg, int x_steps, int y_steps);
     void onMachineDone();
 
+private slots:
+    // Pilote d'animation local — avance la tête d'un frame à la fois
+    void onAnimStep();
+
 signals:
     void decoupeProgress(int remaining, int total);
     void decoupeFinished(bool success);
@@ -87,14 +93,27 @@ private:
     QWaitCondition     m_doneCond;
     std::atomic<bool>  m_doneReceived{false};
 
-    // Visualisation pilotée par SEG_DONE
+    // Visualisation pilotée par le timer local (Pi-driven)
     QGraphicsEllipseItem* m_head = nullptr;
-    QPointF               m_lastHeadPos;
-    QVector<bool>         m_segIsCut;   // plan pré-construit : true = coupe (rouge)
+    QVector<bool>         m_segIsCut;    // plan pré-construit : true = coupe (rouge)
     int                   m_execCount = 0;
 
     // Progression
     int m_totalSteps = 0;
+
+    // ------------------------------------------------------------------
+    //  Animation locale : le Pi simule le timing d'exécution STM
+    //  pour un affichage fluide indépendant de la cadence SEG_DONE.
+    // ------------------------------------------------------------------
+    struct SegAnimFrame {
+        QPointF canvasPos;   // position canvas (pixels) en fin de chunk
+        bool    isCut;       // true = coupe (rouge), false = voyage (bleu)
+        int     durationMs;  // temps simulé d'exécution de ce chunk (ms)
+    };
+
+    QQueue<SegAnimFrame> m_animQueue;               // file d'animation (thread principal uniquement)
+    QTimer*              m_animTimer    = nullptr;
+    QPointF              m_animCurrentPos;          // position courante de la tête dans l'animation
 
     // Point de repos machine (en pixels = mm)
     static constexpr int HOME_X = 600;
