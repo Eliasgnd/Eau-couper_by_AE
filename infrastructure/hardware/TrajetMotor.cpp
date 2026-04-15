@@ -297,68 +297,84 @@ int TrajetMotor::estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoi
     return steps;
 }
 
+// -----------------------------------------------------------------------------
+// sendMoveToStm — envoie un déplacement en segments relatifs vers le STM.
+// Cette fonction DOIT être appelée directement depuis le thread worker (doExecuteTrajet).
+// Elle gère elle-même la mise en pause si le STM32 attend un ACK.
+// -----------------------------------------------------------------------------
 bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
                                 uint8_t flags, bool isLast, double mmPerPxScale)
 {
-    if (!m_machine) return true;
+    if (!m_machine) return true; // Pas de machine = on ne bloque pas la simulation
 
-    const double dxMm = (to.x() - from.x()) * mmPerPxScale;
-    const double dyMm = (to.y() - from.y()) * mmPerPxScale;
-    const int dxSteps = static_cast<int>(dxMm * STEPS_PER_MM);
-    const int dySteps = static_cast<int>(dyMm * STEPS_PER_MM);
+    const double dxMm    = (to.x() - from.x()) * mmPerPxScale;
+    const double dyMm    = (to.y() - from.y()) * mmPerPxScale;
+    const int    dxSteps = static_cast<int>(dxMm * STEPS_PER_MM);
+    const int    dySteps = static_cast<int>(dyMm * STEPS_PER_MM);
 
     const double vitesse = (flags & FLAG_VALVE_ON) ? m_vCut : m_vTrav;
-    const uint16_t arr = speedToArr(vitesse);
+    const uint16_t arr     = speedToArr(vitesse);
 
+    qDebug() << "[sendMoveToStm]" << (flags & FLAG_VALVE_ON ? "COUPE" : "DÉPLACEMENT")
+             << "— vitesse =" << vitesse << "mm/s, ARR =" << arr;
+
+    static constexpr int MAX_STEPS = 30000;
     const int totalAbs = qMax(qAbs(dxSteps), qAbs(dySteps));
+
     if (totalAbs == 0) return true;
 
-    const int numChunks = (totalAbs + MAX_STEPS_CHUNK - 1) / MAX_STEPS_CHUNK;
+    const int numChunks = (totalAbs + MAX_STEPS - 1) / MAX_STEPS;
 
+    // On divise le grand mouvement en "chunks" (morceaux)
     for (int i = 0; i < numChunks; ++i) {
         const double t0 = static_cast<double>(i)     / numChunks;
         const double t1 = static_cast<double>(i + 1) / numChunks;
 
+        const int chunkDx = static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0);
+        const int chunkDy = static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0);
+
         StmSegment seg;
-        seg.dx    = static_cast<int16_t>(static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0));
-        seg.dy    = static_cast<int16_t>(static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0));
+        seg.dx    = static_cast<int16_t>(chunkDx);
+        seg.dy    = static_cast<int16_t>(chunkDy);
         seg.dz    = 0;
         seg.v_max = arr;
         seg.flags = flags;
 
-        if (isLast && i == numChunks - 1) seg.flags |= FLAG_END_SEQ;
+        // On ajoute le flag de fin uniquement sur le tout dernier chunk du dernier segment
+        if (isLast && i == numChunks - 1)
+            seg.flags |= FLAG_END_SEQ;
 
         bool accepted = false;
+        int waited = 0;
+        constexpr int MAX_WAIT_MS = 5000; // Timeout de sécurité (5 secondes)
 
+        // =================================================================
+        // BOUCLE D'ATTENTE VITALE (La Contre-pression)
+        // Si l'UART attend un ACK, MachineViewModel refusera la trajectoire.
+        // On endort le thread 10ms et on réessaie CE chunk, sans le perdre.
+        // =================================================================
         while (!m_stopRequested) {
+
+            // On s'assure d'exécuter la commande sur le thread principal pour éviter les crashs Qt
             QMetaObject::invokeMethod(this, [this, seg, &accepted]() {
-                if (m_machine)
+                if (m_machine) {
                     accepted = m_machine->sendSegment(seg);
+                }
             }, Qt::BlockingQueuedConnection);
 
-            if (accepted) break;
+            // Si le chunk a été accepté, on casse la boucle while et on passe au chunk i+1
+            if (accepted) {
+                break;
+            }
+
+            // Sinon, l'UART est bloqué (attente d'ACK). On patiente.
             QThread::msleep(10);
-        }
+            waited += 10;
 
-        if (accepted && !m_stopRequested) {
-            // Position canvas de la fin de ce chunk (interpolation linéaire from→to)
-            // Note : t1 est déjà déclaré dans la boucle externe pour les calculs de seg
-            const QPointF chunkEnd(
-                from.x() + (to.x() - from.x()) * t1,
-                from.y() + (to.y() - from.y()) * t1);
-
-            // Temps d'exécution simulé :  pas × ARR (µs/pas) → ms
-            // STM G491 : prescaler=170, CLK=170 MHz → 1 tick = 1 µs
-            const int steps      = qMax(qAbs(seg.dx), qAbs(seg.dy));
-            const int durationMs = qMax(1, static_cast<int>(steps * seg.v_max / 1000));
-            const bool isCutChunk = (flags & FLAG_VALVE_ON) != 0;
-
-            // Enqueue sur le thread principal (QueuedConnection = FIFO garanti)
-            QMetaObject::invokeMethod(this, [this, chunkEnd, isCutChunk, durationMs]() {
-                m_animQueue.enqueue({chunkEnd, isCutChunk, durationMs});
-                if (!m_animTimer->isActive())
-                    m_animTimer->start(durationMs);
-            }, Qt::QueuedConnection);
+            if (waited >= MAX_WAIT_MS) {
+                qWarning() << "TrajetMotor: timeout (5s) attente ACK du STM32, machine bloquée.";
+                return false;
+            }
         }
     }
     return true;

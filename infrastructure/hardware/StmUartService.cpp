@@ -1,6 +1,7 @@
 #include "StmUartService.h"
 #include <QDebug>
 #include <QSerialPortInfo>
+#include <utility>
 
 // ============================================================
 //  StmUartService — implémentation
@@ -125,7 +126,10 @@ void StmUartService::sendSegment(const StmSegment& seg)
     m_serial.write(frame);
 
     const bool isBatchBoundary = (m_segsSinceLastAck >= STM_ACK_BATCH);
-    const bool isEndSeq        = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
+    const bool isEndSeq = (seg.flags & FLAG_END_SEQ) ||
+                          (seg.flags & FLAG_HOME_SEQ) ||
+                          (seg.flags & FLAG_VALVE_ON) ||
+                          (seg.flags & FLAG_VALVE_OFF);
 
     if (isBatchBoundary || isEndSeq) {
         m_nakCount   = 0;
@@ -387,7 +391,7 @@ void StmUartService::retransmitLastFrame()
     m_waitingAck = true;
 
     // On renvoie tout le lot non acquitté
-    for (const QByteArray& frame : m_unackedBatch) {
+    for (const QByteArray& frame : std::as_const(m_unackedBatch)) {
         m_serial.write(frame);
     }
     m_ackTimer.start();
