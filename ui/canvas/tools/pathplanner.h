@@ -1,5 +1,5 @@
-// Dans pathplanner.h
 #pragma once
+
 #include <QGraphicsScene>
 #include <QList>
 #include <QPolygonF>
@@ -7,10 +7,18 @@
 struct ContinuousCut {
     QPolygonF points;
     bool isClosed;
-    int depth = 0; // NOUVEAU : 0 = Contour externe, 1 = Trou intérieur, 2 = Trou dans un trou...
+    int depth = 0; // 0 = contour, 1 = trou, etc.
 };
 
-class PathPlanner {
+class PathPlanner
+{
 public:
-    static QList<ContinuousCut> extractContinuousPaths(QGraphicsScene *sc);
+    // La fonction unique qui fait tout : extraction + tri + optimisation
+    static QList<ContinuousCut> getOptimizedPaths(QGraphicsScene *sc, QPointF startPos);
+
+private:
+    // Fonctions internes de traitement
+    static QList<ContinuousCut> extractRawPaths(QGraphicsScene *sc);
+    static void computeInclusionDepths(QList<ContinuousCut>& cuts);
+    static void applyLeadIns(QList<ContinuousCut>& cuts, double distance);
 };

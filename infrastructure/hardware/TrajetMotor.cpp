@@ -1,6 +1,5 @@
 #include "TrajetMotor.h"
 #include "MachineViewModel.h"
-#include "PathOptimizer.h"
 #include "MainWindow.h"
 
 #include <QGraphicsEllipseItem>
@@ -8,6 +7,7 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <algorithm>
+#include <utility> // Pour std::as_const
 
 // Calibration : 1 pixel sur l'écran = 1 mm sur la machine
 static constexpr double mmPerPx = 1.0;
@@ -56,13 +56,14 @@ void TrajetMotor::doExecuteTrajet()
 {
     const QPoint homePos(600, 400); // Point de repos de la machine
 
-    // 1. Extraction des formes depuis la scène
-    QList<ContinuousCut> rawCuts;
-    QMetaObject::invokeMethod(this, [this, &rawCuts]() {
-        rawCuts = PathPlanner::extractContinuousPaths(m_visu->getScene());
+    // 1. Extraction et Optimisation directes via le Planner
+    QList<ContinuousCut> optimizedCuts;
+    QMetaObject::invokeMethod(this, [this, &optimizedCuts, homePos]() {
+        // C'est ICI que l'erreur est corrigée !
+        optimizedCuts = PathPlanner::getOptimizedPaths(m_visu->getScene(), homePos);
     }, Qt::BlockingQueuedConnection);
 
-    if (rawCuts.isEmpty()) {
+    if (optimizedCuts.isEmpty()) {
         QMetaObject::invokeMethod(this, [this]() {
             m_visu->setDecoupeEnCours(false);
             m_running = false;
@@ -70,15 +71,12 @@ void TrajetMotor::doExecuteTrajet()
         return;
     }
 
-    // 2. OPTIMISATION (Intelligence de parcours : Inside-Out, Lead-in, Trajet court)
-    QList<ContinuousCut> optimizedCuts = PathOptimizer::optimize(rawCuts, homePos);
-
-    // 3. Préparation progression
+    // 2. Préparation progression
     m_totalSteps = estimateTotalSteps(optimizedCuts, homePos);
     m_progressCounter = 0;
     emit decoupeProgress(m_totalSteps, m_totalSteps);
 
-    // 4. Création du curseur visuel (tête de buse)
+    // 3. Création du curseur visuel (tête de buse)
     QGraphicsEllipseItem *head = nullptr;
     QMetaObject::invokeMethod(this, [this, &head, homePos]() {
         head = new QGraphicsEllipseItem(-3, -3, 6, 6);
@@ -89,10 +87,11 @@ void TrajetMotor::doExecuteTrajet()
         head->setPos(homePos.x() - 3, homePos.y() - 3);
     }, Qt::BlockingQueuedConnection);
 
-    // 5. BOUCLE DE DÉCOUPE
+    // 4. BOUCLE DE DÉCOUPE
     QPoint cur = homePos;
 
-    for (const auto& cut : optimizedCuts) {
+    // Utilisation de std::as_const pour corriger l'avertissement [clazy-range-loop-detach]
+    for (const auto& cut : std::as_const(optimizedCuts)) {
         if (m_stopRequested) break;
         while (m_paused && !m_stopRequested) QThread::msleep(30);
 
@@ -106,7 +105,6 @@ void TrajetMotor::doExecuteTrajet()
         }
 
         // --- DÉCOUPE DE LA FORME (Vanne ouverte) ---
-        // On parcourt tous les points de la forme continue
         for (int i = 1; i < cut.points.size(); ++i) {
             if (m_stopRequested) break;
             while (m_paused && !m_stopRequested) QThread::msleep(30);
@@ -134,7 +132,6 @@ void TrajetMotor::doExecuteTrajet()
         m_visu->setDecoupeEnCours(false);
         emit decoupeProgress(0, m_totalSteps);
 
-        // Affichage message fin
         QString titre = m_interrupted ? tr("Découpe interrompue") : tr("Découpe terminée");
         QString msg = m_interrupted ? tr("L'opération a été stoppée.") : tr("Découpe réussie !");
         QMessageBox::information(m_mainWindow, titre, msg);
@@ -144,7 +141,8 @@ void TrajetMotor::doExecuteTrajet()
 int TrajetMotor::estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos) {
     int steps = 0;
     QPoint p = homePos;
-    for (const auto& cut : cuts) {
+    // std::as_const ici aussi
+    for (const auto& cut : std::as_const(cuts)) {
         steps += std::max(std::abs(p.x() - cut.points.first().x()), std::abs(p.y() - cut.points.first().y()));
         for (int i = 1; i < cut.points.size(); ++i) {
             steps += std::max(std::abs(cut.points[i-1].x() - cut.points[i].x()),
@@ -166,10 +164,13 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,
     const int delayMs = cut ? 2 : 1;
     QPointF currentPos = start;
 
-    for (double d = stepPx; d < dist; d += stepPx) {
+    // Correction de l'avertissement [FloatLoopCounter] en utilisant un entier (int)
+    int numSteps = static_cast<int>(dist / stepPx);
+
+    for (int i = 1; i <= numSteps; ++i) {
         if (m_stopRequested) return;
 
-        double t = d / dist;
+        double t = (i * stepPx) / dist;
         QPointF nextPos(start.x() + t * (end.x() - start.x()), start.y() + t * (end.y() - start.y()));
 
         QMetaObject::invokeMethod(this, [this, pen, currentPos, nextPos, head]() {
@@ -185,6 +186,17 @@ void TrajetMotor::moveHeadProgressive(const QPoint& start, const QPoint& end,
         m_progressCounter += static_cast<int>(stepPx);
         emit decoupeProgress(m_totalSteps - m_progressCounter, m_totalSteps);
     }
+
+    // Tracer le dernier résidu de ligne si besoin
+    if (currentPos.toPoint() != end) {
+        QMetaObject::invokeMethod(this, [this, pen, currentPos, end, head]() {
+            auto *line = new QGraphicsLineItem(currentPos.x(), currentPos.y(), end.x(), end.y());
+            line->setPen(pen);
+            m_visu->getScene()->addItem(line);
+            m_visu->addCutMarker(line);
+            head->setPos(end.x() - 3, end.y() - 3);
+        }, Qt::BlockingQueuedConnection);
+    }
 }
 
 bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
@@ -197,11 +209,9 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
     const int dxSteps = static_cast<int>(dxMm * STEPS_PER_MM);
     const int dySteps = static_cast<int>(dyMm * STEPS_PER_MM);
 
-    // Choix de la vitesse selon le flag (Coupe ou Rapide)
     const double vitesse = (flags & FLAG_VALVE_ON) ? m_vCut : m_vTrav;
-    const uint16_t arr = speedToArr(vitesse); // Assurez-vous que cette fonction est accessible
+    const uint16_t arr = speedToArr(vitesse);
 
-    // Segmentation pour ne pas dépasser les limites du protocole (int16)
     static constexpr int MAX_STEPS = 30000;
     const int totalAbs = qMax(qAbs(dxSteps), qAbs(dySteps));
     if (totalAbs == 0) return true;
@@ -221,8 +231,16 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
 
         if (isLast && i == numChunks - 1) seg.flags |= FLAG_END_SEQ;
 
-        // On attend que le buffer du STM32 ait de la place (géré dans le ViewModel)
-        while (!m_machine->sendSegment(seg) && !m_stopRequested) {
+        bool accepted = false;
+
+        while (!m_stopRequested) {
+            QMetaObject::invokeMethod(this, [this, seg, &accepted]() {
+                if (m_machine) {
+                    accepted = m_machine->sendSegment(seg);
+                }
+            }, Qt::BlockingQueuedConnection);
+
+            if (accepted) break;
             QThread::msleep(10);
         }
     }
