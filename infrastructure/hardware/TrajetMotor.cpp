@@ -330,6 +330,32 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
         const double t0 = static_cast<double>(i)     / numChunks;
         const double t1 = static_cast<double>(i + 1) / numChunks;
 
+        // ==========================================================
+        // 🎨 MISE À JOUR VISUELLE EN TEMPS RÉEL
+        // ==========================================================
+        // On calcule les positions de dessin sur le canevas (en pixels)
+        QPointF p0(from.x() + (to.x() - from.x()) * t0,
+                   from.y() + (to.y() - from.y()) * t0);
+        QPointF p1(from.x() + (to.x() - from.x()) * t1,
+                   from.y() + (to.y() - from.y()) * t1);
+
+        bool isCut = (flags & FLAG_VALVE_ON);
+
+        // On dessine sur le thread principal pour éviter que l'UI plante
+        QMetaObject::invokeMethod(this, [this, p0, p1, isCut]() {
+            if (m_visu && m_head) {
+                // Dessine le trait (Rouge = coupe, Bleu = déplacement rapide)
+                auto* line = new QGraphicsLineItem(p0.x(), p0.y(), p1.x(), p1.y());
+                line->setPen(QPen(isCut ? Qt::red : Qt::blue, 1.5));
+                m_visu->getScene()->addItem(line);
+                m_visu->addCutMarker(line); // Ajoute à la liste pour pouvoir nettoyer l'écran à la fin
+
+                // Déplace la tête (le point vert)
+                m_head->setPos(p1.x() - 3, p1.y() - 3);
+            }
+        }, Qt::BlockingQueuedConnection);
+        // ==========================================================
+
         const int chunkDx = static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0);
         const int chunkDy = static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0);
 
@@ -355,7 +381,7 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
         // =================================================================
         while (!m_stopRequested) {
 
-            // On s'assure d'exécuter la commande sur le thread principal pour éviter les crashs Qt
+            // On s'assure d'exécuter l'envoi sur le thread principal pour la synchronisation
             QMetaObject::invokeMethod(this, [this, seg, &accepted]() {
                 if (m_machine) {
                     accepted = m_machine->sendSegment(seg);
@@ -367,7 +393,7 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
                 break;
             }
 
-            // Sinon, l'UART est bloqué (attente d'ACK). On patiente.
+            // Sinon, l'UART est bloqué (attente d'ACK). On patiente sans bloquer l'interface graphique.
             QThread::msleep(10);
             waited += 10;
 
