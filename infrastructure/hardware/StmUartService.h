@@ -85,6 +85,7 @@ signals:
     void pausedConfirmed();
     void resumedConfirmed();
 
+    void realPositionReceived(int x_steps, int y_steps);
 private slots:
     void onReadyRead();
     void onAckTimeout();

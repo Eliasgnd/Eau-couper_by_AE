@@ -305,7 +305,7 @@ int TrajetMotor::estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoi
 bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
                                 uint8_t flags, bool isLast, double mmPerPxScale)
 {
-    if (!m_machine) return true; // Pas de machine = on ne bloque pas la simulation
+    if (!m_machine) return true;
 
     const double dxMm    = (to.x() - from.x()) * mmPerPxScale;
     const double dyMm    = (to.y() - from.y()) * mmPerPxScale;
@@ -325,49 +325,33 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
 
     const int numChunks = (totalAbs + MAX_STEPS - 1) / MAX_STEPS;
 
-    // On divise le grand mouvement en "chunks" (morceaux)
     for (int i = 0; i < numChunks; ++i) {
         const double t0 = static_cast<double>(i)     / numChunks;
         const double t1 = static_cast<double>(i + 1) / numChunks;
 
-        // 1. D'ABORD, on calcule chunkDx et chunkDy
         const int chunkDx = static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0);
         const int chunkDy = static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0);
 
         // ==========================================================
-        // 🎨 MISE EN FILE D'ATTENTE DE L'ANIMATION (Temps réel)
+        // 🎨 DESSIN DU CHEMIN PRÉVU (La tête verte bougera ailleurs)
         // ==========================================================
+        QPointF p0(from.x() + (to.x() - from.x()) * t0,
+                   from.y() + (to.y() - from.y()) * t0);
         QPointF p1(from.x() + (to.x() - from.x()) * t1,
                    from.y() + (to.y() - from.y()) * t1);
 
         bool isCut = (flags & FLAG_VALVE_ON);
 
-        // Calcul de la distance physique réelle du chunk en mm
-        const double chunkDxMm = chunkDx / static_cast<double>(STEPS_PER_MM);
-        const double chunkDyMm = chunkDy / static_cast<double>(STEPS_PER_MM);
-        const double distMm    = std::sqrt(chunkDxMm * chunkDxMm + chunkDyMm * chunkDyMm);
-
-        // Temps = Distance / Vitesse (on multiplie par 1000 pour les millisecondes)
-        const int durationMs = qMax(1, static_cast<int>((distMm / vitesse) * 1000.0));
-
-        QMetaObject::invokeMethod(this, [this, p1, durationMs, isCut]() {
-            if (m_visu && m_head) {
-                // Création explicite de la frame pour éviter l'erreur C2397
-                SegAnimFrame frame;
-                frame.canvasPos  = p1;
-                frame.isCut      = isCut;
-                frame.durationMs = durationMs;
-
-                m_animQueue.enqueue(frame);
-
-                if (m_animTimer && !m_animTimer->isActive()) {
-                    onAnimStep();
-                }
+        QMetaObject::invokeMethod(this, [this, p0, p1, isCut]() {
+            if (m_visu) {
+                auto* line = new QGraphicsLineItem(p0.x(), p0.y(), p1.x(), p1.y());
+                line->setPen(QPen(isCut ? Qt::red : Qt::blue, 1.5));
+                m_visu->getScene()->addItem(line);
+                m_visu->addCutMarker(line);
             }
-        }, Qt::QueuedConnection);
+        }, Qt::BlockingQueuedConnection);
         // ==========================================================
 
-        // 2. ENSUITE, on remplit le segment pour le STM32
         StmSegment seg;
         seg.dx    = static_cast<int16_t>(chunkDx);
         seg.dy    = static_cast<int16_t>(chunkDy);
@@ -375,39 +359,29 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
         seg.v_max = arr;
         seg.flags = flags;
 
-        // On ajoute le flag de fin uniquement sur le tout dernier chunk du dernier segment
         if (isLast && i == numChunks - 1)
             seg.flags |= FLAG_END_SEQ;
 
         bool accepted = false;
         int waited = 0;
-        constexpr int MAX_WAIT_MS = 5000; // Timeout de sécurité (5 secondes)
+        constexpr int MAX_WAIT_MS = 5000;
 
-        // =================================================================
-        // BOUCLE D'ATTENTE VITALE (La Contre-pression)
-        // Si l'UART attend un ACK, MachineViewModel refusera la trajectoire.
-        // On endort le thread 10ms et on réessaie CE chunk, sans le perdre.
-        // =================================================================
         while (!m_stopRequested) {
-
-            // On s'assure d'exécuter l'envoi sur le thread principal pour la synchronisation
             QMetaObject::invokeMethod(this, [this, seg, &accepted]() {
                 if (m_machine) {
                     accepted = m_machine->sendSegment(seg);
                 }
             }, Qt::BlockingQueuedConnection);
 
-            // Si le chunk a été accepté, on casse la boucle while et on passe au chunk i+1
             if (accepted) {
                 break;
             }
 
-            // Sinon, l'UART est bloqué (attente d'ACK). On patiente sans bloquer l'interface graphique.
             QThread::msleep(10);
             waited += 10;
 
             if (waited >= MAX_WAIT_MS) {
-                qWarning() << "TrajetMotor: timeout (5s) attente ACK du STM32, machine bloquée.";
+                qWarning() << "TrajetMotor: timeout (5s) attente ACK du STM32.";
                 return false;
             }
         }
@@ -440,3 +414,20 @@ void TrajetMotor::stopCut()
     QMutexLocker lk(&m_doneMutex);
     m_doneCond.wakeAll(); // débloque l'attente DONE dans doExecuteTrajet
 }
+
+void TrajetMotor::onPositionUpdated(int x_steps, int y_steps)
+{
+    if (!m_head) return;
+
+    // Convertir les pas STM32 en pixels sur l'écran
+    const double realX_mm = x_steps / static_cast<double>(STEPS_PER_MM);
+    const double realY_mm = y_steps / static_cast<double>(STEPS_PER_MM);
+
+    // Déplacer le curseur vert (la vraie tête)
+    const QPointF realPos(HOME_X + realX_mm, HOME_Y + realY_mm);
+
+    QMetaObject::invokeMethod(this, [this, realPos]() {
+        m_head->setPos(realPos.x() - 3, realPos.y() - 3);
+    }, Qt::QueuedConnection);
+}
+

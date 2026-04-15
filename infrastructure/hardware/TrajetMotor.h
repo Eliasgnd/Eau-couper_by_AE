@@ -45,13 +45,14 @@ public slots:
     void resume();
     void stopCut();
 
+    // ==============================================================
+    // NOUVEAU SLOT PUBLIC : Doit être ici pour que CuttingService puisse s'y connecter
+    // ==============================================================
+    void onPositionUpdated(int x_steps, int y_steps);
+
     // Appelés depuis le thread principal via les signaux MachineViewModel
     void onSegmentExecuted(int seg, int x_steps, int y_steps);
     void onMachineDone();
-
-private slots:
-    // Pilote d'animation local — avance la tête d'un frame à la fois
-    void onAnimStep();
 
 signals:
     void decoupeProgress(int remaining, int total);
@@ -102,8 +103,7 @@ private:
     int m_totalSteps = 0;
 
     // ------------------------------------------------------------------
-    //  Animation locale : le Pi simule le timing d'exécution STM
-    //  pour un affichage fluide indépendant de la cadence SEG_DONE.
+    //  Ancienne Animation locale (Vous pourrez supprimer cette partie plus tard si tout marche)
     // ------------------------------------------------------------------
     struct SegAnimFrame {
         QPointF canvasPos;   // position canvas (pixels) en fin de chunk
@@ -111,9 +111,9 @@ private:
         int     durationMs;  // temps simulé d'exécution de ce chunk (ms)
     };
 
-    QQueue<SegAnimFrame> m_animQueue;               // file d'animation (thread principal uniquement)
-    QTimer*              m_animTimer    = nullptr;
-    QPointF              m_animCurrentPos;          // position courante de la tête dans l'animation
+    QQueue<SegAnimFrame> m_animQueue;
+    QTimer* m_animTimer    = nullptr;
+    QPointF              m_animCurrentPos;
 
     // Point de repos machine (en pixels = mm)
     static constexpr int HOME_X = 600;
@@ -121,6 +121,10 @@ private:
 
     // Taille maximale d'un chunk STM (identique à sendMoveToStm)
     static constexpr int MAX_STEPS_CHUNK = 30000;
+
+private slots:
+    // Pilote d'animation local — avance la tête d'un frame à la fois
+    void onAnimStep();
 };
 
 #endif // TRAJETMOTOR_H

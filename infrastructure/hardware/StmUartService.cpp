@@ -339,6 +339,17 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
+    // --- POSITION RÉELLE EN DIRECT (Envoyée par le STM32) ---
+    if (line.startsWith("POS|")) {
+        QList<QByteArray> parts = line.split('|');
+        if (parts.size() >= 3) {
+            int x_steps = parts[1].toInt();
+            int y_steps = parts[2].toInt();
+            emit realPositionReceived(x_steps, y_steps);
+        }
+        return;
+    }
+
     // --- SEG_DONE|seg=N|x=X|y=Y (position réelle après exécution physique) ---
     if (line.startsWith("SEG_DONE|")) {
         int seg = 0, x = 0, y = 0;

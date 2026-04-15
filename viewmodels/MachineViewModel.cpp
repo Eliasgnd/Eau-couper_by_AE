@@ -61,6 +61,9 @@ MachineViewModel::MachineViewModel(QObject* parent)
             this,   &MachineViewModel::onPausedConfirmed);
     connect(m_uart, &StmUartService::resumedConfirmed,
             this,   &MachineViewModel::onResumedConfirmed);
+
+    connect(m_uart, &StmUartService::realPositionReceived,
+            this, &MachineViewModel::realPositionReceived);
 }
 
 MachineViewModel::~MachineViewModel() = default;

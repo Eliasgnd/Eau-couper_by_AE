@@ -97,6 +97,7 @@ signals:
     void posResetConfirmed();
     void homeAckConfirmed();
 
+    void realPositionReceived(int x_steps, int y_steps);
 private slots:
     // Branchés sur StmUartService
     void onConnectionChanged(bool connected);

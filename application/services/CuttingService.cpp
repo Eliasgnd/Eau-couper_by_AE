@@ -5,6 +5,7 @@
 
 #include <QCoreApplication>
 #include <QtGlobal>
+#include <QDebug>
 
 CuttingService::CuttingService(QObject *parent)
     : QObject(parent)
@@ -17,9 +18,11 @@ CuttingService::CuttingService(QObject *parent)
 
 void CuttingService::connectMachineToMotor(MachineViewModel* vm)
 {
-    // SEG_DONE → mise à jour visuelle de la tête depuis la position réelle STM
-    connect(vm, &MachineViewModel::segmentDone,
-            m_trajetMotor, &TrajetMotor::onSegmentExecuted, Qt::UniqueConnection);
+    // =====================================================================
+    // NOUVEAU TEMPS RÉEL : POS → mise à jour visuelle fluide de la tête
+    // =====================================================================
+    connect(vm, &MachineViewModel::realPositionReceived,
+            m_trajetMotor, &TrajetMotor::onPositionUpdated, Qt::UniqueConnection);
 
     // DONE → débloque le thread worker qui attendait la fin
     connect(vm, &MachineViewModel::doneReceived,
@@ -52,7 +55,7 @@ void CuttingService::initialize(ShapeVisualization *visualization, QWidget *dial
                     const int percent = (total > 0) ? ((total - remaining) * 100) / total : 0;
                     const int timeSec = (remaining * 15) / 1000;
                     emit progressUpdated(percent,
-                                        QCoreApplication::tr("Temps restant estimé : %1s").arg(timeSec));
+                                         QCoreApplication::tr("Temps restant estimé : %1s").arg(timeSec));
                 });
 
         // Fin de découpe (succès ou interruption) → réactivation des contrôles
