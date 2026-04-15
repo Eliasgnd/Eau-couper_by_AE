@@ -330,35 +330,44 @@ bool TrajetMotor::sendMoveToStm(const QPoint& from, const QPoint& to,
         const double t0 = static_cast<double>(i)     / numChunks;
         const double t1 = static_cast<double>(i + 1) / numChunks;
 
+        // 1. D'ABORD, on calcule chunkDx et chunkDy
+        const int chunkDx = static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0);
+        const int chunkDy = static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0);
+
         // ==========================================================
-        // 🎨 MISE À JOUR VISUELLE EN TEMPS RÉEL
+        // 🎨 MISE EN FILE D'ATTENTE DE L'ANIMATION (Temps réel)
         // ==========================================================
-        // On calcule les positions de dessin sur le canevas (en pixels)
-        QPointF p0(from.x() + (to.x() - from.x()) * t0,
-                   from.y() + (to.y() - from.y()) * t0);
         QPointF p1(from.x() + (to.x() - from.x()) * t1,
                    from.y() + (to.y() - from.y()) * t1);
 
         bool isCut = (flags & FLAG_VALVE_ON);
 
-        // On dessine sur le thread principal pour éviter que l'UI plante
-        QMetaObject::invokeMethod(this, [this, p0, p1, isCut]() {
-            if (m_visu && m_head) {
-                // Dessine le trait (Rouge = coupe, Bleu = déplacement rapide)
-                auto* line = new QGraphicsLineItem(p0.x(), p0.y(), p1.x(), p1.y());
-                line->setPen(QPen(isCut ? Qt::red : Qt::blue, 1.5));
-                m_visu->getScene()->addItem(line);
-                m_visu->addCutMarker(line); // Ajoute à la liste pour pouvoir nettoyer l'écran à la fin
+        // Calcul de la distance physique réelle du chunk en mm
+        const double chunkDxMm = chunkDx / static_cast<double>(STEPS_PER_MM);
+        const double chunkDyMm = chunkDy / static_cast<double>(STEPS_PER_MM);
+        const double distMm    = std::sqrt(chunkDxMm * chunkDxMm + chunkDyMm * chunkDyMm);
 
-                // Déplace la tête (le point vert)
-                m_head->setPos(p1.x() - 3, p1.y() - 3);
+        // Temps = Distance / Vitesse (on multiplie par 1000 pour les millisecondes)
+        const int durationMs = qMax(1, static_cast<int>((distMm / vitesse) * 1000.0));
+
+        QMetaObject::invokeMethod(this, [this, p1, durationMs, isCut]() {
+            if (m_visu && m_head) {
+                // Création explicite de la frame pour éviter l'erreur C2397
+                SegAnimFrame frame;
+                frame.canvasPos  = p1;
+                frame.isCut      = isCut;
+                frame.durationMs = durationMs;
+
+                m_animQueue.enqueue(frame);
+
+                if (m_animTimer && !m_animTimer->isActive()) {
+                    onAnimStep();
+                }
             }
-        }, Qt::BlockingQueuedConnection);
+        }, Qt::QueuedConnection);
         // ==========================================================
 
-        const int chunkDx = static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0);
-        const int chunkDy = static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0);
-
+        // 2. ENSUITE, on remplit le segment pour le STM32
         StmSegment seg;
         seg.dx    = static_cast<int16_t>(chunkDx);
         seg.dy    = static_cast<int16_t>(chunkDy);
