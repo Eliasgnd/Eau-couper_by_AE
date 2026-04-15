@@ -39,7 +39,7 @@ SOURCES += \
     $$CLIPPER2_PATH/src/clipper.engine.cpp \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
     $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
-    ui/canvas/tools/pathoptimizer.cpp
+    ui/canvas/tools/PathOptimizer.cpp
 
 # ==============================================================================
 # ==== PROJET SOURCES & HEADERS ====
@@ -47,7 +47,7 @@ SOURCES += \
 
 # Fichiers de l'optimization
 HEADERS += domain/geometry/optimization/PlacementOptimizer.h \
-    ui/canvas/tools/pathoptimizer.h
+    ui/canvas/tools/PathOptimizer.h
 SOURCES += domain/geometry/optimization/PlacementOptimizer.cpp
 
 # ==== INCLUDEPATH GÉNÉRAL ====
