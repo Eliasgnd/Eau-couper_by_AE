@@ -79,21 +79,21 @@ QByteArray StmUartService::encodeFrame(const StmSegment& seg)
 
     frame[0] = static_cast<char>(STM_SYNC_BYTE);
 
-    // dx — int16 LITTLE-endian (poids faible en premier)
-    frame[1] = static_cast<char>( seg.dx        & 0xFF);
-    frame[2] = static_cast<char>((seg.dx >> 8)  & 0xFF);
+    // dx — int16 BIG-endian (Poids FORT en premier pour correspondre au STM32)
+    frame[1] = static_cast<char>((seg.dx >> 8)  & 0xFF);
+    frame[2] = static_cast<char>( seg.dx        & 0xFF);
 
-    // dy — int16 LITTLE-endian
-    frame[3] = static_cast<char>( seg.dy        & 0xFF);
-    frame[4] = static_cast<char>((seg.dy >> 8)  & 0xFF);
+    // dy — int16 BIG-endian
+    frame[3] = static_cast<char>((seg.dy >> 8)  & 0xFF);
+    frame[4] = static_cast<char>( seg.dy        & 0xFF);
 
-    // dz — int16 LITTLE-endian
-    frame[5] = static_cast<char>( seg.dz        & 0xFF);
-    frame[6] = static_cast<char>((seg.dz >> 8)  & 0xFF);
+    // dz — int16 BIG-endian
+    frame[5] = static_cast<char>((seg.dz >> 8)  & 0xFF);
+    frame[6] = static_cast<char>( seg.dz        & 0xFF);
 
-    // v_max — uint16 LITTLE-endian
-    frame[7] = static_cast<char>( seg.v_max       & 0xFF);
-    frame[8] = static_cast<char>((seg.v_max >> 8) & 0xFF);
+    // v_max — uint16 BIG-endian
+    frame[7] = static_cast<char>((seg.v_max >> 8) & 0xFF);
+    frame[8] = static_cast<char>( seg.v_max       & 0xFF);
 
     // flags
     frame[9] = static_cast<char>(seg.flags);
