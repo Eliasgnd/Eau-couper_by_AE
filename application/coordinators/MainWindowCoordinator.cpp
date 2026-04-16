@@ -9,6 +9,8 @@
 #include "BaseShapeNamingService.h"
 #include "ImageImportService.h"
 #include "OpenAIService.h"
+#include "StmTestDialog.h"
+#include <QMessageBox>
 
 #include <QApplication>
 
@@ -23,6 +25,7 @@ MainWindowCoordinator::MainWindowCoordinator(DialogManager *navigationController
     , m_shapeController(shapeController)
     , m_model(model)
     , m_cuttingService(new CuttingService(this))
+    , m_machineViewModel(new MachineViewModel(this))
     , m_aiService(nullptr)
 {
     // Signaux internes AI → Coordinator
@@ -46,8 +49,12 @@ void MainWindowCoordinator::setViewModel(MainWindowViewModel *viewModel)
     connect(m_cuttingService, &CuttingService::controlsEnabledChanged,
             m_viewModel,      &MainWindowViewModel::setControlsEnabled);
     connect(m_cuttingService, &CuttingService::statusMessage,
-            this,             &MainWindowCoordinator::aiGenerationStatus);
-    // ShapeCoordinator progress → ViewModel
+            this, [this](const QString &msg) {
+                if (m_view) {
+                    QMessageBox::warning(m_view, tr("Découpe impossible"), msg);
+                }
+            });
+    // ShapeCoordinator progress → ViewModel²
     connect(m_shapeController, &ShapeCoordinator::progressUpdated,
             m_viewModel,       &MainWindowViewModel::setShapeProgress);
     // AI status → ViewModel
@@ -80,6 +87,7 @@ void MainWindowCoordinator::setMainWindow(MainWindow *window) {
 void MainWindowCoordinator::setShapeVisualization(ShapeVisualization *visualization) {
     m_shapeVisualization = visualization;
     m_cuttingService->initialize(m_shapeVisualization, m_view);
+    m_cuttingService->setMachineViewModel(m_machineViewModel);
     ensureServicesInitialized();
 }
 
@@ -108,6 +116,14 @@ bool MainWindowCoordinator::ensureServicesInitialized() {
 void MainWindowCoordinator::startCutting()  { m_cuttingService->startCutting();  }
 void MainWindowCoordinator::stopCutting()   { m_cuttingService->stopCutting();   }
 void MainWindowCoordinator::pauseCutting()  { m_cuttingService->pauseCutting();  }
+void MainWindowCoordinator::setCuttingSpeed(int s) { m_cuttingService->setCuttingSpeed(s); }
+
+void MainWindowCoordinator::onStmTestRequested()
+{
+    auto *dlg = new StmTestDialog(m_machineViewModel, m_view);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->show();
+}
 
 void MainWindowCoordinator::requestAiGeneration(const QString &prompt,
                                                 const QString &model,
@@ -230,10 +246,8 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
                 openImageInCustom(path, internalContours, colorEdges);
             });
 
-    // --- Découpe (View → Coordinator) ---
-    connect(view, &MainWindow::requestStartCut,    this, &MainWindowCoordinator::startCutting);
-    connect(view, &MainWindow::requestPauseCut,    this, &MainWindowCoordinator::pauseCutting);
-    connect(view, &MainWindow::requestStopCut,     this, &MainWindowCoordinator::stopCutting);
+    // --- Test Moteurs STM ---
+    connect(view, &MainWindow::stmTestRequested,   this, &MainWindowCoordinator::onStmTestRequested);
 
     // --- AI (View → Coordinator) ---
     connect(view, &MainWindow::requestAiGeneration, this, &MainWindowCoordinator::requestAiGeneration);

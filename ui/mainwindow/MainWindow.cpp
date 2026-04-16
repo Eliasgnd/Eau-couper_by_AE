@@ -76,6 +76,11 @@ MainWindow::MainWindow(QWidget *parent,
 
     // Le Coordinator connecte ses propres réactions aux signaux de la View
     m_coordinator->connectToView(this);
+
+    // Fix Cause A : SpinBox_vitesse::valueChanged(10) a été émis pendant setupUi()
+    // AVANT que setupViewConnections() établisse la connexion → valeur initiale jamais
+    // propagée vers CuttingService. On la force ici, après toutes les connexions.
+    emit requestSpeedChange(ui->SpinBox_vitesse->value());
 }
 
 // --- UI Setup ---
@@ -105,21 +110,33 @@ void MainWindow::setupUI()
     ui->progressBar->setSizePolicy(spProgress);
     ui->progressBar->setVisible(false);
 
+    // Dans MainWindow::setupUI()
     if (ui->timeRemainingLabel) {
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
-        // 2. On fixe une largeur minimale pour le texte afin que le passage
-        // de "0s" à "14m 30s" ne redimensionne pas le layout
         ui->timeRemainingLabel->setMinimumWidth(280);
         ui->timeRemainingLabel->setAlignment(Qt::AlignCenter);
     }
 
-    // 3. Verrouillage ultime : si vos boutons de contrôle sont dans un conteneur
-    // vertical principal (souvent appelé leftMenu ou sideBar), on fixe sa taille.
-    // Vérifiez le nom exact dans votre fichier .ui. Par exemple, si la colonne
-    // de gauche s'appelle widgetControls :
-    if (QWidget* leftMenu = this->findChild<QWidget*>("widgetControls")) {
-        // Ou utilisez le nom exact du QWidget qui contient vos sliders/boutons
-        leftMenu->setFixedWidth(350); // Largeur fixe stricte
+    // --- CORRECTIONS SAUTS INTERFACE ---
+    // Fixe la taille du label de compte pour qu'il ne pousse pas le reste
+    if (ui->shapeCountLabel) {
+        ui->shapeCountLabel->setMinimumWidth(200);
+    }
+
+    // Contraint la largeur du menu de gauche via le layout (car widgetControls n'existe pas)
+    if (ui->verticalLayout) {
+        for(int i = 0; i < ui->verticalLayout->count(); ++i) {
+            if (QWidget* w = ui->verticalLayout->itemAt(i)->widget()) {
+                w->setMaximumWidth(350);
+            }
+        }
+    }
+    // --- CORRECTION DU SAUT D'INTERFACE LORS DES ERREURS ---
+    if (ui->labelAIGenerationStatus) {
+        ui->labelAIGenerationStatus->setWordWrap(true); // Force le texte long à passer à la ligne
+        ui->labelAIGenerationStatus->setMinimumHeight(50); // Laisse de la place pour 2 lignes
+        // Optionnel : on le met en rouge pour que l'erreur soit bien visible
+        ui->labelAIGenerationStatus->setStyleSheet("color: #D32F2F; font-weight: bold;");
     }
 }
 
@@ -242,6 +259,7 @@ void MainWindow::setupViewConnections()
     connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::testGpioRequested);
     connect(ui->buttonFileReceiver,        &QPushButton::clicked, this, &MainWindow::bluetoothReceiverRequested);
     connect(ui->buttonWifiTransfer,        &QPushButton::clicked, this, &MainWindow::wifiTransferRequested);
+    connect(ui->buttonTestMoteurs,         &QPushButton::clicked, this, &MainWindow::stmTestRequested);
 
     // ---- Sauvegarde ----
     connect(ui->ButtonSaveLayout, &QPushButton::clicked, this, &MainWindow::saveLayoutRequested);
@@ -250,6 +268,8 @@ void MainWindow::setupViewConnections()
     connect(ui->Play,  &QPushButton::clicked, this, &MainWindow::requestStartCut);
     connect(ui->Pause, &QPushButton::clicked, this, &MainWindow::requestPauseCut);
     connect(ui->Stop,  &QPushButton::clicked, this, &MainWindow::requestStopCut);
+    connect(ui->SpinBox_vitesse, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::requestSpeedChange);
 
     // ---- AI ----
     connect(ui->buttonGenerateAI, &QPushButton::clicked, this, &MainWindow::generateAiRequested);
@@ -309,9 +329,10 @@ void MainWindow::setupViewConnections()
     });
 
     // ---- Connexion des signaux de découpe et de langue ----
-    connect(this, &MainWindow::requestStartCut, m_coordinator, &MainWindowCoordinator::startCutting);
-    connect(this, &MainWindow::requestPauseCut, m_coordinator, &MainWindowCoordinator::pauseCutting);
-    connect(this, &MainWindow::requestStopCut,  m_coordinator, &MainWindowCoordinator::stopCutting);
+    connect(this, &MainWindow::requestStartCut,    m_coordinator, &MainWindowCoordinator::startCutting);
+    connect(this, &MainWindow::requestPauseCut,    m_coordinator, &MainWindowCoordinator::pauseCutting);
+    connect(this, &MainWindow::requestStopCut,     m_coordinator, &MainWindowCoordinator::stopCutting);
+    connect(this, &MainWindow::requestSpeedChange, m_coordinator, &MainWindowCoordinator::setCuttingSpeed);
     connect(this, &MainWindow::requestLanguageChange, m_coordinator, &MainWindowCoordinator::changeLanguage);
 }
 

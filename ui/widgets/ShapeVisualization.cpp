@@ -32,7 +32,7 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     // >>> ICI (dans le corps), on peut écrire du code :
     // Le widget garde un ratio fixe (B : ratio au niveau du widget)
     QSizePolicy sp(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    sp.setHeightForWidth(true);
+   // sp.setHeightForWidth(true);
     setSizePolicy(sp);
 
     auto *layout = new QVBoxLayout(this);
@@ -161,17 +161,23 @@ void ShapeVisualization::setPredefinedMode()
 void ShapeVisualization::redraw()
 {
     if (!m_projectModel) return;
+
+    // --- CORRECTION DOUBLONS ---
+    // On rend le modèle muet un instant pour éviter le double dessin
+    const bool wasBlocked = m_projectModel->blockSignals(true);
+    m_projectModel->setCustomMode(false);
+    m_projectModel->clearCustomShapes();
+    m_projectModel->blockSignals(wasBlocked);
+    // ---------------------------
+
+    m_cutMarkers.clear();
     scene->clear();
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
     const int drawingHeight = int(sr.height());
 
-    m_projectModel->setCustomMode(false);
-    m_projectModel->clearCustomShapes();
-
     if (m_projectModel->shapeCount() <= 0)
         return;
-
 
     const QPainterPath prototypePath = m_projectModel->prototypeShapePath();
     if (prototypePath.isEmpty()) {
@@ -205,7 +211,6 @@ void ShapeVisualization::redraw()
         shapeCopy->setFlag(QGraphicsItem::ItemIsSelectable, true);
         scene->addItem(shapeCopy);
     }
-    //qDebug() << "Formes prédéfinies placées:" << positions.size();
     emit shapesPlacedCount(positions.size());
 }
 
@@ -219,15 +224,17 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
     cancelOptimization();
 
-    scene->clear();
-
-    if (shapes.isEmpty()) {
-        //qDebug() << "Aucune forme personnalisée à afficher.";
-        return;
-    }
-
+    // --- CORRECTION DOUBLONS ---
+    const bool wasBlocked = m_projectModel->blockSignals(true);
     m_projectModel->setCustomMode(true);
     m_projectModel->setCustomShapes(shapes);
+    m_projectModel->blockSignals(wasBlocked);
+    // ---------------------------
+
+    m_cutMarkers.clear();
+    scene->clear();
+
+    if (shapes.isEmpty()) return;
 
     const QRectF sr = scene->sceneRect();
     const int drawingWidth  = int(sr.width());
@@ -238,10 +245,7 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
         combinedPath.addPolygon(poly);
     }
     QRectF polyBounds = combinedPath.boundingRect();
-    if (polyBounds.width() <= 0 || polyBounds.height() <= 0) {
-        //qDebug() << "Erreur : dimensions invalides pour le dessin custom combiné.";
-        return;
-    }
+    if (polyBounds.width() <= 0 || polyBounds.height() <= 0) return;
 
     qreal desiredWidthInScene = m_projectModel->currentLargeur();
     qreal desiredHeightInScene = m_projectModel->currentLongueur();
@@ -260,24 +264,18 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     const QList<QPointF> positions = GridPlacementService::computePositions(request);
 
     for (const QPointF &position : positions) {
-
         QGraphicsPathItem *item = new QGraphicsPathItem(scaledPath);
         item->setPen(QPen(Qt::black, 1));
         item->setBrush(Qt::NoBrush);
         item->setFlag(QGraphicsItem::ItemIsMovable, true);
         item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-        // Calcul de l'offset à partir du boundingRect réel de l'item afin
-        // d'intégrer la largeur du trait. Cela évite un décalage d'un pixel en
-        // vertical observé avec les formes personnalisées.
+
         QRectF bounds = item->boundingRect();
         QPointF offset(-bounds.x(), -bounds.y());
         item->setPos(position.x() + offset.x(), position.y() + offset.y());
         scene->addItem(item);
         item->setSelected(false);
-
     }
-
-    //qDebug() << "Affichage de" << shapesToPlace << "copies du dessin custom dans ShapeVisualization.";
     emit shapesPlacedCount(positions.size());
 }
 
@@ -411,7 +409,13 @@ void ShapeVisualization::addShapeBottomRight()
 void ShapeVisualization::setCustomMode() {
     if (!m_projectModel) return;
     cancelOptimization();
+
+    // --- CORRECTION DOUBLONS ---
+    const bool wasBlocked = m_projectModel->blockSignals(true);
     m_projectModel->setCustomMode(true);
+    m_projectModel->blockSignals(wasBlocked);
+    // ---------------------------
+
     emit optimizationStateChanged(false);
 }
 
@@ -581,19 +585,24 @@ bool ShapeVisualization::validateShapes()
     const QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
     const ShapeValidationResult validation = ShapeValidationService::validate(paths, bounds, 1.0);
 
+    // --- CORRECTION DU SAUT D'INTERFACE ---
+    // Création d'un stylo rouge "Cosmétique" pour ne pas altérer la taille mathématique
+    QPen errorPen(Qt::red, 1);
+    errorPen.setCosmetic(true); // <---- LA LIGNE MAGIQUE
+
     for (int idx : validation.outOfBoundsIndices) {
         if (idx >= 0 && idx < shapes.size())
-            shapes[idx]->setPen(QPen(Qt::red, 1));
+            shapes[idx]->setPen(errorPen);
     }
     for (int idx : validation.collisionIndices) {
         if (idx >= 0 && idx < shapes.size())
-            shapes[idx]->setPen(QPen(Qt::red, 1));
+            shapes[idx]->setPen(errorPen);
     }
+    // --------------------------------------
 
     emit shapesPlacedCount(shapes.size());
     return validation.allValid;
 }
-
 void ShapeVisualization::handleSelectionChanged()
 {
     m_rotationPivotValid = false;
@@ -607,11 +616,15 @@ void ShapeVisualization::handleSelectionChanged()
 
 void ShapeVisualization::resetAllShapeColors()
 {
+    // Création d'un stylo noir Cosmétique
+    QPen normalPen(Qt::black, 1);
+    normalPen.setCosmetic(true); // <---- LA LIGNE MAGIQUE
+
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            shape->setPen(QPen(Qt::black, 1));
+            shape->setPen(normalPen);
         }
     }
     graphicsView->viewport()->update();
@@ -624,13 +637,21 @@ void ShapeVisualization::applyLayout(const LayoutData &layout)
     if (!m_projectModel->isCustomMode())
         return;
 
+    // --- AJOUTEZ LES DEUX LIGNES ICI ---
+    m_cutMarkers.clear();
+    scene->clear();
+    // -----------------------------------
+
     m_projectModel->setDimensions(layout.largeur, layout.longueur);
     m_projectModel->setSpacing(layout.spacing);
     m_projectModel->setShapeCount(layout.items.size());
+
+    // Le LayoutManager va maintenant dessiner sur une scène parfaitement propre
     LayoutManager::applyLayout(scene,
                                layout,
                                m_projectModel->customShapes(),
                                m_interactionEnabled);
+
     emit shapesPlacedCount(layout.items.size());
     graphicsView->viewport()->update();
 }
@@ -648,8 +669,7 @@ LayoutData ShapeVisualization::captureCurrentLayout(const QString &name) const
 
 int ShapeVisualization::heightForWidth(int w) const
 {
-    if (m_aspect <= 0.0) return QWidget::heightForWidth(w);
-    return static_cast<int>(std::round(w / m_aspect));
+    return QWidget::heightForWidth(w);
 }
 
 QSize ShapeVisualization::sizeHint() const

@@ -42,4 +42,4 @@ private:
     QWidget *m_dialogParent = nullptr;
 };
 
-#endif // AIDIALOGCOORDINATOR_H
+#endif // AIDIALOGCOORDINATOR_H .

@@ -1,0 +1,564 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>StmTestDialog</class>
+ <widget class="QDialog" name="StmTestDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1000</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Test Moteurs — STM32</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainVLayout">
+   <property name="margin">
+    <number>10</number>
+   </property>
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <!-- Titre -->
+   <item>
+    <widget class="QLabel" name="titleLabel">
+     <property name="text">
+      <string>Test Moteurs STM32</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="styleSheet">
+      <string>font-size: 18px; font-weight: bold; color: #2c3e50; padding: 6px;</string>
+     </property>
+    </widget>
+   </item>
+   <!-- Corps principal en 2 colonnes -->
+   <item>
+    <layout class="QHBoxLayout" name="bodyLayout">
+     <property name="spacing">
+      <number>10</number>
+     </property>
+     <!-- ====== COLONNE GAUCHE ====== -->
+     <item>
+      <layout class="QVBoxLayout" name="leftLayout">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <!-- Connexion -->
+       <item>
+        <widget class="QGroupBox" name="grpConnexion">
+         <property name="title">
+          <string>Connexion UART</string>
+         </property>
+         <layout class="QVBoxLayout">
+          <item>
+           <layout class="QHBoxLayout">
+            <item>
+             <widget class="QComboBox" name="portCombo">
+              <property name="editable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="refreshPortsBtn">
+              <property name="text">
+               <string>⟳</string>
+              </property>
+              <property name="toolTip">
+               <string>Rafraîchir la liste des ports</string>
+              </property>
+              <property name="styleSheet">
+               <string>QPushButton { background-color: #2980b9; color: white; border-radius: 4px; padding: 4px 8px; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #3498db; }</string>
+              </property>
+              <property name="maximumWidth">
+               <number>36</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="connectBtn">
+              <property name="text">
+               <string>Connecter</string>
+              </property>
+              <property name="styleSheet">
+               <string>QPushButton { background-color: #27ae60; color: white; border-radius: 4px; padding: 4px 10px; font-weight: bold; } QPushButton:hover { background-color: #2ecc71; }</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="connexionStatusLabel">
+            <property name="text">
+             <string>● Déconnecté</string>
+            </property>
+            <property name="styleSheet">
+             <string>color: #95a5a6; font-weight: bold;</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <!-- État machine -->
+       <item>
+        <widget class="QGroupBox" name="grpEtat">
+         <property name="title">
+          <string>État Machine</string>
+         </property>
+         <layout class="QFormLayout">
+          <item>
+           <widget class="QLabel" name="labelEtatTitre">
+            <property name="text">
+             <string>État :</string>
+            </property>
+           </widget>
+           <widget class="QLabel" name="stateLabel">
+            <property name="text">
+             <string>DÉCONNECTÉ</string>
+            </property>
+            <property name="styleSheet">
+             <string>font-weight: bold; color: #95a5a6; font-size: 13px;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>X :</string>
+            </property>
+           </widget>
+           <widget class="QLabel" name="posXLabel">
+            <property name="text">
+             <string>0.0 mm</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>Y :</string>
+            </property>
+           </widget>
+           <widget class="QLabel" name="posYLabel">
+            <property name="text">
+             <string>0.0 mm</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>Z :</string>
+            </property>
+           </widget>
+           <widget class="QLabel" name="posZLabel">
+            <property name="text">
+             <string>0.0 mm</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel">
+            <property name="text">
+             <string>Buffer :</string>
+            </property>
+           </widget>
+           <widget class="QProgressBar" name="bufferBar">
+            <property name="maximum">
+             <number>4096</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+            <property name="format">
+             <string>%v / 4096</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <!-- Commandes rapides -->
+       <item>
+        <widget class="QGroupBox" name="grpCommandes">
+         <property name="title">
+          <string>Commandes Rapides</string>
+         </property>
+         <layout class="QGridLayout">
+          <property name="horizontalSpacing"><number>6</number></property>
+          <property name="verticalSpacing"><number>6</number></property>
+          <!-- Ligne 0 -->
+          <item row="0" column="0">
+           <widget class="QPushButton" name="homeBtn">
+            <property name="text"><string>HOME</string></property>
+            <property name="styleSheet"><string>QPushButton { background-color: #2980b9; color: white; border-radius: 4px; padding: 6px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; }</string></property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QPushButton" name="rearmBtn">
+            <property name="text"><string>RÉARMER</string></property>
+            <property name="styleSheet"><string>QPushButton { background-color: #e67e22; color: white; border-radius: 4px; padding: 6px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; }</string></property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="resetPosBtn">
+            <property name="text"><string>RESET POS</string></property>
+            <property name="styleSheet"><string>QPushButton { background-color: #8e44ad; color: white; border-radius: 4px; padding: 6px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; }</string></property>
+           </widget>
+          </item>
+          <!-- Ligne 1 -->
+          <item row="1" column="0">
+           <widget class="QPushButton" name="valveOnBtn">
+            <property name="text"><string>V+  VANNE ON</string></property>
+            <property name="styleSheet"><string>QPushButton { background-color: #16a085; color: white; border-radius: 4px; padding: 6px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; }</string></property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="valveOffBtn">
+            <property name="text"><string>V-  VANNE OFF</string></property>
+            <property name="styleSheet"><string>QPushButton { background-color: #c0392b; color: white; border-radius: 4px; padding: 6px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; }</string></property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <spacer>
+            <property name="orientation"><enum>Qt::Horizontal</enum></property>
+            <property name="sizeType"><enum>QSizePolicy::Expanding</enum></property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <!-- Onglets Mouvement ASCII / Binaire -->
+       <item>
+        <widget class="QTabWidget" name="tabMouvement">
+         <property name="currentIndex">
+          <number>0</number>
+         </property>
+         <!-- Onglet ASCII -->
+         <widget class="QWidget" name="tabAscii">
+          <attribute name="title">
+           <string>ASCII (X Y Z F)</string>
+          </attribute>
+          <layout class="QVBoxLayout">
+           <property name="margin"><number>6</number></property>
+           <property name="spacing"><number>4</number></property>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>dX (mm) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="asciiDxSpin">
+               <property name="minimum"><double>-500.000000</double></property>
+               <property name="maximum"><double>500.000000</double></property>
+               <property name="singleStep"><double>1.000000</double></property>
+               <property name="decimals"><number>2</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>dY (mm) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="asciiDySpin">
+               <property name="minimum"><double>-500.000000</double></property>
+               <property name="maximum"><double>500.000000</double></property>
+               <property name="singleStep"><double>1.000000</double></property>
+               <property name="decimals"><number>2</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>dZ (mm) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="asciiDzSpin">
+               <property name="minimum"><double>-200.000000</double></property>
+               <property name="maximum"><double>200.000000</double></property>
+               <property name="singleStep"><double>1.000000</double></property>
+               <property name="decimals"><number>2</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>Vitesse (mm/s) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="asciiVitesseSpin">
+               <property name="minimum"><double>1.000000</double></property>
+               <property name="maximum"><double>200.000000</double></property>
+               <property name="value"><double>50.000000</double></property>
+               <property name="singleStep"><double>5.000000</double></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QPushButton" name="sendAsciiMoveBtn">
+             <property name="text"><string>ENVOYER ASCII</string></property>
+             <property name="enabled"><bool>false</bool></property>
+             <property name="styleSheet">
+              <string>QPushButton { background-color: #6c5ce7; color: white; border-radius: 4px; padding: 7px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; } QPushButton:hover { background-color: #a29bfe; }</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <!-- Onglet Binaire -->
+         <widget class="QWidget" name="tabBinaire">
+          <attribute name="title">
+           <string>Binaire (Segment)</string>
+          </attribute>
+          <layout class="QVBoxLayout">
+           <property name="margin"><number>6</number></property>
+           <property name="spacing"><number>4</number></property>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>dX (mm) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="dxSpin">
+               <property name="minimum"><double>-500.000000</double></property>
+               <property name="maximum"><double>500.000000</double></property>
+               <property name="singleStep"><double>1.000000</double></property>
+               <property name="decimals"><number>2</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>dY (mm) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="dySpin">
+               <property name="minimum"><double>-500.000000</double></property>
+               <property name="maximum"><double>500.000000</double></property>
+               <property name="singleStep"><double>1.000000</double></property>
+               <property name="decimals"><number>2</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>dZ (mm) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="dzSpin">
+               <property name="minimum"><double>-200.000000</double></property>
+               <property name="maximum"><double>200.000000</double></property>
+               <property name="singleStep"><double>1.000000</double></property>
+               <property name="decimals"><number>2</number></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>Vitesse (mm/s) :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QDoubleSpinBox" name="vitesseSpin">
+               <property name="minimum"><double>1.000000</double></property>
+               <property name="maximum"><double>200.000000</double></property>
+               <property name="value"><double>50.000000</double></property>
+               <property name="singleStep"><double>5.000000</double></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout">
+             <item><widget class="QLabel"><property name="text"><string>Flags :</string></property><property name="minimumWidth"><number>90</number></property></widget></item>
+             <item>
+              <widget class="QCheckBox" name="flagValveCheck">
+               <property name="text"><string>VALVE_ON</string></property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="flagValveOffCheck">
+               <property name="text"><string>VALVE_OFF</string></property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="flagEndSeqCheck">
+               <property name="text"><string>END_SEQ</string></property>
+               <property name="checked"><bool>true</bool></property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QPushButton" name="sendSegmentBtn">
+             <property name="text"><string>ENVOYER SEGMENT</string></property>
+             <property name="styleSheet">
+              <string>QPushButton { background-color: #2c3e50; color: white; border-radius: 4px; padding: 7px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; } QPushButton:hover { background-color: #34495e; }</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+       <!-- Recovery -->
+       <item>
+        <widget class="QGroupBox" name="grpRecovery">
+         <property name="title">
+          <string>Recovery</string>
+         </property>
+         <property name="visible">
+          <bool>false</bool>
+         </property>
+         <layout class="QVBoxLayout">
+          <item>
+           <widget class="QLabel" name="recoveryInfoLabel">
+            <property name="text">
+             <string>—</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout">
+            <item>
+             <widget class="QPushButton" name="recoverBtn">
+              <property name="text">
+               <string>RECOVER</string>
+              </property>
+              <property name="styleSheet">
+               <string>QPushButton { background-color: #f39c12; color: white; border-radius: 4px; padding: 5px; font-weight: bold; }</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="goBtn">
+              <property name="text">
+               <string>GO</string>
+              </property>
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="styleSheet">
+               <string>QPushButton { background-color: #27ae60; color: white; border-radius: 4px; padding: 5px; font-weight: bold; } QPushButton:disabled { background-color: #bdc3c7; }</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="clearRecoveryBtn">
+              <property name="text">
+               <string>CLEAR</string>
+              </property>
+              <property name="styleSheet">
+               <string>QPushButton { background-color: #c0392b; color: white; border-radius: 4px; padding: 5px; font-weight: bold; }</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer>
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
+     <!-- ====== COLONNE DROITE : LOG ====== -->
+     <item>
+      <layout class="QVBoxLayout" name="rightLayout">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="logTitleLabel">
+         <property name="text">
+          <string>Journal UART — Messages STM32</string>
+         </property>
+         <property name="styleSheet">
+          <string>font-weight: bold; font-size: 13px; color: #2c3e50;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPlainTextEdit" name="logText">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+         <property name="styleSheet">
+          <string>background-color: #1e1e2e; color: #cdd6f4; font-family: 'Courier New', monospace; font-size: 12px; border: 1px solid #45475a; border-radius: 4px;</string>
+         </property>
+         <property name="maximumBlockCount">
+          <number>1000</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout">
+         <item>
+          <widget class="QPushButton" name="clearLogBtn">
+           <property name="text">
+            <string>Effacer le log</string>
+           </property>
+           <property name="styleSheet">
+            <string>QPushButton { background-color: #636e72; color: white; border-radius: 4px; padding: 5px 12px; }</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="copyLogBtn">
+           <property name="text">
+            <string>Copier le log</string>
+           </property>
+           <property name="styleSheet">
+            <string>QPushButton { background-color: #0984e3; color: white; border-radius: 4px; padding: 5px 12px; }</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer>
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+   <!-- Bouton fermer -->
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <spacer>
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeBtn">
+       <property name="text">
+        <string>Fermer</string>
+       </property>
+       <property name="styleSheet">
+        <string>QPushButton { background-color: #636e72; color: white; border-radius: 4px; padding: 6px 20px; }</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

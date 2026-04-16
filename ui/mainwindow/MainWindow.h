@@ -51,6 +51,7 @@ signals:
     void requestStartCut();
     void requestPauseCut();
     void requestStopCut();
+    void requestSpeedChange(int speed_mm_s);  // Émis par SpinBox_vitesse
 
     // Dimensions (la View émet, le Controller réagit)
     void dimensionsChangeRequested(int largeur, int longueur);
@@ -71,6 +72,7 @@ signals:
     void testGpioRequested();
     void bluetoothReceiverRequested();
     void wifiTransferRequested();
+    void stmTestRequested();
 
     // Optimisation
     void optimizePlacement1Requested(bool checked);

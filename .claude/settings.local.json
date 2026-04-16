@@ -39,7 +39,9 @@
       "Bash(./placement_tests 2>&1)",
       "Read(//usr/lib/qt6/**)",
       "Read(//usr/**)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(xargs grep:*)",
+      "Bash(ls /usr/bin/qmake*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -372,6 +372,27 @@ QPushButton:pressed { background-color: #008C9E; }</string>
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="buttonTestMoteurs">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QPushButton {
+    background-color: #7B1FA2; color: white; font-size: 14px;
+    border: 2px solid #4A148C; border-radius: 5px; padding: 6px 12px;
+}
+QPushButton:hover { background-color: #9C27B0; }
+QPushButton:pressed { background-color: #4A148C; }</string>
+        </property>
+        <property name="text">
+         <string>Test Moteurs</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="labelAIGenerationStatus">
         <property name="text">
          <string/>
@@ -803,8 +824,14 @@ QSlider::handle:horizontal:hover { background: #26C6DA; }</string>
              <property name="styleSheet">
               <string notr="true">QSpinBox{ background-color: rgb(255, 255, 255); }</string>
              </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
              <property name="maximum">
               <number>200</number>
+             </property>
+             <property name="value">
+              <number>10</number>
              </property>
             </widget>
            </item>

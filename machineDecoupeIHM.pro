@@ -1,7 +1,7 @@
 # ==== PROJET ====
 TARGET = machineDecoupeIHM
 TEMPLATE = app
-QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent
+QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent serialport
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 CONFIG += c++17
 
@@ -38,14 +38,16 @@ INCLUDEPATH += $$CLIPPER2_PATH/include
 SOURCES += \
     $$CLIPPER2_PATH/src/clipper.engine.cpp \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
-    $$CLIPPER2_PATH/src/clipper.rectclip.cpp
+    $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
+    ui/canvas/tools/PathOptimizer.cpp
 
 # ==============================================================================
 # ==== PROJET SOURCES & HEADERS ====
 # ==============================================================================
 
 # Fichiers de l'optimization
-HEADERS += domain/geometry/optimization/PlacementOptimizer.h
+HEADERS += domain/geometry/optimization/PlacementOptimizer.h \
+    ui/canvas/tools/PathOptimizer.h
 SOURCES += domain/geometry/optimization/PlacementOptimizer.cpp
 
 # ==== INCLUDEPATH GÉNÉRAL ====
@@ -112,6 +114,7 @@ HEADERS += \
     ui/widgets/KeyboardEventFilter.h \
     ui/widgets/WifiTransferWidget.h \
     ui/dialogs/TestGpio.h \
+    ui/dialogs/StmTestDialog.h \
     ui/dialogs/AIImagePromptDialog.h \
     ui/dialogs/AIImageProcessDialog.h \
     ui/dialogs/BluetoothReceiverDialog.h \
@@ -144,11 +147,12 @@ HEADERS += \
     domain/inventory/InventoryDomainTypes.h \
     domain/inventory/InventorySnapshot.h \
     domain/interfaces/IInventoryRepository.h \
-    domain/interfaces/IMotorControl.h \
     infrastructure/persistence/InventoryRepository.h \
-    infrastructure/hardware/MotorControl.h \
     infrastructure/hardware/Raspberry.h \
     infrastructure/hardware/TrajetMotor.h \
+    infrastructure/hardware/StmProtocol.h \
+    infrastructure/hardware/StmUartService.h \
+    viewmodels/MachineViewModel.h \
     infrastructure/network/OpenAIService.h \
     infrastructure/network/WifiNmcliClient.h \
     infrastructure/network/WifiNmcliParsers.h \
@@ -196,6 +200,7 @@ SOURCES += \
     ui/widgets/KeyboardEventFilter.cpp \
     ui/widgets/WifiTransferWidget.cpp \
     ui/dialogs/TestGpio.cpp \
+    ui/dialogs/StmTestDialog.cpp \
     ui/dialogs/AIImagePromptDialog.cpp \
     ui/dialogs/AIImageProcessDialog.cpp \
     ui/dialogs/BluetoothReceiverDialog.cpp \
@@ -222,9 +227,10 @@ SOURCES += \
     domain/geometry/GeometryUtils.cpp \
     domain/inventory/InventoryModel.cpp \
     infrastructure/persistence/InventoryRepository.cpp \
-    infrastructure/hardware/MotorControl.cpp \
     infrastructure/hardware/Raspberry.cpp \
     infrastructure/hardware/TrajetMotor.cpp \
+    infrastructure/hardware/StmUartService.cpp \
+    viewmodels/MachineViewModel.cpp \
     infrastructure/network/OpenAIService.cpp \
     infrastructure/network/WifiNmcliClient.cpp \
     infrastructure/network/WifiNmcliParsers.cpp \
@@ -242,6 +248,7 @@ FORMS += \
     ui/widgets/LayoutsDialog.ui \
     ui/widgets/FolderWidget.ui \
     ui/dialogs/TestGpio.ui \
+    ui/dialogs/StmTestDialog.ui \
     ui/widgets/WifiTransferWidget.ui \
     ui/dialogs/WifiConfigDialog.ui
 
