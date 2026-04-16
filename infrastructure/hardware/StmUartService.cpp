@@ -243,17 +243,18 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
-    // --- NAK ---
-    if (line == "NAK" || line.endsWith("NAK")) {
+    // --- NAK ou ERREUR MATERIELLE UART ---
+    if (line == "NAK" || line.endsWith("NAK") || line.startsWith("ERR:UART_HW_FAULT")) {
+
         m_ackTimer.stop();
-        // Le segment NAKé est retiré du compteur en vol — on va le retransmettre.
+
         ++m_nakCount;
         emit nakReceived();
 
         if (m_nakCount >= MAX_NAK_RETRY) {
             m_nakCount = 0;
             m_unackedBatch.clear();
-            emit comError(tr("3 NAK consécutifs — anomalie de communication."));
+            emit comError(tr("3 erreurs consécutives — anomalie de communication."));
         } else {
             retransmitLastFrame();
         }
@@ -423,8 +424,10 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 void StmUartService::retransmitLastFrame()
 {
     if (m_unackedBatch.isEmpty()) return;
-    qDebug() << "[STM-UART] Retransmission du segment suite à NAK ("
-             << m_nakCount << "/" << MAX_NAK_RETRY << ")";
+
+    // Changement du texte du log pour plus de clarté
+    qDebug() << "[STM-UART] Retransmission du batch complet suite à NAK/FAULT ("
+             << m_nakCount << "/" << MAX_NAK_RETRY << ") - Trames en vol :" << m_unackedBatch.size();
 
     const int batchSize = m_unackedBatch.size();
     for (int i = 0; i < batchSize; ++i) {
