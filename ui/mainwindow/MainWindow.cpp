@@ -110,21 +110,26 @@ void MainWindow::setupUI()
     ui->progressBar->setSizePolicy(spProgress);
     ui->progressBar->setVisible(false);
 
+    // Dans MainWindow::setupUI()
     if (ui->timeRemainingLabel) {
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
-        // 2. On fixe une largeur minimale pour le texte afin que le passage
-        // de "0s" à "14m 30s" ne redimensionne pas le layout
         ui->timeRemainingLabel->setMinimumWidth(280);
         ui->timeRemainingLabel->setAlignment(Qt::AlignCenter);
     }
 
-    // 3. Verrouillage ultime : si vos boutons de contrôle sont dans un conteneur
-    // vertical principal (souvent appelé leftMenu ou sideBar), on fixe sa taille.
-    // Vérifiez le nom exact dans votre fichier .ui. Par exemple, si la colonne
-    // de gauche s'appelle widgetControls :
-    if (QWidget* leftMenu = this->findChild<QWidget*>("widgetControls")) {
-        // Ou utilisez le nom exact du QWidget qui contient vos sliders/boutons
-        leftMenu->setFixedWidth(350); // Largeur fixe stricte
+    // --- CORRECTIONS SAUTS INTERFACE ---
+    // Fixe la taille du label de compte pour qu'il ne pousse pas le reste
+    if (ui->shapeCountLabel) {
+        ui->shapeCountLabel->setMinimumWidth(200);
+    }
+
+    // Contraint la largeur du menu de gauche via le layout (car widgetControls n'existe pas)
+    if (ui->verticalLayout) {
+        for(int i = 0; i < ui->verticalLayout->count(); ++i) {
+            if (QWidget* w = ui->verticalLayout->itemAt(i)->widget()) {
+                w->setMaximumWidth(350);
+            }
+        }
     }
 }
 
