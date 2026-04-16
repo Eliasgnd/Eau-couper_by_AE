@@ -139,19 +139,12 @@ void StmUartService::sendSegment(const StmSegment& seg)
 
     QByteArray frame = encodeFrame(seg);
 
-    // On ne garde qu'un seul frame dans m_unackedBatch pour la retransmission NAK.
-    // Chaque ACK reçu représente un segment : on le retire du compteur en vol.
-    m_unackedBatch.clear();
     m_unackedBatch.append(frame);
     ++m_sentSinceAck;
 
     m_serial.write(frame);
 
-    // On arme le timeout uniquement sur le dernier segment (FLAG_END_SEQ / FLAG_HOME_SEQ).
-    // Pendant la trajectoire on envoie sans attendre d'ACK individuel —
-    // c'est isFull() qui régule le débit selon le niveau buffer STM.
-    const bool isEndSeq = (seg.flags & FLAG_END_SEQ) ||
-                          (seg.flags & FLAG_HOME_SEQ);
+    const bool isEndSeq = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
     if (isEndSeq) {
         m_nakCount = 0;
         m_ackTimer.start();
@@ -241,6 +234,11 @@ void StmUartService::processLine(const QByteArray& line)
         m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
         m_nakCount     = 0;
 
+        // NOUVEAU : On retire la trame la plus ancienne qui vient d'être acquittée
+        if (!m_unackedBatch.isEmpty()) {
+            m_unackedBatch.removeFirst();
+        }
+
         emit ackReceived(bufLevel, segIndex);
         return;
     }
@@ -249,7 +247,6 @@ void StmUartService::processLine(const QByteArray& line)
     if (line == "NAK" || line.endsWith("NAK")) {
         m_ackTimer.stop();
         // Le segment NAKé est retiré du compteur en vol — on va le retransmettre.
-        m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
         ++m_nakCount;
         emit nakReceived();
 
@@ -428,9 +425,6 @@ void StmUartService::retransmitLastFrame()
     if (m_unackedBatch.isEmpty()) return;
     qDebug() << "[STM-UART] Retransmission du segment suite à NAK ("
              << m_nakCount << "/" << MAX_NAK_RETRY << ")";
-
-    // Recompter le segment retransmis dans la fenêtre
-    ++m_sentSinceAck;
 
     const int batchSize = m_unackedBatch.size();
     for (int i = 0; i < batchSize; ++i) {
