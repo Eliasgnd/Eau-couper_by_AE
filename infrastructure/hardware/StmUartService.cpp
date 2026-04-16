@@ -118,10 +118,10 @@ uint8_t StmUartService::calcChecksum(const QByteArray& frame)
 
 bool StmUartService::isFull() const
 {
-    // Bloque si le buffer STM estimé est plein.
-    // m_stmBufLevel  = dernier buf=X reçu par ACK (segments dans la file STM)
-    // m_sentSinceAck = segments envoyés mais pas encore ACKés (en vol)
-    return (m_stmBufLevel + m_sentSinceAck) >= STM_SEND_AHEAD_MAX;
+    const int STM_MAX_QUEUE = 4000;
+    const int MAX_IN_FLIGHT = 15;
+
+    return (m_stmBufLevel >= STM_MAX_QUEUE) || (m_sentSinceAck >= MAX_IN_FLIGHT);
 }
 
 void StmUartService::resetWindow()
