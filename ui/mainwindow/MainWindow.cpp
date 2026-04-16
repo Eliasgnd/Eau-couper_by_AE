@@ -131,6 +131,13 @@ void MainWindow::setupUI()
             }
         }
     }
+    // --- CORRECTION DU SAUT D'INTERFACE LORS DES ERREURS ---
+    if (ui->labelAIGenerationStatus) {
+        ui->labelAIGenerationStatus->setWordWrap(true); // Force le texte long à passer à la ligne
+        ui->labelAIGenerationStatus->setMinimumHeight(50); // Laisse de la place pour 2 lignes
+        // Optionnel : on le met en rouge pour que l'erreur soit bien visible
+        ui->labelAIGenerationStatus->setStyleSheet("color: #D32F2F; font-weight: bold;");
+    }
 }
 
 void MainWindow::setupWorkspaceLayout()

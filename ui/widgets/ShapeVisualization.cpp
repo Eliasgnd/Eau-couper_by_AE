@@ -585,19 +585,24 @@ bool ShapeVisualization::validateShapes()
     const QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
     const ShapeValidationResult validation = ShapeValidationService::validate(paths, bounds, 1.0);
 
+    // --- CORRECTION DU SAUT D'INTERFACE ---
+    // Création d'un stylo rouge "Cosmétique" pour ne pas altérer la taille mathématique
+    QPen errorPen(Qt::red, 1);
+    errorPen.setCosmetic(true); // <---- LA LIGNE MAGIQUE
+
     for (int idx : validation.outOfBoundsIndices) {
         if (idx >= 0 && idx < shapes.size())
-            shapes[idx]->setPen(QPen(Qt::red, 1));
+            shapes[idx]->setPen(errorPen);
     }
     for (int idx : validation.collisionIndices) {
         if (idx >= 0 && idx < shapes.size())
-            shapes[idx]->setPen(QPen(Qt::red, 1));
+            shapes[idx]->setPen(errorPen);
     }
+    // --------------------------------------
 
     emit shapesPlacedCount(shapes.size());
     return validation.allValid;
 }
-
 void ShapeVisualization::handleSelectionChanged()
 {
     m_rotationPivotValid = false;
@@ -611,11 +616,15 @@ void ShapeVisualization::handleSelectionChanged()
 
 void ShapeVisualization::resetAllShapeColors()
 {
+    // Création d'un stylo noir Cosmétique
+    QPen normalPen(Qt::black, 1);
+    normalPen.setCosmetic(true); // <---- LA LIGNE MAGIQUE
+
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
-            shape->setPen(QPen(Qt::black, 1));
+            shape->setPen(normalPen);
         }
     }
     graphicsView->viewport()->update();
