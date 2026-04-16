@@ -60,10 +60,14 @@ void TrajetMotor::doExecuteTrajet()
 {
     const QPoint homePos(HOME_X, HOME_Y);
 
-    QList<ContinuousCut> optimizedCuts;
-    QMetaObject::invokeMethod(this, [this, &optimizedCuts, homePos]() {
-        optimizedCuts = PathPlanner::getOptimizedPaths(m_visu->getScene(), homePos);
+    // Étape 1 : lecture de la scène sur le thread principal (rapide, ~1 ms)
+    QList<ContinuousCut> rawCuts;
+    QMetaObject::invokeMethod(this, [this, &rawCuts]() {
+        rawCuts = PathPlanner::extractRawPaths(m_visu->getScene());
     }, Qt::BlockingQueuedConnection);
+
+    // Étape 2 : calcul lourd sur le worker thread (O(n²), TSP, lead-ins)
+    QList<ContinuousCut> optimizedCuts = PathPlanner::computeOptimizedPaths(rawCuts, homePos);
 
     if (optimizedCuts.isEmpty()) {
         QMetaObject::invokeMethod(this, [this]() {
@@ -123,8 +127,6 @@ void TrajetMotor::doExecuteTrajet()
 
     if (cur != homePos) planMove(cur, homePos, FLAG_VALVE_OFF, true);
 
-    m_isCurrentlyCutting.store(m_plannedSegments.isEmpty() ? false : m_plannedSegments[0].isCut);
-
     QMetaObject::invokeMethod(this, [this, homePos]() {
         m_head = new QGraphicsEllipseItem(-3, -3, 6, 6);
         m_head->setBrush(Qt::green);
@@ -139,6 +141,9 @@ void TrajetMotor::doExecuteTrajet()
     for (int i = 0; i < totalSegments; ++i) {
         if (m_stopRequested) break;
         while (m_paused && !m_stopRequested) QThread::msleep(30);
+
+        // Mise à jour de la couleur de visualisation pour ce segment
+        m_isCurrentlyCutting.store(m_plannedSegments[i].isCut);
 
         bool accepted = false;
         while (!m_stopRequested) {

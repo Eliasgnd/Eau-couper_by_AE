@@ -13,12 +13,16 @@ struct ContinuousCut {
 class PathPlanner
 {
 public:
-    // La fonction unique qui fait tout : extraction + tri + optimisation
+    // Wrapper complet (extraction + calcul) — thread principal uniquement
     static QList<ContinuousCut> getOptimizedPaths(QGraphicsScene *sc, QPointF startPos);
 
-private:
-    // Fonctions internes de traitement
+    // Étape 1 : lecture de la scène (doit s'exécuter sur le thread principal)
     static QList<ContinuousCut> extractRawPaths(QGraphicsScene *sc);
+
+    // Étape 2 : calcul pur (peut s'exécuter sur un worker thread)
+    static QList<ContinuousCut> computeOptimizedPaths(QList<ContinuousCut> cuts, QPointF startPos);
+
+private:
     static void computeInclusionDepths(QList<ContinuousCut>& cuts);
     static void applyLeadIns(QList<ContinuousCut>& cuts, double distance);
 };

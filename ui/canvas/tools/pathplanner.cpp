@@ -12,11 +12,18 @@
 
 // ============================================================================
 // FONCTION PRINCIPALE : Extraction et Optimisation complète
+// (wrapper — thread principal uniquement car appelle extractRawPaths)
 // ============================================================================
 QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF startPos)
 {
-    // 1. Extraction des formes de la scène
-    QList<ContinuousCut> cuts = extractRawPaths(sc);
+    return computeOptimizedPaths(extractRawPaths(sc), startPos);
+}
+
+// ============================================================================
+// ÉTAPE 2 : Calcul pur — peut s'exécuter sur un worker thread
+// ============================================================================
+QList<ContinuousCut> PathPlanner::computeOptimizedPaths(QList<ContinuousCut> cuts, QPointF startPos)
+{
     if (cuts.isEmpty()) return {};
 
     // 2. Calcul des inclusions (Règle Inside-Out : Trous avant Contours)
@@ -36,7 +43,7 @@ QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF 
         }
 
         int bestIdx = -1;
-        double minDist = 1e10; // Valeur très grande par défaut
+        double minDist = 1e10;
         bool mustReverse = false;
 
         // Chercher la forme la plus proche parmi celles qui ont la profondeur max
@@ -44,8 +51,6 @@ QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF 
             if (cuts[i].depth != maxDepth) continue;
 
             double d1 = QLineF(currentPos, cuts[i].points.first()).length();
-
-            // Si la forme est fermée, on ne peut pas la prendre à l'envers
             double d2 = cuts[i].isClosed ? 1e10 : QLineF(currentPos, cuts[i].points.last()).length();
 
             if (d1 < minDist) {
@@ -60,10 +65,8 @@ QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF 
             }
         }
 
-        // Sécurité : si on ne trouve rien (ne devrait pas arriver), on force la sortie
         if (bestIdx == -1) break;
 
-        // Extraire la meilleure forme et l'inverser si nécessaire
         ContinuousCut next = cuts.takeAt(bestIdx);
         if (mustReverse && !next.isClosed) {
             std::reverse(next.points.begin(), next.points.end());
@@ -73,8 +76,8 @@ QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF 
         currentPos = optimized.last().points.last();
     }
 
-    // 4. Ajouter les entrées de coupe (Lead-in) pour percer à côté des pièces finies
-    applyLeadIns(optimized, 3.0); // Décalage de 3 mm dans le vide
+    // 4. Ajouter les entrées de coupe (Lead-in)
+    applyLeadIns(optimized, 3.0);
 
     return optimized;
 }
