@@ -1,6 +1,6 @@
 #ifndef AIDIALOGCOORDINATOR_H
 #define AIDIALOGCOORDINATOR_H
-//test
+
 #include <QObject>
 #include <QString>
 
