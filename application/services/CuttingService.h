@@ -37,6 +37,8 @@ signals:
     void statusMessage(const QString &message);
 
 private:
+    void connectMachineToMotor(MachineViewModel* vm);
+
     ShapeVisualization *m_visualization    = nullptr;
     TrajetMotor        *m_trajetMotor      = nullptr;
     MachineViewModel   *m_machineViewModel = nullptr;

@@ -53,6 +53,17 @@ MachineViewModel::MachineViewModel(QObject* parent)
             this,   &MachineViewModel::onPosResetConfirmed);
     connect(m_uart, &StmUartService::homeAckConfirmed,
             this,   &MachineViewModel::onHomeAckConfirmed);
+
+    // Exécution réelle et contrôle pause/stop
+    connect(m_uart, &StmUartService::segDoneReceived,
+            this,   &MachineViewModel::onSegDoneReceived);
+    connect(m_uart, &StmUartService::pausedConfirmed,
+            this,   &MachineViewModel::onPausedConfirmed);
+    connect(m_uart, &StmUartService::resumedConfirmed,
+            this,   &MachineViewModel::onResumedConfirmed);
+
+    connect(m_uart, &StmUartService::realPositionReceived,
+            this, &MachineViewModel::realPositionReceived);
 }
 
 MachineViewModel::~MachineViewModel() = default;
@@ -156,27 +167,36 @@ void MachineViewModel::sendClear()
 
 bool MachineViewModel::sendSegment(const StmSegment& seg)
 {
+    // 1. Vérification de la connexion
     if (!m_connected) return false;
 
-    // Vérification de l'état
+    // 2. Vérification de l'état de la machine
     if (m_state != MachineState::READY && m_state != MachineState::MOVING)
         return false;
 
-    // Sécurité : refuser descente Z sans confirmation opérateur
+    // 3. Sécurité : refuser descente Z sans confirmation opérateur
     if (seg.dz < 0 && !m_zDescentConfirmed) {
         setStatus(tr("Descente Z bloquée — confirmation opérateur requise."));
         return false;
     }
     m_zDescentConfirmed = false; // Reset après usage
 
-    // Flow control : vérifier l'espace disponible dans le buffer STM
-    if ((STM_BUFFER_MAX - m_bufferLevel) < 1) {
-        setStatus(tr("Buffer STM plein — attente DONE."));
+    // ==========================================
+    // 4. CONTRÔLE DE FLUX — fenêtre glissante
+    // ==========================================
+    // On bloque si le buffer STM estimé est plein (isFull).
+    // Le thread TrajetMotor patientera 10ms et réessayera tout seul.
+    if (m_uart->isFull()) {
         return false;
     }
 
+    // 5. Mise à jour de l'état et envoi
     setState(MachineState::MOVING);
     m_uart->sendSegment(seg);
+
+    // NB: On a retiré le ++m_sentSinceLastAck ici car c'est désormais
+    // StmUartService qui gère son propre batch en interne.
+
     return true;
 }
 
@@ -205,6 +225,7 @@ void MachineViewModel::onConnectionChanged(bool connected)
 void MachineViewModel::onAckReceived(int bufLevel, int segIndex)
 {
     Q_UNUSED(segIndex)
+    m_sentSinceLastAck = 0;   // le STM a confirmé la réception du batch
     if (m_bufferLevel != bufLevel) {
         m_bufferLevel = bufLevel;
         emit bufferLevelChanged(bufLevel);
@@ -220,7 +241,8 @@ void MachineViewModel::onDoneReceived()
 {
     setState(MachineState::READY);
     setStatus(tr("Trajectoire terminée."));
-    m_bufferLevel = 0;
+    m_bufferLevel      = 0;
+    m_sentSinceLastAck = 0;
     emit bufferLevelChanged(0);
     emit doneReceived();
 }
@@ -301,7 +323,8 @@ void MachineViewModel::onReadyReceived()
 {
     setState(MachineState::READY);
     setStatus(tr("Machine prête."));
-    m_bufferLevel = 0;
+    m_bufferLevel      = 0;
+    m_sentSinceLastAck = 0;
 }
 
 void MachineViewModel::onStartupBannerReceived()
@@ -333,6 +356,42 @@ void MachineViewModel::onValveOnConfirmed()  { emit valveOnConfirmed(); }
 void MachineViewModel::onValveOffConfirmed() { emit valveOffConfirmed(); }
 void MachineViewModel::onPosResetConfirmed() { emit posResetConfirmed(); }
 void MachineViewModel::onHomeAckConfirmed()  { emit homeAckConfirmed(); }
+
+void MachineViewModel::sendPause()
+{
+    if (!m_connected) return;
+    m_uart->sendAsciiCommand(QStringLiteral("PAUSE"));
+}
+
+void MachineViewModel::sendResume()
+{
+    if (!m_connected) return;
+    m_uart->sendAsciiCommand(QStringLiteral("RESUME"));
+}
+
+void MachineViewModel::sendStop()
+{
+    if (!m_connected) return;
+    m_uart->sendAsciiCommand(QStringLiteral("AU"));
+}
+
+void MachineViewModel::onSegDoneReceived(int seg, int x, int y)
+{
+    m_posX = x;
+    m_posY = y;
+    emit positionChanged(stepsToMm(x), stepsToMm(y), stepsToMm(m_posZ));
+    emit segmentDone(seg, x, y);
+}
+
+void MachineViewModel::onPausedConfirmed()
+{
+    emit machinePaused();
+}
+
+void MachineViewModel::onResumedConfirmed()
+{
+    emit machineResumed();
+}
 
 void MachineViewModel::sendAsciiMove(int dx_steps, int dy_steps, int dz_steps, int arr)
 {

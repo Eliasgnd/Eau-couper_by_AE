@@ -2,81 +2,125 @@
 #define TRAJETMOTOR_H
 
 #include <QWidget>
-#include <QPointF>
-#include <atomic>
 #include <QThread>
-
-// Forward declarations
-class MainWindow;
-class MachineViewModel;
-class QGraphicsEllipseItem;
-
+#include <QMutex>
+#include <QWaitCondition>
+#include <QPointF>
+#include <QQueue>
+#include <QVector>
+#include <QTimer>
+#include <atomic>
 #include "ShapeVisualization.h"
-#include "StmProtocol.h"
+#include "StmProtocol.h" // Contient probablement FLAG_VALVE_ON, etc.
 #include "pathplanner.h"
 
-class TrajetMotor : public QWidget {
+// Sécurité : si vos constantes ont disparu, on les recrée ici.
+#ifndef HOME_X
+#define HOME_X 0.0
+#endif
+#ifndef HOME_Y
+#define HOME_Y 0.0
+#endif
+#ifndef STEPS_PER_MM
+#define STEPS_PER_MM 100 // Ajustez avec votre vraie valeur
+#endif
+
+class MainWindow;
+class MachineViewModel;
+
+// Ancienne structure (conservée pour ne pas casser le reste du code)
+struct SegAnimFrame {
+    QPointF canvasPos;
+    bool isCut;
+    int durationMs;
+};
+
+// Nouvelle structure de pré-calcul
+struct PreparedSegment {
+    StmSegment stmSeg;
+    bool isCut;
+};
+
+class TrajetMotor : public QWidget
+{
     Q_OBJECT
 public:
     explicit TrajetMotor(ShapeVisualization* visu, QWidget* parent = nullptr);
-    ~TrajetMotor() override;
+    ~TrajetMotor();
 
-    // Lance le thread de découpe
-    void executeTrajet();
-
-    // État de la machine
-    bool isPaused() const { return m_running && m_paused.load(); }
-
-    // Setters pour les dépendances
     void setMainWindow(MainWindow* mainWindow);
     void setMachineViewModel(MachineViewModel* vm);
 
-    // Configuration des vitesses (mm/s)
     void setVcut(double vitesse_mm_s);
     void setVtravel(double vitesse_mm_s);
 
-public slots:
+    void executeTrajet();
     void pause();
     void resume();
     void stopCut();
 
+    bool isPaused() const { return m_paused; }
+
+    // On remet l'ancienne fonction publique au cas où elle est appelée ailleurs
+    static int estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos);
+
 signals:
     void decoupeProgress(int remaining, int total);
+    void decoupeFinished(bool success);
+
+public slots:
+    void onMachineDone();
+    void onPositionUpdated(int x_steps, int y_steps);
+    void onSegmentExecuted(int seg, int x_steps, int y_steps);
+    void onAnimStep(); // Conservé pour la compilation
+
+    // Valve state received from STM UART — drives drawing color
+    void onValveOn();
+    void onValveOff();
 
 private:
-    // Fonction tournant dans le thread séparé
     void doExecuteTrajet();
 
-    // Animation visuelle sur le canvas
-    void moveHeadProgressive(const QPoint& start, const QPoint& end,
-                             QGraphicsEllipseItem* head, bool cut);
+    // On remet les anciennes fonctions privées pour le compilateur
+    void appendSegPlan(const QPoint& from, const QPoint& to, bool isCut, QVector<bool>& plan) const;
+    bool sendMoveToStm(const QPoint& from, const QPoint& to, uint8_t flags, bool isLast, double mmPerPxScale);
 
-    // Envoi effectif des segments au STM32 via le ViewModel
-    bool sendMoveToStm(const QPoint& from, const QPoint& to,
-                       uint8_t flags, bool isLast, double mmPerPxScale);
+    uint16_t speedToArr(double v_mm_s) const {
+        double val = 1000000.0 / (qMax(1.0, v_mm_s) * STEPS_PER_MM);
+        return static_cast<uint16_t>(qBound(1.0, val, 65535.0));
+    }
 
-    // Calcul de la progression totale
-    int estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos);
-
-    // Dépendances
     ShapeVisualization* m_visu = nullptr;
     MainWindow* m_mainWindow = nullptr;
     MachineViewModel* m_machine = nullptr;
 
-    // Paramètres de vitesse (remplace MotorControl)
-    double m_vCut  = 10.0;   // mm/s
-    double m_vTrav = 150.0;  // mm/s (vitesse de déplacement rapide)
+    QThread* m_workerThread = nullptr;
+    QTimer* m_animTimer = nullptr;
 
-    // Contrôle du thread
+    std::atomic<bool> m_running{false};
     std::atomic<bool> m_paused{false};
     std::atomic<bool> m_stopRequested{false};
     std::atomic<bool> m_interrupted{false};
-    bool              m_running = false;
-    QThread* m_workerThread = nullptr;
+    std::atomic<bool> m_doneReceived{false};
 
-    // Progression
-    int m_totalSteps      = 0;
-    int m_progressCounter = 0;
+    QMutex m_doneMutex;
+    QWaitCondition m_doneCond;
+
+    double m_vCut = 10.0;
+    double m_vTrav = 50.0;
+
+    // Nouveaux ajouts pour le pré-calcul
+    QList<PreparedSegment> m_plannedSegments;
+    std::atomic<bool> m_isCurrentlyCutting{false};
+    QGraphicsEllipseItem* m_head = nullptr;
+    QPointF m_lastHeadPos;
+
+    // Anciennes variables conservées
+    int m_execCount = 0;
+    int m_totalSteps = 0;
+    QVector<bool> m_segIsCut;
+    QQueue<SegAnimFrame> m_animQueue;
+    QPointF m_animCurrentPos;
 };
 
 #endif // TRAJETMOTOR_H

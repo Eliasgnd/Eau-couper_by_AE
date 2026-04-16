@@ -458,6 +458,7 @@ void MainWindow::retranslateDynamicUi()
 
 void MainWindow::setSpinboxSliderEnabled(bool enabled)
 {
+    ui->Play->setEnabled(enabled);
     ui->Largeur->setEnabled(enabled);
     ui->Longueur->setEnabled(enabled);
     ui->Slider_largeur->setEnabled(enabled);

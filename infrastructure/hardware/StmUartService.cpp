@@ -1,6 +1,8 @@
 #include "StmUartService.h"
 #include <QDebug>
 #include <QSerialPortInfo>
+#include <utility>
+#include <algorithm>
 
 // ============================================================
 //  StmUartService — implémentation
@@ -43,9 +45,10 @@ void StmUartService::open(const QString& portName)
 
     if (m_serial.open(QIODevice::ReadWrite)) {
         m_readBuffer.clear();
-        m_nakCount    = 0;
-        m_waitingAck  = false;
-        m_lastFrame.clear();
+        m_nakCount      = 0;
+        m_stmBufLevel   = 0;
+        m_sentSinceAck  = 0;
+        m_unackedBatch.clear();
         emit connectionChanged(true);
         qDebug() << "[STM-UART] Port ouvert :" << portName;
     } else {
@@ -113,19 +116,47 @@ uint8_t StmUartService::calcChecksum(const QByteArray& frame)
     return checksum;
 }
 
+bool StmUartService::isFull() const
+{
+    // BARRIÈRE 1 : L'entrepôt (STM32) est-il plein ?
+    // m_stmBufLevel est mis à jour à chaque fois que la STM32 dit "ACK|buf=X"
+    bool isWarehouseFull = (m_stmBufLevel >= STM_SEND_AHEAD_MAX);
+
+    // BARRIÈRE 2 : Le camion (câble UART) est-il plein ?
+    // m_sentSinceAck compte les trames envoyées qui n'ont pas encore reçu de ACK
+    bool isTruckFull = (m_sentSinceAck >= STM_MAX_IN_FLIGHT);
+
+    // On bloque l'envoi de nouvelles trames si l'une des deux limites est atteinte
+    return isWarehouseFull || isTruckFull;
+}
+
+void StmUartService::resetWindow()
+{
+    m_stmBufLevel  = 0;
+    m_sentSinceAck = 0;
+    m_nakCount     = 0;
+    m_unackedBatch.clear();
+    m_ackTimer.stop();
+}
+
 void StmUartService::sendSegment(const StmSegment& seg)
 {
-    if (!m_serial.isOpen()) {
-        emit comError(tr("Port série non ouvert."));
-        return;
-    }
+    if (!m_serial.isOpen()) return;
 
-    m_lastFrame  = encodeFrame(seg);
-    m_nakCount   = 0;
-    m_waitingAck = true;
+    QByteArray frame = encodeFrame(seg);
 
-    m_serial.write(m_lastFrame);
+    m_unackedBatch.append(frame);
+    ++m_sentSinceAck;
+
+    m_serial.write(frame);
+
+    // NOUVEAU : On lance le chronomètre à CHAQUE segment envoyé
     m_ackTimer.start();
+
+    const bool isEndSeq = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
+    if (isEndSeq) {
+        m_nakCount = 0;
+    }
 }
 
 // ----------------------------------------------------------
@@ -196,33 +227,45 @@ void StmUartService::processLine(const QByteArray& line)
 
     // --- ACK|buf=<n>|seg=<s> ---
     if (line.startsWith("ACK|buf=")) {
-        m_ackTimer.stop();
-        m_waitingAck = false;
-        m_nakCount   = 0;
-
-        // Parse : ACK|buf=<n>|seg=<s>
         int bufLevel = 0, segIndex = 0;
-        QByteArray payload = line.mid(8); // après "ACK|buf="
+        QByteArray payload = line.mid(8);
         int sep = payload.indexOf("|seg=");
         if (sep != -1) {
             bufLevel = payload.left(sep).toInt();
             segIndex = payload.mid(sep + 5).toInt();
         }
+
+        m_stmBufLevel  = bufLevel;
+        m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
+        m_nakCount     = 0;
+
+        if (!m_unackedBatch.isEmpty()) {
+            m_unackedBatch.removeFirst();
+        }
+
+        // NOUVEAU : Gestion du chronomètre
+        if (m_sentSinceAck > 0) {
+            m_ackTimer.start(); // Il reste des trames en vol, on relance le chrono
+        } else {
+            m_ackTimer.stop();  // Tout est validé, on arrête le chrono
+        }
+
         emit ackReceived(bufLevel, segIndex);
         return;
     }
 
-    // --- NAK ---
-    if (line == "NAK") {
+    // --- NAK ou ERREUR MATERIELLE UART ---
+    if (line == "NAK" || line.endsWith("NAK") || line.startsWith("ERR:UART_HW_FAULT")) {
+
         m_ackTimer.stop();
-        m_waitingAck = false;
+
         ++m_nakCount;
         emit nakReceived();
 
         if (m_nakCount >= MAX_NAK_RETRY) {
             m_nakCount = 0;
-            m_lastFrame.clear();
-            emit comError(tr("3 NAK consécutifs — anomalie de communication."));
+            m_unackedBatch.clear();
+            emit comError(tr("3 erreurs consécutives — anomalie de communication."));
         } else {
             retransmitLastFrame();
         }
@@ -230,13 +273,13 @@ void StmUartService::processLine(const QByteArray& line)
     }
 
     // --- DONE ---
-    if (line == "DONE") {
+    if (line == "DONE" || line.endsWith("DONE")) {
         emit doneReceived();
         return;
     }
 
     // --- READY ---
-    if (line == "READY") {
+    if (line == "READY" || line.endsWith("READY")) {
         emit readyReceived();
         return;
     }
@@ -327,6 +370,68 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
+    // --- POSITION RÉELLE EN DIRECT (Envoyée par le STM32) ---
+    if (line.startsWith("POS|")) {
+        QList<QByteArray> parts = line.split('|');
+        if (parts.size() >= 3) {
+            int x_steps = parts[1].toInt();
+            int y_steps = parts[2].toInt();
+
+            // NOUVEAU : Lecture de l'état de la valve synchronisé avec la position
+            if (parts.size() >= 4) {
+                static bool lastValveState = false;
+                bool currentValveState = (parts[3].toInt() == 1);
+
+                // Si l'état a changé, on simule la réception d'un VALVE ON / OFF
+                if (currentValveState != lastValveState) {
+                    lastValveState = currentValveState;
+                    if (currentValveState) {
+                        emit valveOnConfirmed();
+                    } else {
+                        emit valveOffConfirmed();
+                    }
+                }
+            }
+
+            emit realPositionReceived(x_steps, y_steps);
+        }
+        return;
+    }
+
+    // --- SEG_DONE|seg=N|x=X|y=Y|buf=B ---
+    if (line.startsWith("SEG_DONE|")) {
+        int seg = 0, x = 0, y = 0;
+        int bufLevel = -1; // NOUVEAU
+
+        const QList<QByteArray> parts = line.mid(9).split('|');
+        for (const QByteArray& part : parts) {
+            if      (part.startsWith("seg=")) seg = part.mid(4).toInt();
+            else if (part.startsWith("x="))   x   = part.mid(2).toInt();
+            else if (part.startsWith("y="))   y   = part.mid(2).toInt();
+            else if (part.startsWith("buf=")) bufLevel = part.mid(4).toInt(); // NOUVEAU
+        }
+
+        // NOUVEAU : On met à jour le buffer dynamiquement pour débloquer l'envoi !
+        if (bufLevel != -1) {
+            m_stmBufLevel = bufLevel;
+        }
+
+        emit segDoneReceived(seg, x, y);
+        return;
+    }
+
+    // --- PAUSED / PAUSE_HOLD — machine en attente après segment courant ---
+    if (line == "PAUSED" || line == "PAUSE_HOLD") {
+        emit pausedConfirmed();
+        return;
+    }
+
+    // --- RESUMED — machine reprend depuis son buffer ---
+    if (line == "RESUMED") {
+        emit resumedConfirmed();
+        return;
+    }
+
     // Message non reconnu — on logge sans émettre de signal d'erreur
     qDebug() << "[STM-UART] Message non parsé :" << line;
 }
@@ -335,7 +440,10 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 {
     // Format : seg=<s>|x=<x>|y=<y>|z=<z>
     RecoveryData data;
-    for (const QByteArray& part : payload.split('|')) {
+
+    // CORRECTION : On stocke le split dans une variable constante
+    const QList<QByteArray> parts = payload.split('|');
+    for (const QByteArray& part : parts) {
         if (part.startsWith("seg=")) data.seg = part.mid(4).toInt();
         else if (part.startsWith("x=")) data.x = part.mid(2).toInt();
         else if (part.startsWith("y=")) data.y = part.mid(2).toInt();
@@ -350,20 +458,27 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 
 void StmUartService::retransmitLastFrame()
 {
-    if (m_lastFrame.isEmpty()) return;
-    qDebug() << "[STM-UART] Retransmission NAK" << m_nakCount << "/" << MAX_NAK_RETRY;
-    m_waitingAck = true;
-    m_serial.write(m_lastFrame);
+    if (m_unackedBatch.isEmpty()) return;
+
+    // Changement du texte du log pour plus de clarté
+    qDebug() << "[STM-UART] Retransmission du batch complet suite à NAK/FAULT ("
+             << m_nakCount << "/" << MAX_NAK_RETRY << ") - Trames en vol :" << m_unackedBatch.size();
+
+    const int batchSize = m_unackedBatch.size();
+    for (int i = 0; i < batchSize; ++i) {
+        m_serial.write(m_unackedBatch[i]);
+    }
     m_ackTimer.start();
 }
 
 void StmUartService::onAckTimeout()
 {
-    if (!m_waitingAck) return;
-    m_waitingAck = false;
-    m_nakCount   = 0;
-    m_lastFrame.clear();
-    emit comError(tr("Timeout ACK — pas de réponse STM en %1 ms.").arg(ACK_TIMEOUT_MS));
+    if (m_unackedBatch.isEmpty()) return;
+
+    qWarning() << "[STM-UART] Timeout : un ACK s'est perdu. On relance le batch pour débloquer.";
+
+    // Au lieu de générer une erreur fatale, on re-balance les trames coincées
+    retransmitLastFrame();
 }
 
 void StmUartService::onSerialError(QSerialPort::SerialPortError error)

@@ -36,6 +36,12 @@ public:
     void sendSegment(const StmSegment& seg);
     void sendAsciiCommand(const QString& cmd);   // envoie cmd + "\r\n"
 
+    // Retourne true si le buffer STM estimé est plein — TrajetMotor doit patienter.
+    bool isFull() const;
+
+    // Réinitialise les compteurs de fenêtre (appelé en début de coupe / arrêt d'urgence).
+    void resetWindow();
+
 signals:
     // Connexion
     void connectionChanged(bool connected);
@@ -76,6 +82,14 @@ signals:
     // Relais brut — chaque ligne ASCII reçue du STM (pour logs test)
     void rawLineReceived(const QString& line);
 
+    // Progression d'exécution réelle (SEG_DONE)
+    void segDoneReceived(int seg, int x_steps, int y_steps);
+
+    // Pause / Reprise confirmées par le STM
+    void pausedConfirmed();
+    void resumedConfirmed();
+
+    void realPositionReceived(int x_steps, int y_steps);
 private slots:
     void onReadyRead();
     void onAckTimeout();
@@ -86,10 +100,15 @@ private:
     QTimer       m_ackTimer;
     QByteArray   m_readBuffer;
 
-    QByteArray   m_lastFrame;    // dernière trame binaire envoyée (pour retry)
-    int          m_nakCount = 0; // NAK consécutifs sur la trame courante
+    // --- Fenêtre glissante : contrôle de flux vers le STM ---
+    // m_stmBufLevel : dernier niveau buffer STM connu (champ buf=X de l'ACK)
+    // m_sentSinceAck : segments envoyés depuis le dernier ACK reçu
+    // isFull() bloque si (m_stmBufLevel + m_sentSinceAck) >= STM_SEND_AHEAD_MAX
+    int  m_stmBufLevel  = 0;
+    int  m_sentSinceAck = 0;
 
-    bool         m_waitingAck = false;
+    QList<QByteArray> m_unackedBatch;  // trame courante pour retransmission NAK
+    int  m_nakCount = 0;               // NAK consécutifs sur la trame courante
 
     // --- Encodage trame binaire ---
     static QByteArray encodeFrame(const StmSegment& seg);

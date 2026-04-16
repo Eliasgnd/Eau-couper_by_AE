@@ -89,6 +89,33 @@ void MainWindowCoordinator::setShapeVisualization(ShapeVisualization *visualizat
     m_cuttingService->initialize(m_shapeVisualization, m_view);
     m_cuttingService->setMachineViewModel(m_machineViewModel);
     ensureServicesInitialized();
+
+    // ==========================================================
+    // AJOUT : Connexion pour le dessin du trajet en temps réel
+    // ==========================================================
+
+    connect(m_machineViewModel, &MachineViewModel::valveOnConfirmed, this, [this]() {
+        m_isCutting = true; // La machine commence à couper
+    });
+
+    connect(m_machineViewModel, &MachineViewModel::valveOffConfirmed, this, [this]() {
+        m_isCutting = false; // La machine arrête de couper
+    });
+
+    // Remarque : Vérifie si ton signal s'appelle 'positionChanged' ou 'realPositionReceived'
+    // dans MachineViewModel.h. J'utilise 'realPositionReceived' basé sur tes logs précédents.
+    connect(m_machineViewModel, &MachineViewModel::realPositionReceived, this, [this](int x, int y) {
+        if (!m_shapeVisualization) return;
+
+        QPoint point(x, y);
+
+        if (m_isCutting) {
+            m_shapeVisualization->colorPositionRed(point);
+        } else {
+            m_shapeVisualization->colorPositionBlue(point);
+        }
+    });
+    // ==========================================================
 }
 
 bool MainWindowCoordinator::ensureServicesInitialized() {

@@ -8,10 +8,14 @@
 
 // --- Constantes machine ---
 static constexpr int    STEPS_PER_MM   = 64;        // pas moteur par mm
-static constexpr int    STM_BUFFER_MAX = 4096;       // taille buffer STM (segments)
-static constexpr int    UART_BAUDRATE  = 115200;
-static constexpr int    ACK_TIMEOUT_MS = 2000;       // timeout ACK par trame (ms)
-static constexpr int    MAX_NAK_RETRY  = 3;          // NAK consécutifs avant erreur
+static constexpr int    STM_BUFFER_MAX      = 4096;  // taille buffer STM (segments)
+static constexpr int    STM_SAFETY_MARGIN   = 96;   // réserve de sécurité dans le buffer STM
+static constexpr int    STM_SEND_AHEAD_MAX  = STM_BUFFER_MAX - STM_SAFETY_MARGIN; // fenêtre max
+static constexpr int    UART_BAUDRATE       = 115200;
+static constexpr int    ACK_TIMEOUT_MS      = 3000;  // timeout ACK (ms), sur END_SEQ uniquement
+static constexpr int    SEG_DONE_INTERVAL   = 10;    // miroir du #define firmware : SEG_DONE émis toutes les N exécutions
+static constexpr int    MAX_NAK_RETRY       = 3;     // NAK consécutifs avant erreur
+static constexpr int    STM_MAX_IN_FLIGHT   = 15;
 
 // --- Flags de segment (byte [9] de la trame binaire) ---
 static constexpr uint8_t FLAG_END_SEQ   = 0x01;  // Dernier segment — décélération + DONE

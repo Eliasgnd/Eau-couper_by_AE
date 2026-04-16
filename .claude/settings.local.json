@@ -41,7 +41,18 @@
       "Read(//usr/**)",
       "Read(//tmp/**)",
       "Bash(xargs grep:*)",
-      "Bash(ls /usr/bin/qmake*)"
+      "Bash(ls /usr/bin/qmake*)",
+      "Bash(/c/Qt/6.10.2/msvc2022_64/bin/qmake6.exe machineDecoupeIHM.pro -spec win32-msvc)",
+      "Bash(where qmake6:*)",
+      "Bash(where qmake:*)",
+      "Read(//c/Qt/**)",
+      "Bash(\"/c/Qt/6.10.2/msvc2022_64/bin/qmake6.exe\" \"C:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/machineDecoupeIHM.pro\")",
+      "Bash(\"/c/Qt/6.10.2/mingw_64/bin/qmake6.exe\" \"C:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/machineDecoupeIHM.pro\" -spec win32-g++)",
+      "Bash(export PATH=\"/c/Qt/Tools/mingw1310_64/bin:$PATH\")",
+      "Bash(make -j4)",
+      "Bash(export PATH=\"/c/Qt/Tools/mingw1310_64/bin:/c/Qt/Tools/Ninja:$PATH\")",
+      "Bash(mingw32-make -j4)",
+      "Bash(g++ -std=c++17 -c -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/infrastructure/hardware -IC:/Qt/6.10.2/mingw_64/include -IC:/Qt/6.10.2/mingw_64/include/QtCore -IC:/Qt/6.10.2/mingw_64/include/QtSerialPort -DQT_CORE_LIB -DQT_SERIALPORT_LIB C:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/infrastructure/hardware/StmUartService.cpp -o /tmp/StmUartService.o)"
     ]
   },
   "enableAllProjectMcpServers": true,
