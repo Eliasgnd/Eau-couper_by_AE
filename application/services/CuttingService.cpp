@@ -27,6 +27,12 @@ void CuttingService::connectMachineToMotor(MachineViewModel* vm)
     // DONE → débloque le thread worker qui attendait la fin
     connect(vm, &MachineViewModel::doneReceived,
             m_trajetMotor, &TrajetMotor::onMachineDone, Qt::UniqueConnection);
+
+    // VALVE ON/OFF → couleur de tracé en temps réel (rouge = coupe, bleu = déplacement)
+    connect(vm, &MachineViewModel::valveOnConfirmed,
+            m_trajetMotor, &TrajetMotor::onValveOn, Qt::UniqueConnection);
+    connect(vm, &MachineViewModel::valveOffConfirmed,
+            m_trajetMotor, &TrajetMotor::onValveOff, Qt::UniqueConnection);
 }
 
 // ----------------------------------------------------------

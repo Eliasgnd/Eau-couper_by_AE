@@ -74,6 +74,10 @@ public slots:
     void onSegmentExecuted(int seg, int x_steps, int y_steps);
     void onAnimStep(); // Conservé pour la compilation
 
+    // Valve state received from STM UART — drives drawing color
+    void onValveOn();
+    void onValveOff();
+
 private:
     void doExecuteTrajet();
 

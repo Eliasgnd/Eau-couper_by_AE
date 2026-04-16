@@ -257,6 +257,16 @@ int TrajetMotor::estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoi
     return steps;
 }
 
+void TrajetMotor::onValveOn()
+{
+    m_isCurrentlyCutting.store(true);
+}
+
+void TrajetMotor::onValveOff()
+{
+    m_isCurrentlyCutting.store(false);
+}
+
 void TrajetMotor::appendSegPlan(const QPoint&, const QPoint&, bool, QVector<bool>&) const {}
 void TrajetMotor::onAnimStep() {}
 bool TrajetMotor::sendMoveToStm(const QPoint&, const QPoint&, uint8_t, bool, double) { return true; }
