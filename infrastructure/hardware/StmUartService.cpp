@@ -126,10 +126,11 @@ void StmUartService::sendSegment(const StmSegment& seg)
     m_serial.write(frame);
 
     const bool isBatchBoundary = (m_segsSinceLastAck >= STM_ACK_BATCH);
+    // Seuls FLAG_END_SEQ et FLAG_HOME_SEQ nécessitent une attente d'ACK.
+    // FLAG_VALVE_ON/OFF sont de simples métadonnées de segment — les inclure
+    // déclenchait une attente ACK pour CHAQUE segment, causant les pauses.
     const bool isEndSeq = (seg.flags & FLAG_END_SEQ) ||
-                          (seg.flags & FLAG_HOME_SEQ) ||
-                          (seg.flags & FLAG_VALVE_ON) ||
-                          (seg.flags & FLAG_VALVE_OFF);
+                          (seg.flags & FLAG_HOME_SEQ);
 
     if (isBatchBoundary || isEndSeq) {
         m_nakCount   = 0;

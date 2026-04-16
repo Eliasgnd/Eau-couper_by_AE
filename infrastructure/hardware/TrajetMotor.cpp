@@ -127,6 +127,16 @@ void TrajetMotor::doExecuteTrajet()
 
     if (cur != homePos) planMove(cur, homePos, FLAG_VALVE_OFF, true);
 
+    // Réinitialise seg_executed sur le STM afin que onSegmentExecuted()
+    // puisse mapper seg → m_plannedSegments[seg] sans offset inconnu.
+    QMetaObject::invokeMethod(this, [this]() {
+        if (m_machine) m_machine->sendClear();
+    }, Qt::BlockingQueuedConnection);
+    QThread::msleep(30); // laisse le temps au STM de traiter CLEAR avant les trames binaires
+
+    // Couleur initiale basée sur le premier segment planifié
+    m_isCurrentlyCutting.store(m_plannedSegments.isEmpty() ? false : m_plannedSegments[0].isCut);
+
     QMetaObject::invokeMethod(this, [this, homePos]() {
         m_head = new QGraphicsEllipseItem(-3, -3, 6, 6);
         m_head->setBrush(Qt::green);
@@ -141,9 +151,6 @@ void TrajetMotor::doExecuteTrajet()
     for (int i = 0; i < totalSegments; ++i) {
         if (m_stopRequested) break;
         while (m_paused && !m_stopRequested) QThread::msleep(30);
-
-        // Mise à jour de la couleur de visualisation pour ce segment
-        m_isCurrentlyCutting.store(m_plannedSegments[i].isCut);
 
         bool accepted = false;
         while (!m_stopRequested) {
@@ -206,11 +213,12 @@ void TrajetMotor::onPositionUpdated(int x_steps, int y_steps)
 
 void TrajetMotor::onSegmentExecuted(int seg, int /*x_steps*/, int /*y_steps*/)
 {
-    int nextSeg = seg + 1;
-    if (nextSeg < m_plannedSegments.size()) {
-        m_isCurrentlyCutting.store(m_plannedSegments[nextSeg].isCut);
+    // seg = seg_executed du STM (remis à 0 par CLEAR en début de découpe).
+    // seg segments terminés → m_plannedSegments[seg] est en cours d'exécution.
+    if (seg >= 0 && seg < m_plannedSegments.size()) {
+        m_isCurrentlyCutting.store(m_plannedSegments[seg].isCut);
     }
-    emit decoupeProgress(m_plannedSegments.size() - nextSeg, qMax(1, (int)m_plannedSegments.size()));
+    emit decoupeProgress(m_plannedSegments.size() - seg, qMax(1, (int)m_plannedSegments.size()));
 }
 
 void TrajetMotor::onMachineDone()
