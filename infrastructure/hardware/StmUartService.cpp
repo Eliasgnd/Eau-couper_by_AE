@@ -376,17 +376,24 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
-    // --- SEG_DONE|seg=N|x=X|y=Y ---
+    // --- SEG_DONE|seg=N|x=X|y=Y|buf=B ---
     if (line.startsWith("SEG_DONE|")) {
         int seg = 0, x = 0, y = 0;
+        int bufLevel = -1; // NOUVEAU
 
-        // CORRECTION : On stocke le split dans une variable constante
         const QList<QByteArray> parts = line.mid(9).split('|');
         for (const QByteArray& part : parts) {
             if      (part.startsWith("seg=")) seg = part.mid(4).toInt();
             else if (part.startsWith("x="))   x   = part.mid(2).toInt();
             else if (part.startsWith("y="))   y   = part.mid(2).toInt();
+            else if (part.startsWith("buf=")) bufLevel = part.mid(4).toInt(); // NOUVEAU
         }
+
+        // NOUVEAU : On met à jour le buffer dynamiquement pour débloquer l'envoi !
+        if (bufLevel != -1) {
+            m_stmBufLevel = bufLevel;
+        }
+
         emit segDoneReceived(seg, x, y);
         return;
     }
