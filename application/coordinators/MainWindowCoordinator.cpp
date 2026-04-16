@@ -10,6 +10,7 @@
 #include "ImageImportService.h"
 #include "OpenAIService.h"
 #include "StmTestDialog.h"
+#include <QMessageBox>
 
 #include <QApplication>
 
@@ -48,8 +49,12 @@ void MainWindowCoordinator::setViewModel(MainWindowViewModel *viewModel)
     connect(m_cuttingService, &CuttingService::controlsEnabledChanged,
             m_viewModel,      &MainWindowViewModel::setControlsEnabled);
     connect(m_cuttingService, &CuttingService::statusMessage,
-            this,             &MainWindowCoordinator::aiGenerationStatus);
-    // ShapeCoordinator progress → ViewModel
+            this, [this](const QString &msg) {
+                if (m_view) {
+                    QMessageBox::warning(m_view, tr("Découpe impossible"), msg);
+                }
+            });
+    // ShapeCoordinator progress → ViewModel²
     connect(m_shapeController, &ShapeCoordinator::progressUpdated,
             m_viewModel,       &MainWindowViewModel::setShapeProgress);
     // AI status → ViewModel
