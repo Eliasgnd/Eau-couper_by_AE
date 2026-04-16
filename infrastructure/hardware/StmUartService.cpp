@@ -150,10 +150,12 @@ void StmUartService::sendSegment(const StmSegment& seg)
 
     m_serial.write(frame);
 
+    // NOUVEAU : On lance le chronomètre à CHAQUE segment envoyé
+    m_ackTimer.start();
+
     const bool isEndSeq = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
     if (isEndSeq) {
         m_nakCount = 0;
-        m_ackTimer.start();
     }
 }
 
@@ -225,24 +227,27 @@ void StmUartService::processLine(const QByteArray& line)
 
     // --- ACK|buf=<n>|seg=<s> ---
     if (line.startsWith("ACK|buf=")) {
-        // Parse : ACK|buf=<n>|seg=<s>
         int bufLevel = 0, segIndex = 0;
-        QByteArray payload = line.mid(8); // après "ACK|buf="
+        QByteArray payload = line.mid(8);
         int sep = payload.indexOf("|seg=");
         if (sep != -1) {
             bufLevel = payload.left(sep).toInt();
             segIndex = payload.mid(sep + 5).toInt();
         }
 
-        // Fenêtre glissante : on met à jour le niveau buffer STM connu
-        // et on décrémente le compteur de segments en vol.
         m_stmBufLevel  = bufLevel;
         m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
         m_nakCount     = 0;
 
-        // NOUVEAU : On retire la trame la plus ancienne qui vient d'être acquittée
         if (!m_unackedBatch.isEmpty()) {
             m_unackedBatch.removeFirst();
+        }
+
+        // NOUVEAU : Gestion du chronomètre
+        if (m_sentSinceAck > 0) {
+            m_ackTimer.start(); // Il reste des trames en vol, on relance le chrono
+        } else {
+            m_ackTimer.stop();  // Tout est validé, on arrête le chrono
         }
 
         emit ackReceived(bufLevel, segIndex);
@@ -451,9 +456,12 @@ void StmUartService::retransmitLastFrame()
 
 void StmUartService::onAckTimeout()
 {
-    m_nakCount = 0;
-    m_unackedBatch.clear();
-    emit comError(tr("Timeout ACK — pas de réponse STM en %1 ms.").arg(ACK_TIMEOUT_MS));
+    if (m_unackedBatch.isEmpty()) return;
+
+    qWarning() << "[STM-UART] Timeout : un ACK s'est perdu. On relance le batch pour débloquer.";
+
+    // Au lieu de générer une erreur fatale, on re-balance les trames coincées
+    retransmitLastFrame();
 }
 
 void StmUartService::onSerialError(QSerialPort::SerialPortError error)
