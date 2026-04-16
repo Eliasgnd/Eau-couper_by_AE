@@ -118,10 +118,16 @@ uint8_t StmUartService::calcChecksum(const QByteArray& frame)
 
 bool StmUartService::isFull() const
 {
-    const int STM_MAX_QUEUE = 4000;
-    const int MAX_IN_FLIGHT = 15;
+    // BARRIÈRE 1 : L'entrepôt (STM32) est-il plein ?
+    // m_stmBufLevel est mis à jour à chaque fois que la STM32 dit "ACK|buf=X"
+    bool isWarehouseFull = (m_stmBufLevel >= STM_SEND_AHEAD_MAX);
 
-    return (m_stmBufLevel >= STM_MAX_QUEUE) || (m_sentSinceAck >= MAX_IN_FLIGHT);
+    // BARRIÈRE 2 : Le camion (câble UART) est-il plein ?
+    // m_sentSinceAck compte les trames envoyées qui n'ont pas encore reçu de ACK
+    bool isTruckFull = (m_sentSinceAck >= STM_MAX_IN_FLIGHT);
+
+    // On bloque l'envoi de nouvelles trames si l'une des deux limites est atteinte
+    return isWarehouseFull || isTruckFull;
 }
 
 void StmUartService::resetWindow()

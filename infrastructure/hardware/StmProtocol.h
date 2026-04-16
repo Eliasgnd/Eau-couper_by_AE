@@ -15,6 +15,7 @@ static constexpr int    UART_BAUDRATE       = 115200;
 static constexpr int    ACK_TIMEOUT_MS      = 3000;  // timeout ACK (ms), sur END_SEQ uniquement
 static constexpr int    SEG_DONE_INTERVAL   = 10;    // miroir du #define firmware : SEG_DONE émis toutes les N exécutions
 static constexpr int    MAX_NAK_RETRY       = 3;     // NAK consécutifs avant erreur
+static constexpr int    STM_MAX_IN_FLIGHT   = 15;
 
 // --- Flags de segment (byte [9] de la trame binaire) ---
 static constexpr uint8_t FLAG_END_SEQ   = 0x01;  // Dernier segment — décélération + DONE
