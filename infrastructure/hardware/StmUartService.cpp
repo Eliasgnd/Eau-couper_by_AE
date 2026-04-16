@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QSerialPortInfo>
 #include <utility>
+#include <algorithm>
 
 // ============================================================
 //  StmUartService — implémentation
@@ -44,9 +45,9 @@ void StmUartService::open(const QString& portName)
 
     if (m_serial.open(QIODevice::ReadWrite)) {
         m_readBuffer.clear();
-        m_nakCount          = 0;
-        m_waitingAck        = false;
-        m_segsSinceLastAck  = 0;
+        m_nakCount      = 0;
+        m_stmBufLevel   = 0;
+        m_sentSinceAck  = 0;
         m_unackedBatch.clear();
         emit connectionChanged(true);
         qDebug() << "[STM-UART] Port ouvert :" << portName;
@@ -115,26 +116,44 @@ uint8_t StmUartService::calcChecksum(const QByteArray& frame)
     return checksum;
 }
 
+bool StmUartService::isFull() const
+{
+    // Bloque si le buffer STM estimé est plein.
+    // m_stmBufLevel  = dernier buf=X reçu par ACK (segments dans la file STM)
+    // m_sentSinceAck = segments envoyés mais pas encore ACKés (en vol)
+    return (m_stmBufLevel + m_sentSinceAck) >= STM_SEND_AHEAD_MAX;
+}
+
+void StmUartService::resetWindow()
+{
+    m_stmBufLevel  = 0;
+    m_sentSinceAck = 0;
+    m_nakCount     = 0;
+    m_unackedBatch.clear();
+    m_ackTimer.stop();
+}
+
 void StmUartService::sendSegment(const StmSegment& seg)
 {
     if (!m_serial.isOpen()) return;
 
     QByteArray frame = encodeFrame(seg);
-    m_unackedBatch.append(frame); // On stocke la trame dans le batch en cours
-    ++m_segsSinceLastAck;
+
+    // On ne garde qu'un seul frame dans m_unackedBatch pour la retransmission NAK.
+    // Chaque ACK reçu représente un segment : on le retire du compteur en vol.
+    m_unackedBatch.clear();
+    m_unackedBatch.append(frame);
+    ++m_sentSinceAck;
 
     m_serial.write(frame);
 
-    const bool isBatchBoundary = (m_segsSinceLastAck >= STM_ACK_BATCH);
-    // Seuls FLAG_END_SEQ et FLAG_HOME_SEQ nécessitent une attente d'ACK.
-    // FLAG_VALVE_ON/OFF sont de simples métadonnées de segment — les inclure
-    // déclenchait une attente ACK pour CHAQUE segment, causant les pauses.
+    // On arme le timeout uniquement sur le dernier segment (FLAG_END_SEQ / FLAG_HOME_SEQ).
+    // Pendant la trajectoire on envoie sans attendre d'ACK individuel —
+    // c'est isFull() qui régule le débit selon le niveau buffer STM.
     const bool isEndSeq = (seg.flags & FLAG_END_SEQ) ||
                           (seg.flags & FLAG_HOME_SEQ);
-
-    if (isBatchBoundary || isEndSeq) {
-        m_nakCount   = 0;
-        m_waitingAck = true;
+    if (isEndSeq) {
+        m_nakCount = 0;
         m_ackTimer.start();
     }
 }
@@ -207,12 +226,6 @@ void StmUartService::processLine(const QByteArray& line)
 
     // --- ACK|buf=<n>|seg=<s> ---
     if (line.startsWith("ACK|buf=")) {
-        m_ackTimer.stop();
-        m_waitingAck        = false;
-        m_nakCount          = 0;
-        m_segsSinceLastAck  = 0;
-        m_unackedBatch.clear();
-
         // Parse : ACK|buf=<n>|seg=<s>
         int bufLevel = 0, segIndex = 0;
         QByteArray payload = line.mid(8); // après "ACK|buf="
@@ -221,6 +234,13 @@ void StmUartService::processLine(const QByteArray& line)
             bufLevel = payload.left(sep).toInt();
             segIndex = payload.mid(sep + 5).toInt();
         }
+
+        // Fenêtre glissante : on met à jour le niveau buffer STM connu
+        // et on décrémente le compteur de segments en vol.
+        m_stmBufLevel  = bufLevel;
+        m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
+        m_nakCount     = 0;
+
         emit ackReceived(bufLevel, segIndex);
         return;
     }
@@ -228,7 +248,8 @@ void StmUartService::processLine(const QByteArray& line)
     // --- NAK ---
     if (line == "NAK" || line.endsWith("NAK")) {
         m_ackTimer.stop();
-        m_waitingAck = false;
+        // Le segment NAKé est retiré du compteur en vol — on va le retransmettre.
+        m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
         ++m_nakCount;
         emit nakReceived();
 
@@ -405,10 +426,12 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 void StmUartService::retransmitLastFrame()
 {
     if (m_unackedBatch.isEmpty()) return;
-    qDebug() << "[STM-UART] Retransmission du batch complet suite à NAK (" << m_nakCount << "/" << MAX_NAK_RETRY << ")";
-    m_waitingAck = true;
+    qDebug() << "[STM-UART] Retransmission du segment suite à NAK ("
+             << m_nakCount << "/" << MAX_NAK_RETRY << ")";
 
-    // Remplacement de la boucle range-based par un for classique
+    // Recompter le segment retransmis dans la fenêtre
+    ++m_sentSinceAck;
+
     const int batchSize = m_unackedBatch.size();
     for (int i = 0; i < batchSize; ++i) {
         m_serial.write(m_unackedBatch[i]);
@@ -418,9 +441,7 @@ void StmUartService::retransmitLastFrame()
 
 void StmUartService::onAckTimeout()
 {
-    if (!m_waitingAck) return;
-    m_waitingAck = false;
-    m_nakCount   = 0;
+    m_nakCount = 0;
     m_unackedBatch.clear();
     emit comError(tr("Timeout ACK — pas de réponse STM en %1 ms.").arg(ACK_TIMEOUT_MS));
 }

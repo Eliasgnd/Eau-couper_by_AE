@@ -182,11 +182,11 @@ bool MachineViewModel::sendSegment(const StmSegment& seg)
     m_zDescentConfirmed = false; // Reset après usage
 
     // ==========================================
-    // 4. NOUVEAU CONTROLE DE FLUX (Remplace l'ancien calcul m_bufferLevel)
+    // 4. CONTRÔLE DE FLUX — fenêtre glissante
     // ==========================================
-    // Si l'UART attend un ACK, on refuse la nouvelle trajectoire.
+    // On bloque si le buffer STM estimé est plein (isFull).
     // Le thread TrajetMotor patientera 10ms et réessayera tout seul.
-    if (m_uart->isWaitingAck()) {
+    if (m_uart->isFull()) {
         return false;
     }
 
