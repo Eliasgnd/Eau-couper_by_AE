@@ -149,4 +149,6 @@ private:
     OpenAIService    *m_aiService         = nullptr;
     QTranslator m_translator;
     Language m_currentLanguage = Language::French;
+
+    bool m_isCutting = false;
 };

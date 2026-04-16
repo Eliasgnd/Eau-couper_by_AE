@@ -376,6 +376,23 @@ void StmUartService::processLine(const QByteArray& line)
         if (parts.size() >= 3) {
             int x_steps = parts[1].toInt();
             int y_steps = parts[2].toInt();
+
+            // NOUVEAU : Lecture de l'état de la valve synchronisé avec la position
+            if (parts.size() >= 4) {
+                static bool lastValveState = false;
+                bool currentValveState = (parts[3].toInt() == 1);
+
+                // Si l'état a changé, on simule la réception d'un VALVE ON / OFF
+                if (currentValveState != lastValveState) {
+                    lastValveState = currentValveState;
+                    if (currentValveState) {
+                        emit valveOnConfirmed();
+                    } else {
+                        emit valveOffConfirmed();
+                    }
+                }
+            }
+
             emit realPositionReceived(x_steps, y_steps);
         }
         return;
