@@ -110,9 +110,16 @@ QList<QPolygonF> CustomDrawArea::getCustomShapes() const
 {
     Q_ASSERT(m_shapeManager != nullptr);
     QList<QPolygonF> polygons;
-    polygons.reserve(m_shapeManager->shapes().size());
-    for (const auto &shape : m_shapeManager->shapes())
-        polygons.append(shape.path.toFillPolygon());
+
+    for (const auto &shape : m_shapeManager->shapes()) {
+        // --- LA CORRECTION EST ICI ---
+        // Au lieu de forcer un seul polygone (toFillPolygon), on extrait
+        // chaque sous-tracé (chaque lettre et contour) séparément !
+        const QList<QPolygonF> subPolys = shape.path.toSubpathPolygons();
+        polygons.append(subPolys);
+        // -----------------------------
+    }
+
     return polygons;
 }
 
@@ -372,6 +379,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     Q_UNUSED(event)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setBrush(Qt::NoBrush);
     painter.translate(m_transformer->offset());
     painter.scale(m_transformer->scale(), m_transformer->scale());
 
@@ -499,10 +507,24 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                                                    QLineEdit::Normal, m_textTool->getCurrentText(), &ok);
         if (ok && !text.isEmpty()) {
             m_textTool->setCurrentText(text);
-            QPainterPath textPath;
-            textPath.addText(logical, m_textTool->getTextFont(), text);
+
+            // 1. On génère le tracé texte de base
+            QPainterPath rawTextPath;
+            rawTextPath.addText(logical, m_textTool->getTextFont(), text);
+
+            // 2. Conversion en filaire pur (Hollow Text)
+            QPainterPath hollowPath;
+            for (const QPolygonF& poly : rawTextPath.toSubpathPolygons()) {
+                if (poly.isEmpty()) continue;
+                hollowPath.moveTo(poly.first());
+                for (int i = 1; i < poly.size(); ++i) {
+                    hollowPath.lineTo(poly[i]);
+                }
+            }
+
             int id = m_nextShapeId++;
-            m_historyManager->commitAddShape(textPath, id, tr("Ajouter texte"));
+            // 3. On sauvegarde le tracé creux au lieu du texte brut
+            m_historyManager->commitAddShape(hollowPath, id, tr("Ajouter texte"));
         }
         return;
     }

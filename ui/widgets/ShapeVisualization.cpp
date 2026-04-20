@@ -613,18 +613,22 @@ void ShapeVisualization::handleSelectionChanged()
         }
     }
 }
-
 void ShapeVisualization::resetAllShapeColors()
 {
-    // Création d'un stylo noir Cosmétique
+    // Création d'un stylo noir Cosmétique pour une épaisseur mathématiquement neutre
     QPen normalPen(Qt::black, 1);
-    normalPen.setCosmetic(true); // <---- LA LIGNE MAGIQUE
+    normalPen.setCosmetic(true);
 
     for (QGraphicsItem *item : scene->items()) {
         if (m_cutMarkers.contains(item))
             continue;
+
         if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
             shape->setPen(normalPen);
+
+            // --- LA LIGNE MAGIQUE POUR CREUSER LE TEXTE ---
+            shape->setBrush(Qt::NoBrush);
+            // ----------------------------------------------
         }
     }
     graphicsView->viewport()->update();
