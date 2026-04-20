@@ -49,6 +49,8 @@ void StmUartService::open(const QString& portName)
         m_stmBufLevel   = 0;
         m_sentSinceAck  = 0;
         m_unackedBatch.clear();
+        m_globalSeqId   = 0;
+        m_unackedBatch.clear();
         emit connectionChanged(true);
         qDebug() << "[STM-UART] Port ouvert :" << portName;
     } else {
@@ -76,33 +78,33 @@ bool StmUartService::isOpen() const
 //  Envoi — trame binaire
 // ----------------------------------------------------------
 
-QByteArray StmUartService::encodeFrame(const StmSegment& seg)
+QByteArray StmUartService::encodeFrame(const StmSegment& seg, uint16_t seqId)
 {
-    QByteArray frame(11, '\0');
+    QByteArray frame(13, '\0'); // CHANGÉ : 13 octets
 
     frame[0] = static_cast<char>(STM_SYNC_BYTE);
 
-    // dx — int16 BIG-endian (Poids FORT en premier pour correspondre au STM32)
-    frame[1] = static_cast<char>((seg.dx >> 8)  & 0xFF);
-    frame[2] = static_cast<char>( seg.dx        & 0xFF);
+    // NOUVEAU : seq_id (poids fort puis poids faible)
+    frame[1] = static_cast<char>((seqId >> 8) & 0xFF);
+    frame[2] = static_cast<char>( seqId       & 0xFF);
 
-    // dy — int16 BIG-endian
-    frame[3] = static_cast<char>((seg.dy >> 8)  & 0xFF);
-    frame[4] = static_cast<char>( seg.dy        & 0xFF);
+    // Le reste est décalé de 2 octets
+    frame[3] = static_cast<char>((seg.dx >> 8)  & 0xFF);
+    frame[4] = static_cast<char>( seg.dx        & 0xFF);
 
-    // dz — int16 BIG-endian
-    frame[5] = static_cast<char>((seg.dz >> 8)  & 0xFF);
-    frame[6] = static_cast<char>( seg.dz        & 0xFF);
+    frame[5] = static_cast<char>((seg.dy >> 8)  & 0xFF);
+    frame[6] = static_cast<char>( seg.dy        & 0xFF);
 
-    // v_max — uint16 BIG-endian
-    frame[7] = static_cast<char>((seg.v_max >> 8) & 0xFF);
-    frame[8] = static_cast<char>( seg.v_max       & 0xFF);
+    frame[7] = static_cast<char>((seg.dz >> 8)  & 0xFF);
+    frame[8] = static_cast<char>( seg.dz        & 0xFF);
 
-    // flags
-    frame[9] = static_cast<char>(seg.flags);
+    frame[9] = static_cast<char>((seg.v_max >> 8) & 0xFF);
+    frame[10] = static_cast<char>( seg.v_max       & 0xFF);
 
-    // Checksum XOR de tous les octets précédents
-    frame[10] = static_cast<char>(calcChecksum(frame));
+    frame[11] = static_cast<char>(seg.flags);
+
+    // Le checksum est maintenant à l'index 12
+    frame[12] = static_cast<char>(calcChecksum(frame));
 
     return frame;
 }
@@ -110,8 +112,8 @@ QByteArray StmUartService::encodeFrame(const StmSegment& seg)
 uint8_t StmUartService::calcChecksum(const QByteArray& frame)
 {
     uint8_t checksum = 0;
-    // XOR des octets [0..9] (le checksum se trouve en [10])
-    for (int i = 0; i < 10 && i < frame.size(); ++i)
+    // XOR des octets [0..11] (le checksum se trouve en [12])
+    for (int i = 0; i < 12 && i < frame.size(); ++i)
         checksum ^= static_cast<uint8_t>(frame[i]);
     return checksum;
 }
@@ -137,20 +139,26 @@ void StmUartService::resetWindow()
     m_nakCount     = 0;
     m_unackedBatch.clear();
     m_ackTimer.stop();
+    m_globalSeqId  = 0;
 }
 
 void StmUartService::sendSegment(const StmSegment& seg)
 {
     if (!m_serial.isOpen()) return;
 
-    QByteArray frame = encodeFrame(seg);
+    // NOUVEAU : On génère l'ID pour ce segment précis, et on l'incrémente pour le prochain
+    uint16_t currentSeqId = m_globalSeqId++;
 
+    // On passe cet ID à l'encodeur
+    QByteArray frame = encodeFrame(seg, currentSeqId);
+
+    // Le reste ne change pas !
+    // m_unackedBatch garde une copie de la trame AVEC son ID intégré.
+    // Si on timeout, c'est cette trame identique qui sera re-balancée.
     m_unackedBatch.append(frame);
     ++m_sentSinceAck;
 
     m_serial.write(frame);
-
-    // NOUVEAU : On lance le chronomètre à CHAQUE segment envoyé
     m_ackTimer.start();
 
     const bool isEndSeq = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);

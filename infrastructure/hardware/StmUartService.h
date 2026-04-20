@@ -100,6 +100,8 @@ private:
     QTimer       m_ackTimer;
     QByteArray   m_readBuffer;
 
+    uint16_t m_globalSeqId = 0;
+
     // --- Fenêtre glissante : contrôle de flux vers le STM ---
     // m_stmBufLevel : dernier niveau buffer STM connu (champ buf=X de l'ACK)
     // m_sentSinceAck : segments envoyés depuis le dernier ACK reçu
@@ -111,7 +113,7 @@ private:
     int  m_nakCount = 0;               // NAK consécutifs sur la trame courante
 
     // --- Encodage trame binaire ---
-    static QByteArray encodeFrame(const StmSegment& seg);
+    QByteArray encodeFrame(const StmSegment& seg, uint16_t seqId);
     static uint8_t    calcChecksum(const QByteArray& frame);
 
     // --- Parsing ASCII ---
