@@ -49,5 +49,6 @@
     </qresource>
     <qresource prefix="/styles">
         <file>style.qss</file>
+        <file>style_light.qss</file>
     </qresource>
 </RCC>

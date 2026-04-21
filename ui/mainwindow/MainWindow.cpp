@@ -30,6 +30,7 @@
 #include <QMessageBox>
 #include <QMenu>
 #include <QMenuBar>
+#include <QSettings>
 
 // --- Construction / Destruction ---
 
@@ -70,6 +71,10 @@ MainWindow::MainWindow(QWidget *parent,
     m_viewModel = new MainWindowViewModel(this);
     m_coordinator->setViewModel(m_viewModel);
 
+    // Restaurer le dernier thème utilisé
+    QSettings settings("EauCouper", "IHM");
+    m_isDarkTheme = settings.value("theme/dark", false).toBool();
+
     setupUI();
     setupModels();
     setupViewConnections();
@@ -94,8 +99,9 @@ void MainWindow::setupUI()
     setupMenus();
     applyStyleSheets();
 
-    // On cache la barre de menu Qt : les entrees sont exposees via buttonSettings
+    // On cache la barre de menu Qt et la status bar Qt natives
     menuBar()->hide();
+    statusBar()->hide();
 
     ui->Slider_longueur->setValue(ui->Longueur->value());
     ui->Slider_largeur->setValue(ui->Largeur->value());
@@ -177,22 +183,51 @@ void MainWindow::setupMenus()
 
 void MainWindow::applyStyleSheets()
 {
-    // 1. On applique le style à l'ensemble de la MainWindow
-    QFile styleFile(":/styles/style.qss");
+    QString path = m_isDarkTheme ? ":/styles/style.qss" : ":/styles/style_light.qss";
+    QFile styleFile(path);
     if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream stream(&styleFile);
-        QString qss = stream.readAll();
-
-        // On applique le style à la fenêtre principale
-        this->setStyleSheet(qss);
+        this->setStyleSheet(stream.readAll());
         styleFile.close();
     } else {
-        qDebug() << "Erreur: Impossible de charger le fichier style.qss. Vérifiez le fichier .qrc.";
+        qDebug() << "Erreur: Impossible de charger le fichier QSS:" << path;
     }
+    updateThemeButton();
+}
 
-    // 2. Si tu as besoin de styliser le menu spécifiquement (ton ancien code pour le settingsBtn)
-    // Comme le style global va cascader, tu n'as normalement plus besoin de forcer
-    // le style du bouton ici, sauf si c'est un style qui n'est pas dans le fichier QSS.
+void MainWindow::updateThemeButton()
+{
+    if (!ui->buttonTheme) return;
+    QString iconPath = m_isDarkTheme ? ":/icons/moon.svg" : ":/icons/sun.svg";
+    ui->buttonTheme->setIcon(QIcon(iconPath));
+}
+
+void MainWindow::toggleTheme()
+{
+    QWidget *cw = centralWidget();
+    auto *effect = new QGraphicsOpacityEffect(cw);
+    cw->setGraphicsEffect(effect);
+
+    auto *fadeOut = new QPropertyAnimation(effect, "opacity", this);
+    fadeOut->setDuration(120);
+    fadeOut->setStartValue(1.0);
+    fadeOut->setEndValue(0.0);
+
+    connect(fadeOut, &QPropertyAnimation::finished, this, [this, cw, effect]() {
+        m_isDarkTheme = !m_isDarkTheme;
+        QSettings("EauCouper", "IHM").setValue("theme/dark", m_isDarkTheme);
+        applyStyleSheets();
+
+        auto *fadeIn = new QPropertyAnimation(effect, "opacity", this);
+        fadeIn->setDuration(120);
+        fadeIn->setStartValue(0.0);
+        fadeIn->setEndValue(1.0);
+        connect(fadeIn, &QPropertyAnimation::finished, cw, [cw]() {
+            cw->setGraphicsEffect(nullptr);
+        });
+        fadeIn->start(QAbstractAnimation::DeleteWhenStopped);
+    });
+    fadeOut->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void MainWindow::setupModels()
@@ -225,6 +260,9 @@ void MainWindow::setupViewConnections()
             this, &MainWindow::shapeCountChangeRequested);
     connect(ui->spaceSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::spacingChangeRequested);
+
+    // ---- Thème ----
+    connect(ui->buttonTheme, &QPushButton::clicked, this, &MainWindow::toggleTheme);
 
     // ---- Formes prédéfinies ----
     connect(ui->Cercle,    &QPushButton::clicked, this, &MainWindow::circleRequested);

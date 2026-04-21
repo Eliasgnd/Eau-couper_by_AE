@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
 #include "Language.h"
 #include "StmProtocol.h"
 #include <QList>
@@ -113,6 +115,7 @@ private slots:
     void onMachineStateChanged(MachineState state);
     void setLanguageFrench();
     void setLanguageEnglish();
+    void toggleTheme();
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -123,10 +126,14 @@ private:
     void setupWorkspaceLayout();
     void setupMenus();
     void applyStyleSheets();
+    void updateThemeButton();
     void setupViewConnections();
     void setupModels();
     void retranslateDynamicUi();
     void syncControlsFromModel();
+
+    // --- Theme state ---
+    bool m_isDarkTheme = false;
 
     // --- UI state ---
     QMenu   *settingsMenu    = nullptr;
