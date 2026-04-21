@@ -25,4 +25,7 @@ public:
 private:
     static void computeInclusionDepths(QList<ContinuousCut>& cuts);
     static void applyLeadIns(QList<ContinuousCut>& cuts, double distance);
+
+    // Ajout de la déclaration manquante ici :
+    static void mergeCommonLines(QList<ContinuousCut>& cuts);
 };
