@@ -77,7 +77,7 @@ QList<ContinuousCut> PathPlanner::computeOptimizedPaths(QList<ContinuousCut> cut
     }
 
     // 4. Ajouter les entrées de coupe (Lead-in)
-    applyLeadIns(optimized, 3.0);
+    //applyLeadIns(optimized, 3.0);
 
     return optimized;
 }
@@ -92,6 +92,10 @@ QList<ContinuousCut> PathPlanner::extractRawPaths(QGraphicsScene *sc)
 
     for (QGraphicsItem *it : sc->items()) {
         if (!it->isVisible() || it->zValue() >= 50) continue;
+
+        if (it->boundingRect().width() < 10.0 && it->boundingRect().height() < 10.0) {
+            continue;
+        }
 
         QPainterPath path;
 

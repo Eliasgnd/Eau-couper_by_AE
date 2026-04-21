@@ -39,11 +39,11 @@ enum class MachineState {
 
 // --- Segment de trajectoire (une trame binaire de 11 octets) ---
 struct StmSegment {
-    int16_t  dx    = 0;     // Déplacement relatif en pas, axe X (big-endian)
-    int16_t  dy    = 0;     // Déplacement relatif en pas, axe Y (big-endian)
-    int16_t  dz    = 0;     // Déplacement relatif en pas, axe Z (big-endian)
-    uint16_t v_max = 1000;  // Valeur ARR timer (logique inversée : petit = rapide)
-    uint8_t  flags = 0;     // Combinaison de FLAG_*
+    int32_t  dx    = 0;     // CHANGÉ : Déplacement relatif 32-bits
+    int32_t  dy    = 0;     // CHANGÉ : Déplacement relatif 32-bits
+    int32_t  dz    = 0;     // CHANGÉ : Déplacement relatif 32-bits
+    uint16_t v_max = 1000;
+    uint8_t  flags = 0;
 };
 
 // --- Données de recovery après arrêt d'urgence ---
