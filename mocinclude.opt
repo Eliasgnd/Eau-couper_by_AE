@@ -1,4 +1,4 @@
--IC:/Qt/6.10.2/mingw_64/mkspecs/win32-g++
+-IC:/Qt/6.10.2/msvc2022_64/mkspecs/win32-msvc
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE
 -IC:/opencv/build/include
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/external/clipper2/include
@@ -25,22 +25,25 @@
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/infrastructure/network
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/infrastructure/imaging
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/shared
--IC:/Qt/6.10.2/mingw_64/include
--IC:/Qt/6.10.2/mingw_64/include/QtOpenGLWidgets
--IC:/Qt/6.10.2/mingw_64/include/QtWidgets
--IC:/Qt/6.10.2/mingw_64/include/QtSvg
--IC:/Qt/6.10.2/mingw_64/include/QtOpenGL
--IC:/Qt/6.10.2/mingw_64/include/QtGui
--IC:/Qt/6.10.2/mingw_64/include/QtBluetooth
--IC:/Qt/6.10.2/mingw_64/include/QtHttpServer
--IC:/Qt/6.10.2/mingw_64/include/QtWebSockets
--IC:/Qt/6.10.2/mingw_64/include/QtNetwork
--IC:/Qt/6.10.2/mingw_64/include/QtConcurrent
--IC:/Qt/6.10.2/mingw_64/include/QtSerialPort
--IC:/Qt/6.10.2/mingw_64/include/QtCore
--IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++
--IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/x86_64-w64-mingw32
--IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include/c++/backward
--IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include
--IC:/Qt/Tools/mingw1310_64/lib/gcc/x86_64-w64-mingw32/13.1.0/include-fixed
--IC:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include
+-IC:/Qt/6.10.2/msvc2022_64/include
+-IC:/Qt/6.10.2/msvc2022_64/include/QtOpenGLWidgets
+-IC:/Qt/6.10.2/msvc2022_64/include/QtWidgets
+-IC:/Qt/6.10.2/msvc2022_64/include/QtSvg
+-IC:/Qt/6.10.2/msvc2022_64/include/QtOpenGL
+-IC:/Qt/6.10.2/msvc2022_64/include/QtGui
+-IC:/Qt/6.10.2/msvc2022_64/include/QtBluetooth
+-IC:/Qt/6.10.2/msvc2022_64/include/QtHttpServer
+-IC:/Qt/6.10.2/msvc2022_64/include/QtWebSockets
+-IC:/Qt/6.10.2/msvc2022_64/include/QtNetwork
+-IC:/Qt/6.10.2/msvc2022_64/include/QtConcurrent
+-IC:/Qt/6.10.2/msvc2022_64/include/QtSerialPort
+-IC:/Qt/6.10.2/msvc2022_64/include/QtCore
+-IC:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.50.35717\include
+-IC:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.50.35717\ATLMFC\include
+-IC:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\VS\include
+-IC:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\um
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\shared
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\winrt
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\cppwinrt
+-IC:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um

@@ -152,6 +152,10 @@ void MainWindowCoordinator::onStmTestRequested()
     dlg->show();
 }
 
+void MainWindowCoordinator::onHomeRequested()          { m_machineViewModel->sendHome(); }
+void MainWindowCoordinator::onPositionResetRequested() { m_machineViewModel->sendPositionReset(); }
+void MainWindowCoordinator::onRearmRequested()         { m_machineViewModel->sendRearm(); }
+
 void MainWindowCoordinator::requestAiGeneration(const QString &prompt,
                                                 const QString &model,
                                                 const QString &quality,
@@ -275,6 +279,11 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
 
     // --- Test Moteurs STM ---
     connect(view, &MainWindow::stmTestRequested,   this, &MainWindowCoordinator::onStmTestRequested);
+
+    // --- Commandes machine secondaires (status bar) ---
+    connect(view, &MainWindow::homeRequested,          this, &MainWindowCoordinator::onHomeRequested);
+    connect(view, &MainWindow::positionResetRequested, this, &MainWindowCoordinator::onPositionResetRequested);
+    connect(view, &MainWindow::rearmRequested,         this, &MainWindowCoordinator::onRearmRequested);
 
     // --- AI (View → Coordinator) ---
     connect(view, &MainWindow::requestAiGeneration, this, &MainWindowCoordinator::requestAiGeneration);

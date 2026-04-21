@@ -2,7 +2,11 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QTimer>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
 #include "Language.h"
+#include "StmProtocol.h"
 #include <QList>
 #include <QPolygonF>
 
@@ -102,9 +106,16 @@ signals:
     // Langue
     void requestLanguageChange(Language lang);
 
+    // Commandes machine secondaires (status bar)
+    void homeRequested();
+    void positionResetRequested();
+    void rearmRequested();
+
 private slots:
+    void onMachineStateChanged(MachineState state);
     void setLanguageFrench();
     void setLanguageEnglish();
+    void toggleTheme();
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -115,10 +126,14 @@ private:
     void setupWorkspaceLayout();
     void setupMenus();
     void applyStyleSheets();
+    void updateThemeButton();
     void setupViewConnections();
     void setupModels();
     void retranslateDynamicUi();
     void syncControlsFromModel();
+
+    // --- Theme state ---
+    bool m_isDarkTheme = false;
 
     // --- UI state ---
     QMenu   *settingsMenu    = nullptr;
@@ -130,6 +145,7 @@ private:
     // --- UI pointers ---
     Ui::MainWindow     *ui                 = nullptr;
     ShapeVisualization *shapeVisualization  = nullptr;
+    QTimer             *m_emergencyFlashTimer = nullptr;
 
     // --- Données centralisées ---
     WorkspaceViewModel *m_model = nullptr;

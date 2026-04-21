@@ -282,6 +282,11 @@ void StmUartService::processLine(const QByteArray& line)
 
     // --- DONE ---
     if (line == "DONE" || line.endsWith("DONE")) {
+        // NOUVEAU : On coupe le timer et on vide le batch pour éviter les envois fantômes !
+        m_ackTimer.stop();
+        m_unackedBatch.clear();
+        m_sentSinceAck = 0;
+
         emit doneReceived();
         return;
     }
@@ -483,10 +488,12 @@ void StmUartService::onAckTimeout()
 {
     if (m_unackedBatch.isEmpty()) return;
 
-    qWarning() << "[STM-UART] Timeout : un ACK s'est perdu. On relance le batch pour débloquer.";
+    // AVERTISSEMENT : On ne retransmet plus le dernier segment à l'aveugle.
+    // Cela créait des doublons physiques qui faussaient les coordonnées de la machine.
+    qWarning() << "[STM-UART] Timeout : ACK en retard. On patiente sans retransmettre.";
 
-    // Au lieu de générer une erreur fatale, on re-balance les trames coincées
-    retransmitLastFrame();
+    // On relance juste le timer pour laisser la machine finir son mouvement
+    m_ackTimer.start(1000);
 }
 
 void StmUartService::onSerialError(QSerialPort::SerialPortError error)
