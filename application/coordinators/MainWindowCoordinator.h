@@ -35,6 +35,7 @@ public:
     AIDialogCoordinator     *aiServiceManager()     const { return m_aiServiceManager; }
     ShapeCoordinator      *shapeController()      const { return m_shapeController; }
     WorkspaceViewModel       *workspaceModel()       const { return m_model; }
+    MachineViewModel         *machineViewModel()     const { return m_machineViewModel; }
 
     void setDialogParent(QWidget *parent) { m_dialogParent = parent; }
     void setMainWindow(MainWindow *window);
@@ -113,6 +114,10 @@ public slots:
     void onSaveLayoutRequested();
     void onGenerateAiRequested();
     void onStmTestRequested();
+
+    void onHomeRequested();
+    void onPositionResetRequested();
+    void onRearmRequested();
 
     // Réactions aux événements de l'Inventory
     void onCustomShapeSelected(const QList<QPolygonF> &polygons, const QString &name);

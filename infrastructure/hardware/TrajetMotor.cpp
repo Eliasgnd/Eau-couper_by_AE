@@ -119,7 +119,12 @@ void TrajetMotor::doExecuteTrajet()
 
         for (int i = 1; i < cut.points.size(); ++i) {
             QPoint realEnd = cut.points[i].toPoint();
-            bool isLast = (i == cut.points.size() - 1 && c == optimizedCuts.size() - 1);
+
+            // On vérifie qu'on est sur le dernier point
+            bool isLastShapePoint = (i == cut.points.size() - 1 && c == optimizedCuts.size() - 1);
+            // On ne met le drapeau de FIN que si la machine NE RENTRE PAS au Home juste après
+            bool isLast = isLastShapePoint && (realEnd == homePos);
+
             planMove(cur, realEnd, FLAG_VALVE_ON, isLast);
             cur = realEnd;
         }

@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 #include "ui_mainwindow.h"
+#include "MachineViewModel.h"
+#include "StmProtocol.h"
 #include "Inventory.h"
 #include "ShapeVisualization.h"
 #include "ImageImportService.h"
@@ -26,7 +28,8 @@
 #include <QFile>
 #include <QTextStream>
 #include <QMessageBox>
-
+#include <QMenu>
+#include <QMenuBar>
 
 // --- Construction / Destruction ---
 
@@ -91,6 +94,9 @@ void MainWindow::setupUI()
     setupMenus();
     applyStyleSheets();
 
+    // On cache la barre de menu Qt : les entrees sont exposees via buttonSettings
+    menuBar()->hide();
+
     ui->Slider_longueur->setValue(ui->Longueur->value());
     ui->Slider_largeur->setValue(ui->Largeur->value());
 
@@ -123,14 +129,6 @@ void MainWindow::setupUI()
         ui->shapeCountLabel->setMinimumWidth(200);
     }
 
-    // Contraint la largeur du menu de gauche via le layout (car widgetControls n'existe pas)
-    if (ui->verticalLayout) {
-        for(int i = 0; i < ui->verticalLayout->count(); ++i) {
-            if (QWidget* w = ui->verticalLayout->itemAt(i)->widget()) {
-                w->setMaximumWidth(350);
-            }
-        }
-    }
     // --- CORRECTION DU SAUT D'INTERFACE LORS DES ERREURS ---
     if (ui->labelAIGenerationStatus) {
         ui->labelAIGenerationStatus->setWordWrap(true); // Force le texte long à passer à la ligne
@@ -142,21 +140,15 @@ void MainWindow::setupUI()
 
 void MainWindow::setupWorkspaceLayout()
 {
-    ui->centerVBox->setStretch(0, 0);
-    ui->centerVBox->setStretch(1, 1);
-    ui->centerVBox->setStretch(2, 0);
-    ui->centerVBox->setStretch(3, 0);
-
-    ui->mainHorizontalLayout->setStretch(0, 0);
-    ui->mainHorizontalLayout->setStretch(1, 1);
-
     auto *visualizationWidget = ui->shapeVisualizationWidget;
     visualizationWidget->setSheetSizeMm(QSizeF(600, 400));
 
     auto *wrapper = new AspectRatioWrapper(nullptr, 600.0 / 400.0, ui->centralwidget);
     wrapper->setObjectName("formeRatioWrapper");
     wrapper->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    ui->horizontalLayout->replaceWidget(visualizationWidget, wrapper);
+
+    // CORRECTION ICI : On utilise bodyLayout, qui est le grand layout central
+    ui->bodyLayout->replaceWidget(visualizationWidget, wrapper);
     wrapper->setChild(visualizationWidget);
 
     connect(visualizationWidget, &ShapeVisualization::sheetSizeMmChanged,
@@ -185,13 +177,22 @@ void MainWindow::setupMenus()
 
 void MainWindow::applyStyleSheets()
 {
-    if (auto *settingsBtn = menuBar()->cornerWidget(Qt::TopRightCorner)) {
-        QFile styleFile(":/styles/style.qss");
-        if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QTextStream stream(&styleFile);
-            settingsBtn->setStyleSheet(stream.readAll());
-        }
+    // 1. On applique le style à l'ensemble de la MainWindow
+    QFile styleFile(":/styles/style.qss");
+    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&styleFile);
+        QString qss = stream.readAll();
+
+        // On applique le style à la fenêtre principale
+        this->setStyleSheet(qss);
+        styleFile.close();
+    } else {
+        qDebug() << "Erreur: Impossible de charger le fichier style.qss. Vérifiez le fichier .qrc.";
     }
+
+    // 2. Si tu as besoin de styliser le menu spécifiquement (ton ancien code pour le settingsBtn)
+    // Comme le style global va cascader, tu n'as normalement plus besoin de forcer
+    // le style du bouton ici, sauf si c'est un style qui n'est pas dans le fichier QSS.
 }
 
 void MainWindow::setupModels()
@@ -334,6 +335,42 @@ void MainWindow::setupViewConnections()
     connect(this, &MainWindow::requestStopCut,     m_coordinator, &MainWindowCoordinator::stopCutting);
     connect(this, &MainWindow::requestSpeedChange, m_coordinator, &MainWindowCoordinator::setCuttingSpeed);
     connect(this, &MainWindow::requestLanguageChange, m_coordinator, &MainWindowCoordinator::changeLanguage);
+
+    // ---- Etat machine → status bar ----
+    auto *mvm = m_coordinator->machineViewModel();
+    connect(mvm, &MachineViewModel::stateChanged,
+            this, &MainWindow::onMachineStateChanged);
+    connect(mvm, &MachineViewModel::positionChanged,
+            this, [this](double x, double y, double) {
+                ui->labelPositionXY->setText(
+                    QString("X: %1 mm     Y: %2 mm")
+                        .arg(x, 7, 'f', 2)
+                        .arg(y, 7, 'f', 2));
+            });
+    onMachineStateChanged(mvm->state());
+
+    // ---- Boutons machine secondaires (status bar) ----
+    connect(ui->buttonHome,  &QPushButton::clicked, this, &MainWindow::homeRequested);
+    connect(ui->buttonReset, &QPushButton::clicked, this, &MainWindow::positionResetRequested);
+    connect(ui->buttonRearm, &QPushButton::clicked, this, &MainWindow::rearmRequested);
+
+    // ---- Bouton parametres (popup du menu existant) ----
+    connect(ui->buttonSettings, &QPushButton::clicked, this, [this]() {
+        if (settingsMenu) {
+            settingsMenu->popup(ui->buttonSettings->mapToGlobal(
+                QPoint(0, ui->buttonSettings->height())));
+        }
+    });
+
+    // ---- Bouton langue (toggle FR/EN) ----
+    connect(ui->buttonLanguage, &QPushButton::clicked, this, [this]() {
+        const Language next = (displayLanguage() == Language::French)
+                                  ? Language::English
+                                  : Language::French;
+        ui->buttonLanguage->setText(next == Language::French ? "EN" : "FR");
+        emit requestLanguageChange(next);
+    });
+    ui->buttonLanguage->setText(displayLanguage() == Language::French ? "FR" : "EN");
 }
 
 // =======================================================================
@@ -496,4 +533,47 @@ ShapeVisualization* MainWindow::getShapeVisualization() const
 Language MainWindow::displayLanguage() const
 {
     return m_viewModel->currentLanguage();
+}
+
+void MainWindow::onMachineStateChanged(MachineState state)
+{
+    struct StateStyle { QString label; QString bg; QString fg; };
+    static const QMap<MachineState, StateStyle> styles = {
+        { MachineState::DISCONNECTED,  { tr("DECONNECTE"),   "#272A30", "#94A3B8" } },
+        { MachineState::READY,         { tr("PRET"),         "#15803D", "#FFFFFF" } },
+        { MachineState::MOVING,        { tr("EN MOUVEMENT"), "#0284C7", "#FFFFFF" } },
+        { MachineState::HOMING,        { tr("HOMING"),       "#7E22CE", "#FFFFFF" } },
+        { MachineState::RECOVERY_WAIT, { tr("RECOVERY"),     "#B45309", "#FFFFFF" } },
+        { MachineState::EMERGENCY,     { tr("URGENCE"),      "#991B1B", "#FFFFFF" } },
+        { MachineState::ALARM,         { tr("ALARME"),       "#C2410C", "#FFFFFF" } },
+    };
+
+    const StateStyle &s = styles.value(state, styles[MachineState::DISCONNECTED]);
+    ui->labelMachineState->setText(s.label);
+    ui->labelMachineState->setStyleSheet(
+        QString("background-color: %1;"
+                "color: %2;"
+                "border-radius: 20px;"
+                "padding: 6px 20px;"
+                "font-size: 14px;"
+                "font-weight: 700;"
+                "letter-spacing: 1px;")
+            .arg(s.bg, s.fg));
+
+    if (state == MachineState::EMERGENCY) {
+        if (!m_emergencyFlashTimer) {
+            m_emergencyFlashTimer = new QTimer(this);
+            m_emergencyFlashTimer->setInterval(500);
+            bool flashState = false;
+            connect(m_emergencyFlashTimer, &QTimer::timeout, this, [this, flashState]() mutable {
+                flashState = !flashState;
+                const QString border = flashState ? "border: 2px solid #EF4444;" : "border: 2px solid transparent;";
+                ui->labelMachineState->setStyleSheet(
+                    ui->labelMachineState->styleSheet() + border);
+            });
+        }
+        m_emergencyFlashTimer->start();
+    } else if (m_emergencyFlashTimer) {
+        m_emergencyFlashTimer->stop();
+    }
 }
