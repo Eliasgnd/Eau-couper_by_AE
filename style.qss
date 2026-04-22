@@ -481,8 +481,8 @@ QSlider {
 /* La piste (groove) globale */
 QSlider::groove:horizontal {
     height: 8px;
-    background-color: #16181C; /* <-- On utilise explicitement background-color */
-    border: 1px solid #363A42;
+    background-color: #2A2E36;
+    border: none;
     border-radius: 4px;
     margin: 0px;
 }
@@ -490,7 +490,7 @@ QSlider::groove:horizontal {
 /* La partie remplie (à gauche du bouton) */
 QSlider::sub-page:horizontal {
     background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 #0C4A6E, stop: 1 #0EA5E9);
-    border: 1px solid #363A42;
+    border: none;
     border-radius: 4px;
     height: 8px;
 }
@@ -607,3 +607,172 @@ QWidget#shapeVisualizationWidget {
     border-radius: 6px;
     border: 1px solid #363A42;
 }
+
+/* ===== CUSTOM EDITOR — page dessin ===== */
+QWidget#CustomEditor {
+    background-color: #16181C;
+}
+
+QFrame#editorHeaderBar {
+    background-color: #1E2026;
+    border: none;
+    border-bottom: 1px solid #363A42;
+}
+QLabel#labelEditorTitle {
+    color: #0EA5E9;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    padding-left: 4px;
+    background: transparent;
+}
+QLabel#labelCurrentMode {
+    font-size: 13px;
+    font-weight: 600;
+    color: #CBD5E1;
+    padding: 4px 14px;
+    background-color: #272A30;
+    border: 1px solid #363A42;
+    border-radius: 14px;
+}
+QWidget#drawingWidget {
+    background-color: #FFFFFF;
+    border-radius: 6px;
+    border: 1px solid #363A42;
+}
+/* Boutons du header de l'éditeur */
+QFrame#editorHeaderBar QPushButton,
+QFrame#editorHeaderBar QToolButton {
+    background-color: #272A30;
+    border: 1px solid #363A42;
+    border-radius: 8px;
+    color: #F1F5F9;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    padding: 0 12px;
+}
+QFrame#editorHeaderBar QPushButton:hover,
+QFrame#editorHeaderBar QToolButton:hover {
+    background-color: #2F3239;
+    border-color: #0EA5E9;
+    color: #0EA5E9;
+}
+QFrame#editorHeaderBar QPushButton:pressed,
+QFrame#editorHeaderBar QToolButton:pressed {
+    background-color: #1E2026;
+    border-color: #0EA5E9;
+}
+/* Chevrons : carrés, police plus grande pour la flèche */
+QToolButton#chevronLeft,
+QToolButton#chevronRight {
+    font-size: 20px;
+    font-weight: 700;
+    min-width: 44px;
+    max-width: 44px;
+    padding: 0;
+}
+QLabel#toolsHeader {
+    color: #0EA5E9;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 4px 0 6px 0;
+    background: transparent;
+}
+/* Boutons des panneaux latéraux : police agrandie */
+QFrame#leftPanel QPushButton,
+QFrame#leftPanel QToolButton,
+QFrame#rightPanel QPushButton,
+QFrame#rightPanel QToolButton {
+    font-size: 14px;
+}
+/* Gomme active */
+QPushButton#buttonGomme[gommeMode="true"] {
+    background-color: #4C1D95;
+    border: 2px solid #7C3AED;
+    color: #DDD6FE;
+}
+/* Aimant (snap) actif */
+QPushButton#buttonSnapGrid[snapMode="true"] {
+    background-color: #0C4A6E;
+    border: 2px solid #0EA5E9;
+    color: #BAE6FD;
+}
+
+/* ===== INVENTORY ===== */
+QWidget#Inventory {
+    background-color: #16181C;
+}
+QFrame#inventoryHeaderBar {
+    background-color: #1E2026;
+    border: none;
+    border-bottom: 1px solid #363A42;
+}
+QLabel#labelInventoryTitle {
+    color: #0EA5E9;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    padding-left: 4px;
+    background: transparent;
+}
+QFrame#inventoryHeaderBar QPushButton {
+    background-color: #272A30;
+    border: 1px solid #363A42;
+    border-radius: 8px;
+    color: #F1F5F9;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    padding: 0 12px;
+}
+QFrame#inventoryHeaderBar QPushButton:hover {
+    background-color: #2F3239;
+    border-color: #0EA5E9;
+    color: #0EA5E9;
+}
+QFrame#inventoryHeaderBar QPushButton:pressed {
+    background-color: #1E2026;
+    border-color: #0EA5E9;
+}
+QFrame#inventoryHeaderBar QLineEdit {
+    background-color: #272A30;
+    border: 1px solid #363A42;
+    border-radius: 8px;
+    color: #F1F5F9;
+    font-size: 13px;
+    padding: 0 10px;
+    min-height: 40px;
+    max-height: 40px;
+}
+QFrame#inventoryHeaderBar QLineEdit:focus {
+    border: 2px solid #0EA5E9;
+}
+QFrame#inventoryHeaderBar QComboBox {
+    background-color: #272A30;
+    border: 1px solid #363A42;
+    border-radius: 8px;
+    color: #F1F5F9;
+    font-size: 13px;
+    padding: 0 10px;
+    min-height: 40px;
+    max-height: 40px;
+}
+QFrame#inventoryHeaderBar QComboBox:focus { border: 2px solid #0EA5E9; }
+QFrame#inventoryHeaderBar QComboBox::drop-down { border-left: 1px solid #363A42; width: 20px; }
+QScrollArea#scrollAreaInventory,
+QScrollArea#scrollAreaInventory > QWidget,
+QScrollArea#scrollAreaInventory > QWidget > QWidget {
+    background-color: #16181C;
+    border: none;
+}
+QListWidget {
+    background-color: #16181C;
+    border: none;
+}
+QListWidget::item { background-color: transparent; }

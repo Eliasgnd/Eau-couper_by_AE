@@ -14,6 +14,8 @@
 #include <QPainterPath>
 
 #include <QFile>
+#include <QTextStream>
+#include <QSettings>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -40,6 +42,11 @@ Inventory::Inventory(InventoryViewModel *vm, QWidget *parent)
     : QWidget(parent), ui(new Ui::Inventory)
 {
     ui->setupUi(this);
+
+    QSettings settings("EauCouper", "IHM");
+    m_isDarkTheme = settings.value("theme/dark", false).toBool();
+    applyStyleSheets();
+    connect(ui->buttonTheme, &QPushButton::clicked, this, &Inventory::toggleTheme);
 
     m_viewModel = vm;
     m_viewModel->setParent(this);
@@ -174,19 +181,22 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
     view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
 
     auto *frame = new QFrame();
-    frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
+    if (m_isDarkTheme)
+        frame->setStyleSheet("background-color:#1E2026; border:2px solid #363A42; border-radius:15px;");
+    else
+        frame->setStyleSheet("background-color:white; border:2px solid #CBD5E1; border-radius:15px;");
     frame->setFixedSize(150, 220);
-    //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
 
     auto *label = new QLabel(data.name);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet("color: black; font-size: 16px;");
+    label->setStyleSheet(m_isDarkTheme ? "color:#CBD5E1; font-size:16px; background:transparent;"
+                                       : "color:black; font-size:16px; background:transparent;");
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    // ――― menu button (rename / delete) ―――
     auto *menuButton = new QPushButton("…");
     menuButton->setFixedSize(25, 25);
-    menuButton->setStyleSheet("border: none; font-size: 14px;");
+    menuButton->setStyleSheet(m_isDarkTheme ? "border:none; font-size:14px; color:#CBD5E1; background:transparent;"
+                                            : "border:none; font-size:14px;");
 
     auto *menu = new QMenu(menuButton);
     QAction *renameAction = menu->addAction(m_viewModel->language() == Language::French ? "Renommer"  : "Rename");
@@ -421,18 +431,22 @@ QFrame* Inventory::createBaseShapeCard(int shapeTypeInt, const QString &name)
     }
 
     auto *frame = new QFrame();
-    frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
+    if (m_isDarkTheme)
+        frame->setStyleSheet("background-color:#1E2026; border:2px solid #363A42; border-radius:15px;");
+    else
+        frame->setStyleSheet("background-color:white; border:2px solid #CBD5E1; border-radius:15px;");
     frame->setFixedSize(150, 220);
-    //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
 
     auto *label = new QLabel(name);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet("color: black; font-size: 16px;");
+    label->setStyleSheet(m_isDarkTheme ? "color:#CBD5E1; font-size:16px; background:transparent;"
+                                       : "color:black; font-size:16px; background:transparent;");
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     auto *menuButton = new QPushButton("…");
     menuButton->setFixedSize(25, 25);
-    menuButton->setStyleSheet("border: none; font-size: 14px;");
+    menuButton->setStyleSheet(m_isDarkTheme ? "border:none; font-size:14px; color:#CBD5E1; background:transparent;"
+                                            : "border:none; font-size:14px;");
 
     QMenu *menu = new QMenu(menuButton);
 
@@ -514,25 +528,27 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    // Nom du dossier
     QLabel *label = new QLabel(folderName);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet("color: black; font-size: 16px;");
+    label->setStyleSheet(m_isDarkTheme ? "color:#CBD5E1; font-size:16px; background:transparent;"
+                                       : "color:black; font-size:16px; background:transparent;");
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    // Bouton "..." en haut à droite
     QPushButton *menuButton = new QPushButton("...");
     menuButton->setFixedSize(25, 25);
     menuButton->setCursor(Qt::PointingHandCursor);
-    menuButton->setStyleSheet("border: none;");
+    menuButton->setStyleSheet(m_isDarkTheme ? "border:none; color:#CBD5E1; background:transparent;"
+                                            : "border:none;");
 
     QHBoxLayout *headerLayout = new QHBoxLayout();
     headerLayout->addStretch();
     headerLayout->addWidget(menuButton);
 
-    // Carte contenant l’ensemble
     QFrame *frame = new QFrame();
-    frame->setStyleSheet("background-color: white; border: 2px solid black; border-radius: 15px;");
+    if (m_isDarkTheme)
+        frame->setStyleSheet("background-color:#1E2026; border:2px solid #363A42; border-radius:15px;");
+    else
+        frame->setStyleSheet("background-color:white; border:2px solid #CBD5E1; border-radius:15px;");
     frame->setFixedSize(150, 220);
     //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
 
@@ -635,7 +651,10 @@ void Inventory::renderState(const InventoryViewState &state)
 
     if (state.inFolderView) {
         auto *retourButton = new QPushButton("← Retour");
-        retourButton->setStyleSheet("color: white; background-color: red; font-size: 14px;");
+        if (m_isDarkTheme)
+            retourButton->setStyleSheet("color:#F1F5F9; background-color:#272A30; border:1px solid #0EA5E9; border-radius:8px; font-size:14px; padding:0 12px;");
+        else
+            retourButton->setStyleSheet("color:#0F172A; background-color:#DDE3EC; border:1px solid #C8D0DC; border-radius:8px; font-size:14px; padding:0 12px;");
         retourButton->setFixedSize(120, 40);
         connect(retourButton, &QPushButton::clicked, this, [this]() {
             emit returnRequested();
@@ -668,6 +687,36 @@ InventoryFilterMode Inventory::currentFilterMode() const
 bool Inventory::folderIsEmpty(const QString& folderName) const
 {
     return m_viewModel->folderIsEmpty(folderName);
+}
+
+void Inventory::applyStyleSheets()
+{
+    QString path = m_isDarkTheme ? ":/styles/style.qss" : ":/styles/style_light.qss";
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text))
+        this->setStyleSheet(QTextStream(&f).readAll());
+    updateThemeButton();
+}
+
+void Inventory::updateThemeButton()
+{
+    if (!ui->buttonTheme) return;
+    ui->buttonTheme->setIcon(QIcon(m_isDarkTheme ? ":/icons/moon.svg" : ":/icons/sun.svg"));
+}
+
+void Inventory::toggleTheme()
+{
+    m_isDarkTheme = !m_isDarkTheme;
+    QSettings("EauCouper", "IHM").setValue("theme/dark", m_isDarkTheme);
+    applyStyleSheets();
+    m_viewModel->refresh();
+}
+
+void Inventory::applyTheme(bool isDark)
+{
+    m_isDarkTheme = isDark;
+    applyStyleSheets();
+    m_viewModel->refresh();
 }
 
 
