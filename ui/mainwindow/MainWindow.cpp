@@ -23,6 +23,8 @@
 #include <QDebug>
 #include <QScreen>
 #include <QGuiApplication>
+#include <QApplication>
+#include "ThemeManager.h"
 #include <QShowEvent>
 #include <QToolButton>
 #include <QFile>
@@ -71,9 +73,10 @@ MainWindow::MainWindow(QWidget *parent,
     m_viewModel = new MainWindowViewModel(this);
     m_coordinator->setViewModel(m_viewModel);
 
-    // Restaurer le dernier thème utilisé
-    QSettings settings("EauCouper", "IHM");
-    m_isDarkTheme = settings.value("theme/dark", false).toBool();
+    // Thème global — synchronisé via ThemeManager
+    m_isDarkTheme = ThemeManager::instance()->isDark();
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this](bool dark){ m_isDarkTheme = dark; updateThemeButton(); });
 
     setupUI();
     setupModels();
@@ -183,15 +186,7 @@ void MainWindow::setupMenus()
 
 void MainWindow::applyStyleSheets()
 {
-    QString path = m_isDarkTheme ? ":/styles/style.qss" : ":/styles/style_light.qss";
-    QFile styleFile(path);
-    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream stream(&styleFile);
-        this->setStyleSheet(stream.readAll());
-        styleFile.close();
-    } else {
-        qDebug() << "Erreur: Impossible de charger le fichier QSS:" << path;
-    }
+    ThemeManager::instance()->applyToApp();
     updateThemeButton();
 }
 
@@ -214,9 +209,7 @@ void MainWindow::toggleTheme()
     fadeOut->setEndValue(0.0);
 
     connect(fadeOut, &QPropertyAnimation::finished, this, [this, cw, effect]() {
-        m_isDarkTheme = !m_isDarkTheme;
-        QSettings("EauCouper", "IHM").setValue("theme/dark", m_isDarkTheme);
-        applyStyleSheets();
+        ThemeManager::instance()->toggle();
 
         auto *fadeIn = new QPropertyAnimation(effect, "opacity", this);
         fadeIn->setDuration(120);

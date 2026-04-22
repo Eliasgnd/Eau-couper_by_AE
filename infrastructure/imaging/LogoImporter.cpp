@@ -1,86 +1,31 @@
 #include "LogoImporter.h"
 #include <QImage>
-#include <QBitmap>
-#include <QRegion>
 #include <QPainterPath>
 #include <QFileInfo>
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QDebug>
 
-// -------------------------------------------------------------------
-// Fonctions statiques internes test
-// -------------------------------------------------------------------
+// --- AJOUT POUR OPENCV ---
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
-// Cette fonction effectue une érosion sur une image binaire (Format_Mono).
-// L'érosion consiste à rendre blanc un pixel si un de ses voisins dans un noyau 3x3 est blanc.
-// Ainsi, un pixel ne restera noir que s'il est entouré de pixels noirs.
-static QImage erodeBinary(const QImage &src)
-{
-    // Crée une copie de l'image source pour la modifier.
-    QImage dst = src.copy();
-    // On remplit l'image de destination avec du blanc (bits = 1)
-    dst.fill(1);
+// Fonction utilitaire pour convertir les contours lissés d'OpenCV en QPainterPath Qt
+static QPainterPath convertContoursToPath(const std::vector<std::vector<cv::Point>>& contours) {
+    QPainterPath path;
+    for (const auto& contour : contours) {
+        // Un contour doit avoir au moins 3 points pour former une forme fermée
+        if (contour.size() < 3) continue;
 
-    // Parcours de l'image en excluant le bord (pour éviter les débordements)
-    for (int y = 1; y < src.height() - 1; ++y) {
-        uchar *dstLine = dst.scanLine(y);
-        // Pour chaque pixel (en excluant les bords)
-        for (int x = 1; x < src.width() - 1; ++x) {
-            bool keepBlack = true;  // On suppose initialement que le pixel doit rester noir.
-            // Parcours du voisinage 3x3 autour du pixel (x, y)
-            for (int ny = -1; ny <= 1 && keepBlack; ny++) {
-                const uchar *lineN = src.constScanLine(y + ny);
-                for (int nx = -1; nx <= 1; nx++) {
-                    int xx = x + nx;
-                    // Vérifie si le pixel voisin est blanc.
-                    bool isWhite = (lineN[xx/8] & (0x80 >> (xx % 8))) != 0;
-                    if (isWhite) {
-                        // Si un voisin est blanc, le pixel central ne doit plus être noir.
-                        keepBlack = false;
-                        break;
-                    }
-                }
-            }
-            // Si tous les voisins sont noirs, on garde le pixel noir (en laissant le bit à 0).
-            if (keepBlack) {
-                dstLine[x/8] &= ~(0x80 >> (x % 8));
-            }
+        QPainterPath subPath;
+        subPath.moveTo(contour[0].x, contour[0].y);
+        for (size_t i = 1; i < contour.size(); ++i) {
+            subPath.lineTo(contour[i].x, contour[i].y);
         }
+        subPath.closeSubpath();
+        path.addPath(subPath);
     }
-    return dst;
-}
-
-// Cette fonction extrait un trait fin (les bords) à partir d'une image binaire.
-// Elle effectue une érosion répétée, puis soustrait l'image érodée de l'image originale.
-// Le résultat est une image où l'intérieur du trait a été effacé, ne laissant que le contour.
-static QImage extractEdgeLine(const QImage &binaryIn, int erosionIterations = 1)
-{
-    // On commence par éroder l'image binaire plusieurs fois.
-    QImage current = binaryIn;
-    for (int i = 0; i < erosionIterations; i++) {
-        current = erodeBinary(current);
-    }
-    // Copie de l'image binaire originale pour en extraire les bords.
-    QImage edges = binaryIn.copy();
-    // Parcours de chaque pixel de l'image
-    for (int y = 0; y < edges.height(); ++y) {
-        uchar *edgeLine = edges.scanLine(y);
-        const uchar *eroLine = current.constScanLine(y);
-        const uchar *oriLine = binaryIn.constScanLine(y);
-        for (int x = 0; x < edges.width(); ++x) {
-            // Vérifie si le pixel était noir dans l'image originale.
-            bool wasBlack   = ((oriLine[x/8] & (0x80 >> (x % 8))) == 0);
-            // Vérifie si le pixel reste noir après érosion.
-            bool stillBlack = ((eroLine[x/8] & (0x80 >> (x % 8))) == 0);
-            if (wasBlack && stillBlack) {
-                // Si le pixel était noir et est toujours noir après érosion, il fait partie de l'intérieur.
-                // On le met en blanc dans l'image des bords pour ne conserver que le contour.
-                edgeLine[x/8] |= (0x80 >> (x % 8));
-            }
-        }
-    }
-    return edges;
+    return path;
 }
 
 // -------------------------------------------------------------------
@@ -88,19 +33,16 @@ static QImage extractEdgeLine(const QImage &binaryIn, int erosionIterations = 1)
 // -------------------------------------------------------------------
 LogoImporter::LogoImporter() {}
 
-// La méthode importLogo charge une image (ou un SVG), la convertit en tracé vectoriel
-// et extrait un contour selon l'option includeInternalContours.
-// 'threshold' est utilisé pour le seuillage lors de la conversion en image binaire.
 QPainterPath LogoImporter::importLogo(const QString &filePath,
                                       bool includeInternalContours,
                                       int threshold)
 {
-    // 1) Chargement de l'image via QFileInfo et l'extension du fichier
+    // 1) Chargement de l'image (SVG ou Raster)
     QFileInfo fi(filePath);
     QString ext = fi.suffix().toLower();
     QImage image;
+
     if (ext == "svg") {
-        // Si c'est un SVG, on utilise QSvgRenderer pour le charger.
         QSvgRenderer renderer(filePath);
         if (!renderer.isValid()) {
             qDebug() << "SVG invalide";
@@ -108,15 +50,14 @@ QPainterPath LogoImporter::importLogo(const QString &filePath,
         }
         QSize defSize = renderer.defaultSize();
         if (!defSize.isValid() || defSize.isEmpty())
-            defSize = QSize(500, 500);  // Taille par défaut si nécessaire.
+            defSize = QSize(500, 500);
         image = QImage(defSize, QImage::Format_ARGB32);
-        image.fill(Qt::white); // Fond blanc
+        image.fill(Qt::white);
         QPainter p(&image);
         renderer.render(&p);
         p.end();
-        qDebug() << "SVG chargé, taille:" << image.size();
+        qDebug() << "SVG chargé via rendu, taille:" << image.size();
     } else {
-        // Pour les images raster (JPG, PNG, BMP)
         if (!image.load(filePath)) {
             qDebug() << "Impossible de charger l'image" << filePath;
             return QPainterPath();
@@ -124,111 +65,73 @@ QPainterPath LogoImporter::importLogo(const QString &filePath,
         qDebug() << "Image raster chargée, taille:" << image.size();
     }
 
-    // 2) Conversion en niveaux de gris et seuillage.
-    // On convertit l'image en format 8 bits de niveaux de gris.
+    // 2) Conversion en niveaux de gris pour OpenCV
     QImage gray = image.convertToFormat(QImage::Format_Grayscale8);
-    qDebug() << "Conversion en niveaux de gris, taille:" << gray.size();
 
-    // Création d'une image binaire (Format_Mono) de la même taille.
-    QImage binary(gray.size(), QImage::Format_Mono);
-    binary.fill(1); // Remplit toute l'image en blanc par défaut.
-    int adjustedThreshold = threshold; // Utilisation de la valeur passée en paramètre.
-    // Pour chaque pixel, si la luminosité est inférieure au seuil,
-    // le pixel est considéré comme noir (bit mis à 0).
-    for (int y = 0; y < gray.height(); ++y) {
-        const uchar *lineGray = gray.constScanLine(y);
-        uchar *lineBin = binary.scanLine(y);
-        for (int x = 0; x < gray.width(); ++x) {
-            if (lineGray[x] < adjustedThreshold) {
-                lineBin[x/8] &= ~(0x80 >> (x % 8)); // Définit le pixel comme noir.
-            }
-        }
-    }
-    qDebug() << "Seuillage terminé.";
-    // Vous pouvez décommenter la ligne suivante pour sauvegarder l'image binaire et vérifier le seuillage.
-    // binary.save("debug_binary.png");
+    // 3) Création de la matrice OpenCV (cv::Mat) à partir de la QImage
+    // On "enveloppe" la mémoire de l'image Qt pour éviter de la copier, c'est très rapide.
+    cv::Mat mat(gray.height(), gray.width(), CV_8UC1,
+                const_cast<uchar*>(gray.constBits()), gray.bytesPerLine());
 
-    // 3) Traitement spécifique en fonction du type de fichier.
-    QImage finalBinary;
-    if (ext == "svg") {
-        // Pour un SVG, on conserve la silhouette telle quelle.
-        finalBinary = binary;
-        qDebug() << "SVG => pas d'extraction des bords.";
-    } else {
-        // Pour un JPG/PNG/BMP, on extrait un trait unique en utilisant l'érosion + soustraction.
-        QImage edges = extractEdgeLine(binary, 1);
-        finalBinary = edges;
-        qDebug() << "Extraction des bords effectuée. edges size:" << edges.size();
-    }
+    // 4) Seuillage (Threshold) via OpenCV
+    cv::Mat binaryMat;
+    // THRESH_BINARY_INV : Les parties foncées (traits du logo) deviennent blanches (255)
+    // car OpenCV cherche les contours des zones blanches.
+    cv::threshold(mat, binaryMat, threshold, 255, cv::THRESH_BINARY_INV);
 
-    // 4) Conversion de l'image binaire finale en QRegion, puis en QPainterPath.
-    QBitmap bmp = QBitmap::fromImage(finalBinary);
-    QRegion reg(bmp);
+    // 5) Extraction intelligente des contours
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Vec4i> hierarchy;
+    // RETR_CCOMP : Permet d'identifier les contours extérieurs et les trous intérieurs.
+    // CHAIN_APPROX_TC89_L1 : Un premier algorithme qui repère les points de courbure naturels.
+    cv::findContours(binaryMat, contours, hierarchy, cv::RETR_CCOMP, cv::CHAIN_APPROX_TC89_L1);
 
-    // Itération sur QRegion grâce aux itérateurs natifs (Qt 6)
-    QList<QRect> rects;
-    for (QRegion::const_iterator it = reg.begin(); it != reg.end(); ++it) {
-        rects.append(*it);
-    }
-    qDebug() << "Nombre de rectangles dans la région:" << rects.size();
-
-    // On construit un QPainterPath en ajoutant chacun des rectangles.
-    QPainterPath rawPath;
-    for (const QRect &r : rects) {
-        rawPath.addRect(r);
-    }
-    // Simplifie le chemin pour réduire les irrégularités.
-    rawPath = rawPath.simplified();
-
-    // 5) Séparation du chemin en sous-chemins.
-    // Chaque "moveTo" indique le début d'un nouveau sous-chemin.
-    QList<QPainterPath> subpaths;
-    QPainterPath current;
-    int count = rawPath.elementCount();
-    for (int i = 0; i < count; i++) {
-        QPainterPath::Element e = rawPath.elementAt(i);
-        if (e.isMoveTo()) {
-            if (!current.isEmpty()) {
-                subpaths.append(current);
-            }
-            current = QPainterPath();
-            current.moveTo(e.x, e.y);
-        } else {
-            current.lineTo(e.x, e.y);
-        }
-    }
-    if (!current.isEmpty())
-        subpaths.append(current);
-
-    if (subpaths.isEmpty()) {
-        qDebug() << "Aucun sous-chemin détecté => chemin vide.";
+    if (contours.empty()) {
+        qDebug() << "Aucun contour détecté.";
         return QPainterPath();
     }
 
-    // 6) Option : inclure ou non les contours internes.
-    // Si includeInternalContours est vrai, on fusionne tous les sous-chemins.
-    // Sinon, on sélectionne seulement le sous-chemin dont la bounding box est la plus grande.
-    if (includeInternalContours) {
-        QPainterPath unionPath;
-        for (const QPainterPath &sp : subpaths) {
-            unionPath.addPath(sp);
-        }
-        unionPath = unionPath.simplified();
-        qDebug() << "Contours internes inclus. boundingRect:" << unionPath.boundingRect();
-        return unionPath;
-    } else {
-        double maxArea = 0.0;
-        QPainterPath bestPath;
-        for (const QPainterPath &sp : subpaths) {
-            QRectF br = sp.boundingRect();
-            double area = br.width() * br.height();
+    // 6) Lissage mathématique et filtrage des contours
+    std::vector<std::vector<cv::Point>> processedContours;
+    double maxArea = 0.0;
+    int bestIdx = -1;
+
+    for (size_t i = 0; i < contours.size(); i++) {
+        std::vector<cv::Point> approx;
+
+        // PARAMÈTRE DE LISSAGE : "epsilon"
+        // 1.0 est une excellente valeur de départ.
+        // Si les courbes sont encore un peu pixelisées, montez à 1.5 ou 2.0.
+        // Si le lissage efface trop de détails (arrondit trop les angles), descendez à 0.5.
+        double epsilon = 0.8;
+        cv::approxPolyDP(contours[i], approx, epsilon, true);
+
+        if (includeInternalContours) {
+            processedContours.push_back(approx);
+        } else {
+            // Si on ne veut que l'externe, on cherche le contour avec la plus grande surface globale
+            double area = cv::contourArea(approx);
             if (area > maxArea) {
                 maxArea = area;
-                bestPath = sp;
+                bestIdx = processedContours.size(); // position où il va être inséré
+                processedContours.push_back(approx);
             }
         }
-        bestPath = bestPath.simplified();
-        qDebug() << "Contours internes NON inclus. boundingRect:" << bestPath.boundingRect();
-        return bestPath;
     }
+
+    // 7) Construction du QPainterPath à renvoyer à l'interface
+    QPainterPath finalPath;
+    if (!includeInternalContours && bestIdx != -1) {
+        // On ne garde que le "bestIdx" (le plus gros)
+        std::vector<std::vector<cv::Point>> singleContour = {processedContours[bestIdx]};
+        finalPath = convertContoursToPath(singleContour);
+        qDebug() << "Contour externe lissé généré.";
+    } else {
+        // On ajoute tout
+        finalPath = convertContoursToPath(processedContours);
+        qDebug() << "Contours complets (avec internes) lissés générés.";
+    }
+
+    // Simplification finale par Qt pour s'assurer que le chemin est propre
+    return finalPath.simplified();
 }

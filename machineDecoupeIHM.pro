@@ -161,7 +161,8 @@ HEADERS += \
     infrastructure/imaging/ImageEdgeImporter.h \
     infrastructure/imaging/skeletonizer.h \
     shared/Language.h \
-    shared/ShapeValidationResult.h
+    shared/ShapeValidationResult.h \
+    shared/ThemeManager.h
 
 # ==== SOURCES ====
 SOURCES += \
@@ -237,7 +238,8 @@ SOURCES += \
     infrastructure/network/WifiProfileService.cpp \
     infrastructure/imaging/LogoImporter.cpp \
     infrastructure/imaging/ImageEdgeImporter.cpp \
-    infrastructure/imaging/skeletonizer.cpp
+    infrastructure/imaging/skeletonizer.cpp \
+    shared/ThemeManager.cpp
 
 # ==== FORMS ====
 FORMS += \

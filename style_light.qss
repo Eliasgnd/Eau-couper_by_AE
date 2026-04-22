@@ -773,3 +773,237 @@ QListWidget {
     border: none;
 }
 QListWidget::item { background-color: transparent; }
+
+/* ===== LAYOUTS DIALOG ===== */
+QWidget#LayoutsDialog {
+    background-color: #DDE3EC;
+}
+QFrame#layoutsHeaderBar {
+    background-color: #E8EDF4;
+    border: none;
+    border-bottom: 1px solid #C8D0DC;
+}
+QLabel#labelLayoutsTitle {
+    color: #0EA5E9;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    padding-left: 4px;
+    background: transparent;
+}
+QFrame#layoutsHeaderBar QPushButton {
+    background-color: #DDE3EC;
+    border: 1px solid #C8D0DC;
+    border-radius: 8px;
+    color: #0F172A;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    padding: 0 12px;
+}
+QFrame#layoutsHeaderBar QPushButton:hover {
+    background-color: #CDD4DF;
+    border-color: #0EA5E9;
+    color: #0EA5E9;
+}
+QFrame#layoutsHeaderBar QPushButton:pressed {
+    background-color: #BDC6D3;
+    border-color: #0EA5E9;
+}
+QFrame#layoutsHeaderBar QLineEdit {
+    background-color: #FFFFFF;
+    border: 1px solid #C8D0DC;
+    border-radius: 8px;
+    color: #0F172A;
+    font-size: 13px;
+    padding: 0 10px;
+    min-height: 40px;
+    max-height: 40px;
+}
+QFrame#layoutsHeaderBar QLineEdit:focus { border: 2px solid #0EA5E9; }
+QFrame#layoutsHeaderBar QComboBox {
+    background-color: #FFFFFF;
+    border: 1px solid #C8D0DC;
+    border-radius: 8px;
+    color: #0F172A;
+    font-size: 13px;
+    padding: 0 10px;
+    min-height: 40px;
+    max-height: 40px;
+}
+QFrame#layoutsHeaderBar QComboBox::drop-down { border-left: 1px solid #C8D0DC; width: 20px; }
+QScrollArea#scrollAreaLayoutsDialog,
+QScrollArea#scrollAreaLayoutsDialog > QWidget,
+QScrollArea#scrollAreaLayoutsDialog > QWidget > QWidget {
+    background-color: #DDE3EC;
+    border: none;
+}
+
+/* ===== WIFI CONFIG DIALOG ===== */
+QWidget#WifiConfigDialog {
+    background-color: #DDE3EC;
+}
+QWidget#wifiContent {
+    background-color: #DDE3EC;
+}
+QFrame#wifiHeaderBar {
+    background-color: #E8EDF4;
+    border: none;
+    border-bottom: 1px solid #C8D0DC;
+}
+QLabel#labelWifiTitle {
+    color: #0EA5E9;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    padding-left: 4px;
+    background: transparent;
+}
+QFrame#wifiHeaderBar QPushButton {
+    background-color: #DDE3EC;
+    border: 1px solid #C8D0DC;
+    border-radius: 8px;
+    color: #0F172A;
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    padding: 0 12px;
+}
+QFrame#wifiHeaderBar QPushButton:hover {
+    background-color: #CDD4DF;
+    border-color: #0EA5E9;
+    color: #0EA5E9;
+}
+QFrame#wifiHeaderBar QPushButton:pressed {
+    background-color: #BDC6D3;
+    border-color: #0EA5E9;
+}
+QFrame#wifiHeaderBar QCheckBox {
+    color: #475569;
+    font-size: 12px;
+    spacing: 6px;
+}
+
+/* Table des réseaux Wi-Fi */
+QTableWidget#networksTable {
+    background-color: #FFFFFF;
+    alternate-background-color: #F8FAFC;
+    color: #0F172A;
+    border: none;
+    gridline-color: #E2E8F0;
+    selection-background-color: #BAE6FD;
+    selection-color: #0369A1;
+    font-size: 13px;
+}
+QHeaderView::section {
+    background-color: #F1F5F9;
+    color: #475569;
+    border: none;
+    border-bottom: 1px solid #CBD5E1;
+    border-right: 1px solid #CBD5E1;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+QTableWidget#networksTable::item {
+    padding: 6px 8px;
+    border: none;
+}
+QTableWidget#networksTable::item:selected {
+    background-color: #BAE6FD;
+    color: #0369A1;
+    border-left: 2px solid #0EA5E9;
+}
+
+/* Bouton Se connecter */
+QPushButton#connectButton {
+    background-color: #DCFCE7;
+    color: #14532D;
+    border: 1px solid #16A34A;
+    border-left: 3px solid #16A34A;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 44px;
+    padding: 0 16px;
+}
+QPushButton#connectButton:hover { background-color: #BBF7D0; border-color: #16A34A; }
+QPushButton#connectButton:pressed { background-color: #86EFAC; }
+QPushButton#connectButton:disabled { background-color: #F1F5F9; color: #94A3B8; border-color: #CBD5E1; }
+
+/* Bouton Se déconnecter */
+QPushButton#disconnectButton {
+    background-color: #FEE2E2;
+    color: #7F1D1D;
+    border: 1px solid #DC2626;
+    border-left: 3px solid #DC2626;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 44px;
+    padding: 0 16px;
+}
+QPushButton#disconnectButton:hover { background-color: #FECACA; border-color: #DC2626; }
+QPushButton#disconnectButton:pressed { background-color: #FCA5A5; }
+
+/* Bouton Oublier ce réseau */
+QPushButton#forgetButton {
+    background-color: #FFF7ED;
+    color: #92400E;
+    border: 1px solid #D97706;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 36px;
+    padding: 0 12px;
+}
+QPushButton#forgetButton:hover { background-color: #FFEDD5; border-color: #F97316; }
+QPushButton#forgetButton:pressed { background-color: #FED7AA; }
+
+/* Label de statut global */
+QLabel#statusLabel {
+    color: #475569;
+    font-size: 12px;
+    font-style: italic;
+    padding: 4px 8px;
+    background-color: #F1F5F9;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    min-height: 32px;
+}
+
+/* Valeurs de statut (données dynamiques) */
+QLabel#currentNetworkValue,
+QLabel#ipValue,
+QLabel#signalValue {
+    color: #0284C7;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: "Consolas", "Courier New", monospace;
+}
+
+/* CheckBox (global) */
+QCheckBox {
+    color: #475569;
+    font-size: 12px;
+    spacing: 6px;
+}
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #CBD5E1;
+    border-radius: 4px;
+    background-color: #FFFFFF;
+}
+QCheckBox::indicator:checked {
+    background-color: #0EA5E9;
+    border-color: #0EA5E9;
+}
+QCheckBox::indicator:hover {
+    border-color: #0EA5E9;
+}

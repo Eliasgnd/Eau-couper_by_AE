@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QSettings>
+#include "ThemeManager.h"
 #include "KeyboardDialog.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -61,10 +62,11 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     Q_UNUSED(lang);
     ui->setupUi(this);
 
-    // ----- Thème : lecture des préférences et application du stylesheet -----
-    QSettings settings("EauCouper", "IHM");
-    m_isDarkTheme = settings.value("theme/dark", false).toBool();
-    applyStyleSheets();
+    // ----- Thème global via ThemeManager -----
+    m_isDarkTheme = ThemeManager::instance()->isDark();
+    updateThemeButton();
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this](bool dark){ m_isDarkTheme = dark; updateThemeButton(); });
     connect(ui->buttonTheme, &QPushButton::clicked, this, &CustomEditor::toggleTheme);
 
     // ----- Helpers : plier/déplier les panneaux latéraux -----
@@ -721,10 +723,6 @@ void CustomEditor::changeEvent(QEvent *event)
 
 void CustomEditor::applyStyleSheets()
 {
-    QString path = m_isDarkTheme ? ":/styles/style.qss" : ":/styles/style_light.qss";
-    QFile f(path);
-    if (f.open(QIODevice::ReadOnly | QIODevice::Text))
-        this->setStyleSheet(QTextStream(&f).readAll());
     updateThemeButton();
 }
 
@@ -736,9 +734,7 @@ void CustomEditor::updateThemeButton()
 
 void CustomEditor::toggleTheme()
 {
-    m_isDarkTheme = !m_isDarkTheme;
-    QSettings("EauCouper", "IHM").setValue("theme/dark", m_isDarkTheme);
-    applyStyleSheets();
+    ThemeManager::instance()->toggle();
 }
 
 void CustomEditor::applyTheme(bool isDark)

@@ -1,4 +1,5 @@
 #include <QApplication>
+#include "ThemeManager.h"
 #include "MainWindow.h"
 #include "WorkspaceViewModel.h"
 #include "KeyboardEventFilter.h"
@@ -9,6 +10,9 @@ int main(int argc, char *argv[])
 {
     QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents, false);
     QApplication app(argc, argv);
+
+    // Applique le thème global dès le démarrage via ThemeManager
+    ThemeManager::instance()->applyToApp();
 
     KeyboardEventFilter filter(&app);
     app.installEventFilter(&filter);

@@ -1,7 +1,9 @@
 #include "LayoutsDialog.h"
 #include "ui_LayoutsDialog.h"
 
+#include <QApplication>
 #include <QGridLayout>
+#include "ThemeManager.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QGraphicsPathItem>
@@ -19,6 +21,9 @@
 #include <QTransform>
 #include <QSizePolicy>
 #include <QDateTime>
+#include <QFile>
+#include <QTextStream>
+#include <QSettings>
 
 #include <algorithm>
 #include "InventoryViewModel.h"
@@ -43,6 +48,12 @@ LayoutsDialog::LayoutsDialog(const QString &shapeName,
     m_vm(vm)
 {
     ui->setupUi(this);
+
+    m_isDarkTheme = ThemeManager::instance()->isDark();
+    updateThemeButton();
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this](bool dark){ m_isDarkTheme = dark; updateThemeButton(); });
+    connect(ui->buttonTheme, &QPushButton::clicked, this, &LayoutsDialog::toggleTheme);
 
     setWindowTitle(m_lang == Language::French ? tr("LayoutsDialog") : tr("Layouts"));
     resize(800, 600);
@@ -139,9 +150,11 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
 
     /* --- vue miniature --- */
     QGraphicsView *view = new QGraphicsView(scene);
-    view->setFixedSize(300, 200);
+    view->setFixedSize(334, 210);
     view->setRenderHint(QPainter::Antialiasing);
-    view->setStyleSheet("background-color: white;");
+    view->setStyleSheet(m_isDarkTheme
+        ? "background-color:white; border:1px solid #2D3139; border-radius:6px;"
+        : "background-color:white; border:1px solid #DDE3EC; border-radius:6px;");
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
@@ -149,19 +162,30 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
 
     /* --- cadre extérieur --- */
     QFrame *frame = new QFrame();
-    frame->setStyleSheet("background-color: white; "
-                         "border: 2px solid black; "
-                         "border-radius: 15px;");
-    /* taille fixe → pas d’étirement */
-    frame->setFixedSize(350, 285);
+    if (m_isDarkTheme)
+        frame->setStyleSheet("QFrame{background-color:#1C1F24; border:1px solid #2D3139; border-radius:10px;}");
+    else
+        frame->setStyleSheet("QFrame{background-color:#F8FAFC; border:1px solid #DDE3EC; border-radius:10px;}");
+    frame->setFixedSize(360, 300);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     QLabel *label = new QLabel(ld.name);
     label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(true);
+    label->setStyleSheet(m_isDarkTheme
+        ? "color:#CBD5E1; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 8px;"
+        : "color:#334155; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 8px;");
 
     QPushButton *menuButton = new QPushButton("...");
-    menuButton->setFixedSize(25, 25);
-    menuButton->setStyleSheet("border: none; font-size: 14px;");
+    menuButton->setFixedSize(34, 20);
+    menuButton->setCursor(Qt::PointingHandCursor);
+    menuButton->setStyleSheet(m_isDarkTheme
+        ? "QPushButton{background:#272A30;border:1px solid #363A42;border-radius:4px;color:#94A3B8;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#F1F5F9;border-color:#0EA5E9;background:#363A42;}"
+        : "QPushButton{background:#E8EDF4;border:1px solid #C8D0DC;border-radius:4px;color:#64748B;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#0F172A;border-color:#0EA5E9;background:#CDD4DF;}");
 
     QMenu *menu = new QMenu(menuButton);
     QAction *renameAction = new QAction(m_lang == Language::French ? "Renommer" : "Rename", menu);
@@ -204,14 +228,21 @@ QFrame *LayoutsDialog::createLayoutFrame(int index)
     });
 
     QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->addStretch();
     headerLayout->addWidget(menuButton);
 
+    auto *sep = new QFrame();
+    sep->setFrameShape(QFrame::HLine);
+    sep->setFixedHeight(1);
+    sep->setStyleSheet(m_isDarkTheme ? "background:#2D3139; border:none;" : "background:#E2E8F0; border:none;");
+
     QVBoxLayout *layout = new QVBoxLayout(frame);
-    layout->setContentsMargins(5, 5, 5, 5);
-    layout->setSpacing(5);
+    layout->setContentsMargins(10, 8, 10, 10);
+    layout->setSpacing(6);
     layout->addLayout(headerLayout);
     layout->addWidget(view, 0, Qt::AlignCenter);
+    layout->addWidget(sep);
     layout->addWidget(label);
 
     /* propriétés/filtre d’évènement pour le clic */
@@ -292,30 +323,40 @@ QFrame *LayoutsDialog::createBaseShapeFrame()
     scene->setSceneRect(combinedPath.boundingRect().adjusted(-5, -5, 5, 5));
 
     QGraphicsView *view = new QGraphicsView(scene);
-    view->setFixedSize(300, 230);
+    view->setFixedSize(334, 230);
     view->setRenderHint(QPainter::Antialiasing);
-    view->setStyleSheet("background-color: white;");
+    view->setStyleSheet(m_isDarkTheme
+        ? "background-color:white; border:1px solid #2D3139; border-radius:6px;"
+        : "background-color:white; border:1px solid #DDE3EC; border-radius:6px;");
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
     view->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     QFrame *frame = new QFrame();
-    frame->setStyleSheet("background-color: white; "
-                         "border: 2px solid black; "
-                         "border-radius: 15px;");
-    frame->setFixedSize(350, 285);
+    if (m_isDarkTheme)
+        frame->setStyleSheet("QFrame{background-color:#1C1F24; border:1px solid #2D3139; border-radius:10px;}");
+    else
+        frame->setStyleSheet("QFrame{background-color:#F8FAFC; border:1px solid #DDE3EC; border-radius:10px;}");
+    frame->setFixedSize(360, 300);
     frame->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    QLabel *label = new QLabel(m_lang == Language::French
-                                   ? "Forme seule"
-                                   : "Shape only");
+    QLabel *label = new QLabel(m_lang == Language::French ? "Forme seule" : "Shape only");
     label->setAlignment(Qt::AlignCenter);
+    label->setStyleSheet(m_isDarkTheme
+        ? "color:#94A3B8; font-size:13px; font-style:italic; background:transparent; border:none; padding:2px 8px;"
+        : "color:#64748B; font-size:13px; font-style:italic; background:transparent; border:none; padding:2px 8px;");
+
+    auto *sep = new QFrame();
+    sep->setFrameShape(QFrame::HLine);
+    sep->setFixedHeight(1);
+    sep->setStyleSheet(m_isDarkTheme ? "background:#2D3139; border:none;" : "background:#E2E8F0; border:none;");
 
     QVBoxLayout *layout = new QVBoxLayout(frame);
-    layout->setContentsMargins(5, 5, 5, 5);
-    layout->setSpacing(5);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(6);
     layout->addWidget(view, 0, Qt::AlignCenter);
+    layout->addWidget(sep);
     layout->addWidget(label);
 
     frame->setProperty("layoutIndex", -1);
@@ -368,5 +409,29 @@ void LayoutsDialog::onClearSearchClicked()
 
 void LayoutsDialog::onSortChanged(int)
 {
+    displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
+}
+
+void LayoutsDialog::applyStyleSheets()
+{
+    updateThemeButton();
+}
+
+void LayoutsDialog::updateThemeButton()
+{
+    if (!ui->buttonTheme) return;
+    ui->buttonTheme->setIcon(QIcon(m_isDarkTheme ? ":/icons/moon.svg" : ":/icons/sun.svg"));
+}
+
+void LayoutsDialog::toggleTheme()
+{
+    ThemeManager::instance()->toggle();
+    displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
+}
+
+void LayoutsDialog::applyTheme(bool isDark)
+{
+    m_isDarkTheme = isDark;
+    applyStyleSheets();
     displayLayouts(ui->searchBar ? ui->searchBar->text() : QString());
 }

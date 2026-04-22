@@ -38,14 +38,22 @@ signals:
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
 
+public:
+    void applyTheme(bool isDark);
+
 private slots:
     void onCloseButtonClicked();
     void onMenuButtonClicked();
     void onSearchTextChanged(const QString &text);
     void onClearSearchClicked();
     void onSortChanged(int index);
+    void toggleTheme();
 
 private:
+    bool m_isDarkTheme = false;
+    void applyStyleSheets();
+    void updateThemeButton();
+
     Ui::LayoutsDialog *ui;
     QFrame* createLayoutFrame(int index);
     QFrame* createBaseShapeFrame();
