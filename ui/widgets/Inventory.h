@@ -57,6 +57,8 @@ public:
     // Internationalisation
     void updateTranslations(Language lang);
 
+    void applyTheme(bool isDark);
+
     QPixmap renderColoredSvg(const QString &filePath, const QColor &color, const QSize &size);
 signals:
     void customShapeSelected(const QList<QPolygonF> &polygons, const QString &name);
@@ -79,8 +81,12 @@ private slots:
     void onItemClicked(QListWidgetItem *item);
     void onSortChanged(int index);
     void onFilterChanged(int index);
+    void toggleTheme();
 
 private:
+    bool m_isDarkTheme = false;
+    void applyStyleSheets();
+    void updateThemeButton();
     // ---------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------

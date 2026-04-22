@@ -1,9 +1,11 @@
 #include "CustomEditor.h"
 #include "CustomEditorViewModel.h"
 #include "qlayout.h"
-#include "qsplitter.h"
 #include "qstatusbar.h"
 #include "ui_CustomEditor.h"
+#include <QFile>
+#include <QTextStream>
+#include <QSettings>
 #include "KeyboardDialog.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -36,14 +38,17 @@ static QString modeToString(CustomDrawArea::DrawMode mode)
 {
     using DM = CustomDrawArea::DrawMode;
     switch (mode) {
-    case DM::Freehand:      return QObject::tr("Freehand");
-    case DM::PointParPoint: return QObject::tr("PointParPoint");
-    case DM::Line:          return QObject::tr("Line");
+    case DM::Freehand:      return QObject::tr("Tracé libre");
+    case DM::PointParPoint: return QObject::tr("Point par point");
+    case DM::Line:          return QObject::tr("Ligne droite");
     case DM::Rectangle:     return QObject::tr("Rectangle");
-    case DM::Circle:        return QObject::tr("Circle");
-    case DM::Text:          return QObject::tr("Text");
-    case DM::ThinText:      return QObject::tr("ThinText");
-    default:                return QString();
+    case DM::Circle:        return QObject::tr("Cercle");
+    case DM::Text:          return QObject::tr("Texte");
+    case DM::ThinText:      return QObject::tr("Texte fin");
+    case DM::Deplacer:      return QObject::tr("Déplacer");
+    case DM::Gomme:         return QObject::tr("Gomme");
+    case DM::Supprimer:     return QObject::tr("Supprimer");
+    default:                return QObject::tr("Tracé libre");
     }
 }
 
@@ -56,97 +61,32 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     Q_UNUSED(lang);
     ui->setupUi(this);
 
-    // ----- Splitter : facteurs de stretch et tailles initiales (après show) -----
-    if (auto sp = findChild<QSplitter*>("mainSplitter")) {
-        sp->setStretchFactor(0, 0);   // gauche
-        sp->setStretchFactor(1, 1);   // centre
-        sp->setStretchFactor(2, 0);   // droite
-        sp->setCollapsible(0, true);
-        sp->setCollapsible(2, true);
+    // ----- Thème : lecture des préférences et application du stylesheet -----
+    QSettings settings("EauCouper", "IHM");
+    m_isDarkTheme = settings.value("theme/dark", false).toBool();
+    applyStyleSheets();
+    connect(ui->buttonTheme, &QPushButton::clicked, this, &CustomEditor::toggleTheme);
 
-        // Mémorise des largeurs par défaut (serviront quand on ré-ouvre)
-        ui->verticalLayoutWidget->setProperty("lastWidth", 160);
-        ui->verticalLayoutWidget_2->setProperty("lastWidth", 220);
-
-        // Définir les tailles après que le widget soit posé (pour avoir la vraie largeur)
-        QTimer::singleShot(0, this, [this, sp](){
-            int W = this->width();
-            int left  = ui->verticalLayoutWidget->isVisible()  ? 160 : 0;
-            int right = ui->verticalLayoutWidget_2->isVisible()? 220 : 0;
-            int center = std::max(200, W - (left + right + 40));
-            sp->setSizes({left, center, right});
-
-            // Mets les flèches dans le bon sens au démarrage
-            ui->chevronLeft->setText(left  == 0 ? "›" : "‹");   // gauche plié -> flèche vers la droite
-            ui->chevronRight->setText(right == 0 ? "‹" : "›");  // droite plié -> flèche vers la gauche
-        });
-
-        // Si l'utilisateur replie un côté à la main (poignée du splitter), on met à jour les flèches
-        connect(sp, &QSplitter::splitterMoved, this, [this, sp](int /*pos*/, int /*index*/){
-            const QList<int> s = sp->sizes();
-            // Si la colonne n'est pas à 0, on mémorise sa dernière largeur non nulle
-            if (s[0] > 0) ui->verticalLayoutWidget->setProperty("lastWidth", s[0]);
-            if (s[2] > 0) ui->verticalLayoutWidget_2->setProperty("lastWidth", s[2]);
-
-            ui->chevronLeft->setText( s[0] == 0 ? "›" : "‹" );
-            ui->chevronRight->setText( s[2] == 0 ? "‹" : "›" );
-        });
-    }
-
-    // ----- Helpers : plier/déplier les panneaux avec mémorisation de largeur -----
+    // ----- Helpers : plier/déplier les panneaux latéraux -----
+    // Les chevrons sont dans le header (toujours visibles), ‹/› indique l'état
     auto toggleLeftPanel = [this]() {
-        auto sp = findChild<QSplitter*>("mainSplitter");
-        if (!sp) return;
-        QList<int> s = sp->sizes(); // {gauche, centre, droite}
-
-        bool isCollapsed = (s[0] == 0) || !ui->verticalLayoutWidget->isVisible();
-        if (isCollapsed) {
-            // Ré-ouvrir : récupère la dernière largeur non nulle (ou défaut 160)
-            int left = ui->verticalLayoutWidget->property("lastWidth").toInt();
-            if (left <= 0) left = 160;
-            ui->verticalLayoutWidget->setVisible(true);
-            int centre = std::max(100, s[1] - left);
-            sp->setSizes({left, centre, s[2]});
-            ui->chevronLeft->setText("‹");
-        } else {
-            // Replier : mémorise la largeur avant de fermer
-            int left = std::max(0, s[0]);
-            if (left > 0) ui->verticalLayoutWidget->setProperty("lastWidth", left);
-            ui->verticalLayoutWidget->setVisible(false);
-            sp->setSizes({0, s[0] + s[1], s[2]});
-            ui->chevronLeft->setText("›");
-        }
+        bool nowVisible = !ui->leftPanel->isVisible();
+        ui->leftPanel->setVisible(nowVisible);
+        ui->chevronLeft->setText(nowVisible ? "\u2039" : "\u203A"); // ‹ ouvert, › fermé
     };
 
     auto toggleRightPanel = [this]() {
-        auto sp = findChild<QSplitter*>("mainSplitter");
-        if (!sp) return;
-        QList<int> s = sp->sizes(); // {gauche, centre, droite}
-
-        bool isCollapsed = (s[2] == 0) || !ui->verticalLayoutWidget_2->isVisible();
-        if (isCollapsed) {
-            int right = ui->verticalLayoutWidget_2->property("lastWidth").toInt();
-            if (right <= 0) right = 220;
-            ui->verticalLayoutWidget_2->setVisible(true);
-            int centre = std::max(100, s[1] - right);
-            sp->setSizes({s[0], centre, right});
-            ui->chevronRight->setText("›");
-        } else {
-            int right = std::max(0, s[2]);
-            if (right > 0) ui->verticalLayoutWidget_2->setProperty("lastWidth", right);
-            ui->verticalLayoutWidget_2->setVisible(false);
-            sp->setSizes({s[0], s[1] + s[2], 0});
-            ui->chevronRight->setText("‹");
-        }
+        bool nowVisible = !ui->rightPanel->isVisible();
+        ui->rightPanel->setVisible(nowVisible);
+        ui->chevronRight->setText(nowVisible ? "\u203A" : "\u2039"); // › ouvert, ‹ fermé
     };
 
-    // Connexions des chevrons (bas gauche / bas droite)
     connect(ui->chevronLeft,  &QToolButton::clicked, this, toggleLeftPanel);
     connect(ui->chevronRight, &QToolButton::clicked, this, toggleRightPanel);
 
-    // Valeurs d’icône/flèche initiales (au cas où)
-    ui->chevronLeft->setText("‹");
-    ui->chevronRight->setText("›");
+    // État initial : panneaux ouverts, flèches pointant vers l'extérieur
+    ui->chevronLeft->setText("\u2039");   // ‹
+    ui->chevronRight->setText("\u203A");  // ›
 
     ui->buttonCopyPaste->setVisible(false);
 
@@ -335,9 +275,12 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     connect(drawArea, &CustomDrawArea::drawModeChanged, this,
             [this](CustomDrawArea::DrawMode m){
                 updateShapeButtonIcon(m);
+                ui->labelCurrentMode->setText(tr("Mode : %1").arg(modeToString(m)));
                 if (auto mw = qobject_cast<QMainWindow*>(window()))
                     mw->statusBar()->showMessage(modeToString(m));
             });
+    // Initialiser le label avec le mode actuel
+    ui->labelCurrentMode->setText(tr("Mode : %1").arg(modeToString(drawArea->getDrawMode())));
 
     // --- Création et configuration du conteneur pour la sélection de police ---
     QHBoxLayout *fontLayout = new QHBoxLayout(fontContainer);
@@ -774,4 +717,32 @@ void CustomEditor::changeEvent(QEvent *event)
         ui->retranslateUi(this);
     }
     QWidget::changeEvent(event);
+}
+
+void CustomEditor::applyStyleSheets()
+{
+    QString path = m_isDarkTheme ? ":/styles/style.qss" : ":/styles/style_light.qss";
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text))
+        this->setStyleSheet(QTextStream(&f).readAll());
+    updateThemeButton();
+}
+
+void CustomEditor::updateThemeButton()
+{
+    if (!ui->buttonTheme) return;
+    ui->buttonTheme->setIcon(QIcon(m_isDarkTheme ? ":/icons/moon.svg" : ":/icons/sun.svg"));
+}
+
+void CustomEditor::toggleTheme()
+{
+    m_isDarkTheme = !m_isDarkTheme;
+    QSettings("EauCouper", "IHM").setValue("theme/dark", m_isDarkTheme);
+    applyStyleSheets();
+}
+
+void CustomEditor::applyTheme(bool isDark)
+{
+    m_isDarkTheme = isDark;
+    applyStyleSheets();
 }

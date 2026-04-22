@@ -22,32 +22,37 @@ public:
     explicit CustomEditor(CustomEditorViewModel *viewModel,
                           Language lang = Language::French,
                           QWidget *parent = nullptr);
-    ~CustomEditor(); // Destructeur
+    ~CustomEditor();
     void updateShapeButtonIcon(CustomDrawArea::DrawMode mode);
+    void applyTheme(bool isDark);
 
 protected:
     void changeEvent(QEvent *event) override;
 
-
 private:
     Ui::CustomEditor *ui;
-    CustomDrawArea *drawArea; // Instance de la zone de dessin
+    CustomDrawArea *drawArea;
     QGraphicsView  *m_colorView{};
     QGraphicsView  *m_edgeView{};
     QGraphicsScene *m_colorScene{};
     QGraphicsScene *m_edgeScene{};
     CustomEditorViewModel *m_viewModel = nullptr;
     QStringList m_favoriteFonts;
+    bool m_isDarkTheme = false;
+
+    void applyStyleSheets();
+    void updateThemeButton();
 
 
 private slots:
-    void goToMainWindow(); // Retourner à la fenêtre principale
-    void openKeyboardDialog(); // Ouvrir le clavier virtuel
-    void closeEditor(); // Fermer la fenêtre custom
-    void importerLogo(); // Importer un logo dans la zone de dessin
-    void importerImageCouleur(); // Importer une image couleur et afficher les bords
-    void saveCustomShape(); // Sauvegarder une forme personnalisée
-    void onCopyPasteClicked(); // Gérer le bouton copier/coller
+    void goToMainWindow();
+    void openKeyboardDialog();
+    void closeEditor();
+    void importerLogo();
+    void importerImageCouleur();
+    void saveCustomShape();
+    void onCopyPasteClicked();
+    void toggleTheme();
 
 signals:
     void applyCustomShapeSignal(QList<QPolygonF> shapes); // Signal pour appliquer une forme
