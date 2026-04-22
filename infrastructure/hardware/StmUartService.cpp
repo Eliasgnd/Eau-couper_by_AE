@@ -80,31 +80,41 @@ bool StmUartService::isOpen() const
 
 QByteArray StmUartService::encodeFrame(const StmSegment& seg, uint16_t seqId)
 {
-    QByteArray frame(13, '\0'); // CHANGÉ : 13 octets
+    QByteArray frame(19, '\0'); // CHANGÉ : 19 octets au lieu de 13
 
     frame[0] = static_cast<char>(STM_SYNC_BYTE);
 
-    // NOUVEAU : seq_id (poids fort puis poids faible)
+    // seq_id (16 bits)
     frame[1] = static_cast<char>((seqId >> 8) & 0xFF);
     frame[2] = static_cast<char>( seqId       & 0xFF);
 
-    // Le reste est décalé de 2 octets
-    frame[3] = static_cast<char>((seg.dx >> 8)  & 0xFF);
-    frame[4] = static_cast<char>( seg.dx        & 0xFF);
+    // dx (32 bits = 4 octets)
+    frame[3] = static_cast<char>((seg.dx >> 24) & 0xFF);
+    frame[4] = static_cast<char>((seg.dx >> 16) & 0xFF);
+    frame[5] = static_cast<char>((seg.dx >> 8)  & 0xFF);
+    frame[6] = static_cast<char>( seg.dx        & 0xFF);
 
-    frame[5] = static_cast<char>((seg.dy >> 8)  & 0xFF);
-    frame[6] = static_cast<char>( seg.dy        & 0xFF);
+    // dy (32 bits = 4 octets)
+    frame[7] = static_cast<char>((seg.dy >> 24) & 0xFF);
+    frame[8] = static_cast<char>((seg.dy >> 16) & 0xFF);
+    frame[9] = static_cast<char>((seg.dy >> 8)  & 0xFF);
+    frame[10] = static_cast<char>( seg.dy       & 0xFF);
 
-    frame[7] = static_cast<char>((seg.dz >> 8)  & 0xFF);
-    frame[8] = static_cast<char>( seg.dz        & 0xFF);
+    // dz (32 bits = 4 octets)
+    frame[11] = static_cast<char>((seg.dz >> 24) & 0xFF);
+    frame[12] = static_cast<char>((seg.dz >> 16) & 0xFF);
+    frame[13] = static_cast<char>((seg.dz >> 8)  & 0xFF);
+    frame[14] = static_cast<char>( seg.dz       & 0xFF);
 
-    frame[9] = static_cast<char>((seg.v_max >> 8) & 0xFF);
-    frame[10] = static_cast<char>( seg.v_max       & 0xFF);
+    // v_max (16 bits)
+    frame[15] = static_cast<char>((seg.v_max >> 8) & 0xFF);
+    frame[16] = static_cast<char>( seg.v_max       & 0xFF);
 
-    frame[11] = static_cast<char>(seg.flags);
+    // flags
+    frame[17] = static_cast<char>(seg.flags);
 
-    // Le checksum est maintenant à l'index 12
-    frame[12] = static_cast<char>(calcChecksum(frame));
+    // checksum sur les 18 premiers octets
+    frame[18] = static_cast<char>(calcChecksum(frame));
 
     return frame;
 }
@@ -112,8 +122,8 @@ QByteArray StmUartService::encodeFrame(const StmSegment& seg, uint16_t seqId)
 uint8_t StmUartService::calcChecksum(const QByteArray& frame)
 {
     uint8_t checksum = 0;
-    // XOR des octets [0..11] (le checksum se trouve en [12])
-    for (int i = 0; i < 12 && i < frame.size(); ++i)
+    // CHANGÉ : On XOR de l'index 0 à 17
+    for (int i = 0; i < 18 && i < frame.size(); ++i)
         checksum ^= static_cast<uint8_t>(frame[i]);
     return checksum;
 }
@@ -195,11 +205,11 @@ void StmUartService::onReadyRead()
         // Détection trame binaire : premier octet == 0xAA
         if (static_cast<uint8_t>(m_readBuffer[0]) == STM_SYNC_BYTE) {
             // Attendre les 11 octets complets
-            if (m_readBuffer.size() < 11)
+            if (m_readBuffer.size() < 19)
                 break;
             // Vérifier le CRC
-            QByteArray frame = m_readBuffer.left(11);
-            m_readBuffer.remove(0, 11);
+            QByteArray frame = m_readBuffer.left(19);
+            m_readBuffer.remove(0, 19);
             // (Les trames binaires vont du RPi → STM, pas l'inverse.
             //  Si on reçoit 0xAA du STM, c'est inattendu — on ignore.)
             qWarning() << "[STM-UART] Trame binaire inattendue en réception, ignorée.";

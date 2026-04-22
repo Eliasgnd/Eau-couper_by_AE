@@ -98,8 +98,8 @@ void TrajetMotor::doExecuteTrajet()
             const double t1 = static_cast<double>(i + 1) / numChunks;
 
             StmSegment seg;
-            seg.dx = static_cast<int16_t>(static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0));
-            seg.dy = static_cast<int16_t>(static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0));
+            seg.dx = static_cast<int32_t>(static_cast<int>(dxSteps * t1) - static_cast<int>(dxSteps * t0));
+            seg.dy = static_cast<int32_t>(static_cast<int>(dySteps * t1) - static_cast<int>(dySteps * t0));
             seg.dz = 0;
             seg.v_max = arr;
             seg.flags = flags;
@@ -113,6 +113,8 @@ void TrajetMotor::doExecuteTrajet()
     for (int c = 0; c < optimizedCuts.size(); ++c) {
         const ContinuousCut& cut = optimizedCuts[c];
         QPoint realStart = cut.points.first().toPoint();
+
+        qDebug() << "MOUVEMENT: de" << cur << "vers" << realStart;
 
         if (cur != realStart) planMove(cur, realStart, FLAG_VALVE_OFF, false);
         cur = realStart;
