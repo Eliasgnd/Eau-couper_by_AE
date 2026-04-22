@@ -40,4 +40,5 @@ private:
     QTimer                *_statusTimer = nullptr;
     QTimer                *_scanTimer   = nullptr;
     bool                   _busy        = false;
+    bool                   m_isDarkTheme = false;
 };

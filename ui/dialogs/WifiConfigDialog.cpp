@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QProgressDialog>
 #include <QLabel>
+#include "ThemeManager.h"
 
 
 static void showToast(QWidget *parent, const QString &text, int ms = 1800) {
@@ -41,6 +42,9 @@ WifiConfigDialog::WifiConfigDialog(QWidget *parent)
     , m_vm(new WifiConfigViewModel(this))
 {
     ui->setupUi(this);
+
+    // Thème global — hérité de qApp, aucune action nécessaire
+    m_isDarkTheme = ThemeManager::instance()->isDark();
 
     // --- Réglages UI pour grand écran (table) ---
     if (ui->networksTable) {

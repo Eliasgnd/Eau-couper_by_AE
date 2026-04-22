@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QSettings>
+#include "ThemeManager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -43,9 +44,10 @@ Inventory::Inventory(InventoryViewModel *vm, QWidget *parent)
 {
     ui->setupUi(this);
 
-    QSettings settings("EauCouper", "IHM");
-    m_isDarkTheme = settings.value("theme/dark", false).toBool();
-    applyStyleSheets();
+    m_isDarkTheme = ThemeManager::instance()->isDark();
+    updateThemeButton();
+    connect(ThemeManager::instance(), &ThemeManager::themeChanged,
+            this, [this](bool dark){ m_isDarkTheme = dark; updateThemeButton(); });
     connect(ui->buttonTheme, &QPushButton::clicked, this, &Inventory::toggleTheme);
 
     m_viewModel = vm;
@@ -172,8 +174,10 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
     scene->setSceneRect(item->boundingRect().adjusted(-5, -5, 5, 5));
 
     auto *view = new QGraphicsView(scene);
-    view->setFixedSize(120, 120);
-    view->setStyleSheet("background-color: white;");
+    view->setFixedSize(132, 120);
+    view->setStyleSheet(m_isDarkTheme
+        ? "background-color:white; border:1px solid #2D3139; border-radius:6px;"
+        : "background-color:white; border:1px solid #DDE3EC; border-radius:6px;");
     view->setAlignment(Qt::AlignCenter);
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -182,21 +186,29 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
 
     auto *frame = new QFrame();
     if (m_isDarkTheme)
-        frame->setStyleSheet("background-color:#1E2026; border:2px solid #363A42; border-radius:15px;");
+        frame->setStyleSheet("QFrame{background-color:#1C1F24; border:1px solid #2D3139; border-radius:10px;}");
     else
-        frame->setStyleSheet("background-color:white; border:2px solid #CBD5E1; border-radius:15px;");
-    frame->setFixedSize(150, 220);
+        frame->setStyleSheet("QFrame{background-color:#F8FAFC; border:1px solid #DDE3EC; border-radius:10px;}");
+    frame->setFixedSize(156, 210);
 
     auto *label = new QLabel(data.name);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet(m_isDarkTheme ? "color:#CBD5E1; font-size:16px; background:transparent;"
-                                       : "color:black; font-size:16px; background:transparent;");
+    label->setWordWrap(true);
+    label->setStyleSheet(m_isDarkTheme
+        ? "color:#CBD5E1; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 6px;"
+        : "color:#334155; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 6px;");
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    auto *menuButton = new QPushButton("…");
-    menuButton->setFixedSize(25, 25);
-    menuButton->setStyleSheet(m_isDarkTheme ? "border:none; font-size:14px; color:#CBD5E1; background:transparent;"
-                                            : "border:none; font-size:14px;");
+    auto *menuButton = new QPushButton("...");
+    menuButton->setFixedSize(30, 20);
+    menuButton->setCursor(Qt::PointingHandCursor);
+    menuButton->setStyleSheet(m_isDarkTheme
+        ? "QPushButton{background:#272A30;border:1px solid #363A42;border-radius:4px;color:#94A3B8;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#F1F5F9;border-color:#0EA5E9;background:#363A42;}"
+        : "QPushButton{background:#E8EDF4;border:1px solid #C8D0DC;border-radius:4px;color:#64748B;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#0F172A;border-color:#0EA5E9;background:#CDD4DF;}");
 
     auto *menu = new QMenu(menuButton);
     QAction *renameAction = menu->addAction(m_viewModel->language() == Language::French ? "Renommer"  : "Rename");
@@ -275,14 +287,21 @@ QFrame* Inventory::addCustomShapeToGrid(int index)
     });
 
     auto *headerLayout = new QHBoxLayout();
+    headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->addStretch();
     headerLayout->addWidget(menuButton);
 
+    auto *sep = new QFrame();
+    sep->setFrameShape(QFrame::HLine);
+    sep->setFixedHeight(1);
+    sep->setStyleSheet(m_isDarkTheme ? "background:#2D3139; border:none;" : "background:#E2E8F0; border:none;");
+
     auto *mainLayout = new QVBoxLayout(frame);
-    mainLayout->setContentsMargins(5, 5, 5, 5);
-    mainLayout->setSpacing(5);
+    mainLayout->setContentsMargins(10, 8, 10, 10);
+    mainLayout->setSpacing(6);
     mainLayout->addLayout(headerLayout);
     mainLayout->addWidget(view, 0, Qt::AlignCenter);
+    mainLayout->addWidget(sep);
     mainLayout->addWidget(label);
 
     frame->setProperty("CustomShapeIndex", index);
@@ -416,8 +435,10 @@ QFrame* Inventory::createBaseShapeCard(int shapeTypeInt, const QString &name)
 
     auto *scene = new QGraphicsScene();
     auto *view  = new QGraphicsView(scene);
-    view->setFixedSize(120, 120);
-    view->setStyleSheet("background-color: white;");
+    view->setFixedSize(132, 120);
+    view->setStyleSheet(m_isDarkTheme
+        ? "background-color:white; border:1px solid #2D3139; border-radius:6px;"
+        : "background-color:white; border:1px solid #DDE3EC; border-radius:6px;");
     view->setAlignment(Qt::AlignCenter);
     view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -432,21 +453,29 @@ QFrame* Inventory::createBaseShapeCard(int shapeTypeInt, const QString &name)
 
     auto *frame = new QFrame();
     if (m_isDarkTheme)
-        frame->setStyleSheet("background-color:#1E2026; border:2px solid #363A42; border-radius:15px;");
+        frame->setStyleSheet("QFrame{background-color:#1C1F24; border:1px solid #2D3139; border-radius:10px;}");
     else
-        frame->setStyleSheet("background-color:white; border:2px solid #CBD5E1; border-radius:15px;");
-    frame->setFixedSize(150, 220);
+        frame->setStyleSheet("QFrame{background-color:#F8FAFC; border:1px solid #DDE3EC; border-radius:10px;}");
+    frame->setFixedSize(156, 210);
 
     auto *label = new QLabel(name);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet(m_isDarkTheme ? "color:#CBD5E1; font-size:16px; background:transparent;"
-                                       : "color:black; font-size:16px; background:transparent;");
+    label->setWordWrap(true);
+    label->setStyleSheet(m_isDarkTheme
+        ? "color:#CBD5E1; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 6px;"
+        : "color:#334155; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 6px;");
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    auto *menuButton = new QPushButton("…");
-    menuButton->setFixedSize(25, 25);
-    menuButton->setStyleSheet(m_isDarkTheme ? "border:none; font-size:14px; color:#CBD5E1; background:transparent;"
-                                            : "border:none; font-size:14px;");
+    auto *menuButton = new QPushButton("...");
+    menuButton->setFixedSize(30, 20);
+    menuButton->setCursor(Qt::PointingHandCursor);
+    menuButton->setStyleSheet(m_isDarkTheme
+        ? "QPushButton{background:#272A30;border:1px solid #363A42;border-radius:4px;color:#94A3B8;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#F1F5F9;border-color:#0EA5E9;background:#363A42;}"
+        : "QPushButton{background:#E8EDF4;border:1px solid #C8D0DC;border-radius:4px;color:#64748B;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#0F172A;border-color:#0EA5E9;background:#CDD4DF;}");
 
     QMenu *menu = new QMenu(menuButton);
 
@@ -495,14 +524,21 @@ QFrame* Inventory::createBaseShapeCard(int shapeTypeInt, const QString &name)
     });
 
     auto *headerLayout = new QHBoxLayout();
+    headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->addStretch();
     headerLayout->addWidget(menuButton);
 
+    auto *sep = new QFrame();
+    sep->setFrameShape(QFrame::HLine);
+    sep->setFixedHeight(1);
+    sep->setStyleSheet(m_isDarkTheme ? "background:#2D3139; border:none;" : "background:#E2E8F0; border:none;");
+
     auto *mainLayout = new QVBoxLayout(frame);
-    mainLayout->setContentsMargins(5, 5, 5, 5);
-    mainLayout->setSpacing(5);
+    mainLayout->setContentsMargins(10, 8, 10, 10);
+    mainLayout->setSpacing(6);
     mainLayout->addLayout(headerLayout);
     mainLayout->addWidget(view, 0, Qt::AlignCenter);
+    mainLayout->addWidget(sep);
     mainLayout->addWidget(label);
 
     frame->setProperty("shapeType", static_cast<int>(type));
@@ -516,7 +552,7 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
     QString iconPath = folderIsEmpty(folderName) ? ":/icons/folder.svg" : ":/icons/folderfull.svg";
 
     QSvgRenderer renderer(iconPath);
-    QPixmap icon(120, 120);
+    QPixmap icon(100, 100);
     icon.fill(Qt::transparent);
 
     QPainter painter(&icon);
@@ -527,36 +563,50 @@ QFrame* Inventory::createFolderCard(const QString& folderName)
     iconLabel->setPixmap(icon);
     iconLabel->setAlignment(Qt::AlignCenter);
     iconLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    iconLabel->setStyleSheet("background:transparent; border:none;");
 
     QLabel *label = new QLabel(folderName);
     label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet(m_isDarkTheme ? "color:#CBD5E1; font-size:16px; background:transparent;"
-                                       : "color:black; font-size:16px; background:transparent;");
+    label->setWordWrap(true);
+    label->setStyleSheet(m_isDarkTheme
+        ? "color:#CBD5E1; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 6px;"
+        : "color:#334155; font-size:13px; font-weight:500; background:transparent; border:none; padding:2px 6px;");
     label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
     QPushButton *menuButton = new QPushButton("...");
-    menuButton->setFixedSize(25, 25);
+    menuButton->setFixedSize(30, 20);
     menuButton->setCursor(Qt::PointingHandCursor);
-    menuButton->setStyleSheet(m_isDarkTheme ? "border:none; color:#CBD5E1; background:transparent;"
-                                            : "border:none;");
+    menuButton->setStyleSheet(m_isDarkTheme
+        ? "QPushButton{background:#272A30;border:1px solid #363A42;border-radius:4px;color:#94A3B8;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#F1F5F9;border-color:#0EA5E9;background:#363A42;}"
+        : "QPushButton{background:#E8EDF4;border:1px solid #C8D0DC;border-radius:4px;color:#64748B;"
+          "font-size:11px;font-weight:700;min-height:20px;max-height:20px;padding:0 4px;}"
+          "QPushButton:hover{color:#0F172A;border-color:#0EA5E9;background:#CDD4DF;}");
 
     QHBoxLayout *headerLayout = new QHBoxLayout();
+    headerLayout->setContentsMargins(0, 0, 0, 0);
     headerLayout->addStretch();
     headerLayout->addWidget(menuButton);
 
     QFrame *frame = new QFrame();
     if (m_isDarkTheme)
-        frame->setStyleSheet("background-color:#1E2026; border:2px solid #363A42; border-radius:15px;");
+        frame->setStyleSheet("QFrame{background-color:#1C1F24; border:1px solid #2D3139; border-radius:10px;}");
     else
-        frame->setStyleSheet("background-color:white; border:2px solid #CBD5E1; border-radius:15px;");
-    frame->setFixedSize(150, 220);
-    //frame->setAttribute(Qt::WA_TransparentForMouseEvents);    <--- Fais bugger les 3 petits points
+        frame->setStyleSheet("QFrame{background-color:#F8FAFC; border:1px solid #DDE3EC; border-radius:10px;}");
+    frame->setFixedSize(156, 210);
+
+    auto *sep = new QFrame();
+    sep->setFrameShape(QFrame::HLine);
+    sep->setFixedHeight(1);
+    sep->setStyleSheet(m_isDarkTheme ? "background:#2D3139; border:none;" : "background:#E2E8F0; border:none;");
 
     QVBoxLayout *mainLayout = new QVBoxLayout(frame);
-   // mainLayout->setContentsMargins(5, 5, 5, 5);
-   // mainLayout->setSpacing(5);
+    mainLayout->setContentsMargins(10, 8, 10, 10);
+    mainLayout->setSpacing(6);
     mainLayout->addLayout(headerLayout);
-    mainLayout->addWidget(iconLabel);
+    mainLayout->addWidget(iconLabel, 0, Qt::AlignCenter);
+    mainLayout->addWidget(sep);
     mainLayout->addWidget(label);
 
     // Propriétés de la carte dossier
@@ -691,10 +741,6 @@ bool Inventory::folderIsEmpty(const QString& folderName) const
 
 void Inventory::applyStyleSheets()
 {
-    QString path = m_isDarkTheme ? ":/styles/style.qss" : ":/styles/style_light.qss";
-    QFile f(path);
-    if (f.open(QIODevice::ReadOnly | QIODevice::Text))
-        this->setStyleSheet(QTextStream(&f).readAll());
     updateThemeButton();
 }
 
@@ -706,9 +752,7 @@ void Inventory::updateThemeButton()
 
 void Inventory::toggleTheme()
 {
-    m_isDarkTheme = !m_isDarkTheme;
-    QSettings("EauCouper", "IHM").setValue("theme/dark", m_isDarkTheme);
-    applyStyleSheets();
+    ThemeManager::instance()->toggle();
     m_viewModel->refresh();
 }
 

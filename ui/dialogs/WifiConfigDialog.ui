@@ -3,226 +3,445 @@
  <class>WifiConfigDialog</class>
  <widget class="QWidget" name="WifiConfigDialog">
   <property name="geometry">
-   <rect><x>0</x><y>0</y><width>1200</width><height>780</height></rect>
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>780</height>
+   </rect>
   </property>
   <property name="windowTitle">
-   <string>Configuration Wi‑Fi</string>
+   <string>Configuration Wi-Fi</string>
   </property>
-
   <layout class="QVBoxLayout" name="rootLayout">
-
-   <!-- Barre d'action -->
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
    <item>
-    <layout class="QHBoxLayout" name="topBar">
-     <item><widget class="QPushButton" name="refreshButton">
-       <property name="text"><string>🔄 Actualiser</string></property>
-     </widget></item>
-     <item><widget class="QCheckBox" name="autoScanCheck">
-       <property name="text"><string>Actualiser automatiquement</string></property>
-       <property name="checked"><bool>true</bool></property>
-     </widget></item>
-     <item><widget class="QLabel" name="busyLabel">
-       <property name="text"><string>⏳</string></property>
-       <property name="visible"><bool>false</bool></property>
-     </widget></item>
-     <item><spacer name="topSpacer">
-       <property name="orientation"><enum>Qt::Horizontal</enum></property>
-       <property name="sizeHint">
-        <size><width>40</width><height>20</height></size>
-       </property>
-     </spacer></item>
-     <item><widget class="QPushButton" name="diagnosticsButton">
-       <property name="text"><string>Diagnostic</string></property>
-     </widget></item>
-     <item><widget class="QPushButton" name="backButton">
-       <property name="text"><string>Retour</string></property>
-     </widget></item>
-    </layout>
-   </item>
-
-   <!-- Splitter principal -->
-   <item>
-    <widget class="QSplitter" name="mainSplitter">
-     <property name="orientation"><enum>Qt::Horizontal</enum></property>
-
-     <!-- Panneau gauche : réseaux -->
-     <widget class="QGroupBox" name="networksGroup">
-      <property name="title"><string>Réseaux à proximité</string></property>
-      <layout class="QVBoxLayout" name="networksLayout">
-
-       <!-- Table de réseaux -->
-       <item>
-        <widget class="QTableWidget" name="networksTable">
-         <property name="alternatingRowColors"><bool>true</bool></property>
-         <property name="sortingEnabled"><bool>true</bool></property>
-         <property name="selectionBehavior"><enum>QAbstractItemView::SelectRows</enum></property>
-         <property name="selectionMode"><enum>QAbstractItemView::SingleSelection</enum></property>
-         <property name="editTriggers"><set>QAbstractItemView::NoEditTriggers</set></property>
-         <property name="showGrid"><bool>false</bool></property>
-         <column>
-          <property name="text"><string>SSID</string></property>
-         </column>
-         <column>
-          <property name="text"><string>Signal</string></property>
-         </column>
-         <column>
-          <property name="text"><string>Sécurité</string></property>
-         </column>
-        </widget>
-       </item>
-
-      </layout>
-     </widget>
-
-     <!-- Panneau droit : connexion + état -->
-     <widget class="QWidget" name="rightPanel">
-      <layout class="QVBoxLayout" name="rightPanelLayout">
-
-       <!-- Connexion -->
-       <item>
-        <widget class="QGroupBox" name="connectGroup">
-         <property name="title"><string>Connexion</string></property>
-         <layout class="QVBoxLayout" name="connectLayout">
-
-          <!-- SSID sélectionné (lecture seule) + Combo caché pour compat -->
-          <item>
-           <layout class="QHBoxLayout" name="selectedSsidRow">
-            <item><widget class="QLabel" name="selectedSsidLabel">
-              <property name="text"><string>SSID sélectionné</string></property>
-            </widget></item>
-            <item><widget class="QLineEdit" name="selectedSsidLine">
-              <property name="readOnly"><bool>true</bool></property>
-              <property name="placeholderText"><string>(sélectionnez un réseau à gauche)</string></property>
-            </widget></item>
-           </layout>
-          </item>
-          <item>
-           <widget class="QComboBox" name="networkComboBox">
-            <property name="visible"><bool>false</bool></property>
-           </widget>
-          </item>
-
-          <!-- SSID caché -->
-          <item>
-           <layout class="QHBoxLayout" name="hiddenRow">
-            <item><widget class="QCheckBox" name="hiddenSsidCheck">
-              <property name="text"><string>SSID caché</string></property>
-            </widget></item>
-            <item><widget class="QLineEdit" name="ssidLineEdit">
-              <property name="placeholderText"><string>Entrer le SSID…</string></property>
-              <property name="visible"><bool>false</bool></property>
-            </widget></item>
-           </layout>
-          </item>
-
-          <!-- Mot de passe -->
-          <item>
-           <widget class="QLineEdit" name="passwordEdit">
-            <property name="echoMode"><enum>QLineEdit::Password</enum></property>
-            <property name="placeholderText"><string>Mot de passe</string></property>
-           </widget>
-          </item>
-
-          <!-- État/Mémo du mot de passe + Oublier -->
-          <item>
-           <layout class="QHBoxLayout" name="pwdStateRow">
-            <item><widget class="QLabel" name="savedPwdLabel">
-              <property name="text"><string/></property>
-              <property name="visible"><bool>false</bool></property>
-            </widget></item>
-            <item><spacer name="pwdStateSpacer">
-              <property name="orientation"><enum>Qt::Horizontal</enum></property>
-              <property name="sizeHint"><size><width>40</width><height>20</height></size></property>
-            </spacer></item>
-            <item><widget class="QPushButton" name="forgetButton">
-              <property name="text"><string>Oublier ce réseau</string></property>
-              <property name="visible"><bool>false</bool></property>
-            </widget></item>
-           </layout>
-          </item>
-
-          <!-- Options -->
-          <item>
-           <layout class="QHBoxLayout" name="optionsRow">
-            <item><widget class="QCheckBox" name="autoConnectCheck">
-              <property name="text"><string>Se reconnecter automatiquement</string></property>
-              <property name="checked"><bool>true</bool></property>
-            </widget></item>
-            <item><spacer name="optSpacer">
-              <property name="orientation"><enum>Qt::Horizontal</enum></property>
-              <property name="sizeHint">
-               <size><width>40</width><height>20</height></size>
-              </property>
-            </spacer></item>
-           </layout>
-          </item>
-
-          <!-- Boutons -->
-          <item>
-           <layout class="QHBoxLayout" name="buttonsRow">
-            <item><widget class="QPushButton" name="connectButton">
-              <property name="text"><string>Se connecter</string></property>
-            </widget></item>
-
-            <!-- Nouveau : Se déconnecter -->
-            <item><widget class="QPushButton" name="disconnectButton">
-              <property name="text"><string>Se déconnecter</string></property>
-              <property name="visible"><bool>false</bool></property>
-            </widget></item>
-
-            <item><spacer name="btnSpacer">
-              <property name="orientation"><enum>Qt::Horizontal</enum></property>
-              <property name="sizeHint">
-               <size><width>40</width><height>20</height></size>
-              </property>
-            </spacer></item>
-           </layout>
-          </item>
-
-         </layout>
-        </widget>
-       </item>
-
-       <!-- État courant -->
-       <item>
-        <widget class="QGroupBox" name="statusGroup">
-         <property name="title"><string>État</string></property>
-         <layout class="QGridLayout" name="statusGrid">
-          <item row="0" column="0"><widget class="QLabel" name="currentNetworkLabel">
-            <property name="text"><string>Réseau courant</string></property>
-          </widget></item>
-          <item row="0" column="1"><widget class="QLabel" name="currentNetworkValue">
-            <property name="text"><string>-</string></property>
-          </widget></item>
-
-          <item row="1" column="0"><widget class="QLabel" name="ipLabel">
-            <property name="text"><string>Adresse IP</string></property>
-          </widget></item>
-          <item row="1" column="1"><widget class="QLabel" name="ipValue">
-            <property name="text"><string>-</string></property>
-          </widget></item>
-
-          <item row="2" column="0"><widget class="QLabel" name="signalLabel">
-            <property name="text"><string>Signal</string></property>
-          </widget></item>
-          <item row="2" column="1"><widget class="QLabel" name="signalValue">
-            <property name="text"><string>-</string></property>
-          </widget></item>
-         </layout>
-        </widget>
-       </item>
-
-       <!-- Statut global -->
-       <item><widget class="QLabel" name="statusLabel">
-         <property name="text"><string/></property>
-       </widget></item>
-
-      </layout>
-     </widget>
-
+    <widget class="QFrame" name="wifiHeaderBar">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>64</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>64</height>
+      </size>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Raised</enum>
+     </property>
+     <layout class="QHBoxLayout" name="headerLayout">
+      <property name="leftMargin">
+       <number>16</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>12</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="labelWifiTitle">
+        <property name="text">
+         <string>WI-FI</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="headerSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="autoScanCheck">
+        <property name="text">
+         <string>Auto-scan</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="busyLabel">
+        <property name="text">
+         <string>⏳</string>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="refreshButton">
+        <property name="text">
+         <string>🔄 Actualiser</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="diagnosticsButton">
+        <property name="text">
+         <string>Diagnostic</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="backButton">
+        <property name="text">
+         <string>← Retour</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
-
+   <item>
+    <widget class="QWidget" name="wifiContent">
+     <layout class="QVBoxLayout" name="contentLayout">
+      <property name="leftMargin">
+       <number>12</number>
+      </property>
+      <property name="topMargin">
+       <number>12</number>
+      </property>
+      <property name="rightMargin">
+       <number>12</number>
+      </property>
+      <property name="bottomMargin">
+       <number>12</number>
+      </property>
+      <property name="spacing">
+       <number>12</number>
+      </property>
+      <item>
+       <widget class="QSplitter" name="mainSplitter">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <widget class="QGroupBox" name="networksGroup">
+         <property name="title">
+          <string>RÉSEAUX À PROXIMITÉ</string>
+         </property>
+         <layout class="QVBoxLayout" name="networksLayout">
+          <item>
+           <widget class="QTableWidget" name="networksTable">
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <property name="sortingEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="selectionBehavior">
+             <enum>QAbstractItemView::SelectRows</enum>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SingleSelection</enum>
+            </property>
+            <property name="editTriggers">
+             <set>QAbstractItemView::NoEditTriggers</set>
+            </property>
+            <property name="showGrid">
+             <bool>false</bool>
+            </property>
+            <column>
+             <property name="text">
+              <string>SSID</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Signal</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Sécurité</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="rightPanel">
+         <layout class="QVBoxLayout" name="rightPanelLayout">
+          <item>
+           <widget class="QGroupBox" name="connectGroup">
+            <property name="title">
+             <string>CONNEXION</string>
+            </property>
+            <layout class="QVBoxLayout" name="connectLayout">
+             <item>
+              <layout class="QHBoxLayout" name="selectedSsidRow">
+               <item>
+                <widget class="QLabel" name="selectedSsidLabel">
+                 <property name="text">
+                  <string>SSID sélectionné</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="selectedSsidLine">
+                 <property name="readOnly">
+                  <bool>true</bool>
+                 </property>
+                 <property name="placeholderText">
+                  <string>(sélectionnez un réseau)</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QComboBox" name="networkComboBox">
+               <property name="visible">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="hiddenRow">
+               <item>
+                <widget class="QCheckBox" name="hiddenSsidCheck">
+                 <property name="text">
+                  <string>SSID caché</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="ssidLineEdit">
+                 <property name="placeholderText">
+                  <string>Entrer le SSID…</string>
+                 </property>
+                 <property name="visible">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="passwordEdit">
+               <property name="echoMode">
+                <enum>QLineEdit::Password</enum>
+               </property>
+               <property name="placeholderText">
+                <string>Mot de passe</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="pwdStateRow">
+               <item>
+                <widget class="QLabel" name="savedPwdLabel">
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="visible">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="pwdStateSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QPushButton" name="forgetButton">
+                 <property name="text">
+                  <string>Oublier ce réseau</string>
+                 </property>
+                 <property name="visible">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="optionsRow">
+               <item>
+                <widget class="QCheckBox" name="autoConnectCheck">
+                 <property name="text">
+                  <string>Se reconnecter automatiquement</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="optSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="buttonsRow">
+               <item>
+                <widget class="QPushButton" name="connectButton">
+                 <property name="text">
+                  <string>Se connecter</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="disconnectButton">
+                 <property name="text">
+                  <string>Se déconnecter</string>
+                 </property>
+                 <property name="visible">
+                  <bool>false</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="btnSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="statusGroup">
+            <property name="title">
+             <string>ÉTAT</string>
+            </property>
+            <layout class="QGridLayout" name="statusGrid">
+             <item row="0" column="0">
+              <widget class="QLabel" name="currentNetworkLabel">
+               <property name="text">
+                <string>Réseau courant</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLabel" name="currentNetworkValue">
+               <property name="text">
+                <string>-</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="ipLabel">
+               <property name="text">
+                <string>Adresse IP</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLabel" name="ipValue">
+               <property name="text">
+                <string>-</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="signalLabel">
+               <property name="text">
+                <string>Signal</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QLabel" name="signalValue">
+               <property name="text">
+                <string>-</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="statusLabel">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="rightBottomSpacer">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>
