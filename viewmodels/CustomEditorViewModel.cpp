@@ -3,8 +3,53 @@
 #include "Language.h"
 #include "LogoImporter.h"
 #include "PathGenerator.h"
+#include <algorithm>
 #include <cmath>
+#include <QLineF>
 #include <QTransform>
+
+namespace {
+QPainterPath smoothImportedOutline(const QPainterPath &input)
+{
+    if (input.isEmpty())
+        return {};
+
+    QPainterPath result;
+    const QList<QPolygonF> polygons = input.toSubpathPolygons();
+    for (const QPolygonF &poly : polygons) {
+        if (poly.size() < 3)
+            continue;
+
+        QList<QPointF> pts = poly.toList();
+        if (pts.size() >= 2 && QLineF(pts.first(), pts.last()).length() < 0.5)
+            pts.removeLast();
+        if (pts.size() < 3)
+            continue;
+
+        // Lissage progressif: plus il y a de points, plus on lisse.
+        int iterations = 0;
+        if (pts.size() > 220)
+            iterations = 2;
+        else if (pts.size() > 80)
+            iterations = 1;
+
+        QList<QPointF> smoothPts = iterations > 0
+                                       ? PathGenerator::applyChaikinAlgorithm(pts, iterations)
+                                       : pts;
+        if (smoothPts.size() < 3)
+            continue;
+
+        QPainterPath sub;
+        sub.moveTo(smoothPts.first());
+        for (int i = 1; i < smoothPts.size(); ++i)
+            sub.lineTo(smoothPts[i]);
+        sub.closeSubpath();
+        result.addPath(sub);
+    }
+
+    return result.simplified();
+}
+} // namespace
 
 CustomEditorViewModel::CustomEditorViewModel(InventoryViewModel &inventoryVm,
                                              QObject *parent)
@@ -32,16 +77,22 @@ void CustomEditorViewModel::saveShape(const QList<QPolygonF> &shapes,
         // return;
     }
 
-    // --- Étape de simplification (Ramer-Douglas-Peucker via Qt) ---
+    // --- Étape de simplification en préservant les sous-chemins ---
     QList<QPolygonF> optimizedShapes;
     for (const QPolygonF &poly : shapes) {
+        if (poly.isEmpty())
+            continue;
+
         QPainterPath path;
         path.addPolygon(poly);
 
-        // simplified() fusionne, nettoie les anomalies et allège la géométrie
+        // simplified() nettoie la géométrie sans perdre la structure globale.
         QPainterPath cleanPath = path.simplified();
-
-        optimizedShapes.append(cleanPath.toFillPolygon());
+        const QList<QPolygonF> subpaths = cleanPath.toSubpathPolygons();
+        if (!subpaths.isEmpty())
+            optimizedShapes.append(subpaths);
+        else
+            optimizedShapes.append(poly);
     }
 
     // CORRECTION : Appel de addCustomShape (et non saveCustomShape)
@@ -89,14 +140,22 @@ QList<QPainterPath> CustomEditorViewModel::scaledAndCentered(
     if (maxDim < 0.0001)
         return {};
 
-    double scaleFactor = 300.0 / maxDim;
+    const double areaW = std::max(1.0, drawAreaSize.width());
+    const double areaH = std::max(1.0, drawAreaSize.height());
+    const double occupancy = 0.8;
+    const double scaleFactor = occupancy * std::min(areaW, areaH) / maxDim;
+
     QTransform transform;
     transform.translate(-br.x(), -br.y());
     transform.scale(scaleFactor, scaleFactor);
     QPainterPath scaled = transform.map(outline);
 
-    QPointF center(drawAreaSize.width() / 2.0, drawAreaSize.height() / 2.0);
+    QPointF center(areaW / 2.0, areaH / 2.0);
     scaled.translate(center - scaled.boundingRect().center());
+
+    QPainterPath smoothed = smoothImportedOutline(scaled);
+    if (!smoothed.isEmpty())
+        return PathGenerator::separateIntoSubpaths(smoothed);
 
     return PathGenerator::separateIntoSubpaths(scaled);
 }
