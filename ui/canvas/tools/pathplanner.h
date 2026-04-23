@@ -23,9 +23,13 @@ public:
     static QList<ContinuousCut> computeOptimizedPaths(QList<ContinuousCut> cuts, QPointF startPos);
 
 private:
+    // Nouvelle étape : Fusion et Offset (Kerf) via Clipper2
+    static QList<ContinuousCut> applyKerfAndMerge(const QList<ContinuousCut>& rawCuts, double kerfRadius);
+
+    // Nouvelle étape : Optimisation du trajet à vide (G0) via Google OR-Tools
+    static QList<ContinuousCut> optimizeRouteTSP(const QList<ContinuousCut>& cuts, QPointF startPos);
+
     static void computeInclusionDepths(QList<ContinuousCut>& cuts);
     static void applyLeadIns(QList<ContinuousCut>& cuts, double distance);
-
-    // Ajout de la déclaration manquante ici :
     static void mergeCommonLines(QList<ContinuousCut>& cuts);
 };
