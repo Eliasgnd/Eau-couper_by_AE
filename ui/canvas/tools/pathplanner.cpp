@@ -1,4 +1,5 @@
 #include "pathplanner.h"
+#include "clipper2/clipper.h"
 
 #include <QGraphicsItem>
 #include <QGraphicsPathItem>
@@ -7,39 +8,43 @@
 #include <QGraphicsPolygonItem>
 #include <QPainterPath>
 #include <QSet>
+#include <QHash>
+#include <QMap>
 #include <QString>
 #include <QLineF>
+#include <QRectF>
 #include <algorithm>
 #include <limits>
 #include <cmath>
+#include <vector>
+
+// --- INCLUSIONS LEMON GRAPH LIBRARY ---
+#include <lemon/list_graph.h>
+#include <lemon/smart_graph.h>
+#include <lemon/matching.h>
+#include <lemon/euler.h>
+#include <lemon/connectivity.h>
+
+using namespace Clipper2Lib;
 
 // ============================================================================
-// CLÉ DE HACHAGE : Permet d'éliminer instantanément les doubles découpes
-// (Tolérance de 0.1 mm, peu importe le sens de tracé A->B ou B->A)
+// STRUCTURES MATHÉMATIQUES
 // ============================================================================
-static inline QString getSegKey(const QPointF& p1, const QPointF& p2) {
-    int x1 = qRound(p1.x() * 10.0);
-    int y1 = qRound(p1.y() * 10.0);
-    int x2 = qRound(p2.x() * 10.0);
-    int y2 = qRound(p2.y() * 10.0);
-
-    // Ordre canonique pour que A->B donne la même clé que B->A
-    if (x1 > x2 || (x1 == x2 && y1 > y2)) {
-        std::swap(x1, x2);
-        std::swap(y1, y2);
+struct Edge {
+    QPoint p1, p2;
+    bool operator==(const Edge& o) const {
+        return (p1 == o.p1 && p2 == o.p2) || (p1 == o.p2 && p2 == o.p1);
     }
-    return QString("%1_%2_%3_%4").arg(x1).arg(y1).arg(x2).arg(y2);
-}
-
-// Structure interne pour l'algorithme
-struct RawSegment {
-    QPointF p1;
-    QPointF p2;
-    int depth;
 };
 
+inline size_t qHash(const Edge& e, size_t seed = 0) {
+    return qHash(e.p1.x() ^ e.p2.x(), seed) ^ qHash(e.p1.y() ^ e.p2.y(), seed);
+}
+
+struct RawSeg { QPointF p1, p2; int depth; };
+
 // ============================================================================
-// FONCTION PRINCIPALE : Extraction et Optimisation complète
+// FONCTION PRINCIPALE
 // ============================================================================
 QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF startPos)
 {
@@ -47,181 +52,336 @@ QList<ContinuousCut> PathPlanner::getOptimizedPaths(QGraphicsScene *sc, QPointF 
 }
 
 // ============================================================================
-// ÉTAPE 2 : Calcul Pur (L'algorithme Graphe / Zéro Levée de buse de votre ami)
+// L'ALGORITHME INDUSTRIEL (LEMON Blossom Matching + Eulerian Path)
 // ============================================================================
 QList<ContinuousCut> PathPlanner::computeOptimizedPaths(QList<ContinuousCut> cuts, QPointF startPos)
 {
     if (cuts.isEmpty()) return {};
 
-    // 1. Déterminer qui est un trou et qui est un contour
     computeInclusionDepths(cuts);
 
-    int maxDepth = 0;
-    for (const auto& c : cuts) {
-        maxDepth = qMax(maxDepth, c.depth);
-    }
-
-    // 2. EXPLOSION ET DÉDUPLICATION
-    QList<RawSegment> uniqueSegments;
-    QSet<QString> seenKeys;
+    // 1. EXTRACTION & NODING (Saucissonnage des T-Junctions)
+    QList<RawSeg> rawSegments;
+    QList<QPointF> allVertices;
 
     for (const auto& cut : cuts) {
-        for (int i = 0; i < cut.points.size() - 1; ++i) {
+        for (int i = 0; i < cut.points.size(); ++i) {
+            allVertices.append(cut.points[i]);
+            if (!cut.isClosed && i == cut.points.size() - 1) break;
+
             QPointF p1 = cut.points[i];
-            QPointF p2 = cut.points[i+1];
-
-            // Ignorer les micro-mouvements invisibles
-            if (QLineF(p1, p2).length() < 0.1) continue;
-
-            QString key = getSegKey(p1, p2);
-            if (!seenKeys.contains(key)) {
-                seenKeys.insert(key);
-                uniqueSegments.append({p1, p2, cut.depth});
+            QPointF p2 = cut.points[(i + 1) % cut.points.size()];
+            if (QLineF(p1, p2).length() > 0.01) {
+                rawSegments.append({p1, p2, cut.depth});
             }
         }
     }
 
-    // 3. REASSEMBLAGE EULÉRIEN (Parcours continu le plus long possible)
-    QList<ContinuousCut> optimized;
-    QPointF currentPos = startPos;
-    const double SNAP_TOLERANCE = 0.1; // S'accroche si les bouts sont à 0.1mm près
+    // TRES IMPORTANT : Tolérance augmentée à 0.5mm pour attraper les micro-écarts de l'optimiseur
+    const double SPLIT_TOLERANCE = 0.5;
+    QList<RawSeg> splitSegments;
 
-    // RÈGLE D'OR : On traite niveau par niveau (les Trous d'abord, puis l'extérieur)
-    for (int d = maxDepth; d >= 0; --d) {
+    for (const RawSeg& seg : rawSegments) {
+        QPointF a = seg.p1;
+        QPointF b = seg.p2;
+        double l2 = std::pow(a.x() - b.x(), 2) + std::pow(a.y() - b.y(), 2);
 
-        // Isoler les segments du niveau de profondeur actuel
-        QList<RawSegment> currentDepthSegs;
-        for (const auto& seg : uniqueSegments) {
-            if (seg.depth == d) currentDepthSegs.append(seg);
+        struct SplitPt { QPointF pt; double t; };
+        QList<SplitPt> splitPoints;
+
+        for (const QPointF& pt : allVertices) {
+            double t = ((pt.x() - a.x()) * (b.x() - a.x()) + (pt.y() - a.y()) * (b.y() - a.y())) / l2;
+            if (t > 1e-3 && t < 1.0 - 1e-3) {
+                QPointF proj(a.x() + t * (b.x() - a.x()), a.y() + t * (b.y() - a.y()));
+                if (std::hypot(pt.x() - proj.x(), pt.y() - proj.y()) <= SPLIT_TOLERANCE) {
+                    splitPoints.append({proj, t}); // On utilise la projection pour être parfaitement aligné !
+                }
+            }
         }
 
-        while (!currentDepthSegs.isEmpty()) {
+        if (splitPoints.isEmpty()) {
+            splitSegments.append(seg);
+        } else {
+            std::sort(splitPoints.begin(), splitPoints.end(), [](const SplitPt& s1, const SplitPt& s2) { return s1.t < s2.t; });
+            QPointF currentStart = a;
+            for (const SplitPt& sp : splitPoints) {
+                if (std::hypot(sp.pt.x() - currentStart.x(), sp.pt.y() - currentStart.y()) > 1e-3) {
+                    splitSegments.append({currentStart, sp.pt, seg.depth});
+                    currentStart = sp.pt;
+                }
+            }
+            if (std::hypot(b.x() - currentStart.x(), b.y() - currentStart.y()) > 1e-3) {
+                splitSegments.append({currentStart, b, seg.depth});
+            }
+        }
+    }
 
-            // --- A. TROUVER LE POINT D'ATTAQUE LE PLUS PROCHE ---
-            int bestStartIdx = -1;
-            double minDist = std::numeric_limits<double>::max();
-            bool reverseStart = false;
+    // 2. AIMANTATION DES POINTS ET DÉDOUBLONNAGE
+    QList<QPointF> snappedPoints;
+    auto snapPoint = [&](QPointF pt) -> QPointF {
+        for (const QPointF& sp : snappedPoints) {
+            // Si le point est à moins de 0.2mm d'un autre, on les fusionne de force !
+            if (std::hypot(pt.x() - sp.x(), pt.y() - sp.y()) < 0.2) {
+                return sp;
+            }
+        }
+        snappedPoints.append(pt);
+        return pt;
+    };
 
-            for (int i = 0; i < currentDepthSegs.size(); ++i) {
-                double d1 = QLineF(currentPos, currentDepthSegs[i].p1).length();
-                double d2 = QLineF(currentPos, currentDepthSegs[i].p2).length();
+    QHash<Edge, int> uniqueEdges;
+    const double SCALE = 1000.0;
+    const double INV_SCALE = 1.0 / 1000.0;
 
-                if (d1 < minDist) { minDist = d1; bestStartIdx = i; reverseStart = false; }
-                if (d2 < minDist) { minDist = d2; bestStartIdx = i; reverseStart = true; }
+    for (const auto& seg : splitSegments) {
+        // L'aimantation répare les micro-espacements de l'optimiseur
+        QPointF p1 = snapPoint(seg.p1);
+        QPointF p2 = snapPoint(seg.p2);
+
+        // On ignore les lignes microscopiques créées par erreur
+        if (std::hypot(p1.x() - p2.x(), p1.y() - p2.y()) < 0.05) continue;
+
+        QPoint pt1(qRound(p1.x() * SCALE), qRound(p1.y() * SCALE));
+        QPoint pt2(qRound(p2.x() * SCALE), qRound(p2.y() * SCALE));
+
+        if (pt1 != pt2) {
+            Edge e = {pt1, pt2};
+            if (uniqueEdges.contains(e)) {
+                // Ligne commune parfaitement superposée -> on ne la coupera qu'une seule fois !
+                uniqueEdges[e] = std::max(uniqueEdges[e], seg.depth);
+            } else {
+                uniqueEdges.insert(e, seg.depth);
+            }
+        }
+    }
+
+    QMap<int, QList<Edge>> edgesByDepth;
+    int maxDepth = 0;
+    for (auto it = uniqueEdges.begin(); it != uniqueEdges.end(); ++it) {
+        edgesByDepth[it.value()].append(it.key());
+        if (it.value() > maxDepth) maxDepth = it.value();
+    }
+
+    QList<ContinuousCut> allSubPaths;
+    QPointF currentMachinePos = startPos;
+
+    // 3. THÉORIE DES GRAPHES PAR PROFONDEUR (LEMON)
+    for (int d = maxDepth; d >= 0; --d) {
+        if (!edgesByDepth.contains(d)) continue;
+
+        QList<Edge> currentEdges = edgesByDepth[d];
+
+        lemon::ListGraph g;
+        lemon::ListGraph::EdgeMap<bool> isVirtual(g, false);
+
+        QHash<QPoint, int> qptToNodeId;
+        QHash<int, QPoint> nodeIdToQpt;
+
+        auto getNode = [&](const QPoint& pt) {
+            if (!qptToNodeId.contains(pt)) {
+                auto n = g.addNode();
+                int id = g.id(n);
+                qptToNodeId[pt] = id;
+                nodeIdToQpt[id] = pt;
+            }
+            return g.nodeFromId(qptToNodeId[pt]);
+        };
+
+        for (const Edge& e : currentEdges) {
+            auto u = getNode(e.p1);
+            auto v = getNode(e.p2);
+            auto edge = g.addEdge(u, v);
+            isVirtual[edge] = false;
+        }
+
+        lemon::ListGraph::NodeMap<int> compMap(g);
+        int numIslands = lemon::connectedComponents(g, compMap);
+
+        for (int islandId = 0; islandId < numIslands; ++islandId) {
+            QList<lemon::ListGraph::Node> islandNodes;
+            QList<lemon::ListGraph::Node> oddNodes;
+
+            for (lemon::ListGraph::NodeIt n(g); n != lemon::INVALID; ++n) {
+                if (compMap[n] == islandId) {
+                    islandNodes.append(n);
+
+                    int deg = 0;
+                    for (lemon::ListGraph::IncEdgeIt e(g, n); e != lemon::INVALID; ++e) deg++;
+                    if (deg % 2 != 0) oddNodes.append(n);
+                }
             }
 
-            if (bestStartIdx == -1) break;
+            // --- LE MATCHING DE BLOSSOM ---
+            if (!oddNodes.isEmpty()) {
+                lemon::SmartGraph mGraph;
+                lemon::SmartGraph::EdgeMap<double> weights(mGraph);
 
-            // Créer le nouveau tracé ininterrompu
+                QHash<int, int> origToM;
+                QHash<int, int> mToOrig;
+
+                for (auto n : oddNodes) {
+                    auto mn = mGraph.addNode();
+                    origToM[g.id(n)] = mGraph.id(mn);
+                    mToOrig[mGraph.id(mn)] = g.id(n);
+                }
+
+                const double MAX_W = 10000000.0;
+                for (int i = 0; i < oddNodes.size(); ++i) {
+                    for (int j = i + 1; j < oddNodes.size(); ++j) {
+                        QPoint p1 = nodeIdToQpt[g.id(oddNodes[i])];
+                        QPoint p2 = nodeIdToQpt[g.id(oddNodes[j])];
+                        double dist = std::hypot(p1.x() - p2.x(), p1.y() - p2.y());
+
+                        auto n1 = mGraph.nodeFromId(origToM[g.id(oddNodes[i])]);
+                        auto n2 = mGraph.nodeFromId(origToM[g.id(oddNodes[j])]);
+                        auto edge = mGraph.addEdge(n1, n2);
+                        weights[edge] = MAX_W - dist;
+                    }
+                }
+
+                lemon::MaxWeightedPerfectMatching<lemon::SmartGraph, lemon::SmartGraph::EdgeMap<double>> mwpm(mGraph, weights);
+                mwpm.run();
+
+                QSet<int> matched;
+                for (auto it = mToOrig.begin(); it != mToOrig.end(); ++it) {
+                    int idMn = it.key();
+                    if (matched.contains(idMn)) continue;
+
+                    lemon::SmartGraph::Node mn = mGraph.nodeFromId(idMn);
+                    auto mate = mwpm.mate(mn);
+
+                    if (mate != lemon::INVALID) {
+                        int idMate = mGraph.id(mate);
+                        matched.insert(idMn);
+                        matched.insert(idMate);
+
+                        auto orig1 = g.nodeFromId(mToOrig[idMn]);
+                        auto orig2 = g.nodeFromId(mToOrig[idMate]);
+                        auto newVirtualEdge = g.addEdge(orig1, orig2);
+                        isVirtual[newVirtualEdge] = true;
+                    }
+                }
+            }
+
+            // --- GÉNÉRATION DU CIRCUIT EULÉRIEN ---
+            lemon::ListGraph::Node startNode = islandNodes.first();
+            double minDist = std::numeric_limits<double>::max();
+
+            for (auto n : islandNodes) {
+                QPoint p = nodeIdToQpt[g.id(n)];
+                double dist = std::hypot(p.x() * INV_SCALE - currentMachinePos.x(), p.y() * INV_SCALE - currentMachinePos.y());
+                if (dist < minDist) {
+                    minDist = dist;
+                    startNode = n;
+                }
+            }
+
             ContinuousCut chain;
             chain.depth = d;
+            lemon::ListGraph::Node currNode = startNode;
+            QPoint startP = nodeIdToQpt[g.id(currNode)];
+            chain.points.append(QPointF(startP.x() * INV_SCALE, startP.y() * INV_SCALE));
 
-            RawSegment firstSeg = currentDepthSegs.takeAt(bestStartIdx);
-            chain.points.append(reverseStart ? firstSeg.p2 : firstSeg.p1);
+            for (lemon::EulerIt<lemon::ListGraph> e(g, startNode); e != lemon::INVALID; ++e) {
+                lemon::ListGraph::Node u = g.u(e);
+                lemon::ListGraph::Node v = g.v(e);
+                lemon::ListGraph::Node nextNode = (u == currNode) ? v : u;
+                QPoint nextP = nodeIdToQpt[g.id(nextNode)];
 
-            QPointF chainTail = reverseStart ? firstSeg.p1 : firstSeg.p2;
-            chain.points.append(chainTail);
-
-            // --- B. AVALER GOULUMENT TOUT CE QUI TOUCHE SANS LEVER LA TÊTE ---
-            bool progress = true;
-            while (progress) {
-                progress = false;
-                int bestNextIdx = -1;
-                bool nextReverse = false;
-
-                // Chercher un segment qui prolonge exactement la position actuelle
-                for (int i = 0; i < currentDepthSegs.size(); ++i) {
-                    if (QLineF(chainTail, currentDepthSegs[i].p1).length() < SNAP_TOLERANCE) {
-                        bestNextIdx = i; nextReverse = false; break;
+                if (isVirtual[e]) {
+                    if (chain.points.size() > 1) {
+                        chain.isClosed = (QLineF(chain.points.first(), chain.points.last()).length() < 0.1);
+                        allSubPaths.append(chain);
                     }
-                    if (QLineF(chainTail, currentDepthSegs[i].p2).length() < SNAP_TOLERANCE) {
-                        bestNextIdx = i; nextReverse = true; break;
-                    }
+                    chain.points.clear();
+                    chain.points.append(QPointF(nextP.x() * INV_SCALE, nextP.y() * INV_SCALE));
+                } else {
+                    chain.points.append(QPointF(nextP.x() * INV_SCALE, nextP.y() * INV_SCALE));
                 }
-
-                // S'il y a un trait connecté, on l'attache au trajet actuel !
-                if (bestNextIdx != -1) {
-                    RawSegment nextSeg = currentDepthSegs.takeAt(bestNextIdx);
-                    chainTail = nextReverse ? nextSeg.p1 : nextSeg.p2;
-                    chain.points.append(chainTail);
-                    progress = true;
-                }
+                currNode = nextNode;
             }
 
-            // Vérifier si la forme s'est refermée sur elle-même à la fin de la chaîne
-            chain.isClosed = (QLineF(chain.points.first(), chain.points.last()).length() < SNAP_TOLERANCE);
-            if (chain.isClosed) {
-                chain.points.last() = chain.points.first(); // Scelle mathématiquement
+            if (chain.points.size() > 1) {
+                chain.isClosed = (QLineF(chain.points.first(), chain.points.last()).length() < 0.1);
+                allSubPaths.append(chain);
             }
-
-            optimized.append(chain);
-            currentPos = chain.points.last(); // La tête est ici, prête pour le prochain trajet
+            currentMachinePos = QPointF(nodeIdToQpt[g.id(currNode)].x() * INV_SCALE, nodeIdToQpt[g.id(currNode)].y() * INV_SCALE);
         }
     }
 
-    // (Optionnel) Ajouter les entrées de coupe si vous l'utilisez
-    // applyLeadIns(optimized, 3.0);
+    // 4. ASSEMBLAGE GLOBAL (Nearest Neighbor)
+    QList<ContinuousCut> finalOptimized;
+    QPointF machinePos = startPos;
 
-    return optimized;
+    while (!allSubPaths.isEmpty()) {
+        int bestIdx = -1;
+        bool reverseDir = false;
+        double minDist = std::numeric_limits<double>::max();
+
+        for (int i = 0; i < allSubPaths.size(); ++i) {
+            double dStart = QLineF(machinePos, allSubPaths[i].points.first()).length();
+            double dEnd = QLineF(machinePos, allSubPaths[i].points.last()).length();
+
+            if (dStart < minDist) {
+                minDist = dStart; bestIdx = i; reverseDir = false;
+            }
+            if (!allSubPaths[i].isClosed && dEnd < minDist) {
+                minDist = dEnd; bestIdx = i; reverseDir = true;
+            }
+        }
+
+        ContinuousCut nextCut = allSubPaths.takeAt(bestIdx);
+        if (reverseDir) std::reverse(nextCut.points.begin(), nextCut.points.end());
+
+        // Nettoyage colinéaire final pour adoucir le tracé de la buse
+        if (nextCut.points.size() > 2) {
+            QPolygonF simplified;
+            simplified.append(nextCut.points.first());
+            for (int i = 1; i < nextCut.points.size() - 1; ++i) {
+                QPointF pPrev = simplified.last();
+                QPointF pCurr = nextCut.points[i];
+                QPointF pNext = nextCut.points[i+1];
+                double cross = (pCurr.x() - pPrev.x()) * (pNext.y() - pCurr.y()) -
+                               (pCurr.y() - pPrev.y()) * (pNext.x() - pCurr.x());
+
+                // Fusion des points alignés pour éviter à la buse de freiner pour rien
+                if (std::abs(cross) > 1e-2) simplified.append(pCurr);
+            }
+            simplified.append(nextCut.points.last());
+            nextCut.points = simplified;
+        }
+
+        finalOptimized.append(nextCut);
+        machinePos = nextCut.points.last();
+    }
+
+    return finalOptimized;
 }
 
 // ============================================================================
-// LA FUSION EST GÉRÉE DIRECTEMENT EN HAUT
-// ============================================================================
-void PathPlanner::mergeCommonLines(QList<ContinuousCut>& /*cuts*/)
-{
-    // Obsolète : L'algorithme eulérien ci-dessus le fait naturellement
-}
-
-// ============================================================================
-// EXTRACTION DES TRACÉS (VOTRE VERSION avec nettoyage anti-bugs)
+// EXTRACTION DES TRACÉS DEPUIS L'UI
 // ============================================================================
 QList<ContinuousCut> PathPlanner::extractRawPaths(QGraphicsScene *sc)
 {
     QList<ContinuousCut> out;
-
     for (QGraphicsItem *it : sc->items()) {
         if (!it->isVisible() || it->zValue() >= 50) continue;
-
-        // VOTRE FILTRE 1 : Élimine les objets globalement minuscules
-        if (it->boundingRect().width() < 10.0 && it->boundingRect().height() < 10.0) {
-            continue;
-        }
+        if (it->boundingRect().width() < 1.0 && it->boundingRect().height() < 1.0) continue;
 
         QPainterPath path;
-
-        if (auto *r = qgraphicsitem_cast<QGraphicsRectItem *>(it))
-            path.addRect(r->rect());
-        else if (auto *p = qgraphicsitem_cast<QGraphicsPathItem *>(it))
-            path = p->path();
-        else if (auto *e = qgraphicsitem_cast<QGraphicsEllipseItem *>(it))
-            path.addEllipse(e->rect());
-        else if (auto *poly = qgraphicsitem_cast<QGraphicsPolygonItem *>(it))
-            path.addPolygon(poly->polygon());
-        else
-            continue;
+        if (auto *r = qgraphicsitem_cast<QGraphicsRectItem *>(it)) path.addRect(r->rect());
+        else if (auto *p = qgraphicsitem_cast<QGraphicsPathItem *>(it)) path = p->path();
+        else if (auto *e = qgraphicsitem_cast<QGraphicsEllipseItem *>(it)) path.addEllipse(e->rect());
+        else if (auto *poly = qgraphicsitem_cast<QGraphicsPolygonItem *>(it)) path.addPolygon(poly->polygon());
+        else continue;
 
         path = it->mapToScene(path);
-
         for (const QPolygonF& poly : path.toSubpathPolygons()) {
             if (poly.size() < 2) continue;
-
-            // --- VOTRE FILTRE 2 : Filtrer les sous-tracés fantômes/points isolés ---
-            double pathLength = 0.0;
-            for (int i = 1; i < poly.size(); ++i) {
-                pathLength += QLineF(poly[i-1], poly[i]).length();
-            }
-            // Si la forme entière fait moins d'un millimètre, on ignore.
-            if (pathLength < 1.0) continue;
-            // -----------------------------------------------------------------------
-
             ContinuousCut cut;
             cut.points = poly;
-
-            // VOTRE SÉCURITÉ 3 : L'égalité flottante pour la fermeture
             cut.isClosed = (QLineF(poly.first(), poly.last()).length() < 0.1);
             cut.depth = 0;
-
             out.append(cut);
         }
     }
@@ -229,7 +389,7 @@ QList<ContinuousCut> PathPlanner::extractRawPaths(QGraphicsScene *sc)
 }
 
 // ============================================================================
-// GESTION DES INCLUSIONS (Inside-Out)
+// CALCUL DES PROFONDEURS (INSIDE-OUT)
 // ============================================================================
 void PathPlanner::computeInclusionDepths(QList<ContinuousCut>& cuts)
 {
@@ -237,7 +397,6 @@ void PathPlanner::computeInclusionDepths(QList<ContinuousCut>& cuts)
         cuts[i].depth = 0;
         for (int j = 0; j < cuts.size(); ++j) {
             if (i == j || !cuts[j].isClosed) continue;
-
             if (cuts[j].points.containsPoint(cuts[i].points.first(), Qt::OddEvenFill)) {
                 cuts[i].depth++;
             }
@@ -246,22 +405,18 @@ void PathPlanner::computeInclusionDepths(QList<ContinuousCut>& cuts)
 }
 
 // ============================================================================
-// ENTRÉES DE COUPE (Lead-in) - Restauré depuis votre code d'origine
+// ENTRÉES DE COUPE (LEAD-INS)
 // ============================================================================
 void PathPlanner::applyLeadIns(QList<ContinuousCut>& cuts, double distance)
 {
     for (auto& cut : cuts) {
         if (!cut.isClosed || cut.points.size() < 2) continue;
-
         QPointF p0 = cut.points[0];
         QPointF p1 = cut.points[1];
-
         double dx = p1.x() - p0.x();
         double dy = p1.y() - p0.y();
         double len = std::hypot(dx, dy);
-
         if (len < 0.1) continue;
-
         QPointF leadIn(p0.x() - dy / len * distance, p0.y() + dx / len * distance);
         cut.points.prepend(leadIn);
     }

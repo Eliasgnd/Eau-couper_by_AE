@@ -3,7 +3,7 @@ TARGET = machineDecoupeIHM
 TEMPLATE = app
 QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent serialport
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-CONFIG += c++17
+CONFIG += c++14
 
 # ==== PLATEFORME LINUX / RASPBERRY PI ====
 unix {
@@ -16,7 +16,7 @@ unix {
 # ==== PLATEFORME WINDOWS ====
 win32 {
     # Suppression de l'avertissement de caractères non conformes (C4828)
-    QMAKE_CXXFLAGS += /wd4828
+    QMAKE_CXXFLAGS += /wd4828 /wd4267
 
     # OpenCV
     INCLUDEPATH += C:/opencv/build/include
@@ -29,7 +29,7 @@ win32 {
 }
 
 # ==============================================================================
-# ==== EXTERNAL LIBRARIES (Clipper2) ====
+# ==== EXTERNAL LIBRARIES ====
 # ==============================================================================
 
 # --- Clipper 2 ---
@@ -40,6 +40,68 @@ SOURCES += \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
     $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
     ui/canvas/tools/PathOptimizer.cpp
+
+# --- Google OR-Tools ---
+ORTOOLS_PATH = $$PWD/external/or-tools
+INCLUDEPATH += $$ORTOOLS_PATH/include
+
+win32 {
+    # 1. Déclarations vitales pour utiliser OR-Tools sous Windows
+    DEFINES += OR_TOOLS_AS_DYNAMIC_LIB
+    DEFINES += PROTOBUF_USE_DLLS
+    DEFINES += OR_PROTO_DLL=__declspec(dllimport)
+
+    # 2. Le répertoire contenant les fichiers .lib
+    LIBS += -L$$ORTOOLS_PATH/lib
+
+    # 3. Inclusion de TOUTES les librairies OR-Tools, Abseil et Protobuf nécessaires
+    # (L'ordre est très important pour le Linker sous Windows !)
+    LIBS += -lortools
+    LIBS += -llibprotobuf
+    LIBS += -labseil_dll
+
+    # Si le Linker se plaint encore d'Abseil, tu peux "forcer" la liaison de toutes les libs Abseil
+    # en décommentant cette ligne (selon la version d'OR-Tools téléchargée) :
+    # LIBS += -labsl_*
+
+    # 4. Dépendances système Windows requises par Google
+    LIBS += -lUser32 -lShell32 -lAdvapi32 -lPsapi -lWs2_32 -lBcrypt
+}
+
+# --- CONFIGURATION LEMON (Solution Finale - Structure Plate) ---
+
+# 1. On pointe sur 'external' pour que <lemon/random.h> devienne 'external/lemon/random.h'
+INCLUDEPATH += $$PWD/external
+
+# 2. Chemin vers tes fichiers .cc
+LEMON_ROOT = $$PWD/external/lemon
+
+# 3. FIX POUR VISUAL STUDIO 2022+ (Correction de l'erreur register)
+win32-msvc* {
+    # Autorise la redéfinition des mots-clés (indispensable pour MSVC)
+    DEFINES += _ALLOW_KEYWORD_MACROS
+    # Transforme le vieux 'register' en vide pour le C++ moderne
+    DEFINES += "register="
+    # Supprime l'avertissement de redéfinition qui en découle
+    QMAKE_CXXFLAGS += /wd4005
+}
+
+# 4. Paramètres LEMON standards
+DEFINES += LEMON_HAVE_LONG_LONG
+DEFINES += _CRT_SECURE_NO_WARNINGS
+
+# 5. Liste des sources (basée sur ton 'ls')
+SOURCES += \
+    $$LEMON_ROOT/arg_parser.cc \
+    $$LEMON_ROOT/base.cc \
+    $$LEMON_ROOT/color.cc \
+    $$LEMON_ROOT/lp_base.cc \
+    $$LEMON_ROOT/lp_skeleton.cc \
+    $$LEMON_ROOT/random.cc \
+    $$LEMON_ROOT/bits/windows.cc
+
+# On ignore les alertes de conversion mineures
+win32: QMAKE_CXXFLAGS += /wd4267 /wd4828 /wd4244
 
 # ==============================================================================
 # ==== PROJET SOURCES & HEADERS ====
