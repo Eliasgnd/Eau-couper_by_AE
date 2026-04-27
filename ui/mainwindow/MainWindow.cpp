@@ -389,8 +389,8 @@ void MainWindow::setupViewConnections()
     auto *mvm = m_coordinator->machineViewModel();
     connect(mvm, &MachineViewModel::stateChanged,
             this, &MainWindow::onMachineStateChanged);
-    connect(mvm, &MachineViewModel::positionChanged,
-            this, [this](double x, double y, double) {
+    connect(shapeVisualization, &ShapeVisualization::headLogicalPositionChanged,
+            this, [this](double x, double y) {
                 ui->labelPositionXY->setText(
                     QString("X: %1 mm     Y: %2 mm")
                         .arg(x, 7, 'f', 2)

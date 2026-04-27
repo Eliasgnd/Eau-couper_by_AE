@@ -215,6 +215,7 @@ void TrajetMotor::onPositionUpdated(int x_steps, int y_steps)
         }
         m_head->setPos(realPos.x() - 3, realPos.y() - 3);
         m_lastHeadPos = realPos;
+        m_visu->updateHeadLogicalPositionFromScene(realPos);
     }, Qt::QueuedConnection);
 }
 

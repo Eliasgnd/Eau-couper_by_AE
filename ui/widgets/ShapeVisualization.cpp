@@ -101,6 +101,39 @@ bool ShapeVisualization::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+QRectF ShapeVisualization::renderedSheetRectInViewport() const
+{
+    if (!graphicsView || !scene)
+        return QRectF();
+
+    const QPolygon sheetPolygon = graphicsView->mapFromScene(scene->sceneRect());
+    return sheetPolygon.boundingRect();
+}
+
+QPointF ShapeVisualization::logicalPointFromScenePoint(const QPointF &scenePoint) const
+{
+    if (!graphicsView || !scene)
+        return QPointF();
+
+    const QRectF renderedRect = renderedSheetRectInViewport();
+    if (renderedRect.width() <= 0.0 || renderedRect.height() <= 0.0)
+        return QPointF();
+
+    const QPoint viewportPoint = graphicsView->mapFromScene(scenePoint);
+    const double xRatio = (viewportPoint.x() - renderedRect.left()) / renderedRect.width();
+    const double yRatio = (viewportPoint.y() - renderedRect.top()) / renderedRect.height();
+
+    const double boundedX = qBound(0.0, xRatio * m_sheetMm.width(), m_sheetMm.width());
+    const double boundedY = qBound(0.0, yRatio * m_sheetMm.height(), m_sheetMm.height());
+    return QPointF(boundedX, boundedY);
+}
+
+void ShapeVisualization::updateHeadLogicalPositionFromScene(const QPointF &scenePoint)
+{
+    const QPointF logicalPoint = logicalPointFromScenePoint(scenePoint);
+    emit headLogicalPositionChanged(logicalPoint.x(), logicalPoint.y());
+}
+
 void ShapeVisualization::updateDimensions(int largeur, int longueur)
 {
     if (!m_projectModel) return;
