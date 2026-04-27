@@ -41,33 +41,6 @@ SOURCES += \
     $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
     ui/canvas/tools/PathOptimizer.cpp
 
-# --- Google OR-Tools ---
-ORTOOLS_PATH = $$PWD/external/or-tools
-INCLUDEPATH += $$ORTOOLS_PATH/include
-
-win32 {
-    # 1. Déclarations vitales pour utiliser OR-Tools sous Windows
-    DEFINES += OR_TOOLS_AS_DYNAMIC_LIB
-    DEFINES += PROTOBUF_USE_DLLS
-    DEFINES += OR_PROTO_DLL=__declspec(dllimport)
-
-    # 2. Le répertoire contenant les fichiers .lib
-    LIBS += -L$$ORTOOLS_PATH/lib
-
-    # 3. Inclusion de TOUTES les librairies OR-Tools, Abseil et Protobuf nécessaires
-    # (L'ordre est très important pour le Linker sous Windows !)
-    LIBS += -lortools
-    LIBS += -llibprotobuf
-    LIBS += -labseil_dll
-
-    # Si le Linker se plaint encore d'Abseil, tu peux "forcer" la liaison de toutes les libs Abseil
-    # en décommentant cette ligne (selon la version d'OR-Tools téléchargée) :
-    # LIBS += -labsl_*
-
-    # 4. Dépendances système Windows requises par Google
-    LIBS += -lUser32 -lShell32 -lAdvapi32 -lPsapi -lWs2_32 -lBcrypt
-}
-
 # --- CONFIGURATION LEMON (Solution Finale - Structure Plate) ---
 
 # 1. On pointe sur 'external' pour que <lemon/random.h> devienne 'external/lemon/random.h'

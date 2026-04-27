@@ -1007,3 +1007,97 @@ QCheckBox::indicator:checked {
 QCheckBox::indicator:hover {
     border-color: #0EA5E9;
 }
+
+/* ===== WIFI TRANSFER WIDGET ===== */
+QWidget#WifiTransferWidget {
+    background-color: #DDE3EC;
+}
+QLabel#titleLabel {
+    color: #0F172A;
+    background: transparent;
+}
+QLabel#urlLabel {
+    color: #0284C7;
+    font-size: 11px;
+    font-family: "Consolas", "Courier New", monospace;
+}
+QGroupBox#historyGroup {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    margin-top: 8px;
+    padding-top: 12px;
+    background-color: #FFFFFF;
+}
+QGroupBox#historyGroup::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 6px;
+    color: #475569;
+}
+QListWidget#historyList {
+    background-color: #FFFFFF;
+    color: #0F172A;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    font-size: 12px;
+    alternate-background-color: #F8FAFC;
+}
+QListWidget#historyList::item:selected {
+    background-color: #BAE6FD;
+    color: #0369A1;
+}
+QPushButton#openSelectedButton {
+    background-color: #DCFCE7;
+    color: #14532D;
+    border: 1px solid #16A34A;
+    border-left: 3px solid #16A34A;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 14px;
+}
+QPushButton#openSelectedButton:hover { background-color: #BBF7D0; border-color: #16A34A; }
+QPushButton#openSelectedButton:pressed { background-color: #86EFAC; }
+QPushButton#openSelectedButton:disabled { background-color: #F1F5F9; color: #94A3B8; border-color: #CBD5E1; }
+QPushButton#deleteSelectedButton {
+    background-color: #FEE2E2;
+    color: #7F1D1D;
+    border: 1px solid #DC2626;
+    border-left: 3px solid #DC2626;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 14px;
+}
+QPushButton#deleteSelectedButton:hover { background-color: #FECACA; border-color: #DC2626; }
+QPushButton#deleteSelectedButton:pressed { background-color: #FCA5A5; }
+QPushButton#renameButton {
+    background-color: #E0F2FE;
+    color: #0369A1;
+    border: 1px solid #0EA5E9;
+    border-left: 3px solid #0EA5E9;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 14px;
+}
+QPushButton#renameButton:hover { background-color: #BAE6FD; border-color: #0284C7; }
+QPushButton#renameButton:pressed { background-color: #7DD3FC; }
+QPushButton#backButton {
+    background-color: #F1F5F9;
+    color: #0F172A;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 38px;
+    padding: 0 20px;
+}
+QPushButton#backButton:hover { background-color: #E2E8F0; border-color: #0EA5E9; color: #0284C7; }
+QPushButton#backButton:pressed { background-color: #CBD5E1; }
