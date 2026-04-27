@@ -5,6 +5,8 @@
 #include <QPolygonF>
 #include <QString>
 
+#include "ShapeModel.h"
+
 // Single item in a saved layout
 struct LayoutItem {
     double x {0};
@@ -31,6 +33,7 @@ struct CustomShapeData {
     QList<LayoutData> layouts;
     int usageCount {0};
     QDateTime lastUsed;
+    QList<QDateTime> cutHistory;
 };
 
 // Folder in inventory tree
@@ -39,4 +42,12 @@ struct InventoryFolder {
     QString parentFolder;  // empty if root folder
     int usageCount {0};
     QDateTime lastUsed;
+};
+
+struct QuickShapeEntry {
+    QString name;
+    bool isBaseShape {false};
+    ShapeModel::Type baseType {ShapeModel::Type::Circle};
+    int recentCutCount {0};
+    QDateTime lastCutAt;
 };

@@ -177,6 +177,28 @@ bool InventoryViewModel::incrementLayoutUsageForBaseShape(ShapeModel::Type type,
     return m_controller.incrementLayoutUsageForBaseShape(type, index);
 }
 
+bool InventoryViewModel::recordBaseShapeCut(ShapeModel::Type type)
+{
+    return m_controller.recordBaseShapeCut(type);
+}
+
+bool InventoryViewModel::recordCustomShapeCut(const QString &shapeName)
+{
+    return m_controller.recordCustomShapeCut(shapeName);
+}
+
+bool InventoryViewModel::findCustomShapeByName(const QString &shapeName,
+                                               QList<QPolygonF> &polygonsOut,
+                                               QString &resolvedNameOut) const
+{
+    return m_controller.findCustomShapeByName(shapeName, polygonsOut, resolvedNameOut);
+}
+
+QList<QuickShapeEntry> InventoryViewModel::getQuickAccessShapes(int maxCount) const
+{
+    return m_controller.getQuickAccessShapes(maxCount);
+}
+
 bool InventoryViewModel::shapeNameExists(const QString &name) const
 {
     return m_controller.shapeNameExists(name);

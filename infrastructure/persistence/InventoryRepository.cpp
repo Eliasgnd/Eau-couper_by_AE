@@ -10,6 +10,7 @@ InventorySnapshot InventoryRepository::load() const
                                         snapshot.baseShapeFolders,
                                         snapshot.baseUsageCount,
                                         snapshot.baseLastUsed,
+                                        snapshot.baseShapeCutHistory,
                                         snapshot.baseShapeOrder,
                                         snapshot.folders);
     return snapshot;
@@ -22,6 +23,7 @@ void InventoryRepository::save(const InventorySnapshot &snapshot) const
                                         snapshot.baseShapeFolders,
                                         snapshot.baseUsageCount,
                                         snapshot.baseLastUsed,
+                                        snapshot.baseShapeCutHistory,
                                         snapshot.folders);
 }
 

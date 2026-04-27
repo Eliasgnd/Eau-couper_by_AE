@@ -15,6 +15,7 @@
 #include "WorkspaceViewModel.h"
 #include "MainWindowViewModel.h"
 #include "ShapeVisualizationViewModel.h"
+#include "InventoryViewModel.h"
 
 #include <QSpinBox>
 #include <QPushButton>
@@ -33,6 +34,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QSettings>
+#include <QGridLayout>
 
 // --- Construction / Destruction ---
 
@@ -87,6 +89,17 @@ MainWindow::MainWindow(QWidget *parent,
 
     // Le Coordinator connecte ses propres réactions aux signaux de la View
     m_coordinator->connectToView(this);
+
+    // Tentative unique de connexion automatique au STM au démarrage.
+    // Si la carte n'est pas branchée à cet instant, on laisse ensuite
+    // le bouton manuel comme solution de secours.
+    QTimer::singleShot(0, this, [this]() {
+        auto* machineVm = m_coordinator ? m_coordinator->machineViewModel() : nullptr;
+        if (!machineVm || machineVm->isConnected())
+            return;
+
+        machineVm->connectToStm(QString());
+    });
 
     // Fix Cause A : SpinBox_vitesse::valueChanged(10) a été émis pendant setupUi()
     // AVANT que setupViewConnections() établisse la connexion → valeur initiale jamais
@@ -145,6 +158,20 @@ void MainWindow::setupUI()
         // Optionnel : on le met en rouge pour que l'erreur soit bien visible
         ui->labelAIGenerationStatus->setStyleSheet("color: #D32F2F; font-weight: bold;");
     }
+    if (ui->gridShapes && ui->tabSystemLayout) {
+        ui->gridShapes->removeWidget(ui->buttonCustom);
+        ui->gridShapes->removeWidget(ui->buttonInventory);
+
+        const int insertIndex = qMax(0, ui->tabSystemLayout->count() - 1);
+        ui->tabSystemLayout->insertWidget(insertIndex, ui->buttonCustom);
+        ui->tabSystemLayout->insertWidget(insertIndex + 1, ui->buttonInventory);
+    }
+
+    connect(ui->leftTabWidget, &QTabWidget::currentChanged, this, [this](int) {
+        QTimer::singleShot(0, this, [this]() { refreshQuickShapeButtons(); });
+    });
+
+    refreshQuickShapeButtons();
 }
 
 void MainWindow::setupWorkspaceLayout()
@@ -256,13 +283,6 @@ void MainWindow::setupViewConnections()
 
     // ---- Thème ----
     connect(ui->buttonTheme, &QPushButton::clicked, this, &MainWindow::toggleTheme);
-
-    // ---- Formes prédéfinies ----
-    connect(ui->Cercle,    &QPushButton::clicked, this, &MainWindow::circleRequested);
-    connect(ui->Rectangle, &QPushButton::clicked, this, &MainWindow::rectangleRequested);
-    connect(ui->Triangle,  &QPushButton::clicked, this, &MainWindow::triangleRequested);
-    connect(ui->Etoile,    &QPushButton::clicked, this, &MainWindow::starRequested);
-    connect(ui->Coeur,     &QPushButton::clicked, this, &MainWindow::heartRequested);
 
     // ---- Optimisation (la View gère seulement l'aspect toggle mutuel) ----
     connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [this](bool checked) {
@@ -424,6 +444,7 @@ void MainWindow::displayCustomShapes(const QList<QPolygonF> &shapes, const QStri
     if (!shapeVisualization) return;
     shapeVisualization->displayCustomShapes(shapes);
     shapeVisualization->setCurrentCustomShapeName(name);
+    refreshQuickShapeButtons();
     showFullScreen();
 }
 
@@ -444,6 +465,7 @@ void MainWindow::displayBaseShapeLayout(const QList<QPolygonF> &polys,
     shapeVisualization->setCurrentCustomShapeName(name);
     shapeVisualization->applyLayout(layout);
     applySelectedLayoutToControls(layout);
+    refreshQuickShapeButtons();
 }
 
 void MainWindow::applySelectedLayoutToControls(const LayoutData &layout)
@@ -493,7 +515,14 @@ void MainWindow::changeEvent(QEvent *event)
 void MainWindow::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+    refreshQuickShapeButtons();
     this->showFullScreen();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    refreshQuickShapeButtons();
 }
 
 void MainWindow::setLanguageFrench()
@@ -520,6 +549,8 @@ void MainWindow::retranslateDynamicUi()
     }
     if (ui->timeRemainingLabel)
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
+
+    refreshQuickShapeButtons();
 }
 
 void MainWindow::setSpinboxSliderEnabled(bool enabled)
@@ -562,6 +593,96 @@ ShapeVisualization* MainWindow::getShapeVisualization() const
 Language MainWindow::displayLanguage() const
 {
     return m_viewModel->currentLanguage();
+}
+
+void MainWindow::refreshQuickShapeButtons()
+{
+    if (!m_inventory || !m_inventory->viewModel())
+        return;
+
+    rebuildQuickShapeButtons();
+}
+
+int MainWindow::quickShapeCapacity() const
+{
+    if (!ui || !ui->leftTabWidget || !ui->gridShapes)
+        return 0;
+
+    const int availableWidth = qMax(180, ui->leftTabWidget->width() - 32);
+    const int availableHeight = qMax(180, ui->leftTabWidget->height() - 72);
+    const int minButtonWidth = 110;
+    const int buttonHeight = 56;
+    const int spacing = ui->gridShapes->spacing() > 0 ? ui->gridShapes->spacing() : 8;
+
+    const int columns = qMax(1, (availableWidth + spacing) / (minButtonWidth + spacing));
+    const int rows = qMax(1, (availableHeight + spacing) / (buttonHeight + spacing));
+    return qMax(1, columns * rows);
+}
+
+void MainWindow::clearQuickShapeButtons()
+{
+    if (!ui || !ui->gridShapes)
+        return;
+
+    while (QLayoutItem *item = ui->gridShapes->takeAt(0)) {
+        if (QWidget *widget = item->widget()) {
+            const bool isStaticShapeButton =
+                widget == ui->Cercle ||
+                widget == ui->Rectangle ||
+                widget == ui->Triangle ||
+                widget == ui->Etoile ||
+                widget == ui->Coeur;
+
+            if (isStaticShapeButton) {
+                widget->hide();
+            } else {
+                widget->deleteLater();
+            }
+        }
+        delete item;
+    }
+    m_quickShapeButtons.clear();
+}
+
+void MainWindow::rebuildQuickShapeButtons()
+{
+    if (!ui || !ui->gridShapes || !m_inventory || !m_inventory->viewModel())
+        return;
+
+    const int capacity = quickShapeCapacity();
+    if (capacity <= 0)
+        return;
+
+    const QList<QuickShapeEntry> shapes = m_inventory->viewModel()->getQuickAccessShapes(capacity);
+    const int availableWidth = qMax(180, ui->leftTabWidget->width() - 32);
+    const int spacing = ui->gridShapes->spacing() > 0 ? ui->gridShapes->spacing() : 8;
+    const int minButtonWidth = 110;
+    const int columns = qMax(1, (availableWidth + spacing) / (minButtonWidth + spacing));
+
+    clearQuickShapeButtons();
+
+    for (int index = 0; index < shapes.size(); ++index) {
+        const QuickShapeEntry &entry = shapes.at(index);
+        auto *button = new QPushButton(entry.name, this);
+        button->setMinimumHeight(56);
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        button->setIcon(QIcon());
+
+        if (entry.isBaseShape) {
+            connect(button, &QPushButton::clicked, this, [this, entry]() {
+                emit baseShapeRequested(static_cast<int>(entry.baseType));
+            });
+        } else {
+            connect(button, &QPushButton::clicked, this, [this, entry]() {
+                emit customShapeRequested(entry.name);
+            });
+        }
+
+        const int row = index / columns;
+        const int column = index % columns;
+        ui->gridShapes->addWidget(button, row, column);
+        m_quickShapeButtons.append(button);
+    }
 }
 
 void MainWindow::onMachineStateChanged(MachineState state)

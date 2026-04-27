@@ -25,12 +25,14 @@ void loadInventoryData(
     QMap<ShapeModel::Type, QString> &baseShapeFolders,
     QMap<ShapeModel::Type, int> &baseUsageCount,
     QMap<ShapeModel::Type, QDateTime> &baseLastUsed,
+    QMap<ShapeModel::Type, QList<QDateTime>> &baseShapeCutHistory,
     QList<ShapeModel::Type> &baseShapeOrder,
     QList<InventoryFolder> &folders)
 {
     customShapes.clear();
     baseShapeLayouts.clear();
     baseShapeFolders.clear();
+    baseShapeCutHistory.clear();
     baseShapeOrder.clear();
     folders.clear();
 
@@ -73,6 +75,12 @@ void loadInventoryData(
         qint64 tsShape = static_cast<qint64>(obj.value("lastUsed").toDouble());
         if (tsShape > 0)
             data.lastUsed = QDateTime::fromSecsSinceEpoch(tsShape);
+        const QJsonArray cutHistoryArr = obj.value("cutHistory").toArray();
+        for (const QJsonValue &cutValue : cutHistoryArr) {
+            const qint64 cutTs = static_cast<qint64>(cutValue.toDouble());
+            if (cutTs > 0)
+                data.cutHistory.append(QDateTime::fromSecsSinceEpoch(cutTs));
+        }
 
         const QJsonArray polyArr = obj.value("polygons").toArray();
         for (const QJsonValue &polyVal : polyArr) {
@@ -166,6 +174,19 @@ void loadInventoryData(
         if (ts > 0)
             baseLastUsed[type] = QDateTime::fromSecsSinceEpoch(ts);
     }
+
+    const QJsonObject baseCutHistoryObj = root.value("baseCutHistory").toObject();
+    for (auto it = baseCutHistoryObj.begin(); it != baseCutHistoryObj.end(); ++it) {
+        const ShapeModel::Type type = static_cast<ShapeModel::Type>(it.key().toInt());
+        const QJsonArray historyArr = it.value().toArray();
+        QList<QDateTime> history;
+        for (const QJsonValue &value : historyArr) {
+            const qint64 ts = static_cast<qint64>(value.toDouble());
+            if (ts > 0)
+                history.append(QDateTime::fromSecsSinceEpoch(ts));
+        }
+        baseShapeCutHistory[type] = history;
+    }
 }
 
 void saveInventoryData(
@@ -174,6 +195,7 @@ void saveInventoryData(
     const QMap<ShapeModel::Type, QString> &baseShapeFolders,
     const QMap<ShapeModel::Type, int> &baseUsageCount,
     const QMap<ShapeModel::Type, QDateTime> &baseLastUsed,
+    const QMap<ShapeModel::Type, QList<QDateTime>> &baseShapeCutHistory,
     const QList<InventoryFolder> &folders)
 {
     QJsonArray shapesArr;
@@ -183,6 +205,10 @@ void saveInventoryData(
         obj["folder"] = data.folder;
         obj["usageCount"] = data.usageCount;
         obj["lastUsed"] = data.lastUsed.isValid() ? static_cast<qint64>(data.lastUsed.toSecsSinceEpoch()) : 0;
+        QJsonArray cutHistoryArr;
+        for (const QDateTime &cutAt : data.cutHistory)
+            cutHistoryArr.append(static_cast<qint64>(cutAt.toSecsSinceEpoch()));
+        obj["cutHistory"] = cutHistoryArr;
 
         QJsonArray polyArr;
         for (const QPolygonF &poly : data.polygons) {
@@ -262,6 +288,14 @@ void saveInventoryData(
         lastUsedObj[QString::number(static_cast<int>(it.key()))] = static_cast<qint64>(it.value().toSecsSinceEpoch());
     }
 
+    QJsonObject baseCutHistoryObj;
+    for (auto it = baseShapeCutHistory.constBegin(); it != baseShapeCutHistory.constEnd(); ++it) {
+        QJsonArray historyArr;
+        for (const QDateTime &cutAt : it.value())
+            historyArr.append(static_cast<qint64>(cutAt.toSecsSinceEpoch()));
+        baseCutHistoryObj[QString::number(static_cast<int>(it.key()))] = historyArr;
+    }
+
     QJsonArray foldersArr;
     for (const InventoryFolder &f : folders) {
         QJsonObject fo;
@@ -278,6 +312,7 @@ void saveInventoryData(
     rootObj["baseFolders"] = baseFoldersObj;
     rootObj["baseUsageCount"] = usageObj;
     rootObj["baseLastUsed"] = lastUsedObj;
+    rootObj["baseCutHistory"] = baseCutHistoryObj;
     rootObj["folders"]     = foldersArr;
 
     QFile file(customShapesFilePath());

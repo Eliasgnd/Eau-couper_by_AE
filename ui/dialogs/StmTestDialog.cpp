@@ -1,6 +1,7 @@
 #include "StmTestDialog.h"
 #include "ui_StmTestDialog.h"
 #include "StmProtocol.h"
+#include "StmUartService.h"
 
 #include <QDateTime>
 #include <QClipboard>
@@ -101,8 +102,14 @@ void StmTestDialog::refreshPortList()
 
     // Restaurer la sélection précédente si le port est encore disponible
     const int idx = ui->portCombo->findText(current);
-    if (idx >= 0)
+    if (idx >= 0) {
         ui->portCombo->setCurrentIndex(idx);
+    } else {
+        const QString preferredPort = StmUartService::findPreferredPortName();
+        const int preferredIdx = ui->portCombo->findText(preferredPort);
+        if (preferredIdx >= 0)
+            ui->portCombo->setCurrentIndex(preferredIdx);
+    }
 
     appendLog(tr("→ %1 port(s) série détecté(s).").arg(ports.size()), "#cba6f7");
 }
@@ -120,8 +127,10 @@ void StmTestDialog::onConnectClicked()
 {
     if (!m_connected) {
         const QString port = ui->portCombo->currentText().trimmed();
-        if (port.isEmpty()) return;
-        appendLog(tr("→ Connexion sur %1...").arg(port), "#89b4fa");
+        if (port.isEmpty())
+            appendLog(tr("→ Recherche automatique du port STM32..."), "#89b4fa");
+        else
+            appendLog(tr("→ Connexion sur %1...").arg(port), "#89b4fa");
         m_vm->connectToStm(port);
     } else {
         appendLog(tr("→ Déconnexion..."), "#f38ba8");

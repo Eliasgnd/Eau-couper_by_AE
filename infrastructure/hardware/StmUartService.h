@@ -28,9 +28,10 @@ public:
     ~StmUartService() override;
 
     // --- Connexion ---
-    void open(const QString& portName);
+    void open(const QString& portName = QString());
     void close();
     bool isOpen() const;
+    static QString findPreferredPortName();
 
     // --- Envoi vers STM ---
     void sendSegment(const StmSegment& seg);

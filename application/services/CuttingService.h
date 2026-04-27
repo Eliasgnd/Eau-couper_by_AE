@@ -35,6 +35,7 @@ signals:
     void finished(bool success);
     void controlsEnabledChanged(bool enabled);
     void statusMessage(const QString &message);
+    void cuttingStarted();
 
 private:
     void connectMachineToMotor(MachineViewModel* vm);

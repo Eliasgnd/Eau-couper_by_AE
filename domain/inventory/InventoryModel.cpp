@@ -22,6 +22,7 @@ void InventoryModel::load()
     m_baseShapeFolders = snapshot.baseShapeFolders;
     m_baseUsageCount = snapshot.baseUsageCount;
     m_baseLastUsed = snapshot.baseLastUsed;
+    m_baseShapeCutHistory = snapshot.baseShapeCutHistory;
     m_baseShapeOrder = snapshot.baseShapeOrder;
     m_folders = snapshot.folders;
 }
@@ -34,6 +35,7 @@ void InventoryModel::save() const
     snapshot.baseShapeFolders = m_baseShapeFolders;
     snapshot.baseUsageCount = m_baseUsageCount;
     snapshot.baseLastUsed = m_baseLastUsed;
+    snapshot.baseShapeCutHistory = m_baseShapeCutHistory;
     snapshot.baseShapeOrder = m_baseShapeOrder;
     snapshot.folders = m_folders;
     m_repository->save(snapshot);

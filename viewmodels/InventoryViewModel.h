@@ -71,6 +71,12 @@ public slots:
     bool deleteLayoutForBaseShape(ShapeModel::Type type, int index);
     bool incrementLayoutUsageForCustomShape(const QString &shapeName, int index);
     bool incrementLayoutUsageForBaseShape(ShapeModel::Type type, int index);
+    bool recordBaseShapeCut(ShapeModel::Type type);
+    bool recordCustomShapeCut(const QString &shapeName);
+    bool findCustomShapeByName(const QString &shapeName,
+                               QList<QPolygonF> &polygonsOut,
+                               QString &resolvedNameOut) const;
+    QList<QuickShapeEntry> getQuickAccessShapes(int maxCount) const;
 
     void navigateBack();
     void refresh();

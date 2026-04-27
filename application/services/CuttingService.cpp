@@ -118,6 +118,7 @@ void CuttingService::startCutting()
     emit controlsEnabledChanged(false);
     m_visualization->setInteractionEnabled(false);
     m_visualization->resetAllShapeColors();
+    emit cuttingStarted();
     m_trajetMotor->executeTrajet();
 }
 
