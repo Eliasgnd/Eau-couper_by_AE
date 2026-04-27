@@ -1,7 +1,7 @@
 # ==== PROJET ====
 TARGET = machineDecoupeIHM
 TEMPLATE = app
-QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent serialport
+QT += core gui widgets svg network httpserver openglwidgets concurrent serialport
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 CONFIG += c++14
 
@@ -148,11 +148,9 @@ HEADERS += \
     ui/widgets/LayoutsDialog.h \
     ui/widgets/KeyboardEventFilter.h \
     ui/widgets/WifiTransferWidget.h \
-    ui/dialogs/TestGpio.h \
     ui/dialogs/StmTestDialog.h \
     ui/dialogs/AIImagePromptDialog.h \
     ui/dialogs/AIImageProcessDialog.h \
-    ui/dialogs/BluetoothReceiverDialog.h \
     ui/dialogs/WifiConfigDialog.h \
     ui/utils/AspectRatioWrapper.h \
     ui/utils/ScreenUtils.h \
@@ -235,11 +233,9 @@ SOURCES += \
     ui/widgets/LayoutsDialog.cpp \
     ui/widgets/KeyboardEventFilter.cpp \
     ui/widgets/WifiTransferWidget.cpp \
-    ui/dialogs/TestGpio.cpp \
     ui/dialogs/StmTestDialog.cpp \
     ui/dialogs/AIImagePromptDialog.cpp \
     ui/dialogs/AIImageProcessDialog.cpp \
-    ui/dialogs/BluetoothReceiverDialog.cpp \
     ui/dialogs/WifiConfigDialog.cpp \
     ui/utils/AspectRatioWrapper.cpp \
     ui/utils/ImageExporter.cpp \
@@ -279,12 +275,10 @@ SOURCES += \
 # ==== FORMS ====
 FORMS += \
     ui/mainwindow/mainwindow.ui \
-    ui/dialogs/BluetoothReceiverDialog.ui \
     ui/widgets/CustomEditor.ui \
     ui/widgets/Inventory.ui \
     ui/widgets/LayoutsDialog.ui \
     ui/widgets/FolderWidget.ui \
-    ui/dialogs/TestGpio.ui \
     ui/dialogs/StmTestDialog.ui \
     ui/widgets/WifiTransferWidget.ui \
     ui/dialogs/WifiConfigDialog.ui

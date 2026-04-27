@@ -73,8 +73,6 @@ signals:
     void inventoryRequested();
     void customEditorRequested();
     void folderRequested();
-    void testGpioRequested();
-    void bluetoothReceiverRequested();
     void wifiTransferRequested();
     void stmTestRequested();
 

@@ -15,8 +15,6 @@ class InventoryViewModel;
 class CustomEditor;
 class WifiTransferWidget;
 class WifiConfigDialog;
-class BluetoothReceiverDialog;
-class TestGpio;
 class FolderWidget;
 class LayoutsDialog;
 class ShapeVisualization;
@@ -32,8 +30,6 @@ public:
     void openCustomEditorWithImportedPath(QWidget *from, Language language, const QPainterPath &outline);
     void openWifiTransfer(QWidget *from);
     void openWifiSettings(QWidget *from);
-    void openBluetoothReceiver(QWidget *from);
-    void openTestGpio(QWidget *from);
     void openFolder(QWidget *from, Language language);
     void openLayoutsDialog(QWidget *from,
                            const QString &shapeName,

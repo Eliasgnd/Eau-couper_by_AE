@@ -5,8 +5,6 @@
 #include "InventoryViewModel.h"
 #include "WifiTransferWidget.h"
 #include "WifiConfigDialog.h"
-#include "BluetoothReceiverDialog.h"
-#include "TestGpio.h"
 #include "FolderWidget.h"
 #include "LayoutsDialog.h"
 #include "ShapeVisualization.h"
@@ -105,32 +103,6 @@ void DialogManager::openWifiSettings(QWidget *from)
         from->hide();
 
     auto *dialog = new WifiConfigDialog();
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    connect(dialog, &QObject::destroyed, this, [this]() {
-        emit requestReturnToFullScreen();
-    });
-    dialog->showFullScreen();
-}
-
-void DialogManager::openBluetoothReceiver(QWidget *from)
-{
-    if (from)
-        from->hide();
-
-    auto *dialog = new BluetoothReceiverDialog();
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    connect(dialog, &QObject::destroyed, this, [this]() {
-        emit requestReturnToFullScreen();
-    });
-    dialog->showFullScreen();
-}
-
-void DialogManager::openTestGpio(QWidget *from)
-{
-    if (from)
-        from->hide();
-
-    auto *dialog = new TestGpio();
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &QObject::destroyed, this, [this]() {
         emit requestReturnToFullScreen();

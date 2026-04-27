@@ -50,8 +50,6 @@ public:
     void openInventory(QWidget *mainWindow, QWidget *inventoryWindow);
     void openCustomEditor(QWidget *mainWindow, Language language);
     void openFolder(QWidget *mainWindow, Language language);
-    void openTestGpio(QWidget *mainWindow);
-    void openBluetoothReceiver(QWidget *mainWindow);
     void openWifiTransfer(QWidget *mainWindow);
 
     void handleSaveLayoutRequest(QWidget *mainWindow,
@@ -107,8 +105,6 @@ public slots:
     void onInventoryRequested();
     void onCustomEditorRequested();
     void onFolderRequested();
-    void onTestGpioRequested();
-    void onBluetoothReceiverRequested();
     void onWifiTransferRequested();
 
     void onSaveLayoutRequested();

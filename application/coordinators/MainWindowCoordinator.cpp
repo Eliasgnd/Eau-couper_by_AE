@@ -231,8 +231,6 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(view, &MainWindow::inventoryRequested,         this, &MainWindowCoordinator::onInventoryRequested);
     connect(view, &MainWindow::customEditorRequested,       this, &MainWindowCoordinator::onCustomEditorRequested);
     connect(view, &MainWindow::folderRequested,             this, &MainWindowCoordinator::onFolderRequested);
-    connect(view, &MainWindow::testGpioRequested,           this, &MainWindowCoordinator::onTestGpioRequested);
-    connect(view, &MainWindow::bluetoothReceiverRequested,  this, &MainWindowCoordinator::onBluetoothReceiverRequested);
     connect(view, &MainWindow::wifiTransferRequested,       this, &MainWindowCoordinator::onWifiTransferRequested);
 
     // --- Sauvegarde / AI ---
@@ -359,16 +357,6 @@ void MainWindowCoordinator::onFolderRequested()
     openFolder(m_view, m_model->language());
 }
 
-void MainWindowCoordinator::onTestGpioRequested()
-{
-    openTestGpio(m_view);
-}
-
-void MainWindowCoordinator::onBluetoothReceiverRequested()
-{
-    openBluetoothReceiver(m_view);
-}
-
 void MainWindowCoordinator::onWifiTransferRequested()
 {
     openWifiTransfer(m_view);
@@ -417,16 +405,6 @@ void MainWindowCoordinator::openCustomEditor(QWidget *mainWindow, Language langu
 void MainWindowCoordinator::openFolder(QWidget *mainWindow, Language language)
 {
     m_navigationController->openFolder(mainWindow, language);
-}
-
-void MainWindowCoordinator::openTestGpio(QWidget *mainWindow)
-{
-    m_navigationController->openTestGpio(mainWindow);
-}
-
-void MainWindowCoordinator::openBluetoothReceiver(QWidget *mainWindow)
-{
-    m_navigationController->openBluetoothReceiver(mainWindow);
 }
 
 void MainWindowCoordinator::openWifiTransfer(QWidget *mainWindow)
