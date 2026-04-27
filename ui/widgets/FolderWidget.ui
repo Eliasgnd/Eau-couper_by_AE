@@ -10,56 +10,204 @@
     <height>600</height>
    </rect>
   </property>
-  <property name="styleSheet">
-   <string notr="true">QWidget { background-color: rgb(189,189,189); }</string>
-  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <item>
-      <widget class="QComboBox" name="comboSort">
-       <property name="minimumSize">
-        <size>
-         <width>150</width>
-         <height>30</height>
-        </size>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QPushButton" name="buttonClose">
-       <property name="minimumSize">
-        <size>
-         <width>30</width>
-         <height>30</height>
-        </size>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">QPushButton { border:none; }</string>
-       </property>
-       <property name="icon">
-        <iconset resource="resources.qrc">
-         <normaloff>:/icons/cross.svg</normaloff>:/icons/cross.svg</iconset>
-       </property>
-      </widget>
-     </item>
-    </layout>
+    <widget class="QFrame" name="inventoryHeaderBar">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>64</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>64</height>
+      </size>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::StyledPanel</enum>
+     </property>
+     <layout class="QHBoxLayout" name="headerLayout">
+      <property name="leftMargin">
+       <number>16</number>
+      </property>
+      <property name="topMargin">
+       <number>8</number>
+      </property>
+      <property name="rightMargin">
+       <number>12</number>
+      </property>
+      <property name="bottomMargin">
+       <number>8</number>
+      </property>
+      <property name="spacing">
+       <number>10</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="labelInventoryTitle">
+        <property name="text">
+         <string>IMAGES GÉNÉRÉES</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="headerSpacerLeft">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="searchBar">
+        <property name="minimumSize">
+         <size>
+          <width>250</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>420</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="placeholderText">
+         <string>Rechercher...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="buttonClearSearch">
+        <property name="minimumSize">
+         <size>
+          <width>44</width>
+          <height>44</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>X</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="comboSort">
+        <property name="minimumSize">
+         <size>
+          <width>170</width>
+          <height>40</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="comboFilter">
+        <property name="minimumSize">
+         <size>
+          <width>170</width>
+          <height>40</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSlider" name="sliderZoom">
+        <property name="minimumSize">
+         <size>
+          <width>130</width>
+          <height>32</height>
+         </size>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="headerSpacerRight">
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="buttonTheme">
+        <property name="minimumSize">
+         <size>
+          <width>44</width>
+          <height>44</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Theme</string>
+        </property>
+        <property name="icon">
+         <iconset resource="resources.qrc">
+          <normaloff>:/icons/sun.svg</normaloff>:/icons/sun.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>22</width>
+          <height>22</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="buttonMenu">
+        <property name="minimumSize">
+         <size>
+          <width>44</width>
+          <height>44</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Menu</string>
+        </property>
+        <property name="icon">
+         <iconset resource="resources.qrc">
+          <normaloff>:/icons/house.svg</normaloff>:/icons/house.svg</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>22</width>
+          <height>22</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
    <item>
-    <widget class="QScrollArea" name="scrollArea">
+    <widget class="QScrollArea" name="scrollAreaInventory">
      <property name="widgetResizable">
       <bool>true</bool>
      </property>
@@ -72,7 +220,26 @@
         <height>560</height>
        </rect>
       </property>
-      <layout class="QGridLayout" name="gridLayout"/>
+      <layout class="QGridLayout" name="gridLayout">
+       <property name="leftMargin">
+        <number>18</number>
+       </property>
+       <property name="topMargin">
+        <number>18</number>
+       </property>
+       <property name="rightMargin">
+        <number>18</number>
+       </property>
+       <property name="bottomMargin">
+        <number>18</number>
+       </property>
+       <property name="horizontalSpacing">
+        <number>16</number>
+       </property>
+       <property name="verticalSpacing">
+        <number>16</number>
+       </property>
+      </layout>
      </widget>
     </widget>
    </item>

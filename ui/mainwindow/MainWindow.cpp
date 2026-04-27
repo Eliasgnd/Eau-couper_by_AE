@@ -287,8 +287,8 @@ void MainWindow::setupViewConnections()
     // ---- Navigation ----
     connect(ui->buttonInventory,           &QPushButton::clicked, this, &MainWindow::inventoryRequested);
     connect(ui->buttonCustom,              &QPushButton::clicked, this, &MainWindow::customEditorRequested);
-    connect(ui->buttonTestGpio,            &QPushButton::clicked, this, &MainWindow::folderRequested);
-    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::testGpioRequested);
+    connect(ui->buttonTestGpio,            &QPushButton::clicked, this, &MainWindow::testGpioRequested);
+    connect(ui->buttonViewGeneratedImages, &QPushButton::clicked, this, &MainWindow::folderRequested);
     connect(ui->buttonFileReceiver,        &QPushButton::clicked, this, &MainWindow::bluetoothReceiverRequested);
     connect(ui->buttonWifiTransfer,        &QPushButton::clicked, this, &MainWindow::wifiTransferRequested);
     connect(ui->buttonTestMoteurs,         &QPushButton::clicked, this, &MainWindow::stmTestRequested);
