@@ -44,7 +44,7 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
     if (m_modeManager->drawMode() == DrawModeManager::DrawMode::Supprimer) {
         const auto &shapes = m_shapeManager->shapes();
         QPainterPathStroker stroker;
-        stroker.setWidth(5.0);
+        stroker.setWidth(18.0);
         for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
             if (shapes[i].path.contains(logicalPos) ||
                 stroker.createStroke(shapes[i].path).contains(logicalPos)) {
@@ -60,7 +60,7 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         const auto &shapes = m_shapeManager->shapes();
         int clickedIndex = -1;
         QPainterPathStroker stroker;
-        stroker.setWidth(8.0);
+        stroker.setWidth(26.0);
         stroker.setCapStyle(Qt::RoundCap);
         stroker.setJoinStyle(Qt::RoundJoin);
         for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {

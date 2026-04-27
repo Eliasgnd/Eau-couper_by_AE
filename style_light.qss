@@ -1101,3 +1101,12 @@ QPushButton#backButton {
 }
 QPushButton#backButton:hover { background-color: #E2E8F0; border-color: #0EA5E9; color: #0284C7; }
 QPushButton#backButton:pressed { background-color: #CBD5E1; }
+
+/* ---------- BOUTONS DU BANDEAU DE SELECTION TACTILE ---------- */
+QFrame#touchSelectionPanel QPushButton {
+    min-height: 26px;      /* Écrase la hauteur minimale globale de 42px */
+    max-height: 32px;      /* Empêche les boutons de trop s'étirer en hauteur */
+    padding: 4px 8px;      /* Réduit l'espacement interne */
+    font-size: 11px;       /* Un poil plus petit pour bien rentrer */
+    border-radius: 4px;    /* Des bords un peu moins arrondis */
+}

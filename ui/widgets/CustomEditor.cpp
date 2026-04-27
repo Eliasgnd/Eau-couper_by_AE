@@ -8,6 +8,7 @@
 #include <QSettings>
 #include "ThemeManager.h"
 #include "KeyboardDialog.h"
+#include "NumericKeyboardDialog.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include "Language.h"
@@ -30,6 +31,7 @@
 #include <QApplication>
 #include <algorithm>
 #include <QFontComboBox>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <cmath>
 #include "ScreenUtils.h"
@@ -106,6 +108,64 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
 
     // Création de l'instance de CustomDrawArea
     drawArea = new CustomDrawArea(this);
+    m_touchSelectionPanel = new QFrame(this);
+    m_touchSelectionPanel->setObjectName("touchSelectionPanel");
+    m_touchSelectionPanel->setVisible(false);
+
+    // 1. On fixe la hauteur max à 70 comme tu le souhaites (et un minimum pour la lisibilité)
+    m_touchSelectionPanel->setMinimumHeight(50);
+    m_touchSelectionPanel->setMaximumHeight(70);
+
+    // 2. LE SECRET EST ICI : On force le panneau à ne pas s'étirer verticalement dans le layout parent
+    m_touchSelectionPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+
+    m_touchSelectionPanel->setStyleSheet(
+        "QFrame#touchSelectionPanel {"
+        " background: rgba(43, 122, 255, 0.10);"
+        " border: 2px solid rgba(43, 122, 255, 0.35);"
+        " border-radius: 14px;"
+        "}"
+        );
+
+    auto *touchPanelLayout = new QHBoxLayout(m_touchSelectionPanel);
+    touchPanelLayout->setContentsMargins(12, 8, 12, 8); // Marges légèrement augmentées sur les côtés
+    touchPanelLayout->setSpacing(10);
+
+    m_touchSelectionLabel = new QLabel(tr("Aucune selection"), m_touchSelectionPanel);
+    // On enlève les minimum/maximum width trop stricts et on utilise les SizePolicy
+    m_touchSelectionLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_touchSelectionLabel->setWordWrap(true);
+
+    m_touchDuplicateButton = new QPushButton(tr("Dupli."), m_touchSelectionPanel);
+    m_touchDeleteButton = new QPushButton(tr("Suppr."), m_touchSelectionPanel);
+    m_touchWidthButton = new QPushButton(tr("Larg."), m_touchSelectionPanel);
+    m_touchHeightButton = new QPushButton(tr("Haut."), m_touchSelectionPanel);
+    m_touchRotateButton = new QPushButton(tr("Angle"), m_touchSelectionPanel);
+
+    const QList<QPushButton*> touchButtons = {
+        m_touchDuplicateButton, m_touchDeleteButton, m_touchWidthButton, m_touchHeightButton, m_touchRotateButton
+    };
+
+    for (QPushButton *button : touchButtons) {
+        // 2. Taille dynamique pour les boutons
+        button->setMinimumSize(70, 30); // 30px de hauteur est beaucoup plus standard
+        // Permet au bouton de s'étirer verticalement pour remplir l'espace disponible
+        button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    }
+
+    auto *touchButtonsLayout = new QHBoxLayout();
+    touchButtonsLayout->setSpacing(8);
+    touchButtonsLayout->setContentsMargins(0, 0, 0, 0);
+
+    for (QPushButton *button : touchButtons) {
+        touchButtonsLayout->addWidget(button);
+    }
+    // On garde le stretch pour éviter que les boutons deviennent immenses sur les très grands écrans
+    touchButtonsLayout->addStretch(1);
+
+    // 3. Répartition de l'espace horizontal (Stretch factors : 1 pour le label, 2 pour les boutons)
+    touchPanelLayout->addWidget(m_touchSelectionLabel, 1, Qt::AlignVCenter);
+    touchPanelLayout->addLayout(touchButtonsLayout, 2);
 
     // Connexions ViewModel → View
     if (m_viewModel) {
@@ -130,6 +190,7 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         imgLayout->addWidget(m_edgeView);
         dwLayout->addLayout(imgLayout);
         dwLayout->addWidget(drawArea);
+        dwLayout->addWidget(m_touchSelectionPanel);
     } else {
         //qDebug() << "Erreur : ui->drawingWidget est nullptr !";
     }
@@ -164,6 +225,29 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         ui->buttonCopyPaste->setVisible(enabled);
         if (enabled)
             ui->buttonCopyPaste->setText(tr("Copier"));
+    });
+
+    connect(drawArea, &CustomDrawArea::selectionStateChanged,
+            this, &CustomEditor::updateTouchSelectionPanel);
+    connect(m_touchDeleteButton, &QPushButton::clicked, drawArea, &CustomDrawArea::deleteSelectedShapes);
+    connect(m_touchDuplicateButton, &QPushButton::clicked, drawArea, &CustomDrawArea::duplicateSelectedShapes);
+    connect(m_touchWidthButton, &QPushButton::clicked, this, [this]() {
+        if (!drawArea->hasSelection()) return;
+        int value = qRound(drawArea->selectedShapesBounds().width());
+        if (NumericKeyboardDialog::openNumericKeyboardDialog(this, value))
+            drawArea->resizeSelectedShapes(value, drawArea->selectedShapesBounds().height());
+    });
+    connect(m_touchHeightButton, &QPushButton::clicked, this, [this]() {
+        if (!drawArea->hasSelection()) return;
+        int value = qRound(drawArea->selectedShapesBounds().height());
+        if (NumericKeyboardDialog::openNumericKeyboardDialog(this, value))
+            drawArea->resizeSelectedShapes(drawArea->selectedShapesBounds().width(), value);
+    });
+    connect(m_touchRotateButton, &QPushButton::clicked, this, [this]() {
+        if (!drawArea->hasSelection()) return;
+        int angle = 0;
+        if (NumericKeyboardDialog::openNumericKeyboardDialog(this, angle))
+            drawArea->rotateSelectedShapes(angle);
     });
 
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
@@ -711,6 +795,17 @@ void CustomEditor::updateShapeButtonIcon(CustomDrawArea::DrawMode mode)
     auto it = iconMap.constFind(mode);
     if (it != iconMap.constEnd())
         ui->buttonForme->setIcon(QIcon(it.value()));
+}
+
+void CustomEditor::updateTouchSelectionPanel(bool hasSelection, const QString &summary)
+{
+    if (!m_touchSelectionPanel || !m_touchSelectionLabel) return;
+
+    m_touchSelectionPanel->setVisible(hasSelection);
+    m_touchSelectionLabel->setText(summary);
+    ui->labelCurrentMode->setText(hasSelection
+                                      ? tr("Selection tactile")
+                                      : tr("Mode : %1").arg(modeToString(drawArea->getDrawMode())));
 }
 
 void CustomEditor::changeEvent(QEvent *event)

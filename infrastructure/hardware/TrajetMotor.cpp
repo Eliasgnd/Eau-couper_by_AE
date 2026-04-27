@@ -2,16 +2,33 @@
 #include "MachineViewModel.h"
 #include "MainWindow.h"
 
+#include <QDebug>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
 #include <QMessageBox>
 #include <QMutexLocker>
-#include <QDebug>
 #include <algorithm>
-#include <utility>
 #include <cmath>
+#include <utility>
 
 static constexpr double mmPerPx = 1.0;
+
+namespace {
+qint64 estimateSegmentDurationMs(const StmSegment& seg, bool isCut, double cutSpeedMmS, double travelSpeedMmS)
+{
+    const double speedMmS = isCut ? cutSpeedMmS : travelSpeedMmS;
+    if (speedMmS <= 0.0)
+        return 0;
+
+    const int dominantSteps = qMax(qAbs(seg.dx), qAbs(seg.dy));
+    if (dominantSteps <= 0)
+        return 0;
+
+    const double durationMs = (static_cast<double>(dominantSteps) * 1000.0)
+                              / (speedMmS * STEPS_PER_MM);
+    return qMax<qint64>(1, static_cast<qint64>(std::llround(durationMs)));
+}
+}
 
 TrajetMotor::TrajetMotor(ShapeVisualization* visu, QWidget* parent)
     : QWidget(parent), m_visu(visu)
@@ -37,8 +54,10 @@ void TrajetMotor::setVtravel(double vitesse_mm_s) { m_vTrav = qBound(1.0, vitess
 
 void TrajetMotor::executeTrajet()
 {
-    if (m_running) return;
-    if (!m_visu || !m_visu->getScene()) return;
+    if (m_running)
+        return;
+    if (!m_visu || !m_visu->getScene())
+        return;
 
     m_running       = true;
     m_paused        = false;
@@ -60,13 +79,11 @@ void TrajetMotor::doExecuteTrajet()
 {
     const QPoint homePos(HOME_X, HOME_Y);
 
-    // Étape 1 : lecture de la scène sur le thread principal (rapide, ~1 ms)
     QList<ContinuousCut> rawCuts;
     QMetaObject::invokeMethod(this, [this, &rawCuts]() {
         rawCuts = PathPlanner::extractRawPaths(m_visu->getScene());
     }, Qt::BlockingQueuedConnection);
 
-    // Étape 2 : calcul lourd sur le worker thread (O(n²), TSP, lead-ins)
     QList<ContinuousCut> optimizedCuts = PathPlanner::computeOptimizedPaths(rawCuts, homePos);
 
     if (optimizedCuts.isEmpty()) {
@@ -78,6 +95,7 @@ void TrajetMotor::doExecuteTrajet()
     }
 
     m_plannedSegments.clear();
+    m_remainingMsByCompletedSegments.clear();
     QPoint cur = homePos;
 
     auto planMove = [&](const QPoint& from, const QPoint& to, uint8_t flags, bool isLast) {
@@ -90,7 +108,8 @@ void TrajetMotor::doExecuteTrajet()
 
         static constexpr int MAX_STEPS = 30000;
         const int totalAbs = qMax(qAbs(dxSteps), qAbs(dySteps));
-        if (totalAbs == 0) return;
+        if (totalAbs == 0)
+            return;
 
         const int numChunks = (totalAbs + MAX_STEPS - 1) / MAX_STEPS;
         for (int i = 0; i < numChunks; ++i) {
@@ -103,45 +122,52 @@ void TrajetMotor::doExecuteTrajet()
             seg.dz = 0;
             seg.v_max = arr;
             seg.flags = flags;
-            if (isLast && i == numChunks - 1) seg.flags |= FLAG_END_SEQ;
+            if (isLast && i == numChunks - 1)
+                seg.flags |= FLAG_END_SEQ;
 
-            m_plannedSegments.append({seg, (flags & FLAG_VALVE_ON) != 0});
+            const bool isCut = (flags & FLAG_VALVE_ON) != 0;
+            m_plannedSegments.append({seg, isCut, estimateSegmentDurationMs(seg, isCut, m_vCut, m_vTrav)});
         }
     };
 
-    // Remplacement par une boucle for classique pour éviter le warning detach
     for (int c = 0; c < optimizedCuts.size(); ++c) {
         const ContinuousCut& cut = optimizedCuts[c];
         QPoint realStart = cut.points.first().toPoint();
 
         qDebug() << "MOUVEMENT: de" << cur << "vers" << realStart;
 
-        if (cur != realStart) planMove(cur, realStart, FLAG_VALVE_OFF, false);
+        if (cur != realStart)
+            planMove(cur, realStart, FLAG_VALVE_OFF, false);
         cur = realStart;
 
         for (int i = 1; i < cut.points.size(); ++i) {
             QPoint realEnd = cut.points[i].toPoint();
 
-            // On vérifie qu'on est sur le dernier point
-            bool isLastShapePoint = (i == cut.points.size() - 1 && c == optimizedCuts.size() - 1);
-            // On ne met le drapeau de FIN que si la machine NE RENTRE PAS au Home juste après
-            bool isLast = isLastShapePoint && (realEnd == homePos);
+            const bool isLastShapePoint = (i == cut.points.size() - 1 && c == optimizedCuts.size() - 1);
+            const bool isLast = isLastShapePoint && (realEnd == homePos);
 
             planMove(cur, realEnd, FLAG_VALVE_ON, isLast);
             cur = realEnd;
         }
     }
 
-    if (cur != homePos) planMove(cur, homePos, FLAG_VALVE_OFF, true);
+    if (cur != homePos)
+        planMove(cur, homePos, FLAG_VALVE_OFF, true);
 
-    // Réinitialise seg_executed sur le STM afin que onSegmentExecuted()
-    // puisse mapper seg → m_plannedSegments[seg] sans offset inconnu.
+    m_remainingMsByCompletedSegments.resize(m_plannedSegments.size() + 1);
+    qint64 remainingMs = 0;
+    for (int i = m_plannedSegments.size() - 1; i >= 0; --i) {
+        remainingMs += m_plannedSegments[i].estimatedDurationMs;
+        m_remainingMsByCompletedSegments[i] = remainingMs;
+    }
+    m_remainingMsByCompletedSegments[m_plannedSegments.size()] = 0;
+
     QMetaObject::invokeMethod(this, [this]() {
-        if (m_machine) m_machine->sendClear();
+        if (m_machine)
+            m_machine->sendClear();
     }, Qt::BlockingQueuedConnection);
-    QThread::msleep(30); // laisse le temps au STM de traiter CLEAR avant les trames binaires
+    QThread::msleep(30);
 
-    // Couleur initiale basée sur le premier segment planifié
     m_isCurrentlyCutting.store(m_plannedSegments.isEmpty() ? false : m_plannedSegments[0].isCut);
 
     QMetaObject::invokeMethod(this, [this, homePos]() {
@@ -155,31 +181,35 @@ void TrajetMotor::doExecuteTrajet()
     }, Qt::BlockingQueuedConnection);
 
     const int totalSegments = m_plannedSegments.size();
+    emit decoupeProgress(0, qMax(1, totalSegments), m_remainingMsByCompletedSegments.value(0));
+
     for (int i = 0; i < totalSegments; ++i) {
-        if (m_stopRequested) break;
-        while (m_paused && !m_stopRequested) QThread::msleep(30);
+        if (m_stopRequested)
+            break;
+        while (m_paused && !m_stopRequested)
+            QThread::msleep(30);
 
         bool accepted = false;
         while (!m_stopRequested) {
             QMetaObject::invokeMethod(this, [&]() {
-                if (m_machine) accepted = m_machine->sendSegment(m_plannedSegments[i].stmSeg);
+                if (m_machine)
+                    accepted = m_machine->sendSegment(m_plannedSegments[i].stmSeg);
             }, Qt::BlockingQueuedConnection);
 
-            if (accepted) break;
+            if (accepted)
+                break;
             QThread::msleep(10);
         }
     }
 
     if (!m_stopRequested) {
         QMutexLocker lk(&m_doneMutex);
-        while (!m_doneReceived.load() && !m_stopRequested.load()) {
+        while (!m_doneReceived.load() && !m_stopRequested.load())
             m_doneCond.wait(&m_doneMutex, 200);
-        }
     }
 
     const bool success = !m_interrupted.load();
 
-    // CORRECTION : Ajout de totalSegments dans les [] pour qu'il soit reconnu (C3493, C2326)
     QMetaObject::invokeMethod(this, [this, success, totalSegments]() {
         if (m_head) {
             m_visu->getScene()->removeItem(m_head);
@@ -187,18 +217,19 @@ void TrajetMotor::doExecuteTrajet()
             m_head = nullptr;
         }
         m_visu->setDecoupeEnCours(false);
-        emit decoupeProgress(0, qMax(1, totalSegments));
+        emit decoupeProgress(totalSegments, qMax(1, totalSegments), 0);
         emit decoupeFinished(success);
 
         QMessageBox::information(m_mainWindow,
-                                 success ? tr("Découpe terminée") : tr("Découpe interrompue"),
-                                 success ? tr("Découpe réussie !") : tr("L'opération a été stoppée."));
+                                 success ? tr("Decoupe terminee") : tr("Decoupe interrompue"),
+                                 success ? tr("Decoupe reussie !") : tr("L'operation a ete stoppee."));
     }, Qt::QueuedConnection);
 }
 
 void TrajetMotor::onPositionUpdated(int x_steps, int y_steps)
 {
-    if (!m_head) return;
+    if (!m_head)
+        return;
 
     const double realX_mm = x_steps / static_cast<double>(STEPS_PER_MM);
     const double realY_mm = y_steps / static_cast<double>(STEPS_PER_MM);
@@ -221,12 +252,13 @@ void TrajetMotor::onPositionUpdated(int x_steps, int y_steps)
 
 void TrajetMotor::onSegmentExecuted(int seg, int /*x_steps*/, int /*y_steps*/)
 {
-    // seg = seg_executed du STM (remis à 0 par CLEAR en début de découpe).
-    // seg segments terminés → m_plannedSegments[seg] est en cours d'exécution.
-    if (seg >= 0 && seg < m_plannedSegments.size()) {
+    if (seg >= 0 && seg < m_plannedSegments.size())
         m_isCurrentlyCutting.store(m_plannedSegments[seg].isCut);
-    }
-    emit decoupeProgress(m_plannedSegments.size() - seg, qMax(1, (int)m_plannedSegments.size()));
+
+    const int completedSegments = qBound(0, seg, m_plannedSegments.size());
+    const int totalSegments = qMax(1, m_plannedSegments.size());
+    const qint64 remainingMs = m_remainingMsByCompletedSegments.value(completedSegments, 0);
+    emit decoupeProgress(completedSegments, totalSegments, remainingMs);
 }
 
 void TrajetMotor::onMachineDone()
@@ -238,7 +270,8 @@ void TrajetMotor::onMachineDone()
 
 void TrajetMotor::pause() { m_paused = true; }
 void TrajetMotor::resume() { m_paused = false; }
-void TrajetMotor::stopCut() {
+void TrajetMotor::stopCut()
+{
     m_stopRequested = true;
     m_paused = false;
     m_interrupted = true;
@@ -246,19 +279,19 @@ void TrajetMotor::stopCut() {
     m_doneCond.wakeAll();
 }
 
-int TrajetMotor::estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos) {
+int TrajetMotor::estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos)
+{
     int steps = 0;
     QPoint p = homePos;
 
-    // Remplacement par une boucle for classique pour éviter le warning detach
     for (int c = 0; c < cuts.size(); ++c) {
         const ContinuousCut& cut = cuts[c];
 
         steps += static_cast<int>(std::max(std::abs(static_cast<double>(p.x() - cut.points.first().x())),
                                            std::abs(static_cast<double>(p.y() - cut.points.first().y()))));
         for (int i = 1; i < cut.points.size(); ++i) {
-            steps += static_cast<int>(std::max(std::abs(static_cast<double>(cut.points[i-1].x() - cut.points[i].x())),
-                                               std::abs(static_cast<double>(cut.points[i-1].y() - cut.points[i].y()))));
+            steps += static_cast<int>(std::max(std::abs(static_cast<double>(cut.points[i - 1].x() - cut.points[i].x())),
+                                               std::abs(static_cast<double>(cut.points[i - 1].y() - cut.points[i].y()))));
         }
         p = cut.points.last().toPoint();
     }

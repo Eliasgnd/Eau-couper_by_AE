@@ -7,6 +7,10 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 
+class QFrame;
+class QLabel;
+class QPushButton;
+
 namespace Ui {
 class CustomEditor;
 }
@@ -39,9 +43,17 @@ private:
     CustomEditorViewModel *m_viewModel = nullptr;
     QStringList m_favoriteFonts;
     bool m_isDarkTheme = false;
+    QFrame *m_touchSelectionPanel = nullptr;
+    QLabel *m_touchSelectionLabel = nullptr;
+    QPushButton *m_touchDuplicateButton = nullptr;
+    QPushButton *m_touchDeleteButton = nullptr;
+    QPushButton *m_touchWidthButton = nullptr;
+    QPushButton *m_touchHeightButton = nullptr;
+    QPushButton *m_touchRotateButton = nullptr;
 
     void applyStyleSheets();
     void updateThemeButton();
+    void updateTouchSelectionPanel(bool hasSelection, const QString &summary);
 
 
 private slots:

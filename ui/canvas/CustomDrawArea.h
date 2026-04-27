@@ -15,6 +15,7 @@
 class QMouseEvent;
 class QPaintEvent;
 class QWheelEvent;
+class QString;
 class EraserTool;
 class HistoryManager;
 class MouseInteractionHandler;
@@ -60,9 +61,13 @@ public:
     void toggleMultiSelectMode();
     bool hasSelection() const;
     void deleteSelectedShapes();
+    void duplicateSelectedShapes();
     void copySelectedShapes();
     void enablePasteMode();
     void pasteCopiedShapes(const QPointF &dest);
+    QRectF selectedShapesBounds() const;
+    void resizeSelectedShapes(qreal targetWidth, qreal targetHeight);
+    void rotateSelectedShapes(qreal angleDegrees);
 
     void setSnapToGridEnabled(bool enabled);
     bool isSnapToGridEnabled() const;
@@ -86,6 +91,7 @@ signals:
     void supprimerModeChanged(bool enabled);
     void gommeModeChanged(bool enabled);
     void drawModeChanged(DrawMode mode);
+    void selectionStateChanged(bool hasSelection, const QString &summary);
 
 public slots:
     void startCloseMode();    void cancelCloseMode();
@@ -108,7 +114,17 @@ private:
     void    onDrawModeChanged(DrawMode mode);
     QPointF toLogical(const QPointF &widgetPoint) const;
     QPointF snapToGridIfNeeded(const QPointF &logicalPoint) const;
-    int     hitTestShape(const QPointF &logicalPoint, qreal tolerance = 25.0) const;
+    int     hitTestShape(const QPointF &logicalPoint, qreal tolerance = 40.0) const;
+    enum class ResizeHandle { None, TopLeft, TopRight, BottomLeft, BottomRight };
+    QRectF       selectionOverlayBounds() const;
+    QTransform   selectionRotationTransform() const;
+    QTransform   selectionInverseRotationTransform() const;
+    ResizeHandle hitTestSelectionHandle(const QPointF &logicalPoint) const;
+    QRectF       resizeRectFromHandle(const QPointF &logicalPoint) const;
+    QPointF      rotationHandlePoint() const;
+    bool         hitTestRotationHandle(const QPointF &logicalPoint) const;
+    qreal        currentSelectionAngle() const;
+    void    emitSelectionState();
 
     // --- Sous-systèmes ---
     std::unique_ptr<ShapeManager>           m_shapeManager;
@@ -137,6 +153,12 @@ private:
     // Snapshot pour permettre Undo/Redo d'un déplacement de forme.
     std::vector<ShapeManager::Shape> m_moveStartState;
     bool                             m_moveInProgress = false;
+    std::vector<ShapeManager::Shape> m_transformStartState;
+    QRectF                           m_transformStartBounds;
+    ResizeHandle                     m_activeResizeHandle = ResizeHandle::None;
+    bool                             m_resizeInProgress = false;
+    bool                             m_rotateInProgress = false;
+    qreal                            m_rotateStartPointerAngle = 0.0;
 };
 
 #endif // CUSTOMDRAWAREA_H

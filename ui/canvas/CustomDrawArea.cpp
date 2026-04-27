@@ -17,6 +17,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPathStroker>
+#include <QTransform>
 #include <QWheelEvent>
 #include <QtGlobal>
 
@@ -47,6 +48,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
             this, QOverload<>::of(&CustomDrawArea::update));
     connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
             this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
+            this, &CustomDrawArea::emitSelectionState);
     connect(m_mouseHandler.get(), &MouseInteractionHandler::requestUpdate,
             this, QOverload<>::of(&CustomDrawArea::update));
 
@@ -227,6 +230,15 @@ void CustomDrawArea::deleteSelectedShapes()
     m_modeManager->cancelAnySelection();
 }
 
+void CustomDrawArea::duplicateSelectedShapes()
+{
+    if (!hasSelection()) return;
+    const QRectF bounds = selectedShapesBounds();
+    copySelectedShapes();
+    pasteCopiedShapes(bounds.topLeft() + QPointF(qMax<qreal>(40.0, bounds.width() * 0.15),
+                                                qMax<qreal>(40.0, bounds.height() * 0.15)));
+}
+
 void CustomDrawArea::copySelectedShapes()
 {
     Q_ASSERT(m_shapeManager != nullptr);
@@ -247,6 +259,70 @@ void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
     }
 
     m_historyManager->commitPasteShapes(shapesWithIds);
+}
+
+QRectF CustomDrawArea::selectedShapesBounds() const
+{
+    Q_ASSERT(m_shapeManager != nullptr);
+    return m_shapeManager->selectedShapesBounds();
+}
+
+void CustomDrawArea::resizeSelectedShapes(qreal targetWidth, qreal targetHeight)
+{
+    if (!hasSelection()) return;
+
+    const QRectF bounds = selectedShapesBounds();
+    if (bounds.width() <= 0.0 || bounds.height() <= 0.0) return;
+
+    const qreal safeWidth = qMax<qreal>(1.0, targetWidth);
+    const qreal safeHeight = qMax<qreal>(1.0, targetHeight);
+    const qreal scaleX = safeWidth / bounds.width();
+    const qreal scaleY = safeHeight / bounds.height();
+
+    auto oldState = m_historyManager->getCurrentState();
+    auto updated = m_shapeManager->shapes();
+    const auto selected = m_shapeManager->selectedShapes();
+
+    for (int idx : selected) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        QTransform transform;
+        transform.translate(bounds.left(), bounds.top());
+        transform.scale(scaleX, scaleY);
+        transform.translate(-bounds.left(), -bounds.top());
+        updated[idx].path = transform.map(updated[idx].path);
+    }
+
+    m_shapeManager->setShapes(updated);
+    m_shapeManager->setSelectedShapes(selected);
+    m_historyManager->commitSnapshot(oldState, updated, tr("Redimensionner forme"));
+}
+
+void CustomDrawArea::rotateSelectedShapes(qreal angleDegrees)
+{
+    if (!hasSelection()) return;
+
+    const QRectF bounds = selectedShapesBounds();
+    if (!bounds.isValid()) return;
+
+    auto oldState = m_historyManager->getCurrentState();
+    auto updated = m_shapeManager->shapes();
+    const auto selected = m_shapeManager->selectedShapes();
+    const QPointF center = bounds.center();
+
+    QTransform transform;
+    transform.translate(center.x(), center.y());
+    transform.rotate(angleDegrees);
+    transform.translate(-center.x(), -center.y());
+
+    for (int idx : selected) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        updated[idx].path = transform.map(updated[idx].path);
+        updated[idx].rotationAngle += angleDegrees;
+    }
+
+    m_shapeManager->setShapes(updated);
+    m_shapeManager->setSelectedShapes(selected);
+    m_historyManager->commitSnapshot(oldState, updated, tr("Tourner forme"));
 }
 
 // ---------------------------------------------------------------------------
@@ -370,6 +446,153 @@ int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) c
     return -1;
 }
 
+CustomDrawArea::ResizeHandle CustomDrawArea::hitTestSelectionHandle(const QPointF &logicalPoint) const
+{
+    if (!hasSelection()) return ResizeHandle::None;
+
+    const QPointF localPoint = selectionInverseRotationTransform().map(logicalPoint);
+    const QRectF bounds = selectionOverlayBounds();
+    const qreal tolerance = 18.0 / qMax<qreal>(0.25, m_transformer->scale());
+    const auto isNear = [&](const QPointF &handlePoint) {
+        return QLineF(localPoint, handlePoint).length() <= tolerance;
+    };
+
+    if (isNear(bounds.topLeft())) return ResizeHandle::TopLeft;
+    if (isNear(bounds.topRight())) return ResizeHandle::TopRight;
+    if (isNear(bounds.bottomLeft())) return ResizeHandle::BottomLeft;
+    if (isNear(bounds.bottomRight())) return ResizeHandle::BottomRight;
+    return ResizeHandle::None;
+}
+
+QRectF CustomDrawArea::resizeRectFromHandle(const QPointF &logicalPoint) const
+{
+    const QPointF localPoint = selectionInverseRotationTransform().map(logicalPoint);
+    const QRectF bounds = m_transformStartBounds;
+    const qreal minSize = 12.0;
+    qreal left = bounds.left();
+    qreal right = bounds.right();
+    qreal top = bounds.top();
+    qreal bottom = bounds.bottom();
+
+    switch (m_activeResizeHandle) {
+    case ResizeHandle::TopLeft:
+        left = qMin(localPoint.x(), right - minSize);
+        top = qMin(localPoint.y(), bottom - minSize);
+        break;
+    case ResizeHandle::TopRight:
+        right = qMax(localPoint.x(), left + minSize);
+        top = qMin(localPoint.y(), bottom - minSize);
+        break;
+    case ResizeHandle::BottomLeft:
+        left = qMin(localPoint.x(), right - minSize);
+        bottom = qMax(localPoint.y(), top + minSize);
+        break;
+    case ResizeHandle::BottomRight:
+        right = qMax(localPoint.x(), left + minSize);
+        bottom = qMax(localPoint.y(), top + minSize);
+        break;
+    case ResizeHandle::None:
+        break;
+    }
+
+    return QRectF(QPointF(left, top), QPointF(right, bottom)).normalized();
+}
+
+QRectF CustomDrawArea::selectionOverlayBounds() const
+{
+    if (!hasSelection()) return {};
+
+    const auto &shapes = m_shapeManager->shapes();
+    const auto &selected = m_shapeManager->selectedShapes();
+    const QTransform inverse = selectionInverseRotationTransform();
+
+    QRectF bounds;
+    bool initialized = false;
+    for (int idx : selected) {
+        if (idx < 0 || idx >= static_cast<int>(shapes.size())) continue;
+        const QRectF mappedBounds = inverse.map(shapes[idx].path).boundingRect();
+        bounds = initialized ? bounds.united(mappedBounds) : mappedBounds;
+        initialized = true;
+    }
+    return bounds;
+}
+
+void CustomDrawArea::emitSelectionState()
+{
+    const bool selected = hasSelection();
+    if (!selected) {
+        emit selectionStateChanged(false, tr("Aucune selection"));
+        return;
+    }
+
+    const QRectF bounds = selectedShapesBounds();
+    emit selectionStateChanged(
+        true,
+        tr("%1 forme(s)  |  %2 x %3 px  |  %4 deg")
+            .arg(m_shapeManager->selectedShapes().size())
+            .arg(qRound(bounds.width()))
+            .arg(qRound(bounds.height()))
+            .arg(qRound(currentSelectionAngle())));
+}
+
+QPointF CustomDrawArea::rotationHandlePoint() const
+{
+    const QRectF bounds = selectionOverlayBounds();
+    const qreal offset = 28.0 / qMax<qreal>(0.25, m_transformer->scale());
+    const QPointF localPoint(bounds.center().x(), bounds.top() - offset);
+    return selectionRotationTransform().map(localPoint);
+}
+
+bool CustomDrawArea::hitTestRotationHandle(const QPointF &logicalPoint) const
+{
+    if (!hasSelection()) return false;
+    const qreal tolerance = 18.0 / qMax<qreal>(0.25, m_transformer->scale());
+    return QLineF(logicalPoint, rotationHandlePoint()).length() <= tolerance;
+}
+
+qreal CustomDrawArea::currentSelectionAngle() const
+{
+    if (!hasSelection()) return 0.0;
+    const auto &shapes = m_shapeManager->shapes();
+    const auto &selected = m_shapeManager->selectedShapes();
+    if (selected.empty()) return 0.0;
+
+    qreal sum = 0.0;
+    int count = 0;
+    for (int idx : selected) {
+        if (idx < 0 || idx >= static_cast<int>(shapes.size())) continue;
+        sum += shapes[idx].rotationAngle;
+        ++count;
+    }
+    if (count == 0) return 0.0;
+
+    qreal angle = std::fmod(sum / count, 360.0);
+    if (angle < 0.0) angle += 360.0;
+    return angle;
+}
+
+QTransform CustomDrawArea::selectionRotationTransform() const
+{
+    const QRectF bounds = selectedShapesBounds();
+    const QPointF center = bounds.center();
+    QTransform transform;
+    transform.translate(center.x(), center.y());
+    transform.rotate(currentSelectionAngle());
+    transform.translate(-center.x(), -center.y());
+    return transform;
+}
+
+QTransform CustomDrawArea::selectionInverseRotationTransform() const
+{
+    const QRectF bounds = selectedShapesBounds();
+    const QPointF center = bounds.center();
+    QTransform transform;
+    transform.translate(center.x(), center.y());
+    transform.rotate(-currentSelectionAngle());
+    transform.translate(-center.x(), -center.y());
+    return transform;
+}
+
 // ---------------------------------------------------------------------------
 // Rendu
 // ---------------------------------------------------------------------------
@@ -388,13 +611,58 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     m_renderer->render(painter, *m_shapeManager, visibleArea);
 
     if (!m_shapeManager->selectedShapes().empty()) {
-        QPen halo(Qt::cyan, 6);   halo.setCosmetic(true);
+        QPen halo(QColor(72, 187, 255), 10);   halo.setCosmetic(true);
         QPen normal(Qt::black, 2); normal.setCosmetic(true);
         for (int idx : m_shapeManager->selectedShapes()) {
             if (idx < 0 || idx >= static_cast<int>(m_shapeManager->shapes().size())) continue;
             const QPainterPath &path = m_shapeManager->shapes()[idx].path;
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QColor(72, 187, 255, 40));
+            painter.drawPath(path);
             painter.setPen(halo);   painter.setBrush(Qt::NoBrush); painter.drawPath(path);
             painter.setPen(normal);                                 painter.drawPath(path);
+        }
+
+        const QRectF bounds = selectionOverlayBounds();
+        const QTransform overlayTransform = selectionRotationTransform();
+        const QPointF topLeft = overlayTransform.map(bounds.topLeft());
+        const QPointF topRight = overlayTransform.map(bounds.topRight());
+        const QPointF bottomLeft = overlayTransform.map(bounds.bottomLeft());
+        const QPointF bottomRight = overlayTransform.map(bounds.bottomRight());
+        const QPointF topCenter = overlayTransform.map(QPointF(bounds.center().x(), bounds.top()));
+        const QPointF handlePoint = rotationHandlePoint();
+        painter.setPen(QPen(QColor(43, 122, 255), 2));
+        painter.setBrush(QColor(43, 122, 255, 26));
+        painter.drawPolygon(QPolygonF() << topLeft << topRight << bottomRight << bottomLeft);
+        painter.setBrush(QColor(43, 122, 255));
+        painter.drawEllipse(topLeft, 9.0, 9.0);
+        painter.drawEllipse(topRight, 9.0, 9.0);
+        painter.drawEllipse(bottomLeft, 9.0, 9.0);
+        painter.drawEllipse(bottomRight, 9.0, 9.0);
+        painter.drawLine(topCenter, handlePoint);
+        painter.setBrush(Qt::white);
+        painter.drawEllipse(handlePoint, 11.0, 11.0);
+        painter.setBrush(QColor(43, 122, 255));
+        const QLineF arrowLine(topCenter, handlePoint);
+        if (arrowLine.length() > 0.0) {
+            const qreal headLength = 14.0 / qMax<qreal>(0.25, m_transformer->scale());
+            const qreal headWidth = 7.0 / qMax<qreal>(0.25, m_transformer->scale());
+            QLineF shaft = arrowLine;
+            shaft.setP1(handlePoint);
+            shaft.setLength(headLength);
+            const QPointF arrowBase = shaft.p2();
+            QPointF unit = handlePoint - arrowBase;
+            const qreal unitLen = std::hypot(unit.x(), unit.y());
+            if (unitLen > 0.0) {
+                unit /= unitLen;
+                const QPointF perp(-unit.y(), unit.x());
+                QPolygonF arrowHead;
+                arrowHead << handlePoint
+                          << (arrowBase + perp * headWidth)
+                          << (arrowBase - perp * headWidth);
+                painter.drawPolygon(arrowHead);
+                painter.drawArc(QRectF(handlePoint.x() - 16.0, handlePoint.y() - 16.0, 32.0, 32.0), 40 * 16, 220 * 16);
+            }
         }
     }
 
@@ -440,6 +708,28 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
     m_drawingState->currentPoint = logical;
+
+    if (event->button() == Qt::LeftButton && hasSelection()) {
+        if (hitTestRotationHandle(logical)) {
+            m_rotateInProgress = true;
+            m_transformStartBounds = selectionOverlayBounds();
+            m_transformStartState = m_historyManager->getCurrentState();
+            m_rotateStartPointerAngle = std::atan2(logical.y() - m_transformStartBounds.center().y(),
+                                                   logical.x() - m_transformStartBounds.center().x());
+            m_drawing = false;
+            return;
+        }
+
+        const ResizeHandle handle = hitTestSelectionHandle(logical);
+        if (handle != ResizeHandle::None) {
+            m_activeResizeHandle = handle;
+            m_resizeInProgress = true;
+            m_transformStartBounds = selectionOverlayBounds();
+            m_transformStartState = m_historyManager->getCurrentState();
+            m_drawing = false;
+            return;
+        }
+    }
 
     if (m_modeManager->isCloseMode()) {
         const int hit = hitTestShape(logical);
@@ -589,6 +879,60 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     }
 
     m_mouseHandler->handleMouseMove(event, logical);
+
+    if (m_rotateInProgress) {
+        const QPointF center = m_transformStartBounds.center();
+        const qreal currentPointerAngle = std::atan2(logical.y() - center.y(), logical.x() - center.x());
+        const qreal deltaDegrees = (currentPointerAngle - m_rotateStartPointerAngle) * 180.0 / M_PI;
+
+        auto updated = m_transformStartState;
+        const auto selected = m_shapeManager->selectedShapes();
+        QTransform transform;
+        transform.translate(center.x(), center.y());
+        transform.rotate(deltaDegrees);
+        transform.translate(-center.x(), -center.y());
+
+        for (int idx : selected) {
+            if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+            updated[idx].path = transform.map(m_transformStartState[idx].path);
+            updated[idx].rotationAngle = m_transformStartState[idx].rotationAngle + deltaDegrees;
+        }
+
+        m_shapeManager->setShapes(updated);
+        m_shapeManager->setSelectedShapes(selected);
+        return;
+    }
+
+    if (m_resizeInProgress && m_activeResizeHandle != ResizeHandle::None) {
+        const QRectF targetRect = resizeRectFromHandle(logical);
+        if (m_transformStartBounds.width() <= 0.0 || m_transformStartBounds.height() <= 0.0) return;
+
+        auto updated = m_transformStartState;
+        const auto selected = m_shapeManager->selectedShapes();
+        const QPointF center = m_transformStartBounds.center();
+        QTransform rotateToWorld;
+        rotateToWorld.translate(center.x(), center.y());
+        rotateToWorld.rotate(currentSelectionAngle());
+        rotateToWorld.translate(-center.x(), -center.y());
+
+        QTransform localScale;
+        localScale.translate(targetRect.left(), targetRect.top());
+        localScale.scale(targetRect.width() / m_transformStartBounds.width(),
+                         targetRect.height() / m_transformStartBounds.height());
+        localScale.translate(-m_transformStartBounds.left(), -m_transformStartBounds.top());
+
+        const QTransform transform = rotateToWorld * localScale * selectionInverseRotationTransform();
+
+        for (int idx : selected) {
+            if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+            updated[idx].path = transform.map(m_transformStartState[idx].path);
+        }
+
+        m_shapeManager->setShapes(updated);
+        m_shapeManager->setSelectedShapes(selected);
+        return;
+    }
+
     if (!m_drawing) return;
 
     if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan) return;
@@ -618,6 +962,56 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
     const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+
+    if (m_rotateInProgress) {
+        Q_UNUSED(logical)
+        const auto rotatedState = m_historyManager->getCurrentState();
+        bool changed = false;
+        if (rotatedState.size() == m_transformStartState.size()) {
+            for (size_t i = 0; i < rotatedState.size(); ++i) {
+                if (rotatedState[i].path != m_transformStartState[i].path) {
+                    changed = true;
+                    break;
+                }
+            }
+        } else {
+            changed = true;
+        }
+
+        if (changed)
+            m_historyManager->commitSnapshot(m_transformStartState, rotatedState, tr("Tourner forme"));
+
+        m_rotateInProgress = false;
+        emitSelectionState();
+        update();
+        return;
+    }
+
+    if (m_resizeInProgress) {
+        Q_UNUSED(logical)
+        const auto resizedState = m_historyManager->getCurrentState();
+        bool changed = false;
+        if (resizedState.size() == m_transformStartState.size()) {
+            for (size_t i = 0; i < resizedState.size(); ++i) {
+                if (resizedState[i].path != m_transformStartState[i].path) {
+                    changed = true;
+                    break;
+                }
+            }
+        } else {
+            changed = true;
+        }
+
+        if (changed)
+            m_historyManager->commitSnapshot(m_transformStartState, resizedState, tr("Redimensionner forme"));
+
+        m_resizeInProgress = false;
+        m_activeResizeHandle = ResizeHandle::None;
+        emitSelectionState();
+        update();
+        return;
+    }
+
     if (getDrawMode() == DrawMode::PointParPoint) {
         m_drawingState->currentPoint = logical;
         update();

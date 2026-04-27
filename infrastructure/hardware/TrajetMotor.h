@@ -9,6 +9,7 @@
 #include <QQueue>
 #include <QVector>
 #include <QTimer>
+#include <QtTypes>
 #include <atomic>
 #include "ShapeVisualization.h"
 #include "StmProtocol.h" // Contient probablement FLAG_VALVE_ON, etc.
@@ -39,6 +40,7 @@ struct SegAnimFrame {
 struct PreparedSegment {
     StmSegment stmSeg;
     bool isCut;
+    qint64 estimatedDurationMs = 0;
 };
 
 class TrajetMotor : public QWidget
@@ -65,7 +67,7 @@ public:
     static int estimateTotalSteps(const QList<ContinuousCut>& cuts, const QPoint& homePos);
 
 signals:
-    void decoupeProgress(int remaining, int total);
+    void decoupeProgress(int completed, int total, qint64 remainingMs);
     void decoupeFinished(bool success);
 
 public slots:
@@ -111,6 +113,7 @@ private:
 
     // Nouveaux ajouts pour le pré-calcul
     QList<PreparedSegment> m_plannedSegments;
+    QVector<qint64> m_remainingMsByCompletedSegments;
     std::atomic<bool> m_isCurrentlyCutting{false};
     QGraphicsEllipseItem* m_head = nullptr;
     QPointF m_lastHeadPos;

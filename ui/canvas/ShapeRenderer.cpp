@@ -46,15 +46,20 @@ void ShapeRenderer::drawShapes(QPainter &painter, const ShapeManager &shapeManag
 
 void ShapeRenderer::drawSelectionHandles(QPainter &painter, const ShapeManager &shapeManager) const
 {
+    Q_UNUSED(painter)
+    Q_UNUSED(shapeManager)
+    return;
+
     painter.save();
-    painter.setPen(QPen(QColor(43, 122, 255), 1));
+    painter.setPen(QPen(QColor(43, 122, 255), 2));
     painter.setBrush(QColor(43, 122, 255));
 
     for (int index : shapeManager.selectedShapes()) {
         if (index < 0 || index >= shapeManager.shapes().size()) continue;
         const QRectF b = shapeManager.shapes().at(index).path.boundingRect();
+        painter.fillRect(b.adjusted(-6, -6, 6, 6), QColor(43, 122, 255, 18));
         painter.drawRect(b);
-        const qreal h = 3.0;
+        const qreal h = 9.0;
         painter.drawEllipse(b.topLeft(), h, h);
         painter.drawEllipse(b.topRight(), h, h);
         painter.drawEllipse(b.bottomLeft(), h, h);

@@ -128,8 +128,9 @@ void MainWindow::setupUI()
     // Configuration de la barre de progression
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setValue(0);
-    ui->progressBar->setFormat("%p%");
+    ui->progressBar->setFormat(tr("Decoupe estimee : %p%"));
     ui->progressBar->setAlignment(Qt::AlignCenter);
+    ui->progressBar->setTextVisible(true);
 
     // --- MODIFICATIONS ICI ---
     // 1. On force la barre de progression à garder sa hauteur même invisible
@@ -143,6 +144,7 @@ void MainWindow::setupUI()
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
         ui->timeRemainingLabel->setMinimumWidth(280);
         ui->timeRemainingLabel->setAlignment(Qt::AlignCenter);
+        ui->timeRemainingLabel->setText(tr("Temps restant estime : --"));
     }
 
     // --- CORRECTIONS SAUTS INTERFACE ---
@@ -171,6 +173,7 @@ void MainWindow::setupUI()
         QTimer::singleShot(0, this, [this]() { refreshQuickShapeButtons(); });
     });
 
+    ui->progressBar->setFormat(tr("Decoupe estimee : %p%"));
     refreshQuickShapeButtons();
 }
 
@@ -334,18 +337,6 @@ void MainWindow::setupViewConnections()
     connect(m_viewModel, &MainWindowViewModel::aiStatusChanged,
             ui->labelAIGenerationStatus, &QLabel::setText);
     connect(m_viewModel, &MainWindowViewModel::aiImageReceived, this, &MainWindow::hideAiProgressBar);
-    connect(m_viewModel, &MainWindowViewModel::shapeProgressChanged, this,
-            [this](int current, int total) {
-                if (total <= 0) {
-                    ui->progressBar->setRange(0, 100);
-                    ui->progressBar->setValue(0);
-                    ui->progressBar->setVisible(false);
-                    return;
-                }
-                ui->progressBar->setVisible(true);
-                ui->progressBar->setRange(0, total);
-                ui->progressBar->setValue(current);
-            });
 
     // ---- Réactions de la View au ShapeVisualization ----
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount, this,
@@ -496,9 +487,11 @@ void MainWindow::applySelectedLayoutToControls(const LayoutData &layout)
 
 void MainWindow::updateProgressBar(int percentage, const QString &remainingTimeText)
 {
+    percentage = qBound(0, percentage, 100);
     ui->progressBar->setVisible(true);
     ui->progressBar->setRange(0, 100);
     ui->progressBar->setValue(percentage);
+    ui->progressBar->setFormat(tr("Decoupe estimee : %1%").arg(percentage));
     if (ui->timeRemainingLabel)
         ui->timeRemainingLabel->setText(remainingTimeText);
 }
@@ -550,6 +543,9 @@ void MainWindow::retranslateDynamicUi()
     if (ui->timeRemainingLabel)
         ui->timeRemainingLabel->setText(tr("Temps restant estimé : 0s"));
 
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(tr("Temps restant estime : --"));
+    ui->progressBar->setFormat(tr("Decoupe estimee : %p%"));
     refreshQuickShapeButtons();
 }
 
@@ -568,6 +564,9 @@ void MainWindow::onCutFinished(bool /*success*/)
 {
     ui->progressBar->setValue(0);
     ui->progressBar->setVisible(false);
+    ui->progressBar->setFormat(tr("Decoupe estimee : %p%"));
+    if (ui->timeRemainingLabel)
+        ui->timeRemainingLabel->setText(tr("Temps restant estime : --"));
 }
 
 void MainWindow::onLanguageApplied(Language lang, bool ok)
