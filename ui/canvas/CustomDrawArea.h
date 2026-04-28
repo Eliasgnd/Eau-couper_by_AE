@@ -13,6 +13,7 @@
 
 #include "DrawModeManager.h"
 #include "DrawingState.h"
+#include "viewmodels/CanvasViewModel.h"
 #include "domain/shapes/ShapeManager.h"
 #include "shared/PerformanceMode.h"
 
@@ -20,7 +21,6 @@ class QMouseEvent;
 class QPaintEvent;
 class QWheelEvent;
 class EraserTool;
-class HistoryManager;
 class MouseInteractionHandler;
 class ShapeRenderer;
 class TextTool;
@@ -32,7 +32,7 @@ class CustomDrawArea : public QWidget
 public:
     using DrawMode = DrawModeManager::DrawMode;
 
-    explicit CustomDrawArea(QWidget *parent = nullptr);
+    explicit CustomDrawArea(CanvasViewModel *viewModel, QWidget *parent = nullptr);
     ~CustomDrawArea() override;
 
     void     setDrawMode(DrawMode mode);
@@ -185,7 +185,6 @@ private:
     QString      currentDetailText() const;
     QString      livePreviewMetrics() const;
     bool         isPointInsideSelectedShape(const QPointF &logicalPoint) const;
-    bool         isPathClosed(const QPainterPath &path) const;
     void         drawCanvasHud(QPainter &painter) const;
     void         drawMachinePreview(QPainter &painter) const;
     void         drawValidationOverlay(QPainter &painter) const;
@@ -196,10 +195,9 @@ private:
     void         commitSelectedTransform(const std::vector<ShapeManager::Shape> &updated,
                                          const QString &label);
 
-    std::unique_ptr<ShapeManager>            m_shapeManager;
+    CanvasViewModel*                         m_viewModel = nullptr;
     std::unique_ptr<ShapeRenderer>           m_renderer;
     std::unique_ptr<DrawModeManager>         m_modeManager;
-    std::unique_ptr<HistoryManager>          m_historyManager;
     std::unique_ptr<ViewTransformer>         m_transformer;
     std::unique_ptr<DrawingState>            m_drawingState;
     std::unique_ptr<MouseInteractionHandler> m_mouseHandler;
@@ -207,12 +205,7 @@ private:
     std::unique_ptr<TextTool>                m_textTool;
 
     bool m_drawing = false;
-    int  m_nextShapeId = 1;
-    int  m_smoothingLevel = 1;
     bool m_twoFingersOn = false;
-    bool m_precisionConstraintEnabled = false;
-    bool m_segmentStatusVisible = false;
-    PerformanceMode m_performanceMode = PerformanceMode::Balanced;
     bool m_canvasStatusThrottleStarted = false;
     QElapsedTimer m_canvasStatusThrottle;
     bool m_hasPointer = false;
@@ -231,10 +224,6 @@ private:
     bool                             m_resizeInProgress = false;
     bool                             m_rotateInProgress = false;
     qreal                            m_rotateStartPointerAngle = 0.0;
-
-    mutable bool                     m_collisionCacheDirty = true;
-    mutable std::vector<bool>        m_collisionCache;
-    mutable int                      m_collisionPairCount = 0;
 };
 
 #endif // CUSTOMDRAWAREA_H

@@ -19,6 +19,7 @@ class CustomEditor;
 }
 
 class CustomEditorViewModel;
+class CanvasViewModel;
 
 class CustomEditor : public QWidget
 {
@@ -38,6 +39,7 @@ protected:
 private:
     Ui::CustomEditor *ui;
     CustomDrawArea *drawArea;
+    CanvasViewModel *m_canvasViewModel = nullptr;
     QGraphicsView  *m_colorView{};
     QGraphicsView  *m_edgeView{};
     QGraphicsScene *m_colorScene{};

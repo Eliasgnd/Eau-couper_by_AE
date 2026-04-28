@@ -39,7 +39,7 @@ SOURCES += \
     $$CLIPPER2_PATH/src/clipper.engine.cpp \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
     $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
-    ui/canvas/tools/PathOptimizer.cpp
+    domain/geometry/PathOptimizer.cpp
 
 # --- CONFIGURATION LEMON (Solution Finale - Structure Plate) ---
 
@@ -82,7 +82,7 @@ win32: QMAKE_CXXFLAGS += /wd4267 /wd4828 /wd4244
 
 # Fichiers de l'optimization
 HEADERS += domain/geometry/optimization/PlacementOptimizer.h \
-    ui/canvas/tools/PathOptimizer.h
+    domain/geometry/PathOptimizer.h
 SOURCES += domain/geometry/optimization/PlacementOptimizer.cpp
 
 # ==== INCLUDEPATH GÉNÉRAL ====
@@ -109,7 +109,8 @@ INCLUDEPATH += \
     infrastructure/hardware \
     infrastructure/network \
     infrastructure/imaging \
-    shared
+    shared \
+    external/qrcodegen
 
 # ==== HEADERS ====
 HEADERS += \
@@ -126,7 +127,7 @@ HEADERS += \
     application/services/InventoryQueryService.h \
     application/services/InventoryMutationService.h \
     application/services/InventorySortFilterService.h \
-    application/services/InventoryViewState.h \
+    viewmodels/InventoryViewState.h \
     application/services/GridPlacementService.h \
     application/services/LayoutManager.h \
     application/services/GeometryTransformHelper.h \
@@ -157,6 +158,11 @@ HEADERS += \
     ui/utils/UiScale.h \
     ui/utils/ImageExporter.h \
     ui/utils/GestureHandler.h \
+    ui/utils/AspectRatioWrapper.h \
+    ui/utils/ScreenUtils.h \
+    ui/utils/UiScale.h \
+    ui/utils/ImageExporter.h \
+    ui/utils/GestureHandler.h \
     ui/canvas/CustomDrawArea.h \
     ui/canvas/DrawingState.h \
     ui/canvas/ShapeRenderer.h \
@@ -164,12 +170,13 @@ HEADERS += \
     ui/canvas/HistoryManager.h \
     ui/canvas/MouseInteractionHandler.h \
     ui/canvas/ViewTransformer.h \
+    viewmodels/CanvasViewModel.h \
     ui/canvas/EraserTool.h \
     ui/canvas/TextTool.h \
-    ui/canvas/tools/pathplanner.h \
+    domain/geometry/pathplanner.h \
     ui/canvas/tools/TouchGestureReader.h \
     ui/canvas/tools/ImportedImageGeometryHelper.h \
-    ui/canvas/tools/qrcodegen.hpp \
+    external/qrcodegen/qrcodegen.hpp \
     ui/canvas/tools/ImagePaths.h \
     domain/shapes/ShapeModel.h \
     domain/shapes/BaseShapeNamingService.h \
@@ -249,10 +256,11 @@ SOURCES += \
     ui/canvas/ViewTransformer.cpp \
     ui/canvas/EraserTool.cpp \
     ui/canvas/TextTool.cpp \
-    ui/canvas/tools/pathplanner.cpp \
+    viewmodels/CanvasViewModel.cpp \
+    domain/geometry/pathplanner.cpp \
     ui/canvas/tools/TouchGestureReader.cpp \
     ui/canvas/tools/ImportedImageGeometryHelper.cpp \
-    ui/canvas/tools/qrcodegen.cpp \
+    external/qrcodegen/qrcodegen.cpp \
     domain/shapes/ShapeModel.cpp \
     domain/shapes/BaseShapeNamingService.cpp \
     domain/shapes/ShapeManager.cpp \

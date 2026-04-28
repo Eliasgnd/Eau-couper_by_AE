@@ -79,12 +79,12 @@ Violation of these rules is NOT allowed.
 
 Focus ONLY on:
 
-* src/
-* include/
-* ui/
-* domain/
-* managers/
-* viewmodels/
+* domain/          (business logic, models, geometry, interfaces)
+* application/     (coordinators, services, factory)
+* infrastructure/  (hardware, imaging, network, persistence)
+* viewmodels/      (MVVM state management)
+* ui/              (widgets, canvas, dialogs, mainwindow, utils)
+* shared/          (cross-layer types: Language, PerformanceMode, ThemeManager)
 
 Avoid unnecessary modifications outside these directories.
 

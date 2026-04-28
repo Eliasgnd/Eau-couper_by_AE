@@ -1,5 +1,6 @@
 #include "CustomEditor.h"
 #include "CustomEditorViewModel.h"
+#include "viewmodels/CanvasViewModel.h"
 #include "qlayout.h"
 #include "qstatusbar.h"
 #include "ui_CustomEditor.h"
@@ -109,7 +110,8 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     m_edgeView->setVisible(false);
 
     // Création de l'instance de CustomDrawArea
-    drawArea = new CustomDrawArea(this);
+    m_canvasViewModel = new CanvasViewModel(this);
+    drawArea = new CustomDrawArea(m_canvasViewModel, this);
     m_assistanceBar = new QFrame(this);
     m_assistanceBar->setObjectName("editorAssistanceBar");
     m_assistanceBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
