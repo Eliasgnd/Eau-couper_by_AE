@@ -96,4 +96,8 @@ void HistoryManager::commitSnapshot(const std::vector<ShapeManager::Shape> &oldS
 
 void HistoryManager::undo() { m_undoStack.undo(); }
 void HistoryManager::redo() { m_undoStack.redo(); }
+bool HistoryManager::canUndo() const { return m_undoStack.canUndo(); }
+bool HistoryManager::canRedo() const { return m_undoStack.canRedo(); }
+QString HistoryManager::undoText() const { return m_undoStack.undoText(); }
+QString HistoryManager::redoText() const { return m_undoStack.redoText(); }
 std::vector<ShapeManager::Shape> HistoryManager::getCurrentState() const { return m_shapeManager->shapes(); }

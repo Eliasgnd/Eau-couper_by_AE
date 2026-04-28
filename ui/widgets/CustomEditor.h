@@ -1,15 +1,17 @@
 #ifndef CUSTOMEDITOR_H
 #define CUSTOMEDITOR_H
 
+#include <QGraphicsScene>
+#include <QGraphicsView>
 #include <QWidget>
+
 #include "CustomDrawArea.h"
 #include "Language.h"
-#include <QGraphicsView>
-#include <QGraphicsScene>
 
 class QFrame;
 class QLabel;
 class QPushButton;
+class QWidget;
 
 namespace Ui {
 class CustomEditor;
@@ -17,7 +19,6 @@ class CustomEditor;
 
 class CustomEditorViewModel;
 
-// Classe représentant la fenêtre personnalisée
 class CustomEditor : public QWidget
 {
     Q_OBJECT
@@ -43,18 +44,31 @@ private:
     CustomEditorViewModel *m_viewModel = nullptr;
     QStringList m_favoriteFonts;
     bool m_isDarkTheme = false;
-    QFrame *m_touchSelectionPanel = nullptr;
-    QLabel *m_touchSelectionLabel = nullptr;
+
+    QFrame *m_assistanceBar = nullptr;
+    QLabel *m_assistanceTitle = nullptr;
+    QLabel *m_assistanceHint = nullptr;
+    QLabel *m_assistanceDetail = nullptr;
+    QPushButton *m_cancelModeButton = nullptr;
+    QPushButton *m_precisionConstraintButton = nullptr;
+    QPushButton *m_machinePreviewButton = nullptr;
+
+    QWidget *m_selectionActionsWidget = nullptr;
     QPushButton *m_touchDuplicateButton = nullptr;
-    QPushButton *m_touchDeleteButton = nullptr;
-    QPushButton *m_touchWidthButton = nullptr;
-    QPushButton *m_touchHeightButton = nullptr;
-    QPushButton *m_touchRotateButton = nullptr;
+    QPushButton *m_transformMenuButton = nullptr;
+    QPushButton *m_alignMenuButton = nullptr;
+    QPushButton *m_touchNudgeLeftButton = nullptr;
+    QPushButton *m_touchNudgeRightButton = nullptr;
+    QPushButton *m_touchNudgeUpButton = nullptr;
+    QPushButton *m_touchNudgeDownButton = nullptr;
 
     void applyStyleSheets();
     void updateThemeButton();
     void updateTouchSelectionPanel(bool hasSelection, const QString &summary);
-
+    void updateCanvasStatus(const QString &modeLabel, const QString &hint, const QString &detail);
+    void updateHistoryButtons(bool canUndo, const QString &undoText,
+                              bool canRedo, const QString &redoText);
+    void refreshModeButtons();
 
 private slots:
     void goToMainWindow();
@@ -63,12 +77,11 @@ private slots:
     void importerLogo();
     void importerImageCouleur();
     void saveCustomShape();
-    void onCopyPasteClicked();
     void toggleTheme();
 
 signals:
-    void applyCustomShapeSignal(QList<QPolygonF> shapes); // Signal pour appliquer une forme
-    void resetDrawingSignal(); // Signal pour réinitialiser le dessin
+    void applyCustomShapeSignal(QList<QPolygonF> shapes);
+    void resetDrawingSignal();
 
 public:
     CustomDrawArea* getDrawArea() const { return drawArea; }

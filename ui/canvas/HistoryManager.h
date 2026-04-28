@@ -4,7 +4,9 @@
 #include <QObject>
 #include <QUndoStack>
 #include <QPainterPath>
+#include <QString>
 #include <vector>
+
 #include "ShapeManager.h"
 
 class HistoryManager : public QObject
@@ -25,8 +27,12 @@ public:
 
     void undo();
     void redo();
+    bool canUndo() const;
+    bool canRedo() const;
+    QString undoText() const;
+    QString redoText() const;
 
-    // Helper pour récupérer l'état actuel avant une modif complexe
+    // Helper pour recuperer l'etat actuel avant une modification complexe
     std::vector<ShapeManager::Shape> getCurrentState() const;
 
 private:

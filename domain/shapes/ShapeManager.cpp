@@ -42,11 +42,18 @@ void ShapeManager::addShape(const Shape &shape)
 
 bool ShapeManager::removeShape(int index)
 {
-    if (index < 0 || index >= m_shapes.size()) return false;
+    if (index < 0 || index >= static_cast<int>(m_shapes.size())) return false;
     m_shapes.erase(m_shapes.begin() + index);
-    m_selectedShapes.erase(std::remove_if(m_selectedShapes.begin(), m_selectedShapes.end(),
-                                          [index](int i) { return i == index; }),
-                           m_selectedShapes.end());
+    std::vector<int> updatedSelection;
+    updatedSelection.reserve(m_selectedShapes.size());
+    for (int selectedIndex : m_selectedShapes) {
+        if (selectedIndex == index)
+            continue;
+        if (selectedIndex > index)
+            --selectedIndex;
+        updatedSelection.push_back(selectedIndex);
+    }
+    m_selectedShapes = std::move(updatedSelection);
     emit shapesChanged();
     emit selectionChanged();
     return true;
@@ -63,7 +70,15 @@ void ShapeManager::clearShapes()
 void ShapeManager::setShapes(const std::vector<Shape> &shapes)
 {
     m_shapes = shapes;
-    m_selectedShapes.clear();
+    std::vector<int> preservedSelection;
+    preservedSelection.reserve(m_selectedShapes.size());
+    for (int idx : m_selectedShapes) {
+        if (idx >= 0 && idx < static_cast<int>(m_shapes.size())
+            && std::find(preservedSelection.begin(), preservedSelection.end(), idx) == preservedSelection.end()) {
+            preservedSelection.push_back(idx);
+        }
+    }
+    m_selectedShapes = std::move(preservedSelection);
     emit shapesChanged();
     emit selectionChanged();
 }

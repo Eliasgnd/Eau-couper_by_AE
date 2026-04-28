@@ -5,44 +5,81 @@
 #include "EraserTool.h"
 #include "HistoryManager.h"
 #include "MouseInteractionHandler.h"
-#include "domain/shapes/PathGenerator.h"
-#include "domain/shapes/ShapeManager.h"
 #include "ShapeRenderer.h"
 #include "TextTool.h"
 #include "ViewTransformer.h"
+#include "domain/shapes/PathGenerator.h"
+#include "domain/shapes/ShapeManager.h"
 
 #include <QInputDialog>
-#include <QLineF>
 #include <QLineEdit>
+#include <QLineF>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPathStroker>
+#include <QPen>
+#include <QStringList>
 #include <QTransform>
 #include <QWheelEvent>
 #include <QtGlobal>
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <vector>
 
+namespace {
+QString modeToString(CustomDrawArea::DrawMode mode)
+{
+    using DM = CustomDrawArea::DrawMode;
+    switch (mode) {
+    case DM::Freehand:      return QObject::tr("Trace libre");
+    case DM::PointParPoint: return QObject::tr("Point par point");
+    case DM::Line:          return QObject::tr("Ligne droite");
+    case DM::Rectangle:     return QObject::tr("Rectangle");
+    case DM::Circle:        return QObject::tr("Cercle");
+    case DM::Text:          return QObject::tr("Texte");
+    case DM::ThinText:      return QObject::tr("Texte fin");
+    case DM::Deplacer:      return QObject::tr("Deplacer");
+    case DM::Gomme:         return QObject::tr("Gomme");
+    case DM::Supprimer:     return QObject::tr("Supprimer");
+    case DM::Pan:           return QObject::tr("Panoramique");
+    default:                return QObject::tr("Dessin");
+    }
+}
+
+QPointF pathStart(const QPainterPath &path)
+{
+    if (path.elementCount() == 0) return {};
+    const auto e = path.elementAt(0);
+    return {e.x, e.y};
+}
+
+QPointF pathEnd(const QPainterPath &path)
+{
+    if (path.elementCount() == 0) return {};
+    const auto e = path.elementAt(path.elementCount() - 1);
+    return {e.x, e.y};
+}
+}
+
 CustomDrawArea::CustomDrawArea(QWidget *parent)
     : QWidget(parent)
-    , m_shapeManager  (std::make_unique<ShapeManager>(this))
-    , m_renderer      (std::make_unique<ShapeRenderer>(this))
-    , m_modeManager   (std::make_unique<DrawModeManager>(this))
+    , m_shapeManager(std::make_unique<ShapeManager>(this))
+    , m_renderer(std::make_unique<ShapeRenderer>(this))
+    , m_modeManager(std::make_unique<DrawModeManager>(this))
     , m_historyManager(std::make_unique<HistoryManager>(m_shapeManager.get(), this))
-    , m_transformer   (std::make_unique<ViewTransformer>(this))
-    , m_drawingState  (std::make_unique<DrawingState>())
-    , m_mouseHandler  (std::make_unique<MouseInteractionHandler>(
+    , m_transformer(std::make_unique<ViewTransformer>(this))
+    , m_drawingState(std::make_unique<DrawingState>())
+    , m_mouseHandler(std::make_unique<MouseInteractionHandler>(
           m_shapeManager.get(), m_modeManager.get(), m_transformer.get(),
           m_drawingState.get(), this))
-    , m_eraserTool    (std::make_unique<EraserTool>(m_shapeManager.get(), this))
-    , m_textTool      (std::make_unique<TextTool>(this))
+    , m_eraserTool(std::make_unique<EraserTool>(m_shapeManager.get(), this))
+    , m_textTool(std::make_unique<TextTool>(this))
 {
     setMouseTracking(true);
     setAutoFillBackground(true);
-
 
     connect(m_shapeManager.get(), &ShapeManager::shapesChanged,
             this, QOverload<>::of(&CustomDrawArea::update));
@@ -50,6 +87,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
             this, QOverload<>::of(&CustomDrawArea::update));
     connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
             this, &CustomDrawArea::emitSelectionState);
+    connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
     connect(m_mouseHandler.get(), &MouseInteractionHandler::requestUpdate,
             this, QOverload<>::of(&CustomDrawArea::update));
 
@@ -57,72 +96,71 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
             this, &CustomDrawArea::onDrawModeChanged);
     connect(m_modeManager.get(), &DrawModeManager::closeModeChanged,
             this, &CustomDrawArea::closeModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::closeModeChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
     connect(m_modeManager.get(), &DrawModeManager::deplacerModeChanged,
             this, &CustomDrawArea::deplacerModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::deplacerModeChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
     connect(m_modeManager.get(), &DrawModeManager::supprimerModeChanged,
             this, &CustomDrawArea::supprimerModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::supprimerModeChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
     connect(m_modeManager.get(), &DrawModeManager::gommeModeChanged,
             this, &CustomDrawArea::gommeModeChanged);
-    // Selection overlays — relay from manager to widget's own signals
+    connect(m_modeManager.get(), &DrawModeManager::gommeModeChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
     connect(m_modeManager.get(), &DrawModeManager::shapeSelectionChanged,
             this, &CustomDrawArea::shapeSelection);
+    connect(m_modeManager.get(), &DrawModeManager::shapeSelectionChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
     connect(m_modeManager.get(), &DrawModeManager::multiSelectionChanged,
             this, &CustomDrawArea::multiSelectionModeChanged);
+    connect(m_modeManager.get(), &DrawModeManager::multiSelectionChanged,
+            this, &CustomDrawArea::emitCanvasStatus);
 
     connect(m_transformer.get(), &ViewTransformer::zoomChanged,
             this, &CustomDrawArea::zoomChanged);
     connect(m_transformer.get(), &ViewTransformer::viewTransformed,
             this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_transformer.get(), &ViewTransformer::viewTransformed,
+            this, &CustomDrawArea::emitCanvasStatus);
+
+    emitSelectionState();
+    emitCanvasStatus();
+    emitHistoryState();
 }
 
 CustomDrawArea::~CustomDrawArea() = default;
 
-// ---------------------------------------------------------------------------
-// Mode de dessin
-// ---------------------------------------------------------------------------
-
 void CustomDrawArea::setDrawMode(DrawMode mode)
 {
-    Q_ASSERT(m_modeManager   != nullptr);
-    Q_ASSERT(m_drawingState  != nullptr);
     if (m_modeManager->isSelectMode()) cancelSelection();
     if (m_modeManager->isCloseMode())  cancelCloseMode();
+    m_modeManager->cancelPasteMode();
     m_drawingState->gommeErasing = false;
     m_drawingState->pointByPointPoints.clear();
     m_drawing = false;
     m_modeManager->setDrawMode(mode);
+    emitCanvasStatus();
 }
 
 CustomDrawArea::DrawMode CustomDrawArea::getDrawMode() const
 {
-    Q_ASSERT(m_modeManager != nullptr);
     return m_modeManager->drawMode();
 }
 
 void CustomDrawArea::restorePreviousMode()
 {
-    Q_ASSERT(m_modeManager != nullptr);
     m_modeManager->restorePreviousMode();
+    emitCanvasStatus();
 }
-
-// ---------------------------------------------------------------------------
-// Formes
-// ---------------------------------------------------------------------------
 
 QList<QPolygonF> CustomDrawArea::getCustomShapes() const
 {
-    Q_ASSERT(m_shapeManager != nullptr);
     QList<QPolygonF> polygons;
-
-    for (const auto &shape : m_shapeManager->shapes()) {
-        // --- LA CORRECTION EST ICI ---
-        // Au lieu de forcer un seul polygone (toFillPolygon), on extrait
-        // chaque sous-tracé (chaque lettre et contour) séparément !
-        const QList<QPolygonF> subPolys = shape.path.toSubpathPolygons();
-        polygons.append(subPolys);
-        // -----------------------------
-    }
-
+    for (const auto &shape : m_shapeManager->shapes())
+        polygons.append(shape.path.toSubpathPolygons());
     return polygons;
 }
 
@@ -131,53 +169,60 @@ void CustomDrawArea::clearDrawing()
     auto oldState = m_historyManager->getCurrentState();
     m_shapeManager->clearShapes();
     m_historyManager->commitSnapshot(oldState, {}, tr("Tout effacer"));
+    emitHistoryState();
+    emitCanvasStatus();
 }
 
-void CustomDrawArea::undoLastAction() {
+void CustomDrawArea::undoLastAction()
+{
     m_historyManager->undo();
+    emitSelectionState();
+    emitHistoryState();
+    emitCanvasStatus();
+}
+
+void CustomDrawArea::redoLastAction()
+{
+    m_historyManager->redo();
+    emitSelectionState();
+    emitHistoryState();
+    emitCanvasStatus();
 }
 
 void CustomDrawArea::setEraserRadius(qreal radius)
 {
-    Q_ASSERT(m_eraserTool != nullptr);
     m_eraserTool->setEraserRadius(radius);
 }
 
 void CustomDrawArea::addImportedLogo(const QPainterPath &logoPath)
 {
-    int id = m_nextShapeId++;
+    const int id = m_nextShapeId++;
     m_shapeManager->addImportedLogo(logoPath, id);
     m_historyManager->commitAddShape(logoPath, id, tr("Import Logo"));
+    emitHistoryState();
+    emitCanvasStatus();
     update();
 }
 
 void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath)
 {
-    int id = m_nextShapeId++;
+    const int id = m_nextShapeId++;
     m_shapeManager->addImportedLogoSubpath(subpath, id);
-    m_historyManager->commitAddShape(subpath, id, tr("Import Sous-tracé"));
+    m_historyManager->commitAddShape(subpath, id, tr("Import Sous-trace"));
+    emitHistoryState();
+    emitCanvasStatus();
     update();
 }
 
-// ---------------------------------------------------------------------------
-// Texte
-// ---------------------------------------------------------------------------
-
 void CustomDrawArea::setTextFont(const QFont &font)
 {
-    Q_ASSERT(m_textTool != nullptr);
     m_textTool->setTextFont(font);
 }
 
 QFont CustomDrawArea::getTextFont() const
 {
-    Q_ASSERT(m_textTool != nullptr);
     return m_textTool->getTextFont();
 }
-
-// ---------------------------------------------------------------------------
-// Sélection
-// ---------------------------------------------------------------------------
 
 void CustomDrawArea::startShapeSelection()
 {
@@ -187,6 +232,7 @@ void CustomDrawArea::startShapeSelection()
     cancelGommeMode();
     m_shapeManager->clearSelection();
     m_modeManager->startSelectConnect();
+    emitCanvasStatus();
     update();
 }
 
@@ -195,6 +241,7 @@ void CustomDrawArea::cancelSelection()
     if (!m_modeManager->isSelectMode()) return;
     m_shapeManager->clearSelection();
     m_modeManager->cancelAnySelection();
+    emitCanvasStatus();
     update();
 }
 
@@ -210,24 +257,25 @@ void CustomDrawArea::toggleMultiSelectMode()
     } else if (m_modeManager->isMultiSelectMode()) {
         cancelSelection();
     }
+    emitCanvasStatus();
     update();
 }
 
 bool CustomDrawArea::hasSelection() const
 {
-    Q_ASSERT(m_shapeManager != nullptr);
     return !m_shapeManager->selectedShapes().empty();
 }
 
 void CustomDrawArea::deleteSelectedShapes()
 {
-    auto selected = m_shapeManager->selectedShapes();
+    const auto selected = m_shapeManager->selectedShapes();
     if (selected.empty()) return;
 
     m_historyManager->commitDeleteShapes(selected);
-
     m_shapeManager->clearSelection();
     m_modeManager->cancelAnySelection();
+    emitHistoryState();
+    emitCanvasStatus();
 }
 
 void CustomDrawArea::duplicateSelectedShapes()
@@ -241,11 +289,15 @@ void CustomDrawArea::duplicateSelectedShapes()
 
 void CustomDrawArea::copySelectedShapes()
 {
-    Q_ASSERT(m_shapeManager != nullptr);
     m_shapeManager->copySelectedShapes();
+    emitCanvasStatus();
 }
 
-void CustomDrawArea::enablePasteMode() { m_modeManager->enablePasteMode(); }
+void CustomDrawArea::enablePasteMode()
+{
+    m_modeManager->enablePasteMode();
+    emitCanvasStatus();
+}
 
 void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
 {
@@ -253,17 +305,20 @@ void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
     if (pasted.empty()) return;
 
     std::vector<ShapeManager::Shape> shapesWithIds;
+    shapesWithIds.reserve(pasted.size());
     for (auto s : pasted) {
         s.originalId = m_nextShapeId++;
         shapesWithIds.push_back(s);
     }
 
     m_historyManager->commitPasteShapes(shapesWithIds);
+    m_modeManager->cancelPasteMode();
+    emitHistoryState();
+    emitCanvasStatus();
 }
 
 QRectF CustomDrawArea::selectedShapesBounds() const
 {
-    Q_ASSERT(m_shapeManager != nullptr);
     return m_shapeManager->selectedShapesBounds();
 }
 
@@ -279,10 +334,8 @@ void CustomDrawArea::resizeSelectedShapes(qreal targetWidth, qreal targetHeight)
     const qreal scaleX = safeWidth / bounds.width();
     const qreal scaleY = safeHeight / bounds.height();
 
-    auto oldState = m_historyManager->getCurrentState();
     auto updated = m_shapeManager->shapes();
     const auto selected = m_shapeManager->selectedShapes();
-
     for (int idx : selected) {
         if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
         QTransform transform;
@@ -292,9 +345,7 @@ void CustomDrawArea::resizeSelectedShapes(qreal targetWidth, qreal targetHeight)
         updated[idx].path = transform.map(updated[idx].path);
     }
 
-    m_shapeManager->setShapes(updated);
-    m_shapeManager->setSelectedShapes(selected);
-    m_historyManager->commitSnapshot(oldState, updated, tr("Redimensionner forme"));
+    commitSelectedTransform(updated, tr("Redimensionner forme"));
 }
 
 void CustomDrawArea::rotateSelectedShapes(qreal angleDegrees)
@@ -304,7 +355,6 @@ void CustomDrawArea::rotateSelectedShapes(qreal angleDegrees)
     const QRectF bounds = selectedShapesBounds();
     if (!bounds.isValid()) return;
 
-    auto oldState = m_historyManager->getCurrentState();
     auto updated = m_shapeManager->shapes();
     const auto selected = m_shapeManager->selectedShapes();
     const QPointF center = bounds.center();
@@ -320,40 +370,320 @@ void CustomDrawArea::rotateSelectedShapes(qreal angleDegrees)
         updated[idx].rotationAngle += angleDegrees;
     }
 
-    m_shapeManager->setShapes(updated);
-    m_shapeManager->setSelectedShapes(selected);
-    m_historyManager->commitSnapshot(oldState, updated, tr("Tourner forme"));
+    commitSelectedTransform(updated, tr("Tourner forme"));
 }
 
-// ---------------------------------------------------------------------------
-// Grille
-// ---------------------------------------------------------------------------
-
-void CustomDrawArea::setSnapToGridEnabled(bool enabled) { Q_ASSERT(m_renderer); m_renderer->setSnapToGridEnabled(enabled); update(); }
-bool CustomDrawArea::isSnapToGridEnabled()        const { Q_ASSERT(m_renderer); return m_renderer->isSnapToGridEnabled(); }
-void CustomDrawArea::setGridVisible(bool visible)       { Q_ASSERT(m_renderer); m_renderer->setGridVisible(visible);      update(); }
-bool CustomDrawArea::isGridVisible()              const { Q_ASSERT(m_renderer); return m_renderer->isGridVisible(); }
-void CustomDrawArea::setGridSpacing(int px)             { Q_ASSERT(m_renderer); m_renderer->setGridSpacing(px);           update(); }
-int  CustomDrawArea::gridSpacing()                const { Q_ASSERT(m_renderer); return m_renderer->gridSpacing(); }
-
-// ---------------------------------------------------------------------------
-// Requêtes d'état
-// ---------------------------------------------------------------------------
-
-bool CustomDrawArea::isDeplacerMode()  const { return getDrawMode() == DrawMode::Deplacer; }
-bool CustomDrawArea::isSupprimerMode() const { return getDrawMode() == DrawMode::Supprimer; }
-bool CustomDrawArea::isGommeMode()     const { return getDrawMode() == DrawMode::Gomme; }
-bool CustomDrawArea::isConnectMode()   const { return m_modeManager->isConnectMode(); }
-
-void CustomDrawArea::onDrawModeChanged(DrawModeManager::DrawMode mode)
+void CustomDrawArea::moveSelectedShapes(qreal dx, qreal dy, const QString &label)
 {
-    emit drawModeChanged(mode);
+    if (!hasSelection()) return;
+
+    auto updated = m_shapeManager->shapes();
+    const auto selected = m_shapeManager->selectedShapes();
+    for (int idx : selected) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        updated[idx].path.translate(dx, dy);
+    }
+
+    commitSelectedTransform(updated, label.isEmpty() ? tr("Deplacer forme") : label);
+}
+
+void CustomDrawArea::setSelectedShapesPosition(qreal x, qreal y)
+{
+    if (!hasSelection()) return;
+    const QRectF bounds = selectedShapesBounds();
+    moveSelectedShapes(x - bounds.left(), y - bounds.top(), tr("Positionner forme"));
+}
+
+void CustomDrawArea::alignSelectedLeft()
+{
+    if (!hasSelection()) return;
+    const QRectF selectionBounds = selectedShapesBounds();
+    auto updated = m_shapeManager->shapes();
+    for (int idx : m_shapeManager->selectedShapes()) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        const QRectF bounds = updated[idx].path.boundingRect();
+        updated[idx].path.translate(selectionBounds.left() - bounds.left(), 0.0);
+    }
+    commitSelectedTransform(updated, tr("Aligner a gauche"));
+}
+
+void CustomDrawArea::alignSelectedHCenter()
+{
+    if (!hasSelection()) return;
+    const qreal centerX = selectedShapesBounds().center().x();
+    auto updated = m_shapeManager->shapes();
+    for (int idx : m_shapeManager->selectedShapes()) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        const QRectF bounds = updated[idx].path.boundingRect();
+        updated[idx].path.translate(centerX - bounds.center().x(), 0.0);
+    }
+    commitSelectedTransform(updated, tr("Aligner au centre horizontal"));
+}
+
+void CustomDrawArea::alignSelectedTop()
+{
+    if (!hasSelection()) return;
+    const QRectF selectionBounds = selectedShapesBounds();
+    auto updated = m_shapeManager->shapes();
+    for (int idx : m_shapeManager->selectedShapes()) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        const QRectF bounds = updated[idx].path.boundingRect();
+        updated[idx].path.translate(0.0, selectionBounds.top() - bounds.top());
+    }
+    commitSelectedTransform(updated, tr("Aligner en haut"));
+}
+
+void CustomDrawArea::alignSelectedVCenter()
+{
+    if (!hasSelection()) return;
+    const qreal centerY = selectedShapesBounds().center().y();
+    auto updated = m_shapeManager->shapes();
+    for (int idx : m_shapeManager->selectedShapes()) {
+        if (idx < 0 || idx >= static_cast<int>(updated.size())) continue;
+        const QRectF bounds = updated[idx].path.boundingRect();
+        updated[idx].path.translate(0.0, centerY - bounds.center().y());
+    }
+    commitSelectedTransform(updated, tr("Aligner au centre vertical"));
+}
+
+void CustomDrawArea::distributeSelectedHorizontally()
+{
+    const auto selected = m_shapeManager->selectedShapes();
+    if (selected.size() < 3) return;
+
+    std::vector<int> ordered = selected;
+    const auto shapes = m_shapeManager->shapes();
+    std::sort(ordered.begin(), ordered.end(), [&](int a, int b) {
+        return shapes[a].path.boundingRect().center().x() < shapes[b].path.boundingRect().center().x();
+    });
+
+    const qreal start = shapes[ordered.front()].path.boundingRect().center().x();
+    const qreal end = shapes[ordered.back()].path.boundingRect().center().x();
+    const qreal step = (end - start) / (ordered.size() - 1);
+
+    auto updated = shapes;
+    for (int i = 1; i < static_cast<int>(ordered.size()) - 1; ++i) {
+        const QRectF bounds = updated[ordered[i]].path.boundingRect();
+        updated[ordered[i]].path.translate(start + step * i - bounds.center().x(), 0.0);
+    }
+    commitSelectedTransform(updated, tr("Distribuer horizontalement"));
+}
+
+void CustomDrawArea::distributeSelectedVertically()
+{
+    const auto selected = m_shapeManager->selectedShapes();
+    if (selected.size() < 3) return;
+
+    std::vector<int> ordered = selected;
+    const auto shapes = m_shapeManager->shapes();
+    std::sort(ordered.begin(), ordered.end(), [&](int a, int b) {
+        return shapes[a].path.boundingRect().center().y() < shapes[b].path.boundingRect().center().y();
+    });
+
+    const qreal start = shapes[ordered.front()].path.boundingRect().center().y();
+    const qreal end = shapes[ordered.back()].path.boundingRect().center().y();
+    const qreal step = (end - start) / (ordered.size() - 1);
+
+    auto updated = shapes;
+    for (int i = 1; i < static_cast<int>(ordered.size()) - 1; ++i) {
+        const QRectF bounds = updated[ordered[i]].path.boundingRect();
+        updated[ordered[i]].path.translate(0.0, start + step * i - bounds.center().y());
+    }
+    commitSelectedTransform(updated, tr("Distribuer verticalement"));
+}
+
+void CustomDrawArea::centerSelectionInViewport()
+{
+    if (!hasSelection()) return;
+    const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)),
+                                      toLogical(QPointF(width(), height()))).normalized();
+    const QPointF delta = visibleArea.center() - selectedShapesBounds().center();
+    moveSelectedShapes(delta.x(), delta.y(), tr("Centrer la selection"));
+}
+
+void CustomDrawArea::duplicateSelectedShapesLinear(int copies, const QPointF &step)
+{
+    if (!hasSelection() || copies <= 0) return;
+
+    const auto oldState = m_historyManager->getCurrentState();
+    const auto baseShapes = m_shapeManager->shapes();
+    auto updated = baseShapes;
+    const auto selected = m_shapeManager->selectedShapes();
+
+    for (int copyIndex = 1; copyIndex <= copies; ++copyIndex) {
+        const QPointF delta(step.x() * copyIndex, step.y() * copyIndex);
+        for (int idx : selected) {
+            if (idx < 0 || idx >= static_cast<int>(baseShapes.size())) continue;
+            auto clone = baseShapes[idx];
+            clone.path.translate(delta);
+            clone.originalId = m_nextShapeId++;
+            updated.push_back(clone);
+        }
+    }
+
+    m_shapeManager->setShapes(updated);
+    m_historyManager->commitSnapshot(oldState, updated, tr("Dupliquer en serie"));
+    emitHistoryState();
+    emitCanvasStatus();
+}
+
+void CustomDrawArea::setSnapToGridEnabled(bool enabled)
+{
+    m_renderer->setSnapToGridEnabled(enabled);
+    emitCanvasStatus();
     update();
 }
 
-// ---------------------------------------------------------------------------
-// Modes spéciaux
-// ---------------------------------------------------------------------------
+bool CustomDrawArea::isSnapToGridEnabled() const { return m_renderer->isSnapToGridEnabled(); }
+
+void CustomDrawArea::setGridVisible(bool visible)
+{
+    m_renderer->setGridVisible(visible);
+    emitCanvasStatus();
+    update();
+}
+
+bool CustomDrawArea::isGridVisible() const { return m_renderer->isGridVisible(); }
+
+void CustomDrawArea::setGridSpacing(int px)
+{
+    m_renderer->setGridSpacing(px);
+    emitCanvasStatus();
+    update();
+}
+
+int CustomDrawArea::gridSpacing() const { return m_renderer->gridSpacing(); }
+
+void CustomDrawArea::setPrecisionConstraintEnabled(bool enabled)
+{
+    m_precisionConstraintEnabled = enabled;
+    emitCanvasStatus();
+    update();
+}
+
+bool CustomDrawArea::isPrecisionConstraintEnabled() const
+{
+    return m_precisionConstraintEnabled;
+}
+
+void CustomDrawArea::setMachinePreviewEnabled(bool enabled)
+{
+    m_machinePreviewEnabled = enabled;
+    emitCanvasStatus();
+    update();
+}
+
+bool CustomDrawArea::isMachinePreviewEnabled() const
+{
+    return m_machinePreviewEnabled;
+}
+
+bool CustomDrawArea::hasActiveSpecialMode() const
+{
+    return m_modeManager->isCloseMode()
+        || m_modeManager->isSelectMode()
+        || m_modeManager->isPasteMode()
+        || getDrawMode() == DrawMode::Deplacer
+        || getDrawMode() == DrawMode::Supprimer
+        || getDrawMode() == DrawMode::Gomme;
+}
+
+void CustomDrawArea::cancelActiveModes()
+{
+    cancelSelection();
+    cancelCloseMode();
+    cancelDeplacerMode();
+    cancelSupprimerMode();
+    cancelGommeMode();
+    m_modeManager->cancelPasteMode();
+    m_drawingState->pointByPointPoints.clear();
+    m_drawingState->gommeErasing = false;
+    m_drawing = false;
+    emitCanvasStatus();
+    update();
+}
+
+bool CustomDrawArea::isDeplacerMode() const { return getDrawMode() == DrawMode::Deplacer; }
+bool CustomDrawArea::isSupprimerMode() const { return getDrawMode() == DrawMode::Supprimer; }
+bool CustomDrawArea::isGommeMode() const { return getDrawMode() == DrawMode::Gomme; }
+bool CustomDrawArea::isConnectMode() const { return m_modeManager->isConnectMode(); }
+
+QString CustomDrawArea::validationSummary() const
+{
+    const auto &shapes = m_shapeManager->shapes();
+    int openCount = 0;
+    int smallCount = 0;
+    int closeCount = 0;
+    QRectF globalBounds;
+    bool initialized = false;
+
+    for (const auto &shape : shapes) {
+        const QRectF bounds = shape.path.boundingRect();
+        globalBounds = initialized ? globalBounds.united(bounds) : bounds;
+        initialized = true;
+        if (!isPathClosed(shape.path))
+            ++openCount;
+        if (bounds.width() < 12.0 || bounds.height() < 12.0)
+            ++smallCount;
+    }
+
+    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+        const QRectF a = shapes[i].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0);
+        for (int j = i + 1; j < static_cast<int>(shapes.size()); ++j) {
+            const QRectF b = shapes[j].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0);
+            if (a.intersects(b))
+                ++closeCount;
+        }
+    }
+
+    QStringList lines;
+    lines << tr("Formes : %1").arg(shapes.size());
+    lines << tr("Dimensions globales : %1 x %2 px")
+                 .arg(qRound(globalBounds.width()))
+                 .arg(qRound(globalBounds.height()));
+    lines << tr("Formes fermees : %1").arg(shapes.size() - openCount);
+    lines << tr("Formes ouvertes : %1").arg(openCount);
+    if (smallCount > 0)
+        lines << tr("Formes tres petites : %1").arg(smallCount);
+    if (closeCount > 0)
+        lines << tr("Elements proches/superposes : %1").arg(closeCount);
+    if (hasValidationIssues())
+        lines << tr("Verification conseillee avant application.");
+    else
+        lines << tr("Aucune alerte detectee.");
+    return lines.join('\n');
+}
+
+bool CustomDrawArea::hasValidationIssues() const
+{
+    const auto &shapes = m_shapeManager->shapes();
+    for (const auto &shape : shapes) {
+        const QRectF bounds = shape.path.boundingRect();
+        if (!isPathClosed(shape.path) || bounds.width() < 12.0 || bounds.height() < 12.0)
+            return true;
+    }
+    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+        const QRectF a = shapes[i].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0);
+        for (int j = i + 1; j < static_cast<int>(shapes.size()); ++j) {
+            if (a.intersects(shapes[j].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0)))
+                return true;
+        }
+    }
+    return false;
+}
+
+QString CustomDrawArea::buildSelectionSummary() const
+{
+    if (!hasSelection()) return tr("Aucune selection");
+    const QRectF bounds = selectedShapesBounds();
+    return tr("%1 forme(s)  |  %2 x %3 px  |  angle %4 deg  |  X %5  |  Y %6")
+        .arg(m_shapeManager->selectedShapes().size())
+        .arg(qRound(bounds.width()))
+        .arg(qRound(bounds.height()))
+        .arg(qRound(currentSelectionAngle()))
+        .arg(qRound(bounds.left()))
+        .arg(qRound(bounds.top()));
+}
 
 void CustomDrawArea::startCloseMode()
 {
@@ -362,11 +692,15 @@ void CustomDrawArea::startCloseMode()
     cancelSupprimerMode();
     cancelGommeMode();
     m_modeManager->startCloseMode();
+    emitCanvasStatus();
 }
+
 void CustomDrawArea::cancelCloseMode()
 {
     m_modeManager->cancelCloseMode();
+    emitCanvasStatus();
 }
+
 void CustomDrawArea::startDeplacerMode()
 {
     cancelSelection();
@@ -374,8 +708,15 @@ void CustomDrawArea::startDeplacerMode()
     cancelSupprimerMode();
     cancelGommeMode();
     m_modeManager->startDeplacerMode();
+    emitCanvasStatus();
 }
-void CustomDrawArea::cancelDeplacerMode()  { m_modeManager->cancelDeplacerMode(); }
+
+void CustomDrawArea::cancelDeplacerMode()
+{
+    m_modeManager->cancelDeplacerMode();
+    emitCanvasStatus();
+}
+
 void CustomDrawArea::startSupprimerMode()
 {
     cancelSelection();
@@ -383,8 +724,15 @@ void CustomDrawArea::startSupprimerMode()
     cancelDeplacerMode();
     cancelGommeMode();
     m_modeManager->startSupprimerMode();
+    emitCanvasStatus();
 }
-void CustomDrawArea::cancelSupprimerMode() { m_modeManager->cancelSupprimerMode(); }
+
+void CustomDrawArea::cancelSupprimerMode()
+{
+    m_modeManager->cancelSupprimerMode();
+    emitCanvasStatus();
+}
+
 void CustomDrawArea::startGommeMode()
 {
     cancelSelection();
@@ -392,56 +740,101 @@ void CustomDrawArea::startGommeMode()
     cancelDeplacerMode();
     cancelSupprimerMode();
     m_modeManager->startGommeMode();
+    emitCanvasStatus();
 }
-void CustomDrawArea::cancelGommeMode()     { m_modeManager->cancelGommeMode(); }
+
+void CustomDrawArea::cancelGommeMode()
+{
+    m_modeManager->cancelGommeMode();
+    emitCanvasStatus();
+}
 
 void CustomDrawArea::setSmoothingLevel(int level)
 {
     m_smoothingLevel = qMax(0, level);
     emit smoothingLevelChanged(m_smoothingLevel);
+    emitCanvasStatus();
 }
 
 void CustomDrawArea::setTwoFingersOn(bool active)
 {
     m_twoFingersOn = active;
     if (active) m_drawingState->gommeErasing = false;
+    emitCanvasStatus();
 }
 
 void CustomDrawArea::handlePinchZoom(QPointF center, qreal factor)
 {
-    const qreal    oldScale      = m_transformer->scale();
-    const QPointF  logicalCenter = toLogical(center);
+    const qreal oldScale = m_transformer->scale();
+    const QPointF logicalCenter = toLogical(center);
     m_transformer->setScale(oldScale * factor);
     m_transformer->setOffset(center - logicalCenter * m_transformer->scale());
 }
 
-// ---------------------------------------------------------------------------
-// Helpers privés
-// ---------------------------------------------------------------------------
+void CustomDrawArea::onDrawModeChanged(DrawModeManager::DrawMode mode)
+{
+    emit drawModeChanged(mode);
+    emitCanvasStatus();
+    update();
+}
 
 QPointF CustomDrawArea::toLogical(const QPointF &widgetPoint) const
 {
-    Q_ASSERT(m_transformer != nullptr);
     return (widgetPoint - m_transformer->offset()) / m_transformer->scale();
+}
+
+QPointF CustomDrawArea::toWidget(const QPointF &logicalPoint) const
+{
+    return logicalPoint * m_transformer->scale() + m_transformer->offset();
 }
 
 QPointF CustomDrawArea::snapToGridIfNeeded(const QPointF &logicalPoint) const
 {
-    Q_ASSERT(m_renderer != nullptr);
     if (!m_renderer->isSnapToGridEnabled()) return logicalPoint;
     const int spacing = qMax(1, m_renderer->gridSpacing());
     return QPointF(std::round(logicalPoint.x() / spacing) * spacing,
                    std::round(logicalPoint.y() / spacing) * spacing);
 }
 
+QPointF CustomDrawArea::constrainedPoint(const QPointF &logicalPoint) const
+{
+    if (!m_precisionConstraintEnabled || !m_drawing) return logicalPoint;
+
+    if (getDrawMode() == DrawMode::Line) {
+        const QPointF delta = logicalPoint - m_drawingState->startPoint;
+        if (std::abs(delta.x()) >= std::abs(delta.y()))
+            return QPointF(logicalPoint.x(), m_drawingState->startPoint.y());
+        return QPointF(m_drawingState->startPoint.x(), logicalPoint.y());
+    }
+
+    if (getDrawMode() == DrawMode::Rectangle || getDrawMode() == DrawMode::Circle) {
+        const QPointF delta = logicalPoint - m_drawingState->startPoint;
+        const qreal size = qMax(std::abs(delta.x()), std::abs(delta.y()));
+        return QPointF(m_drawingState->startPoint.x() + (delta.x() < 0 ? -size : size),
+                       m_drawingState->startPoint.y() + (delta.y() < 0 ? -size : size));
+    }
+
+    return logicalPoint;
+}
+
+QPointF CustomDrawArea::applyDrawingAids(const QPointF &logicalPoint) const
+{
+    const QPointF constrained = constrainedPoint(logicalPoint);
+    const QPointF snapped = snapToGridIfNeeded(constrained);
+    return snapped;
+}
+
 int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) const
 {
-    Q_ASSERT(m_shapeManager != nullptr);
     const auto &shapes = m_shapeManager->shapes();
+    const qreal desiredPixels = 18.0 + (m_transformer->scale() < 1.0 ? (1.0 - m_transformer->scale()) * 12.0 : 0.0);
+    const qreal adjustedTolerance = qMax<qreal>(tolerance * 0.25, desiredPixels / qMax<qreal>(0.25, m_transformer->scale()));
+
     QPainterPathStroker stroker;
-    stroker.setWidth(tolerance);
+    stroker.setWidth(adjustedTolerance);
     for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
-        if (stroker.createStroke(shapes[i].path).contains(logicalPoint)) return i;
+        if (stroker.createStroke(shapes[i].path).contains(logicalPoint))
+            return i;
     }
     return -1;
 }
@@ -519,20 +912,132 @@ QRectF CustomDrawArea::selectionOverlayBounds() const
 
 void CustomDrawArea::emitSelectionState()
 {
-    const bool selected = hasSelection();
-    if (!selected) {
-        emit selectionStateChanged(false, tr("Aucune selection"));
-        return;
+    emit selectionStateChanged(hasSelection(), buildSelectionSummary());
+}
+
+void CustomDrawArea::emitCanvasStatus()
+{
+    emit canvasStatusChanged(currentModeLabel(), currentModeHint(), currentDetailText());
+}
+
+void CustomDrawArea::emitHistoryState()
+{
+    emit historyStateChanged(m_historyManager->canUndo(),
+                             m_historyManager->undoText(),
+                             m_historyManager->canRedo(),
+                             m_historyManager->redoText());
+}
+
+QString CustomDrawArea::currentModeLabel() const
+{
+    if (m_modeManager->isConnectMode()) return tr("Mode : Relier");
+    if (m_modeManager->isMultiSelectMode()) return tr("Mode : Selection multiple");
+    if (m_modeManager->isCloseMode()) return tr("Mode : Fermer forme");
+    if (m_modeManager->isPasteMode()) return tr("Mode : Collage");
+    return tr("Mode : %1").arg(modeToString(getDrawMode()));
+}
+
+QString CustomDrawArea::currentModeHint() const
+{
+    if (m_modeManager->isConnectMode()) return tr("Touchez deux formes pour relier leurs extremites.");
+    if (m_modeManager->isMultiSelectMode()) return tr("Touchez pour ajouter/retirer une forme, puis utilisez les actions rapides.");
+    if (m_modeManager->isCloseMode()) return tr("Touchez une forme ouverte pour fermer son contour.");
+    if (m_modeManager->isPasteMode()) return tr("Touchez la zone de dessin pour placer la copie.");
+
+    switch (getDrawMode()) {
+    case DrawMode::Freehand:      return tr("Glissez le doigt pour dessiner librement.");
+    case DrawMode::PointParPoint: return tr("Touchez pour poser des points, double-touchez pour terminer.");
+    case DrawMode::Line:          return tr("Glissez pour tracer une ligne. La contrainte force horizontal/vertical.");
+    case DrawMode::Rectangle:     return tr("Glissez pour tracer un rectangle. La contrainte force le carre.");
+    case DrawMode::Circle:        return tr("Glissez pour tracer une ellipse. La contrainte force le cercle.");
+    case DrawMode::Text:          return tr("Touchez pour inserer un texte contour.");
+    case DrawMode::ThinText:      return tr("Touchez pour inserer un texte fin.");
+    case DrawMode::Deplacer:      return tr("Glissez une selection pour la deplacer.");
+    case DrawMode::Gomme:         return tr("Glissez pour effacer le trait.");
+    case DrawMode::Supprimer:     return tr("Touchez une forme pour la supprimer.");
+    case DrawMode::Pan:           return tr("Deplacez la vue.");
+    default:                      return tr("Dessinez directement sur le canevas.");
+    }
+}
+
+QString CustomDrawArea::currentDetailText() const
+{
+    QStringList parts;
+    parts << (isGridVisible() ? tr("Grille visible") : tr("Grille masquee"));
+    parts << (isSnapToGridEnabled() ? tr("Aimant ON") : tr("Aimant OFF"));
+    parts << (m_precisionConstraintEnabled ? tr("Contrainte ON") : tr("Contrainte OFF"));
+    if (m_machinePreviewEnabled)
+        parts << tr("Apercu machine ON");
+    if (hasSelection())
+        parts << buildSelectionSummary();
+    else {
+        const QString preview = livePreviewMetrics();
+        if (!preview.isEmpty())
+            parts << preview;
+    }
+    return parts.join("  |  ");
+}
+
+QString CustomDrawArea::livePreviewMetrics() const
+{
+    if (m_drawing && getDrawMode() == DrawMode::Line) {
+        const QLineF line(m_drawingState->startPoint, m_drawingState->currentPoint);
+        return tr("Longueur %1 px  |  Angle %2 deg")
+            .arg(qRound(line.length()))
+            .arg(qRound(-line.angle()));
     }
 
-    const QRectF bounds = selectedShapesBounds();
-    emit selectionStateChanged(
-        true,
-        tr("%1 forme(s)  |  %2 x %3 px  |  %4 deg")
-            .arg(m_shapeManager->selectedShapes().size())
-            .arg(qRound(bounds.width()))
-            .arg(qRound(bounds.height()))
-            .arg(qRound(currentSelectionAngle())));
+    if (m_drawing && (getDrawMode() == DrawMode::Rectangle || getDrawMode() == DrawMode::Circle)) {
+        const QRectF rect(m_drawingState->startPoint, m_drawingState->currentPoint);
+        const QRectF normalized = rect.normalized();
+        QString metrics = tr("%1 x %2 px  |  Centre X %3  |  Y %4")
+            .arg(qRound(normalized.width()))
+            .arg(qRound(normalized.height()))
+            .arg(qRound(normalized.center().x()))
+            .arg(qRound(normalized.center().y()));
+        if (getDrawMode() == DrawMode::Circle) {
+            metrics += tr("  |  Rayon ~ %1").arg(qRound(qMin(normalized.width(), normalized.height()) / 2.0));
+        }
+        return metrics;
+    }
+
+    if (getDrawMode() == DrawMode::PointParPoint && !m_drawingState->pointByPointPoints.isEmpty())
+        return tr("%1 point(s) places").arg(m_drawingState->pointByPointPoints.size());
+
+    if (getDrawMode() == DrawMode::Gomme && m_drawingState->gommeErasing)
+        return tr("Diametre gomme : %1 px").arg(qRound(m_eraserTool->eraserRadius() * 2.0));
+
+    return {};
+}
+
+bool CustomDrawArea::isPointInsideSelectedShape(const QPointF &logicalPoint) const
+{
+    if (!hasSelection())
+        return false;
+
+    const auto &shapes = m_shapeManager->shapes();
+    const auto &selected = m_shapeManager->selectedShapes();
+    QPainterPathStroker stroker;
+    stroker.setWidth(26.0);
+    stroker.setCapStyle(Qt::RoundCap);
+    stroker.setJoinStyle(Qt::RoundJoin);
+
+    for (auto it = selected.rbegin(); it != selected.rend(); ++it) {
+        const int idx = *it;
+        if (idx < 0 || idx >= static_cast<int>(shapes.size()))
+            continue;
+        const QPainterPath &path = shapes[idx].path;
+        if (path.contains(logicalPoint) || stroker.createStroke(path).contains(logicalPoint))
+            return true;
+    }
+
+    return false;
+}
+
+bool CustomDrawArea::isPathClosed(const QPainterPath &path) const
+{
+    if (path.elementCount() < 3) return false;
+    return QLineF(pathStart(path), pathEnd(path)).length() <= 1.5;
 }
 
 QPointF CustomDrawArea::rotationHandlePoint() const
@@ -593,9 +1098,79 @@ QTransform CustomDrawArea::selectionInverseRotationTransform() const
     return transform;
 }
 
-// ---------------------------------------------------------------------------
-// Rendu
-// ---------------------------------------------------------------------------
+void CustomDrawArea::drawMachinePreview(QPainter &painter) const
+{
+    for (const auto &shape : m_shapeManager->shapes()) {
+        // Ajout d'une opacité (ex: 120 sur 255) aux couleurs du stylo
+        QColor pathColor = isPathClosed(shape.path) ? QColor(14, 159, 110, 120) : QColor(220, 38, 38, 120);
+        QPen pen(pathColor, 2.6);
+        pen.setCosmetic(true);
+        pen.setCapStyle(Qt::RoundCap);
+        pen.setJoinStyle(Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(shape.path);
+
+        const QPointF start = pathStart(shape.path);
+        const QPointF end = pathEnd(shape.path);
+
+        // Ajout d'une opacité aux points de début et de fin
+        painter.setBrush(QColor(14, 159, 110, 150)); // Vert un peu transparent
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(start, 5.0 / qMax<qreal>(0.25, m_transformer->scale()),
+                            5.0 / qMax<qreal>(0.25, m_transformer->scale()));
+
+        painter.setBrush(QColor(220, 38, 38, 150)); // Rouge un peu transparent
+        painter.drawEllipse(end, 5.0 / qMax<qreal>(0.25, m_transformer->scale()),
+                            5.0 / qMax<qreal>(0.25, m_transformer->scale()));
+    }
+}
+
+void CustomDrawArea::drawCanvasHud(QPainter &painter) const
+{
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // SUPPRIMÉ : Le gros bloc sombre (statusRect) qui affichait les textes en double.
+
+    // ON GARDE UNIQUEMENT LA BULLE D'APERÇU EN DIRECT (suivi du curseur)
+    QFont bodyFont = painter.font();
+    bodyFont.setBold(false);
+    bodyFont.setPointSize(qMax(9, bodyFont.pointSize() - 1));
+    painter.setFont(bodyFont);
+
+    const QString preview = livePreviewMetrics();
+    if (!preview.isEmpty()) {
+        const QPointF anchor = toWidget(m_drawingState->currentPoint) + QPointF(18.0, -18.0);
+        const QFontMetrics fm(bodyFont);
+        const QRect textRect = fm.boundingRect(QRect(0, 0, 360, 80), Qt::TextWordWrap, preview).adjusted(-10, -8, 10, 8);
+        QRect bubbleRect(anchor.x(), anchor.y() - textRect.height(), textRect.width(), textRect.height());
+        bubbleRect.moveLeft(qMin(bubbleRect.left(), width() - bubbleRect.width() - 12));
+        bubbleRect.moveTop(qMax(110, bubbleRect.top()));
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(255, 255, 255, 235));
+        painter.drawRoundedRect(bubbleRect, 12, 12);
+
+        painter.setPen(QColor(15, 23, 42));
+        painter.drawText(bubbleRect.adjusted(10, 8, -10, -8), Qt::TextWordWrap, preview);
+    }
+
+    painter.restore();
+}
+
+void CustomDrawArea::commitSelectedTransform(const std::vector<ShapeManager::Shape> &updated,
+                                             const QString &label)
+{
+    const auto oldState = m_historyManager->getCurrentState();
+    const auto selected = m_shapeManager->selectedShapes();
+    m_shapeManager->setShapes(updated);
+    m_shapeManager->setSelectedShapes(selected);
+    m_historyManager->commitSnapshot(oldState, updated, label);
+    emitHistoryState();
+    emitSelectionState();
+    emitCanvasStatus();
+}
 
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
@@ -610,8 +1185,11 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
                                       toLogical(QPointF(width(), height()))).normalized();
     m_renderer->render(painter, *m_shapeManager, visibleArea);
 
+    if (m_machinePreviewEnabled)
+        drawMachinePreview(painter);
+
     if (!m_shapeManager->selectedShapes().empty()) {
-        QPen halo(QColor(72, 187, 255), 10);   halo.setCosmetic(true);
+        QPen halo(QColor(72, 187, 255), 10); halo.setCosmetic(true);
         QPen normal(Qt::black, 2); normal.setCosmetic(true);
         for (int idx : m_shapeManager->selectedShapes()) {
             if (idx < 0 || idx >= static_cast<int>(m_shapeManager->shapes().size())) continue;
@@ -619,8 +1197,11 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
             painter.setPen(Qt::NoPen);
             painter.setBrush(QColor(72, 187, 255, 40));
             painter.drawPath(path);
-            painter.setPen(halo);   painter.setBrush(Qt::NoBrush); painter.drawPath(path);
-            painter.setPen(normal);                                 painter.drawPath(path);
+            painter.setPen(halo);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(path);
+            painter.setPen(normal);
+            painter.drawPath(path);
         }
 
         const QRectF bounds = selectionOverlayBounds();
@@ -668,23 +1249,41 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
     if (getDrawMode() == DrawMode::Freehand && m_drawing &&
         m_drawingState->strokePoints.size() > 1) {
-        painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
-        painter.drawPath(PathGenerator::generateBezierPath(m_drawingState->strokePoints));
+        QPen pen(QColor(71, 85, 105), 1.2, Qt::DashLine);
+        pen.setCosmetic(true);
+        painter.setPen(pen);
+        if (m_smoothingLevel <= 0) {
+            QPainterPath previewPath;
+            previewPath.moveTo(m_drawingState->strokePoints.first());
+            for (int i = 1; i < m_drawingState->strokePoints.size(); ++i)
+                previewPath.lineTo(m_drawingState->strokePoints[i]);
+            painter.drawPath(previewPath);
+        } else {
+            painter.drawPath(PathGenerator::generateBezierPath(
+                PathGenerator::applyChaikinAlgorithm(m_drawingState->strokePoints, m_smoothingLevel)));
+        }
     }
 
-    if (m_drawing && (getDrawMode() == DrawMode::Line      ||
+    if (m_drawing && (getDrawMode() == DrawMode::Line ||
                       getDrawMode() == DrawMode::Rectangle ||
                       getDrawMode() == DrawMode::Circle)) {
-        painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
+        QPen pen(QColor(71, 85, 105), 1.2, Qt::DashLine);
+        pen.setCosmetic(true);
+        painter.setPen(pen);
         const QRectF rect(m_drawingState->startPoint, m_drawingState->currentPoint);
-        if      (getDrawMode() == DrawMode::Line)      painter.drawLine(m_drawingState->startPoint, m_drawingState->currentPoint);
-        else if (getDrawMode() == DrawMode::Rectangle) painter.drawRect(rect.normalized());
-        else if (getDrawMode() == DrawMode::Circle)    painter.drawEllipse(rect.normalized());
+        if (getDrawMode() == DrawMode::Line)
+            painter.drawLine(m_drawingState->startPoint, m_drawingState->currentPoint);
+        else if (getDrawMode() == DrawMode::Rectangle)
+            painter.drawRect(rect.normalized());
+        else if (getDrawMode() == DrawMode::Circle)
+            painter.drawEllipse(rect.normalized());
     }
 
     if (getDrawMode() == DrawMode::PointParPoint &&
         !m_drawingState->pointByPointPoints.isEmpty()) {
-        painter.setPen(QPen(Qt::darkGray, 1, Qt::DashLine));
+        QPen pen(QColor(71, 85, 105), 1.2, Qt::DashLine);
+        pen.setCosmetic(true);
+        painter.setPen(pen);
         QPainterPath previewPath;
         previewPath.moveTo(m_drawingState->pointByPointPoints.first());
         for (int i = 1; i < m_drawingState->pointByPointPoints.size(); ++i)
@@ -694,19 +1293,24 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
     }
 
     if (getDrawMode() == DrawMode::Gomme && m_drawingState->gommeErasing) {
-        painter.setPen(QPen(Qt::red, 2, Qt::DashLine));
+        QPen pen(QColor(220, 38, 38), 2, Qt::DashLine);
+        pen.setCosmetic(true);
+        painter.setPen(pen);
         painter.drawEllipse(m_drawingState->gommeCenter,
                             m_eraserTool->eraserRadius(), m_eraserTool->eraserRadius());
     }
-}
 
-// ---------------------------------------------------------------------------
-// Gestion souris
-// ---------------------------------------------------------------------------
+    painter.resetTransform();
+    drawCanvasHud(painter);
+}
 
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
-    const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+    const QPointF rawLogical = toLogical(event->position());
+    const QPointF logical = applyDrawingAids(rawLogical);
+    m_lastRawPointerLogical = rawLogical;
+    m_lastPointerLogical = logical;
+    m_hasPointer = true;
     m_drawingState->currentPoint = logical;
 
     if (event->button() == Qt::LeftButton && hasSelection()) {
@@ -717,6 +1321,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             m_rotateStartPointerAngle = std::atan2(logical.y() - m_transformStartBounds.center().y(),
                                                    logical.x() - m_transformStartBounds.center().x());
             m_drawing = false;
+            emitCanvasStatus();
             return;
         }
 
@@ -727,6 +1332,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             m_transformStartBounds = selectionOverlayBounds();
             m_transformStartState = m_historyManager->getCurrentState();
             m_drawing = false;
+            emitCanvasStatus();
             return;
         }
     }
@@ -741,28 +1347,35 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 const auto first = path.elementAt(0);
                 path.lineTo(QPointF(first.x, first.y));
                 m_shapeManager->setShapes(shapes);
-                m_historyManager->commitSnapshot(oldState, shapes, tr("Fermer tracé"));
+                m_historyManager->commitSnapshot(oldState, shapes, tr("Fermer trace"));
+                emitHistoryState();
             }
         }
         m_modeManager->cancelCloseMode();
+        emitCanvasStatus();
         update();
         return;
     }
 
     if (event->button() == Qt::RightButton && m_modeManager->isPasteMode()) {
         pasteCopiedShapes(logical);
-        m_modeManager->cancelPasteMode();
         return;
     }
 
     if (event->button() == Qt::RightButton && getDrawMode() == DrawMode::PointParPoint) {
         m_drawingState->pointByPointPoints.clear();
         m_drawing = false;
+        emitCanvasStatus();
         update();
         return;
     }
 
-    if (m_modeManager->isSelectMode() && getDrawMode() != DrawMode::Deplacer) {
+    const bool canDragSelectedShape =
+        event->button() == Qt::LeftButton &&
+        m_modeManager->isMultiSelectMode() &&
+        isPointInsideSelectedShape(logical);
+
+    if (m_modeManager->isSelectMode() && getDrawMode() != DrawMode::Deplacer && !canDragSelectedShape) {
         const int hit = hitTestShape(logical);
         if (hit >= 0) {
             m_lastSelectClick = logical;
@@ -781,11 +1394,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
                 m_historyManager->commitSnapshot(old, m_shapeManager->shapes(), tr("Connecter formes"));
                 m_shapeManager->clearSelection();
                 m_modeManager->cancelSelectConnect();
+                emitHistoryState();
             } else if (m_modeManager->isMultiSelectMode()) {
-                // signal already emitted by DrawModeManager on startSelectMulti;
-                // emit again to keep the button highlighted after each click
                 emit multiSelectionModeChanged(true);
             }
+            emitCanvasStatus();
             update();
         }
         return;
@@ -798,37 +1411,38 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         if (ok && !text.isEmpty()) {
             m_textTool->setCurrentText(text);
 
-            // 1. On génère le tracé texte de base
             QPainterPath rawTextPath;
             rawTextPath.addText(logical, m_textTool->getTextFont(), text);
 
-            // 2. Conversion en filaire pur (Hollow Text)
             QPainterPath hollowPath;
-            for (const QPolygonF& poly : rawTextPath.toSubpathPolygons()) {
+            for (const QPolygonF &poly : rawTextPath.toSubpathPolygons()) {
                 if (poly.isEmpty()) continue;
                 hollowPath.moveTo(poly.first());
-                for (int i = 1; i < poly.size(); ++i) {
+                for (int i = 1; i < poly.size(); ++i)
                     hollowPath.lineTo(poly[i]);
-                }
             }
 
-            int id = m_nextShapeId++;
-            // 3. On sauvegarde le tracé creux au lieu du texte brut
+            const int id = m_nextShapeId++;
             m_historyManager->commitAddShape(hollowPath, id, tr("Ajouter texte"));
+            emitHistoryState();
+            emitCanvasStatus();
         }
         return;
     }
 
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
         m_drawingState->pointByPointPoints.append(logical);
+        m_drawingState->currentPoint = logical;
         m_drawing = true;
+        emitCanvasStatus();
         update();
         return;
     }
 
     m_mouseHandler->handleMousePress(event, logical);
     m_drawing = (event->button() == Qt::LeftButton);
-    if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Deplacer) {
+    if (event->button() == Qt::LeftButton &&
+        (getDrawMode() == DrawMode::Deplacer || m_mouseHandler->isSelectionDragActive())) {
         m_moveStartState = m_historyManager->getCurrentState();
         m_moveInProgress = true;
     } else {
@@ -838,12 +1452,11 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     m_drawingState->strokePoints = {logical};
 
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Gomme) {
-        // La gomme est complexe car elle peut modifier l'état à chaque mouvement.
-        // On peut capturer l'état initial ici.
         m_drawingState->gommeErasing = true;
         m_drawingState->gommeCenter = logical;
         m_drawingState->lastEraserPos = logical;
         m_eraserTool->applyEraserAt(logical);
+        emitCanvasStatus();
         update();
     }
 }
@@ -851,7 +1464,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
-        const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+        const QPointF logical = applyDrawingAids(toLogical(event->position()));
         if (m_drawingState->pointByPointPoints.isEmpty()) return;
 
         if (m_drawingState->pointByPointPoints.size() >= 2) {
@@ -859,11 +1472,13 @@ void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
             path.moveTo(m_drawingState->pointByPointPoints.first());
             for (int i = 1; i < m_drawingState->pointByPointPoints.size(); ++i)
                 path.lineTo(m_drawingState->pointByPointPoints[i]);
-            int id = m_nextShapeId++;
-            m_historyManager->commitAddShape(path, id, tr("Tracé Point-par-point"));
+            const int id = m_nextShapeId++;
+            m_historyManager->commitAddShape(path, id, tr("Trace point-par-point"));
+            emitHistoryState();
         }
         m_drawingState->pointByPointPoints.clear();
         m_drawing = false;
+        emitCanvasStatus();
         update();
         return;
     }
@@ -872,18 +1487,32 @@ void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
 
 void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 {
-    const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+    const QPointF rawLogical = toLogical(event->position());
+    const QPointF logical = applyDrawingAids(rawLogical);
+    m_lastRawPointerLogical = rawLogical;
+    m_lastPointerLogical = logical;
+    m_hasPointer = true;
+
     if (getDrawMode() == DrawMode::PointParPoint && !m_drawingState->pointByPointPoints.isEmpty()) {
         m_drawingState->currentPoint = logical;
+        emitCanvasStatus();
         update();
     }
 
     m_mouseHandler->handleMouseMove(event, logical);
 
+    if (m_mouseHandler->isSelectionDragActive()) {
+        emitCanvasStatus();
+        update();
+        return;
+    }
+
     if (m_rotateInProgress) {
         const QPointF center = m_transformStartBounds.center();
         const qreal currentPointerAngle = std::atan2(logical.y() - center.y(), logical.x() - center.x());
-        const qreal deltaDegrees = (currentPointerAngle - m_rotateStartPointerAngle) * 180.0 / M_PI;
+        qreal deltaDegrees = (currentPointerAngle - m_rotateStartPointerAngle) * 180.0 / M_PI;
+        if (m_precisionConstraintEnabled)
+            deltaDegrees = std::round(deltaDegrees / 15.0) * 15.0;
 
         auto updated = m_transformStartState;
         const auto selected = m_shapeManager->selectedShapes();
@@ -900,6 +1529,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
         m_shapeManager->setShapes(updated);
         m_shapeManager->setSelectedShapes(selected);
+        emitCanvasStatus();
         return;
     }
 
@@ -915,10 +1545,23 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         rotateToWorld.rotate(currentSelectionAngle());
         rotateToWorld.translate(-center.x(), -center.y());
 
+        QRectF finalRect = targetRect;
+        if (m_precisionConstraintEnabled) {
+            const qreal side = qMax(finalRect.width(), finalRect.height());
+            if (m_activeResizeHandle == ResizeHandle::TopLeft)
+                finalRect = QRectF(finalRect.bottomRight() - QPointF(side, side), finalRect.bottomRight()).normalized();
+            else if (m_activeResizeHandle == ResizeHandle::TopRight)
+                finalRect = QRectF(QPointF(finalRect.left(), finalRect.bottom() - side), QPointF(finalRect.left() + side, finalRect.bottom())).normalized();
+            else if (m_activeResizeHandle == ResizeHandle::BottomLeft)
+                finalRect = QRectF(QPointF(finalRect.right() - side, finalRect.top()), QPointF(finalRect.right(), finalRect.top() + side)).normalized();
+            else
+                finalRect = QRectF(finalRect.topLeft(), finalRect.topLeft() + QPointF(side, side)).normalized();
+        }
+
         QTransform localScale;
-        localScale.translate(targetRect.left(), targetRect.top());
-        localScale.scale(targetRect.width() / m_transformStartBounds.width(),
-                         targetRect.height() / m_transformStartBounds.height());
+        localScale.translate(finalRect.left(), finalRect.top());
+        localScale.scale(finalRect.width() / m_transformStartBounds.width(),
+                         finalRect.height() / m_transformStartBounds.height());
         localScale.translate(-m_transformStartBounds.left(), -m_transformStartBounds.top());
 
         const QTransform transform = rotateToWorld * localScale * selectionInverseRotationTransform();
@@ -930,12 +1573,17 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
         m_shapeManager->setShapes(updated);
         m_shapeManager->setSelectedShapes(selected);
+        emitCanvasStatus();
         return;
     }
 
-    if (!m_drawing) return;
+    if (!m_drawing) {
+        emitCanvasStatus();
+        return;
+    }
 
-    if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan) return;
+    if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan)
+        return;
 
     m_drawingState->currentPoint = logical;
     if (getDrawMode() == DrawMode::Gomme) {
@@ -944,76 +1592,71 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         m_eraserTool->eraseAlong(m_drawingState->lastEraserPos, logical);
         m_drawingState->lastEraserPos = logical;
     } else if (getDrawMode() == DrawMode::Freehand) {
-        // AJOUT : Filtrage de distance (debounce spatial)
-        const qreal MIN_DISTANCE = 3.0; // Ignore les mouvements de moins de 3 pixels
-
+        const qreal minDistance = 3.0 / qMax<qreal>(0.35, m_transformer->scale());
         if (m_drawingState->strokePoints.isEmpty()) {
             m_drawingState->strokePoints.append(logical);
         } else {
-            QPointF lastPoint = m_drawingState->strokePoints.last();
-            if (QLineF(lastPoint, logical).length() >= MIN_DISTANCE) {
+            const QPointF lastPoint = m_drawingState->strokePoints.last();
+            if (QLineF(lastPoint, logical).length() >= minDistance)
                 m_drawingState->strokePoints.append(logical);
-            }
         }
     }
+    emitCanvasStatus();
     update();
 }
 
 void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
 {
-    const QPointF logical = snapToGridIfNeeded(toLogical(event->position()));
+    const QPointF logical = applyDrawingAids(toLogical(event->position()));
 
     if (m_rotateInProgress) {
-        Q_UNUSED(logical)
         const auto rotatedState = m_historyManager->getCurrentState();
-        bool changed = false;
-        if (rotatedState.size() == m_transformStartState.size()) {
+        bool changed = rotatedState.size() != m_transformStartState.size();
+        if (!changed) {
             for (size_t i = 0; i < rotatedState.size(); ++i) {
                 if (rotatedState[i].path != m_transformStartState[i].path) {
                     changed = true;
                     break;
                 }
             }
-        } else {
-            changed = true;
         }
-
         if (changed)
             m_historyManager->commitSnapshot(m_transformStartState, rotatedState, tr("Tourner forme"));
 
         m_rotateInProgress = false;
+        emitHistoryState();
         emitSelectionState();
+        emitCanvasStatus();
         update();
         return;
     }
 
     if (m_resizeInProgress) {
-        Q_UNUSED(logical)
         const auto resizedState = m_historyManager->getCurrentState();
-        bool changed = false;
-        if (resizedState.size() == m_transformStartState.size()) {
+        bool changed = resizedState.size() != m_transformStartState.size();
+        if (!changed) {
             for (size_t i = 0; i < resizedState.size(); ++i) {
                 if (resizedState[i].path != m_transformStartState[i].path) {
                     changed = true;
                     break;
                 }
             }
-        } else {
-            changed = true;
         }
-
         if (changed)
             m_historyManager->commitSnapshot(m_transformStartState, resizedState, tr("Redimensionner forme"));
 
         m_resizeInProgress = false;
         m_activeResizeHandle = ResizeHandle::None;
+        emitHistoryState();
         emitSelectionState();
+        emitCanvasStatus();
         update();
         return;
     }
 
     if (getDrawMode() == DrawMode::PointParPoint) {
         m_drawingState->currentPoint = logical;
+        emitCanvasStatus();
         update();
         return;
     }
@@ -1022,29 +1665,32 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     if (!m_drawing) return;
     m_drawing = false;
 
-    if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan) {
-        if (getDrawMode() == DrawMode::Deplacer && m_moveInProgress) {
+    if (m_moveInProgress || getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan) {
+        if (m_moveInProgress) {
             const auto movedState = m_historyManager->getCurrentState();
-            const bool changed = [&]() {
-                if (movedState.size() != m_moveStartState.size()) return true;
+            bool changed = movedState.size() != m_moveStartState.size();
+            if (!changed) {
                 for (size_t i = 0; i < movedState.size(); ++i) {
                     const auto &a = movedState[i];
                     const auto &b = m_moveStartState[i];
-                    if (a.originalId != b.originalId) return true;
-                    if (std::abs(a.rotationAngle - b.rotationAngle) > 1e-9) return true;
-                    if (a.path != b.path) return true;
+                    if (a.originalId != b.originalId || std::abs(a.rotationAngle - b.rotationAngle) > 1e-9 || a.path != b.path) {
+                        changed = true;
+                        break;
+                    }
                 }
-                return false;
-            }();
+            }
             if (changed)
-                m_historyManager->commitSnapshot(m_moveStartState, movedState, tr("Déplacer forme"));
+                m_historyManager->commitSnapshot(m_moveStartState, movedState, tr("Deplacer forme"));
             m_moveInProgress = false;
+            emitHistoryState();
         }
+        emitCanvasStatus();
         return;
     }
 
     if (getDrawMode() == DrawMode::Gomme) {
         m_drawingState->gommeErasing = false;
+        emitCanvasStatus();
         return;
     }
 
@@ -1057,22 +1703,31 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     } else if (getDrawMode() == DrawMode::Circle) {
         path.addEllipse(QRectF(m_drawingState->startPoint, logical).normalized());
     } else {
-        path = PathGenerator::generateBezierPath(
-            PathGenerator::applyChaikinAlgorithm(m_drawingState->strokePoints, m_smoothingLevel));
+        if (m_smoothingLevel <= 0) {
+            path.moveTo(m_drawingState->strokePoints.first());
+            for (int i = 1; i < m_drawingState->strokePoints.size(); ++i)
+                path.lineTo(m_drawingState->strokePoints[i]);
+        } else {
+            path = PathGenerator::generateBezierPath(
+                PathGenerator::applyChaikinAlgorithm(m_drawingState->strokePoints, m_smoothingLevel));
+        }
     }
 
     if (!path.isEmpty()) {
-        int id = m_nextShapeId++;
+        const int id = m_nextShapeId++;
         m_historyManager->commitAddShape(path, id);
+        emitHistoryState();
     }
+    emitCanvasStatus();
 }
 
 void CustomDrawArea::wheelEvent(QWheelEvent *event)
 {
-    const qreal   factor         = event->angleDelta().y() > 0 ? 1.1 : 0.9;
-    const QPointF cursor         = event->position();
+    const qreal factor = event->angleDelta().y() > 0 ? 1.1 : 0.9;
+    const QPointF cursor = event->position();
     const QPointF logicalAtCursor = toLogical(cursor);
     m_transformer->setScale(m_transformer->scale() * factor);
     m_transformer->setOffset(cursor - logicalAtCursor * m_transformer->scale());
+    emitCanvasStatus();
     event->accept();
 }

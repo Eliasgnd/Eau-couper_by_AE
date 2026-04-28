@@ -692,6 +692,23 @@ QPushButton#buttonGomme[gommeMode="true"] {
     border: 2px solid #7C3AED;
     color: #5B21B6;
 }
+QPushButton#buttonDeplacer[deplacerMode="true"] {
+    background-color: #E0F2FE;
+    border: 2px solid #0EA5E9;
+    color: #0C4A6E;
+}
+QPushButton#buttonSupprimer[supprimerMode="true"] {
+    background-color: #FEE2E2;
+    border: 2px solid #EF4444;
+    color: #991B1B;
+}
+QPushButton#buttonSelection[closeMode="true"],
+QPushButton#buttonConnect[closeMode="true"],
+QPushButton#buttonCloseShape[closeMode="true"] {
+    background-color: #DBEAFE;
+    border: 2px solid #3B82F6;
+    color: #1D4ED8;
+}
 /* Aimant (snap) actif */
 QPushButton#buttonSnapGrid[snapMode="true"] {
     background-color: #E0F2FE;

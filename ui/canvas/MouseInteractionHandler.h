@@ -31,6 +31,7 @@ public:
     void handleMousePress  (QMouseEvent *event, const QPointF &logicalPos);
     void handleMouseMove   (QMouseEvent *event, const QPointF &logicalPos);
     void handleMouseRelease(QMouseEvent *event, const QPointF &logicalPos);
+    bool isSelectionDragActive() const;
 
 signals:
     void requestUpdate();
@@ -44,6 +45,9 @@ private:
     // Sémantique différente de CustomDrawArea::m_drawing :
     // true = le handler traite les mouvements souris (pan, déplacement).
     bool m_active = false;
+    bool m_draggingSelection = false;
+    bool m_selectionDragMoved = false;
+    int  m_pressedSelectedIndex = -1;
 };
 
 #endif // MOUSEINTERACTIONHANDLER_H
