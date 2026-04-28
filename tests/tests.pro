@@ -12,7 +12,8 @@ INCLUDEPATH += .. \
                ../domain/geometry \
                ../domain/shapes \
                ../domain/interfaces \
-               ../infrastructure/hardware
+               ../infrastructure/hardware \
+               ../shared
 HEADERS += ../infrastructure/hardware/MotorControl.h \
            placement_tests.h \
            inventory_safety_tests.h \

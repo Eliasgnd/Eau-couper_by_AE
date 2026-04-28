@@ -47,21 +47,6 @@ public:
     }
 };
 
-// --- Commande : Coller des formes ---
-class PasteShapesCommand : public QUndoCommand {
-    ShapeManager* m_mgr;
-    std::vector<ShapeManager::Shape> m_pasted;
-public:
-    PasteShapesCommand(ShapeManager* mgr, const std::vector<ShapeManager::Shape>& shapes)
-        : m_mgr(mgr), m_pasted(shapes) { setText("Coller Formes"); }
-    void redo() override { for(const auto& s : m_pasted) m_mgr->addShape(s); }
-    void undo() override {
-        for(size_t i = 0; i < m_pasted.size(); ++i) {
-            m_mgr->removeShape(static_cast<int>(m_mgr->shapes().size()) - 1);
-        }
-    }
-};
-
 // --- Commande : Snapshot (Cas complexes) ---
 class SnapshotCommand : public QUndoCommand {
     ShapeManager* m_mgr;
@@ -84,10 +69,6 @@ void HistoryManager::commitDeleteShapes(const std::vector<int> &indices) {
     if(!indices.empty()) m_undoStack.push(new DeleteShapesCommand(m_shapeManager, indices));
 }
 
-void HistoryManager::commitPasteShapes(const std::vector<ShapeManager::Shape> &shapes) {
-    if(!shapes.empty()) m_undoStack.push(new PasteShapesCommand(m_shapeManager, shapes));
-}
-
 void HistoryManager::commitSnapshot(const std::vector<ShapeManager::Shape> &oldState,
                                     const std::vector<ShapeManager::Shape> &newState,
                                     const QString &label) {
@@ -96,4 +77,8 @@ void HistoryManager::commitSnapshot(const std::vector<ShapeManager::Shape> &oldS
 
 void HistoryManager::undo() { m_undoStack.undo(); }
 void HistoryManager::redo() { m_undoStack.redo(); }
+bool HistoryManager::canUndo() const { return m_undoStack.canUndo(); }
+bool HistoryManager::canRedo() const { return m_undoStack.canRedo(); }
+QString HistoryManager::undoText() const { return m_undoStack.undoText(); }
+QString HistoryManager::redoText() const { return m_undoStack.redoText(); }
 std::vector<ShapeManager::Shape> HistoryManager::getCurrentState() const { return m_shapeManager->shapes(); }

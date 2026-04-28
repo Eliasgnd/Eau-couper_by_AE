@@ -1,5 +1,6 @@
 #include "CustomEditor.h"
 #include "CustomEditorViewModel.h"
+#include "viewmodels/CanvasViewModel.h"
 #include "qlayout.h"
 #include "qstatusbar.h"
 #include "ui_CustomEditor.h"
@@ -8,10 +9,12 @@
 #include <QSettings>
 #include "ThemeManager.h"
 #include "KeyboardDialog.h"
+#include "NumericKeyboardDialog.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include "Language.h"
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -30,10 +33,14 @@
 #include <QApplication>
 #include <algorithm>
 #include <QFontComboBox>
+#include <QFrame>
+#include <QGridLayout>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <cmath>
 #include "ScreenUtils.h"
 #include <QStatusBar>
+#include <functional>
 
 static QString modeToString(CustomDrawArea::DrawMode mode)
 {
@@ -90,8 +97,6 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     ui->chevronLeft->setText("\u2039");   // ‹
     ui->chevronRight->setText("\u203A");  // ›
 
-    ui->buttonCopyPaste->setVisible(false);
-
     ScreenUtils::placeOnSecondaryScreen(this);
 
     // Création des vues pour l'image couleur et l'image de bords
@@ -105,14 +110,212 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     m_edgeView->setVisible(false);
 
     // Création de l'instance de CustomDrawArea
-    drawArea = new CustomDrawArea(this);
+    m_canvasViewModel = new CanvasViewModel(this);
+    drawArea = new CustomDrawArea(m_canvasViewModel, this);
+    m_assistanceBar = new QFrame(this);
+    m_assistanceBar->setObjectName("editorAssistanceBar");
+    m_assistanceBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    auto *assistanceLayout = new QHBoxLayout(m_assistanceBar);
+    assistanceLayout->setContentsMargins(14, 10, 14, 10);
+    assistanceLayout->setSpacing(10);
+
+    // --- Création d'un conteneur sombre et arrondi pour les textes ---
+    QFrame *textContainer = new QFrame(m_assistanceBar);
+
+    // NOUVEAU : On dit au conteneur de s'étendre, mais sans forcer
+    textContainer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+
+    textContainer->setStyleSheet(
+        "QFrame { "
+        "   background-color: rgba(15, 23, 42, 210); "
+        "   border-radius: 12px; "
+        "}"
+        "QLabel#hudTitle { "
+        "   color: white; "
+        "   font-weight: bold; "
+        "   font-size: 14px; "
+        "}"
+        "QLabel#hudHint { "
+        "   color: #e2e8f0; " // Gris clair
+        "}"
+        "QLabel#hudDetail { "
+        "   color: #7dd3fc; " // Bleu clair
+        "}"
+        );
+
+    auto *assistanceTextLayout = new QVBoxLayout(textContainer);
+    assistanceTextLayout->setContentsMargins(12, 8, 12, 8); // Marges internes
+    assistanceTextLayout->setSpacing(2);
+
+    m_assistanceTitle = new QLabel(tr("Mode : Trace libre"), textContainer);
+    m_assistanceTitle->setObjectName("hudTitle");
+
+    m_assistanceHint = new QLabel(tr("Glissez le doigt pour dessiner librement."), textContainer);
+    m_assistanceHint->setObjectName("hudHint");
+    m_assistanceHint->setWordWrap(true);
+    // NOUVEAU : Le secret est ici. Ça empêche le texte de pousser les boutons !
+    m_assistanceHint->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+
+    m_assistanceDetail = new QLabel(tr("Grille visible  |  Aimant OFF  |  Contrainte OFF"), textContainer);
+    m_assistanceDetail->setObjectName("hudDetail");
+    m_assistanceDetail->setWordWrap(true);
+    // NOUVEAU : Pareil ici.
+    m_assistanceDetail->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+
+    assistanceTextLayout->addWidget(m_assistanceTitle);
+    assistanceTextLayout->addWidget(m_assistanceHint);
+    assistanceTextLayout->addWidget(m_assistanceDetail);
+
+    // --- RECRÉATION DES BOUTONS (avec leur taille minimum pour les protéger) ---
+    m_precisionConstraintButton = new QPushButton(tr("Contrainte OFF"), m_assistanceBar);
+    m_precisionConstraintButton->setMinimumSize(130, 42);
+
+    m_segmentStatusButton = new QPushButton(tr("Segments OFF"), m_assistanceBar);
+    m_segmentStatusButton->setMinimumSize(150, 42);
+
+    m_cancelModeButton = new QPushButton(tr("Quitter l'outil"), m_assistanceBar);
+    m_cancelModeButton->setMinimumSize(120, 42);
+
+    m_undoPointButton = new QPushButton(tr("Annuler point"), m_assistanceBar);
+    m_undoPointButton->setMinimumSize(120, 42);
+    m_undoPointButton->setVisible(false);
+
+    m_undoSegmentButton = new QPushButton(tr("Annuler segment"), m_assistanceBar);
+    m_undoSegmentButton->setMinimumSize(130, 42);
+    m_undoSegmentButton->setVisible(false);
+
+    m_finishPointPathButton = new QPushButton(tr("Terminer trace"), m_assistanceBar);
+    m_finishPointPathButton->setMinimumSize(130, 42);
+    m_finishPointPathButton->setVisible(false);
+
+    // --- AJOUT AU BANDEAU ---
+    // Le '1' donne tout l'espace libre au texte sombre, et les boutons gardent leur taille fixe à droite.
+    assistanceLayout->addWidget(textContainer, 1);
+    assistanceLayout->addWidget(m_precisionConstraintButton);
+    assistanceLayout->addWidget(m_segmentStatusButton);
+    assistanceLayout->addWidget(m_undoPointButton);
+    assistanceLayout->addWidget(m_undoSegmentButton);
+    assistanceLayout->addWidget(m_finishPointPathButton);
+    assistanceLayout->addWidget(m_cancelModeButton);
+
+    m_selectionActionsWidget = new QWidget(this);
+    m_selectionActionsWidget->setVisible(false);
+    m_selectionActionsWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+
+    m_selectionInspectorWidget = new QFrame(this);
+    m_selectionInspectorWidget->setObjectName("selectionInspector");
+    m_selectionInspectorWidget->setVisible(false);
+    m_selectionInspectorWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    auto *inspectorLayout = new QVBoxLayout(m_selectionInspectorWidget);
+    inspectorLayout->setContentsMargins(10, 10, 10, 10);
+    inspectorLayout->setSpacing(8);
+    m_selectionCountLabel = new QLabel(tr("Aucune selection"), m_selectionInspectorWidget);
+    m_selectionCountLabel->setObjectName("selectionInspectorTitle");
+    inspectorLayout->addWidget(m_selectionCountLabel);
+
+    auto *formLayout = new QFormLayout();
+    formLayout->setContentsMargins(0, 0, 0, 0);
+    formLayout->setSpacing(6);
+    auto makeSelectionSpin = [this]() {
+        auto *spin = new QDoubleSpinBox(m_selectionInspectorWidget);
+        spin->setRange(-100000.0, 100000.0);
+        spin->setDecimals(1);
+        spin->setSingleStep(1.0);
+        spin->setMinimumHeight(34);
+        spin->setKeyboardTracking(false);
+        return spin;
+    };
+    m_selectionXSpin = makeSelectionSpin();
+    m_selectionYSpin = makeSelectionSpin();
+    m_selectionWidthSpin = makeSelectionSpin();
+    m_selectionHeightSpin = makeSelectionSpin();
+    m_selectionRotationSpin = makeSelectionSpin();
+    m_selectionWidthSpin->setMinimum(1.0);
+    m_selectionHeightSpin->setMinimum(1.0);
+    m_selectionRotationSpin->setRange(-360.0, 360.0);
+    m_selectionRotationSpin->setSingleStep(15.0);
+
+    formLayout->addRow(tr("X"), m_selectionXSpin);
+    formLayout->addRow(tr("Y"), m_selectionYSpin);
+    formLayout->addRow(tr("Largeur"), m_selectionWidthSpin);
+    formLayout->addRow(tr("Hauteur"), m_selectionHeightSpin);
+    formLayout->addRow(tr("Rotation"), m_selectionRotationSpin);
+    inspectorLayout->addLayout(formLayout);
+
+    auto *viewButtonsLayout = new QHBoxLayout();
+    viewButtonsLayout->setContentsMargins(0, 0, 0, 0);
+    viewButtonsLayout->setSpacing(6);
+    m_zoomSelectionButton = new QPushButton(tr("Zoom selection"), m_selectionInspectorWidget);
+    m_fitDrawingButton = new QPushButton(tr("Voir tout"), m_selectionInspectorWidget);
+    m_zoomSelectionButton->setMinimumHeight(38);
+    m_fitDrawingButton->setMinimumHeight(38);
+    viewButtonsLayout->addWidget(m_zoomSelectionButton);
+    viewButtonsLayout->addWidget(m_fitDrawingButton);
+    inspectorLayout->addLayout(viewButtonsLayout);
+
+    // 1. On fixe la hauteur max à 70 comme tu le souhaites (et un minimum pour la lisibilité)
+    auto *selectionToolsLayout = new QVBoxLayout(m_selectionActionsWidget);
+    selectionToolsLayout->setContentsMargins(0, 4, 0, 2);
+    selectionToolsLayout->setSpacing(6);
+
+    // 2. LE SECRET EST ICI : On force le panneau à ne pas s'étirer verticalement dans le layout parent
+
+
+
+    m_touchDuplicateButton = new QPushButton(tr("  Dupliquer"), m_selectionActionsWidget);
+    m_touchDeleteButton = new QPushButton(tr("  Supprimer"), m_selectionActionsWidget);
+
+    // 1. Boutons principaux toujours visibles (Garde ceux que tu avais déjà dans ton .h)
+
+    // 2. Menu : Alignement & actions rapides
+    QPushButton *btnAlign = new QPushButton(tr("  Alignement ▾"), m_selectionActionsWidget);
+    m_alignMenuButton = btnAlign;
+    QMenu *menuAlign = new QMenu(this);
+    QAction *actionAlignH = new QAction(tr("Aligner au centre H"), this);
+    QAction *actionAlignV = new QAction(tr("Aligner au centre V"), this);
+    QAction *actionCenter = new QAction(tr("Centrer sur l'écran"), this);
+    menuAlign->addAction(actionAlignH);
+    menuAlign->addAction(actionAlignV);
+    menuAlign->addSeparator();
+    menuAlign->addAction(actionCenter);
+    btnAlign->setMenu(menuAlign);
+
+    m_touchNudgeLeftButton = new QPushButton(tr("←"), m_selectionActionsWidget);
+    m_touchNudgeRightButton = new QPushButton(tr("→"), m_selectionActionsWidget);
+    m_touchNudgeUpButton = new QPushButton(tr("↑"), m_selectionActionsWidget);
+    m_touchNudgeDownButton = new QPushButton(tr("↓"), m_selectionActionsWidget);
+
+    // Regroupement pour appliquer le style et la taille
+    const QList<QPushButton*> selectionButtons = {
+        m_touchDuplicateButton, m_touchDeleteButton, btnAlign
+    };
+
+    auto *nudgeLayout = new QHBoxLayout();
+    nudgeLayout->setSpacing(6);
+    nudgeLayout->setContentsMargins(0, 0, 0, 0);
+
+    for (QPushButton *btn : selectionButtons) {
+        btn->setMinimumSize(0, 44);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        selectionToolsLayout->addWidget(btn);
+    }
+    const QList<QPushButton*> nudgeButtons = {
+        m_touchNudgeLeftButton, m_touchNudgeUpButton, m_touchNudgeDownButton, m_touchNudgeRightButton
+    };
+    for (QPushButton *btn : nudgeButtons) {
+        btn->setMinimumSize(0, 38);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        nudgeLayout->addWidget(btn);
+    }
+
+    // Répartition de l'espace horizontal
+    selectionToolsLayout->addLayout(nudgeLayout);
 
     // Connexions ViewModel → View
     if (m_viewModel) {
         connect(m_viewModel, &CustomEditorViewModel::subpathsReady,
                 this, [this](const QList<QPainterPath> &subs) {
-            for (const QPainterPath &sp : subs)
-                drawArea->addImportedLogoSubpath(sp);
+            drawArea->addImportedLogoSubpaths(subs);
         });
         connect(m_viewModel, &CustomEditorViewModel::importFailed,
                 this, [this](const QString &msg) {
@@ -129,9 +332,18 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         imgLayout->addWidget(m_colorView);
         imgLayout->addWidget(m_edgeView);
         dwLayout->addLayout(imgLayout);
+        dwLayout->addWidget(m_assistanceBar);
         dwLayout->addWidget(drawArea);
     } else {
         //qDebug() << "Erreur : ui->drawingWidget est nullptr !";
+    }
+
+    if (ui->leftPanel && ui->leftPanel->layout()) {
+        if (auto *leftLayout = qobject_cast<QVBoxLayout*>(ui->leftPanel->layout())) {
+            const int insertIndex = qMax(0, leftLayout->count() - 1);
+            leftLayout->insertWidget(insertIndex, m_selectionActionsWidget);
+            leftLayout->insertWidget(insertIndex, m_selectionInspectorWidget);
+        }
     }
 
     // Changer la couleur du bouton "fermer" quand il est actif
@@ -161,14 +373,84 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         ui->buttonSelection->style()->unpolish(ui->buttonSelection);
         ui->buttonSelection->style()->polish(ui->buttonSelection);
         ui->buttonSelection->update();
-        ui->buttonCopyPaste->setVisible(enabled);
-        if (enabled)
-            ui->buttonCopyPaste->setText(tr("Copier"));
+    });
+
+    if (ui->buttonSupprimer)
+        ui->buttonSupprimer->setVisible(false);
+
+    connect(drawArea, &CustomDrawArea::selectionStateChanged,
+            this, &CustomEditor::updateTouchSelectionPanel);
+    connect(drawArea, &CustomDrawArea::canvasStatusChanged,
+            this, &CustomEditor::updateCanvasStatus);
+    connect(drawArea, &CustomDrawArea::historyStateChanged,
+            this, &CustomEditor::updateHistoryButtons);
+    // Connexions des boutons principaux
+    connect(m_touchDuplicateButton, &QPushButton::clicked, drawArea, &CustomDrawArea::duplicateSelectedShapes);
+    connect(m_touchDeleteButton, &QPushButton::clicked, drawArea, &CustomDrawArea::deleteSelectedShapes);
+    connect(m_zoomSelectionButton, &QPushButton::clicked, drawArea, &CustomDrawArea::zoomToSelection);
+    connect(m_fitDrawingButton, &QPushButton::clicked, drawArea, &CustomDrawArea::fitAllShapesInView);
+
+    const auto connectSelectionSpin = [this](QDoubleSpinBox *spin, const std::function<void(double)> &handler) {
+        connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+                [this, handler](double value) {
+            if (m_updatingSelectionInspector || !drawArea || !drawArea->hasSelection()) return;
+            handler(value);
+            refreshSelectionInspector();
+        });
+    };
+    connectSelectionSpin(m_selectionXSpin, [this](double value) {
+        drawArea->setSelectedShapesPosition(value, drawArea->selectedShapesBounds().top());
+    });
+    connectSelectionSpin(m_selectionYSpin, [this](double value) {
+        drawArea->setSelectedShapesPosition(drawArea->selectedShapesBounds().left(), value);
+    });
+    connectSelectionSpin(m_selectionWidthSpin, [this](double value) {
+        drawArea->resizeSelectedShapes(value, drawArea->selectedShapesBounds().height());
+    });
+    connectSelectionSpin(m_selectionHeightSpin, [this](double value) {
+        drawArea->resizeSelectedShapes(drawArea->selectedShapesBounds().width(), value);
+    });
+    connectSelectionSpin(m_selectionRotationSpin, [this](double value) {
+        drawArea->setSelectedRotation(value);
+    });
+
+    connect(actionCenter, &QAction::triggered, drawArea, &CustomDrawArea::centerSelectionInViewport);
+
+    // Connexions du Menu "Alignement"
+    connect(actionAlignH, &QAction::triggered, drawArea, &CustomDrawArea::alignSelectedHCenter);
+    connect(actionAlignV, &QAction::triggered, drawArea, &CustomDrawArea::alignSelectedVCenter);
+
+    // Connexions de deplacement rapide
+    connect(m_touchNudgeLeftButton, &QPushButton::clicked, this, [this]() { drawArea->moveSelectedShapes(-5.0, 0.0, tr("Nudge gauche")); });
+    connect(m_touchNudgeRightButton, &QPushButton::clicked, this, [this]() { drawArea->moveSelectedShapes(5.0, 0.0, tr("Nudge droite")); });
+    connect(m_touchNudgeUpButton, &QPushButton::clicked, this, [this]() { drawArea->moveSelectedShapes(0.0, -5.0, tr("Nudge haut")); });
+    connect(m_touchNudgeDownButton, &QPushButton::clicked, this, [this]() { drawArea->moveSelectedShapes(0.0, 5.0, tr("Nudge bas")); });
+
+    connect(m_cancelModeButton, &QPushButton::clicked, drawArea, &CustomDrawArea::cancelActiveModes);
+    connect(m_undoPointButton, &QPushButton::clicked, drawArea, &CustomDrawArea::undoPointByPointPoint);
+    connect(m_undoSegmentButton, &QPushButton::clicked, drawArea, &CustomDrawArea::undoPointByPointSegment);
+    connect(m_finishPointPathButton, &QPushButton::clicked, drawArea, &CustomDrawArea::finishPointByPointShape);
+    connect(ui->buttonRetablir, &QPushButton::clicked, drawArea, &CustomDrawArea::redoLastAction);
+    connect(m_precisionConstraintButton, &QPushButton::clicked, this, [this]() {
+        drawArea->setPrecisionConstraintEnabled(!drawArea->isPrecisionConstraintEnabled());
+        refreshModeButtons();
+    });
+    connect(m_segmentStatusButton, &QPushButton::clicked, this, [this]() {
+        drawArea->setSegmentStatusVisible(!drawArea->isSegmentStatusVisible());
+        refreshModeButtons();
     });
 
     // Bouton "Appliquer" : émission du signal avec les formes personnalisées puis fermeture
     connect(ui->Appliquer, &QPushButton::clicked, this, [this]() {
         //qDebug() << "Signal applyCustomShapeSignal émis avec les formes !";
+        const QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            tr("Verifier avant application"),
+            drawArea->validationSummary(),
+            QMessageBox::Yes | QMessageBox::No,
+            drawArea->hasValidationIssues() ? QMessageBox::No : QMessageBox::Yes);
+        if (reply != QMessageBox::Yes)
+            return;
         emit applyCustomShapeSignal(drawArea->getCustomShapes());
         this->close();
         delete this;
@@ -205,10 +487,6 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
 
     // Bouton de sélection multiple
     connect(ui->buttonSelection, &QPushButton::clicked, drawArea, &CustomDrawArea::toggleMultiSelectMode);
-
-    // Bouton copier/coller
-    connect(ui->buttonCopyPaste, &QPushButton::clicked, this, &CustomEditor::onCopyPasteClicked);
-
 
     connect(ui->buttonCloseShape, &QPushButton::clicked, this, [this]() {
         drawArea->cancelSelection();
@@ -375,58 +653,6 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
     });
 
     // --- Connexions pour les autres boutons ---
-    connect(ui->buttonDeplacer, &QPushButton::clicked, this, [this]() {
-        if (drawArea->isDeplacerMode()) {
-            // ✅ Si déjà activé → désactive
-            drawArea->cancelDeplacerMode();
-        } else {
-            // ✅ Sinon → active
-            drawArea->startDeplacerMode();
-        }
-    });
-
-    connect(drawArea, &CustomDrawArea::deplacerModeChanged,
-            this, [this](bool enabled){
-
-        qDebug() << "[UI] Signal deplacerModeChanged reçu :" << enabled;
-
-        ui->buttonDeplacer->setProperty("deplacerMode", enabled);
-        qDebug() << "[UI] Property appliquée à buttonDeplacer ="
-                 << ui->buttonDeplacer->property("deplacerMode").toBool();
-//        ui->buttonDeplacer->setText(enabled ? "DÉPLACER ✅" : "DÉPLACER");
-        ui->buttonDeplacer->setStyleSheet(ui->buttonDeplacer->styleSheet());
-
-        ui->buttonDeplacer->update();
-        if (enabled) updateShapeButtonIcon(CustomDrawArea::DrawMode::Deplacer);
-    });
-
-    qDebug() << "[DEBUG] Connexion faite avec deplacerModeChanged";
-
-    connect(ui->buttonSupprimer, &QPushButton::clicked, this, [this]() {
-        if (drawArea->hasSelection()) {
-            drawArea->deleteSelectedShapes();
-            return;
-        }
-
-        if (drawArea->isSupprimerMode()) {
-            drawArea->cancelSupprimerMode();
-        } else {
-            drawArea->startSupprimerMode();
-        }
-    });
-    connect(drawArea, &CustomDrawArea::supprimerModeChanged,
-            this, [this](bool enabled){
-                qDebug() << "[UI] Signal supprimerModeChanged reçu :" << enabled;
-
-                ui->buttonSupprimer->setProperty("supprimerMode", enabled);
-                qDebug() << "[UI] Property supprimerMode ="
-                         << ui->buttonSupprimer->property("supprimerMode").toBool();
-
-                ui->buttonSupprimer->setStyleSheet(ui->buttonSupprimer->styleSheet());
-                ui->buttonSupprimer->update();
-                if (enabled) updateShapeButtonIcon(CustomDrawArea::DrawMode::Supprimer);
-            });
-
     connect(ui->buttonGomme, &QPushButton::clicked, this, [this]() {
         if (drawArea->isGommeMode()) {
             drawArea->cancelGommeMode();
@@ -443,7 +669,8 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
                 qDebug() << "[UI] Property gommeMode ="
                          << ui->buttonGomme->property("gommeMode").toBool();
 
-                ui->buttonGomme->setStyleSheet(ui->buttonGomme->styleSheet());
+                ui->buttonGomme->style()->unpolish(ui->buttonGomme);
+                ui->buttonGomme->style()->polish(ui->buttonGomme);
                 ui->buttonGomme->update();
                 if (enabled) updateShapeButtonIcon(CustomDrawArea::DrawMode::Gomme);
             });
@@ -550,6 +777,7 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         ui->buttonSnapGrid->style()->unpolish(ui->buttonSnapGrid);
         ui->buttonSnapGrid->style()->polish(ui->buttonSnapGrid);
         ui->buttonSnapGrid->update();
+        refreshModeButtons();
     });
 
     connect(ui->buttonToggleGrid, &QPushButton::clicked, this, [=]() {
@@ -562,6 +790,7 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         ui->buttonToggleGrid->style()->unpolish(ui->buttonToggleGrid);
         ui->buttonToggleGrid->style()->polish(ui->buttonToggleGrid);
         ui->buttonToggleGrid->update();
+        refreshModeButtons();
     });
 
 
@@ -583,7 +812,12 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
 
     });
 
-
+    updateCanvasStatus(tr("Mode : %1").arg(modeToString(drawArea->getDrawMode())),
+                       tr("Glissez le doigt pour dessiner librement."),
+                       tr("Grille visible  |  Aimant OFF  |  Contrainte OFF"));
+    updateHistoryButtons(false, QString(), false, QString());
+    applyStyleSheets();
+    refreshModeButtons();
 
 }
 
@@ -680,22 +914,6 @@ void CustomEditor::importerImageCouleur()
                                       QSizeF(drawArea->width(), drawArea->height()));
 }
 
-void CustomEditor::onCopyPasteClicked()
-{
-    if (ui->buttonCopyPaste->text() == tr("Copier")) {
-        drawArea->copySelectedShapes();
-        ui->buttonCopyPaste->setText(tr("Coller"));
-    } else {
-        drawArea->enablePasteMode();
-        // The next click in draw area will paste
-        ui->buttonCopyPaste->setVisible(false);
-        ui->buttonSelection->setProperty("closeMode", false);
-        ui->buttonSelection->style()->unpolish(ui->buttonSelection);
-        ui->buttonSelection->style()->polish(ui->buttonSelection);
-        ui->buttonSelection->update();
-    }
-}
-
 void CustomEditor::updateShapeButtonIcon(CustomDrawArea::DrawMode mode)
 {
     static const QHash<CustomDrawArea::DrawMode, QString> iconMap = {
@@ -713,6 +931,119 @@ void CustomEditor::updateShapeButtonIcon(CustomDrawArea::DrawMode mode)
         ui->buttonForme->setIcon(QIcon(it.value()));
 }
 
+void CustomEditor::updateTouchSelectionPanel(bool hasSelection, const QString &summary)
+{
+    Q_UNUSED(summary);
+    if (!m_selectionActionsWidget) return;
+
+    m_selectionActionsWidget->setVisible(hasSelection);
+    if (m_selectionInspectorWidget)
+        m_selectionInspectorWidget->setVisible(hasSelection);
+    if (ui->buttonConnect)
+        ui->buttonConnect->setVisible(!hasSelection);
+    if (ui->buttonCloseShape)
+        ui->buttonCloseShape->setVisible(!hasSelection);
+    if (hasSelection && m_assistanceTitle)
+        m_assistanceTitle->setText(tr("Selection tactile"));
+    refreshSelectionInspector();
+}
+
+void CustomEditor::refreshSelectionInspector()
+{
+    if (!drawArea || !m_selectionInspectorWidget) return;
+
+    const bool hasSelection = drawArea->hasSelection();
+    m_selectionInspectorWidget->setVisible(hasSelection);
+    if (!hasSelection) return;
+
+    const QRectF bounds = drawArea->selectedShapesBounds();
+    m_updatingSelectionInspector = true;
+    if (m_selectionCountLabel)
+        m_selectionCountLabel->setText(tr("%1 forme(s) selectionnee(s)").arg(drawArea->selectedShapesCount()));
+    if (m_selectionXSpin) m_selectionXSpin->setValue(bounds.left());
+    if (m_selectionYSpin) m_selectionYSpin->setValue(bounds.top());
+    if (m_selectionWidthSpin) m_selectionWidthSpin->setValue(qMax<qreal>(1.0, bounds.width()));
+    if (m_selectionHeightSpin) m_selectionHeightSpin->setValue(qMax<qreal>(1.0, bounds.height()));
+    if (m_selectionRotationSpin) m_selectionRotationSpin->setValue(drawArea->selectedRotationAngle());
+    m_updatingSelectionInspector = false;
+}
+
+void CustomEditor::updateCanvasStatus(const QString &modeLabel, const QString &hint, const QString &detail)
+{
+    if (m_assistanceTitle)  m_assistanceTitle->setText(modeLabel);
+    if (m_assistanceHint)   m_assistanceHint->setText(hint);
+    if (m_assistanceDetail) m_assistanceDetail->setText(detail);
+    if (ui->labelCurrentMode) ui->labelCurrentMode->setText(modeLabel);
+    refreshModeButtons();
+}
+
+void CustomEditor::updateHistoryButtons(bool canUndo, const QString &undoText,
+                                        bool canRedo, const QString &redoText)
+{
+    if (ui->buttonRetour) {
+        ui->buttonRetour->setEnabled(canUndo);
+        ui->buttonRetour->setToolTip(canUndo && !undoText.isEmpty() ? undoText : tr("Annuler la derniere action"));
+    }
+    if (ui->buttonRetablir) {
+        ui->buttonRetablir->setEnabled(canRedo);
+        ui->buttonRetablir->setToolTip(canRedo && !redoText.isEmpty() ? redoText : tr("Retablir la derniere action"));
+    }
+}
+
+void CustomEditor::refreshModeButtons()
+{
+    const bool pointMode = drawArea && drawArea->getDrawMode() == CustomDrawArea::DrawMode::PointParPoint;
+    if (m_cancelModeButton)
+    {
+        m_cancelModeButton->setVisible(!pointMode);
+        m_cancelModeButton->setEnabled(drawArea && drawArea->hasActiveSpecialMode());
+    }
+    if (m_precisionConstraintButton)
+    {
+        m_precisionConstraintButton->setVisible(!pointMode);
+        m_precisionConstraintButton->setText(drawArea && drawArea->isPrecisionConstraintEnabled()
+                                                 ? tr("Contrainte ON")
+                                                 : tr("Contrainte OFF"));
+    }
+    if (m_segmentStatusButton)
+        m_segmentStatusButton->setText(drawArea && drawArea->isSegmentStatusVisible()
+                                           ? tr("Segments ON")
+                                           : tr("Segments OFF"));
+    if (m_undoPointButton)
+        m_undoPointButton->setVisible(pointMode);
+    if (m_undoSegmentButton)
+        m_undoSegmentButton->setVisible(pointMode);
+    if (m_finishPointPathButton)
+        m_finishPointPathButton->setVisible(pointMode);
+    refreshSelectionInspector();
+
+    const auto repolish = [](QWidget *widget) {
+        if (!widget) return;
+        widget->style()->unpolish(widget);
+        widget->style()->polish(widget);
+        widget->update();
+    };
+
+    if (ui->buttonGomme) {
+        ui->buttonGomme->setProperty("gommeMode", drawArea && drawArea->isGommeMode());
+        repolish(ui->buttonGomme);
+    }
+    if (ui->buttonSelection) {
+        ui->buttonSelection->setProperty("closeMode", drawArea && drawArea->hasSelection());
+        repolish(ui->buttonSelection);
+    }
+    if (ui->buttonConnect)
+    {
+        ui->buttonConnect->setVisible(!(drawArea && drawArea->hasSelection()));
+        repolish(ui->buttonConnect);
+    }
+    if (ui->buttonCloseShape)
+    {
+        ui->buttonCloseShape->setVisible(!(drawArea && drawArea->hasSelection()));
+        repolish(ui->buttonCloseShape);
+    }
+}
+
 void CustomEditor::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
@@ -724,6 +1055,27 @@ void CustomEditor::changeEvent(QEvent *event)
 void CustomEditor::applyStyleSheets()
 {
     updateThemeButton();
+    if (m_assistanceBar) {
+        m_assistanceBar->setStyleSheet(
+            "QFrame#editorAssistanceBar {"
+            " background: rgba(15, 23, 42, 0.08);"
+            " border: 1px solid rgba(43, 122, 255, 0.22);"
+            " border-radius: 14px;"
+            "}"
+        );
+    }
+    if (m_selectionInspectorWidget) {
+        m_selectionInspectorWidget->setStyleSheet(
+            "QFrame#selectionInspector {"
+            " background: rgba(15, 23, 42, 0.06);"
+            " border: 1px solid rgba(43, 122, 255, 0.24);"
+            " border-radius: 10px;"
+            "}"
+            "QLabel#selectionInspectorTitle {"
+            " font-weight: bold;"
+            "}"
+        );
+    }
 }
 
 void CustomEditor::updateThemeButton()

@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
+#include <QPushButton>
 #include "Language.h"
 #include "StmProtocol.h"
 #include <QList>
@@ -16,6 +17,7 @@ QT_END_NAMESPACE
 
 class QAction;
 class QMenu;
+class QResizeEvent;
 struct LayoutData;
 class ShapeVisualization;
 class MainWindowCoordinator;
@@ -48,6 +50,7 @@ public slots:
     void displayCustomShapes(const QList<QPolygonF> &shapes, const QString &name = QString());
     void applyLayout(const LayoutData &layout);
     void displayBaseShapeLayout(const QList<QPolygonF> &polys, const QString &name, const LayoutData &layout);
+    void refreshQuickShapeButtons();
 
     // --- Signaux émis par la View vers le Controller ---
 signals:
@@ -68,13 +71,13 @@ signals:
     void triangleRequested();
     void starRequested();
     void heartRequested();
+    void baseShapeRequested(int type);
+    void customShapeRequested(const QString &name);
 
     // Navigation
     void inventoryRequested();
     void customEditorRequested();
     void folderRequested();
-    void testGpioRequested();
-    void bluetoothReceiverRequested();
     void wifiTransferRequested();
     void stmTestRequested();
 
@@ -120,6 +123,7 @@ private slots:
 protected:
     void changeEvent(QEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void setupUI();
@@ -131,6 +135,9 @@ private:
     void setupModels();
     void retranslateDynamicUi();
     void syncControlsFromModel();
+    void rebuildQuickShapeButtons();
+    int quickShapeCapacity() const;
+    void clearQuickShapeButtons();
 
     // --- Theme state ---
     bool m_isDarkTheme = false;
@@ -155,6 +162,7 @@ private:
     MainWindowViewModel   *m_viewModel      = nullptr;
     bool                   m_ownsCoordinator = false;
     Inventory             *m_inventory      = nullptr;
+    QList<QPushButton*>    m_quickShapeButtons;
 };
 
 #endif // MAINWINDOW_H

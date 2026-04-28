@@ -6,6 +6,8 @@
 #include <QPen>
 #include <QtGlobal>
 
+#include <vector>
+
 ShapeRenderer::ShapeRenderer(QObject *parent)
     : QObject(parent)
 {
@@ -18,17 +20,19 @@ bool ShapeRenderer::isSnapToGridEnabled() const { return m_snapToGrid; }
 void ShapeRenderer::setGridSpacing(int spacing) { m_gridSpacing = qMax(1, spacing); }
 int ShapeRenderer::gridSpacing() const { return m_gridSpacing; }
 
-void ShapeRenderer::render(QPainter &painter, const ShapeManager &shapeManager, const QRectF &visibleArea) const
+void ShapeRenderer::render(QPainter &painter, const ShapeManager &shapeManager,
+                           const QRectF &visibleArea, RenderQuality quality) const
 {
     if (m_showGrid) {
         drawGrid(painter, visibleArea);
     }
 
-    drawShapes(painter, shapeManager);
+    drawShapes(painter, shapeManager, visibleArea, quality);
     drawSelectionHandles(painter, shapeManager);
 }
 
-void ShapeRenderer::drawShapes(QPainter &painter, const ShapeManager &shapeManager) const
+void ShapeRenderer::drawShapes(QPainter &painter, const ShapeManager &shapeManager,
+                               const QRectF &visibleArea, RenderQuality quality) const
 {
     QPen pen(Qt::black, 2);
     pen.setCosmetic(true);
@@ -38,23 +42,33 @@ void ShapeRenderer::drawShapes(QPainter &painter, const ShapeManager &shapeManag
     painter.save();
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
-    for (const auto &shape : shapeManager.shapes()) {
-        painter.drawPath(shape.path);
+    const bool preferProxy = quality == RenderQuality::Interactive;
+    const std::vector<int> visible = shapeManager.visibleShapeIndices(visibleArea, 12.0);
+    const auto &shapes = shapeManager.shapes();
+    for (int idx : visible) {
+        if (idx < 0 || idx >= static_cast<int>(shapes.size()))
+            continue;
+        painter.drawPath(shapes[idx].renderPath(preferProxy));
     }
     painter.restore();
 }
 
 void ShapeRenderer::drawSelectionHandles(QPainter &painter, const ShapeManager &shapeManager) const
 {
+    Q_UNUSED(painter)
+    Q_UNUSED(shapeManager)
+    return;
+
     painter.save();
-    painter.setPen(QPen(QColor(43, 122, 255), 1));
+    painter.setPen(QPen(QColor(43, 122, 255), 2));
     painter.setBrush(QColor(43, 122, 255));
 
     for (int index : shapeManager.selectedShapes()) {
         if (index < 0 || index >= shapeManager.shapes().size()) continue;
         const QRectF b = shapeManager.shapes().at(index).path.boundingRect();
+        painter.fillRect(b.adjusted(-6, -6, 6, 6), QColor(43, 122, 255, 18));
         painter.drawRect(b);
-        const qreal h = 3.0;
+        const qreal h = 9.0;
         painter.drawEllipse(b.topLeft(), h, h);
         painter.drawEllipse(b.topRight(), h, h);
         painter.drawEllipse(b.bottomLeft(), h, h);

@@ -26,11 +26,11 @@ QPainterPath smoothImportedOutline(const QPainterPath &input)
         if (pts.size() < 3)
             continue;
 
-        // Lissage progressif: plus il y a de points, plus on lisse.
+        // Lissage progressif borne: Chaikin double les points a chaque passe.
         int iterations = 0;
-        if (pts.size() > 220)
+        if (pts.size() > 220 && pts.size() < 2500)
             iterations = 2;
-        else if (pts.size() > 80)
+        else if (pts.size() > 80 && pts.size() < 5000)
             iterations = 1;
 
         QList<QPointF> smoothPts = iterations > 0
@@ -47,7 +47,7 @@ QPainterPath smoothImportedOutline(const QPainterPath &input)
         result.addPath(sub);
     }
 
-    return result.simplified();
+    return result.elementCount() > 8000 ? result : result.simplified();
 }
 } // namespace
 
@@ -120,6 +120,7 @@ void CustomEditorViewModel::importImageColor(const QString &filePath,
 {
     // CORRECTION : Accès aux paramètres via la méthode publique params()
     m_imageImporter.params().epsilon_percent = 0.001; // permet de changer la qualité de l'image importer
+    m_imageImporter.params().max_output_points = 4000;
     m_imageImporter.params().final_simplify = true;
 
     QPainterPath edge;

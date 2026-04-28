@@ -27,6 +27,7 @@
 #include <QLineEdit>
 #include <QClipboard>
 #include <QGuiApplication>  // requis pour accéder à QGuiApplication::clipboard()
+#include "ThemeManager.h"
 
 namespace {
 MainWindow* resolveMainWindow()
@@ -458,7 +459,8 @@ void WifiTransferWidget::handleClient(QTcpSocket *client)
 
             // Succès UI
             if (ui->statusLabel) {
-                ui->statusLabel->setStyleSheet("color:#2e7d32;");
+                const bool dark = ThemeManager::instance()->isDark();
+                ui->statusLabel->setStyleSheet(dark ? "color:#22C55E;" : "color:#16A34A;");
                 ui->statusLabel->setText(tr("Réception terminée ✅ (%1 fichier(s))").arg(savedFiles.size()));
             }
             if (ui->progressBar)

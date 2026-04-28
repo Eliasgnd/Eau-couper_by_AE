@@ -1,7 +1,7 @@
 # ==== PROJET ====
 TARGET = machineDecoupeIHM
 TEMPLATE = app
-QT += core gui widgets svg network bluetooth httpserver openglwidgets concurrent serialport
+QT += core gui widgets svg network httpserver openglwidgets concurrent serialport
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 CONFIG += c++14
 
@@ -39,34 +39,7 @@ SOURCES += \
     $$CLIPPER2_PATH/src/clipper.engine.cpp \
     $$CLIPPER2_PATH/src/clipper.offset.cpp \
     $$CLIPPER2_PATH/src/clipper.rectclip.cpp \
-    ui/canvas/tools/PathOptimizer.cpp
-
-# --- Google OR-Tools ---
-ORTOOLS_PATH = $$PWD/external/or-tools
-INCLUDEPATH += $$ORTOOLS_PATH/include
-
-win32 {
-    # 1. Déclarations vitales pour utiliser OR-Tools sous Windows
-    DEFINES += OR_TOOLS_AS_DYNAMIC_LIB
-    DEFINES += PROTOBUF_USE_DLLS
-    DEFINES += OR_PROTO_DLL=__declspec(dllimport)
-
-    # 2. Le répertoire contenant les fichiers .lib
-    LIBS += -L$$ORTOOLS_PATH/lib
-
-    # 3. Inclusion de TOUTES les librairies OR-Tools, Abseil et Protobuf nécessaires
-    # (L'ordre est très important pour le Linker sous Windows !)
-    LIBS += -lortools
-    LIBS += -llibprotobuf
-    LIBS += -labseil_dll
-
-    # Si le Linker se plaint encore d'Abseil, tu peux "forcer" la liaison de toutes les libs Abseil
-    # en décommentant cette ligne (selon la version d'OR-Tools téléchargée) :
-    # LIBS += -labsl_*
-
-    # 4. Dépendances système Windows requises par Google
-    LIBS += -lUser32 -lShell32 -lAdvapi32 -lPsapi -lWs2_32 -lBcrypt
-}
+    domain/geometry/PathOptimizer.cpp
 
 # --- CONFIGURATION LEMON (Solution Finale - Structure Plate) ---
 
@@ -109,7 +82,7 @@ win32: QMAKE_CXXFLAGS += /wd4267 /wd4828 /wd4244
 
 # Fichiers de l'optimization
 HEADERS += domain/geometry/optimization/PlacementOptimizer.h \
-    ui/canvas/tools/PathOptimizer.h
+    domain/geometry/PathOptimizer.h
 SOURCES += domain/geometry/optimization/PlacementOptimizer.cpp
 
 # ==== INCLUDEPATH GÉNÉRAL ====
@@ -136,7 +109,8 @@ INCLUDEPATH += \
     infrastructure/hardware \
     infrastructure/network \
     infrastructure/imaging \
-    shared
+    shared \
+    external/qrcodegen
 
 # ==== HEADERS ====
 HEADERS += \
@@ -153,7 +127,7 @@ HEADERS += \
     application/services/InventoryQueryService.h \
     application/services/InventoryMutationService.h \
     application/services/InventorySortFilterService.h \
-    application/services/InventoryViewState.h \
+    viewmodels/InventoryViewState.h \
     application/services/GridPlacementService.h \
     application/services/LayoutManager.h \
     application/services/GeometryTransformHelper.h \
@@ -175,12 +149,15 @@ HEADERS += \
     ui/widgets/LayoutsDialog.h \
     ui/widgets/KeyboardEventFilter.h \
     ui/widgets/WifiTransferWidget.h \
-    ui/dialogs/TestGpio.h \
     ui/dialogs/StmTestDialog.h \
     ui/dialogs/AIImagePromptDialog.h \
     ui/dialogs/AIImageProcessDialog.h \
-    ui/dialogs/BluetoothReceiverDialog.h \
     ui/dialogs/WifiConfigDialog.h \
+    ui/utils/AspectRatioWrapper.h \
+    ui/utils/ScreenUtils.h \
+    ui/utils/UiScale.h \
+    ui/utils/ImageExporter.h \
+    ui/utils/GestureHandler.h \
     ui/utils/AspectRatioWrapper.h \
     ui/utils/ScreenUtils.h \
     ui/utils/UiScale.h \
@@ -193,12 +170,13 @@ HEADERS += \
     ui/canvas/HistoryManager.h \
     ui/canvas/MouseInteractionHandler.h \
     ui/canvas/ViewTransformer.h \
+    viewmodels/CanvasViewModel.h \
     ui/canvas/EraserTool.h \
     ui/canvas/TextTool.h \
-    ui/canvas/tools/pathplanner.h \
+    domain/geometry/pathplanner.h \
     ui/canvas/tools/TouchGestureReader.h \
     ui/canvas/tools/ImportedImageGeometryHelper.h \
-    ui/canvas/tools/qrcodegen.hpp \
+    external/qrcodegen/qrcodegen.hpp \
     ui/canvas/tools/ImagePaths.h \
     domain/shapes/ShapeModel.h \
     domain/shapes/BaseShapeNamingService.h \
@@ -223,6 +201,7 @@ HEADERS += \
     infrastructure/imaging/ImageEdgeImporter.h \
     infrastructure/imaging/skeletonizer.h \
     shared/Language.h \
+    shared/PerformanceMode.h \
     shared/ShapeValidationResult.h \
     shared/ThemeManager.h
 
@@ -262,11 +241,9 @@ SOURCES += \
     ui/widgets/LayoutsDialog.cpp \
     ui/widgets/KeyboardEventFilter.cpp \
     ui/widgets/WifiTransferWidget.cpp \
-    ui/dialogs/TestGpio.cpp \
     ui/dialogs/StmTestDialog.cpp \
     ui/dialogs/AIImagePromptDialog.cpp \
     ui/dialogs/AIImageProcessDialog.cpp \
-    ui/dialogs/BluetoothReceiverDialog.cpp \
     ui/dialogs/WifiConfigDialog.cpp \
     ui/utils/AspectRatioWrapper.cpp \
     ui/utils/ImageExporter.cpp \
@@ -279,10 +256,11 @@ SOURCES += \
     ui/canvas/ViewTransformer.cpp \
     ui/canvas/EraserTool.cpp \
     ui/canvas/TextTool.cpp \
-    ui/canvas/tools/pathplanner.cpp \
+    viewmodels/CanvasViewModel.cpp \
+    domain/geometry/pathplanner.cpp \
     ui/canvas/tools/TouchGestureReader.cpp \
     ui/canvas/tools/ImportedImageGeometryHelper.cpp \
-    ui/canvas/tools/qrcodegen.cpp \
+    external/qrcodegen/qrcodegen.cpp \
     domain/shapes/ShapeModel.cpp \
     domain/shapes/BaseShapeNamingService.cpp \
     domain/shapes/ShapeManager.cpp \
@@ -306,12 +284,10 @@ SOURCES += \
 # ==== FORMS ====
 FORMS += \
     ui/mainwindow/mainwindow.ui \
-    ui/dialogs/BluetoothReceiverDialog.ui \
     ui/widgets/CustomEditor.ui \
     ui/widgets/Inventory.ui \
     ui/widgets/LayoutsDialog.ui \
     ui/widgets/FolderWidget.ui \
-    ui/dialogs/TestGpio.ui \
     ui/dialogs/StmTestDialog.ui \
     ui/widgets/WifiTransferWidget.ui \
     ui/dialogs/WifiConfigDialog.ui

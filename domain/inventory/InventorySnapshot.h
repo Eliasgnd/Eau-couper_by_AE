@@ -14,6 +14,7 @@ struct InventorySnapshot
     QMap<ShapeModel::Type, QString> baseShapeFolders;
     QMap<ShapeModel::Type, int> baseUsageCount;
     QMap<ShapeModel::Type, QDateTime> baseLastUsed;
+    QMap<ShapeModel::Type, QList<QDateTime>> baseShapeCutHistory;
     QList<ShapeModel::Type> baseShapeOrder;
     QList<InventoryFolder> folders;
 };

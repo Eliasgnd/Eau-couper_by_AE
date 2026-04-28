@@ -31,12 +31,53 @@ StmUartService::~StmUartService()
 //  Connexion
 // ----------------------------------------------------------
 
+QString StmUartService::findPreferredPortName()
+{
+    constexpr quint16 kPreferredVendorId = 0x0483;
+    constexpr quint16 kPreferredProductId = 0x374E;
+
+    QString fallbackPortName;
+
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& info : ports) {
+        if (!info.hasVendorIdentifier() || !info.hasProductIdentifier())
+            continue;
+
+        if (info.vendorIdentifier() != kPreferredVendorId
+            || info.productIdentifier() != kPreferredProductId) {
+            continue;
+        }
+
+        if (fallbackPortName.isEmpty())
+            fallbackPortName = info.portName();
+
+        const QString description = info.description();
+        const QString manufacturer = info.manufacturer();
+
+        if (description.contains(QStringLiteral("MI_02"), Qt::CaseInsensitive)
+            || manufacturer.contains(QStringLiteral("STMicroelectronics"), Qt::CaseInsensitive)) {
+            return info.portName();
+        }
+    }
+
+    return fallbackPortName;
+}
+
 void StmUartService::open(const QString& portName)
 {
     if (m_serial.isOpen())
         close();
 
-    m_serial.setPortName(portName);
+    const QString resolvedPortName = portName.trimmed().isEmpty()
+        ? findPreferredPortName()
+        : portName.trimmed();
+
+    if (resolvedPortName.isEmpty()) {
+        emit comError(tr("Aucun port STM32 correspondant au VID/PID 0483:374E n'a été trouvé."));
+        return;
+    }
+
+    m_serial.setPortName(resolvedPortName);
     m_serial.setBaudRate(UART_BAUDRATE);
     m_serial.setDataBits(QSerialPort::Data8);
     m_serial.setParity(QSerialPort::NoParity);
@@ -52,10 +93,10 @@ void StmUartService::open(const QString& portName)
         m_globalSeqId   = 0;
         m_unackedBatch.clear();
         emit connectionChanged(true);
-        qDebug() << "[STM-UART] Port ouvert :" << portName;
+        qDebug() << "[STM-UART] Port ouvert :" << resolvedPortName;
     } else {
         emit comError(tr("Impossible d'ouvrir le port %1 : %2")
-                      .arg(portName, m_serial.errorString()));
+                      .arg(resolvedPortName, m_serial.errorString()));
     }
 }
 

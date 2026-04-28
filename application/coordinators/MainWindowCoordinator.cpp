@@ -34,6 +34,9 @@ MainWindowCoordinator::MainWindowCoordinator(DialogManager *navigationController
     connect(m_aiServiceManager, &AIDialogCoordinator::imageReadyForImport,
             this, &MainWindowCoordinator::imageReadyForImport);
 
+    connect(m_cuttingService, &CuttingService::cuttingStarted,
+            this, &MainWindowCoordinator::recordCurrentShapeCut);
+
     // CuttingService → ViewModel (connexion différée car m_viewModel est null ici)
     // La connexion est établie dans setViewModel() dès que le ViewModel est disponible.
 }
@@ -90,10 +93,6 @@ void MainWindowCoordinator::setShapeVisualization(ShapeVisualization *visualizat
     m_cuttingService->setMachineViewModel(m_machineViewModel);
     ensureServicesInitialized();
 
-    // ==========================================================
-    // AJOUT : Connexion pour le dessin du trajet en temps réel
-    // ==========================================================
-
     connect(m_machineViewModel, &MachineViewModel::valveOnConfirmed, this, [this]() {
         m_isCutting = true; // La machine commence à couper
     });
@@ -101,21 +100,6 @@ void MainWindowCoordinator::setShapeVisualization(ShapeVisualization *visualizat
     connect(m_machineViewModel, &MachineViewModel::valveOffConfirmed, this, [this]() {
         m_isCutting = false; // La machine arrête de couper
     });
-
-    // Remarque : Vérifie si ton signal s'appelle 'positionChanged' ou 'realPositionReceived'
-    // dans MachineViewModel.h. J'utilise 'realPositionReceived' basé sur tes logs précédents.
-    connect(m_machineViewModel, &MachineViewModel::realPositionReceived, this, [this](int x, int y) {
-        if (!m_shapeVisualization) return;
-
-        QPoint point(x, y);
-
-        if (m_isCutting) {
-            m_shapeVisualization->colorPositionRed(point);
-        } else {
-            m_shapeVisualization->colorPositionBlue(point);
-        }
-    });
-    // ==========================================================
 }
 
 bool MainWindowCoordinator::ensureServicesInitialized() {
@@ -210,6 +194,8 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(view, &MainWindow::triangleRequested,   this, &MainWindowCoordinator::onTriangleRequested);
     connect(view, &MainWindow::starRequested,       this, &MainWindowCoordinator::onStarRequested);
     connect(view, &MainWindow::heartRequested,      this, &MainWindowCoordinator::onHeartRequested);
+    connect(view, &MainWindow::baseShapeRequested,  this, &MainWindowCoordinator::onBaseShapeQuickRequested);
+    connect(view, &MainWindow::customShapeRequested, this, &MainWindowCoordinator::onCustomShapeQuickRequested);
 
     // --- Optimisation ---
     connect(view, &MainWindow::optimizePlacement1Requested,
@@ -231,8 +217,6 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     connect(view, &MainWindow::inventoryRequested,         this, &MainWindowCoordinator::onInventoryRequested);
     connect(view, &MainWindow::customEditorRequested,       this, &MainWindowCoordinator::onCustomEditorRequested);
     connect(view, &MainWindow::folderRequested,             this, &MainWindowCoordinator::onFolderRequested);
-    connect(view, &MainWindow::testGpioRequested,           this, &MainWindowCoordinator::onTestGpioRequested);
-    connect(view, &MainWindow::bluetoothReceiverRequested,  this, &MainWindowCoordinator::onBluetoothReceiverRequested);
     connect(view, &MainWindow::wifiTransferRequested,       this, &MainWindowCoordinator::onWifiTransferRequested);
 
     // --- Sauvegarde / AI ---
@@ -241,7 +225,8 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
 
     // --- DialogManager → View (layout, shapes, fullscreen) ---
     connect(m_navigationController, &DialogManager::customShapeApplied,
-            view, [view](const QList<QPolygonF> &shapes) {
+            view, [this, view](const QList<QPolygonF> &shapes) {
+                clearActiveShapeSelection();
                 view->displayCustomShapes(shapes, QString());
             });
 
@@ -319,11 +304,53 @@ void MainWindowCoordinator::onSpacingChanged(int spacing)
     m_shapeController->updateSpacing(spacing);
 }
 
-void MainWindowCoordinator::onCircleRequested()    { m_shapeController->setPredefinedShape(ShapeModel::Type::Circle); }
-void MainWindowCoordinator::onRectangleRequested()  { m_shapeController->setPredefinedShape(ShapeModel::Type::Rectangle); }
-void MainWindowCoordinator::onTriangleRequested()   { m_shapeController->setPredefinedShape(ShapeModel::Type::Triangle); }
-void MainWindowCoordinator::onStarRequested()       { m_shapeController->setPredefinedShape(ShapeModel::Type::Star); }
-void MainWindowCoordinator::onHeartRequested()      { m_shapeController->setPredefinedShape(ShapeModel::Type::Heart); }
+void MainWindowCoordinator::onCircleRequested()
+{
+    setActiveBaseShape(ShapeModel::Type::Circle);
+    m_shapeController->setPredefinedShape(ShapeModel::Type::Circle);
+}
+
+void MainWindowCoordinator::onRectangleRequested()
+{
+    setActiveBaseShape(ShapeModel::Type::Rectangle);
+    m_shapeController->setPredefinedShape(ShapeModel::Type::Rectangle);
+}
+
+void MainWindowCoordinator::onTriangleRequested()
+{
+    setActiveBaseShape(ShapeModel::Type::Triangle);
+    m_shapeController->setPredefinedShape(ShapeModel::Type::Triangle);
+}
+
+void MainWindowCoordinator::onStarRequested()
+{
+    setActiveBaseShape(ShapeModel::Type::Star);
+    m_shapeController->setPredefinedShape(ShapeModel::Type::Star);
+}
+
+void MainWindowCoordinator::onHeartRequested()
+{
+    setActiveBaseShape(ShapeModel::Type::Heart);
+    m_shapeController->setPredefinedShape(ShapeModel::Type::Heart);
+}
+
+void MainWindowCoordinator::onBaseShapeQuickRequested(int type)
+{
+    onShapeSelectedFromInventory(static_cast<ShapeModel::Type>(type));
+}
+
+void MainWindowCoordinator::onCustomShapeQuickRequested(const QString &name)
+{
+    if (!m_inventory || !m_inventory->viewModel())
+        return;
+
+    QList<QPolygonF> polygons;
+    QString resolvedName;
+    if (!m_inventory->viewModel()->findCustomShapeByName(name, polygons, resolvedName))
+        return;
+
+    applyCustomShapeSelection(polygons, resolvedName);
+}
 
 void MainWindowCoordinator::onOptimize1Requested(bool checked)
 {
@@ -357,16 +384,6 @@ void MainWindowCoordinator::onCustomEditorRequested()
 void MainWindowCoordinator::onFolderRequested()
 {
     openFolder(m_view, m_model->language());
-}
-
-void MainWindowCoordinator::onTestGpioRequested()
-{
-    openTestGpio(m_view);
-}
-
-void MainWindowCoordinator::onBluetoothReceiverRequested()
-{
-    openBluetoothReceiver(m_view);
 }
 
 void MainWindowCoordinator::onWifiTransferRequested()
@@ -419,16 +436,6 @@ void MainWindowCoordinator::openFolder(QWidget *mainWindow, Language language)
     m_navigationController->openFolder(mainWindow, language);
 }
 
-void MainWindowCoordinator::openTestGpio(QWidget *mainWindow)
-{
-    m_navigationController->openTestGpio(mainWindow);
-}
-
-void MainWindowCoordinator::openBluetoothReceiver(QWidget *mainWindow)
-{
-    m_navigationController->openBluetoothReceiver(mainWindow);
-}
-
 void MainWindowCoordinator::openWifiTransfer(QWidget *mainWindow)
 {
     m_navigationController->openWifiTransfer(mainWindow);
@@ -449,23 +456,12 @@ bool MainWindowCoordinator::openAiGenerationPrompt(QWidget *parent, AiGeneration
 void MainWindowCoordinator::onCustomShapeSelected(const QList<QPolygonF> &polygons,
                                                   const QString &name)
 {
-    if (!m_shapeController->loadCustomShapes(polygons, name,
-                                             m_model->largeur(), m_model->longueur()))
-        return;
-
-    QList<LayoutData> layouts = m_inventory->viewModel()->getLayoutsForShape(name);
-    if (!layouts.isEmpty()) {
-        m_navigationController->openLayoutsDialog(m_dialogParent, name,
-                                                  layouts, polygons,
-                                                  m_model->language());
-        return;
-    }
-
-    emit requestShowFullScreen();
+    applyCustomShapeSelection(polygons, name);
 }
 
 void MainWindowCoordinator::onShapeSelectedFromInventory(ShapeModel::Type type)
 {
+    setActiveBaseShape(type);
     m_shapeController->setSelectedShapeType(type);
     QList<LayoutData> layouts = m_inventory->viewModel()->getLayoutsForBaseShape(type);
     if (!layouts.isEmpty()) {
@@ -478,6 +474,72 @@ void MainWindowCoordinator::onShapeSelectedFromInventory(ShapeModel::Type type)
     }
 
     m_shapeController->setPredefinedShape(type);
+}
+
+void MainWindowCoordinator::setActiveBaseShape(ShapeModel::Type type)
+{
+    m_activeShapeOrigin = ActiveShapeOrigin::Base;
+    m_activeBaseShapeType = type;
+    m_activeCustomShapeName.clear();
+}
+
+void MainWindowCoordinator::setActiveCustomShape(const QString &name)
+{
+    if (name.isEmpty()) {
+        m_activeShapeOrigin = ActiveShapeOrigin::Unknown;
+        m_activeCustomShapeName.clear();
+        return;
+    }
+
+    m_activeShapeOrigin = ActiveShapeOrigin::Custom;
+    m_activeCustomShapeName = name;
+}
+
+void MainWindowCoordinator::clearActiveShapeSelection()
+{
+    m_activeShapeOrigin = ActiveShapeOrigin::Unknown;
+    m_activeCustomShapeName.clear();
+}
+
+void MainWindowCoordinator::recordCurrentShapeCut()
+{
+    if (!m_inventory || !m_inventory->viewModel())
+        return;
+
+    switch (m_activeShapeOrigin) {
+    case ActiveShapeOrigin::Base:
+        m_inventory->viewModel()->recordBaseShapeCut(m_activeBaseShapeType);
+        break;
+    case ActiveShapeOrigin::Custom:
+        if (!m_activeCustomShapeName.isEmpty())
+            m_inventory->viewModel()->recordCustomShapeCut(m_activeCustomShapeName);
+        break;
+    case ActiveShapeOrigin::Unknown:
+        break;
+    }
+
+    if (m_view)
+        m_view->refreshQuickShapeButtons();
+}
+
+void MainWindowCoordinator::applyCustomShapeSelection(const QList<QPolygonF> &polygons, const QString &name)
+{
+    if (!m_shapeController->loadCustomShapes(polygons, name,
+                                             m_model->largeur(), m_model->longueur())) {
+        return;
+    }
+
+    setActiveCustomShape(name);
+
+    QList<LayoutData> layouts = m_inventory->viewModel()->getLayoutsForShape(name);
+    if (!layouts.isEmpty()) {
+        m_navigationController->openLayoutsDialog(m_dialogParent, name,
+                                                  layouts, polygons,
+                                                  m_model->language());
+        return;
+    }
+
+    emit requestShowFullScreen();
 }
 
 // Dans MainWindowCoordinator.cpp

@@ -53,11 +53,6 @@ public:
     bool isConnectMode()   const;  // true uniquement en SelectConnect
     bool isMultiSelectMode() const;// true uniquement en SelectMulti
 
-    // --- Overlay mode: Paste ---
-    void enablePasteMode();
-    void cancelPasteMode();
-    bool isPasteMode() const;
-
 signals:
     void drawModeChanged(DrawMode mode);
     void closeModeChanged(bool enabled);
@@ -76,7 +71,6 @@ private:
     bool m_closeMode    = false;
     bool m_selectMode   = false;
     bool m_connectMode  = false; // valid only when m_selectMode
-    bool m_pasteMode    = false;
 };
 
 #endif // DRAWMODEMANAGER_H

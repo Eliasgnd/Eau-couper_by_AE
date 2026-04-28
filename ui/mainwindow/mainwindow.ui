@@ -324,7 +324,7 @@
             </size>
            </property>
            <property name="currentIndex">
-            <number>1</number>
+            <number>2</number>
            </property>
            <widget class="QWidget" name="tabFormes">
             <attribute name="title">
@@ -636,29 +636,6 @@
               </widget>
              </item>
              <item>
-              <widget class="QPushButton" name="buttonFileReceiver">
-               <property name="minimumSize">
-                <size>
-                 <width>0</width>
-                 <height>60</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>  Recepteur Bluetooth</string>
-               </property>
-               <property name="icon">
-                <iconset resource="../../resources.qrc">
-                 <normaloff>:/icons/bluetooth.svg</normaloff>:/icons/bluetooth.svg</iconset>
-               </property>
-               <property name="iconSize">
-                <size>
-                 <width>24</width>
-                 <height>24</height>
-                </size>
-               </property>
-              </widget>
-             </item>
-             <item>
               <widget class="QPushButton" name="buttonViewGeneratedImages">
                <property name="minimumSize">
                 <size>
@@ -691,19 +668,6 @@
                </property>
                <property name="text">
                 <string>  Test Moteurs (STM)</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="buttonTestGpio">
-               <property name="minimumSize">
-                <size>
-                 <width>0</width>
-                 <height>60</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>  Test GPIO</string>
                </property>
               </widget>
              </item>

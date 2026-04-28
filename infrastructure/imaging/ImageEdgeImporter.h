@@ -28,6 +28,7 @@ struct EdgeParams
     /* Échelle & sortie */
     int    resize_max_w   = 1024; // 0 = pas de redimensionnement
     double epsilon_percent= 0.0001; // 1 % du périmètre (lissage fort)
+    int    max_output_points = 4000;
     bool   final_simplify = true; // QPainterPath::simplified()
 };
 

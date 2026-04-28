@@ -88,6 +88,11 @@ bool ImageEdgeImporter::loadAndProcess(const QString& filePath,
         // pour ne pas trop "casser" les arrondis que l'on vient de créer.
         double eps = m_p.epsilon_percent * cv::arcLength(best, true);
         cv::approxPolyDP(best, approx, eps, true);
+        for (int i = 0; i < 8 && m_p.max_output_points > 0
+             && static_cast<int>(approx.size()) > m_p.max_output_points; ++i) {
+            eps *= 1.6;
+            cv::approxPolyDP(best, approx, eps, true);
+        }
         if (approx.size() >= 3) ptsPtr = &approx;
     }
 
@@ -102,6 +107,9 @@ bool ImageEdgeImporter::loadAndProcess(const QString& filePath,
     }
     path.closeSubpath();
 
-    edgePath = m_p.final_simplify ? path.simplified() : path;
+    edgePath = (m_p.final_simplify
+                && (m_p.max_output_points <= 0 || path.elementCount() <= m_p.max_output_points * 2))
+        ? path.simplified()
+        : path;
     return true;
 }

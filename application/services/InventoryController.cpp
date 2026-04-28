@@ -9,6 +9,23 @@
 #include <QDateTime>
 
 namespace {
+constexpr int kSlidingWindowDays = 30;
+
+QDateTime cutoffDateTime(const QDateTime &reference)
+{
+    return reference.addDays(-kSlidingWindowDays);
+}
+
+void pruneCutHistory(QList<QDateTime> &history, const QDateTime &reference)
+{
+    const QDateTime cutoff = cutoffDateTime(reference);
+    history.erase(std::remove_if(history.begin(), history.end(),
+                                 [&cutoff](const QDateTime &dt) {
+                                     return !dt.isValid() || dt < cutoff;
+                                 }),
+                  history.end());
+}
+
 InventoryViewItem makeFolderItem(const InventoryFolder &folder, int index)
 {
     InventoryViewItem item;
@@ -288,6 +305,107 @@ bool InventoryController::incrementLayoutUsageForBaseShape(ShapeModel::Type type
     }
     m_model.save();
     return true;
+}
+
+bool InventoryController::recordBaseShapeCut(ShapeModel::Type type)
+{
+    const QDateTime now = QDateTime::currentDateTime();
+    QList<QDateTime> &history = m_model.baseShapeCutHistory()[type];
+    pruneCutHistory(history, now);
+    history.append(now);
+    m_model.save();
+    return true;
+}
+
+bool InventoryController::recordCustomShapeCut(const QString &shapeName)
+{
+    const QDateTime now = QDateTime::currentDateTime();
+    for (CustomShapeData &shape : m_model.customShapes()) {
+        if (shape.name != shapeName)
+            continue;
+        pruneCutHistory(shape.cutHistory, now);
+        shape.cutHistory.append(now);
+        m_model.save();
+        return true;
+    }
+    return false;
+}
+
+bool InventoryController::findCustomShapeByName(const QString &shapeName,
+                                                QList<QPolygonF> &polygonsOut,
+                                                QString &resolvedNameOut) const
+{
+    for (const CustomShapeData &shape : m_model.customShapes()) {
+        if (shape.name != shapeName)
+            continue;
+        polygonsOut = shape.polygons;
+        resolvedNameOut = shape.name;
+        return true;
+    }
+    return false;
+}
+
+QList<QuickShapeEntry> InventoryController::getQuickAccessShapes(int maxCount) const
+{
+    QList<QuickShapeEntry> entries;
+    const QDateTime now = QDateTime::currentDateTime();
+    const QDateTime cutoff = cutoffDateTime(now);
+
+    for (ShapeModel::Type type : m_model.baseShapeOrder()) {
+        const QList<QDateTime> history = m_model.baseShapeCutHistory().value(type);
+        int recentCount = 0;
+        QDateTime lastCutAt;
+        for (const QDateTime &dt : history) {
+            if (!dt.isValid() || dt < cutoff)
+                continue;
+            ++recentCount;
+            if (!lastCutAt.isValid() || dt > lastCutAt)
+                lastCutAt = dt;
+        }
+
+        QuickShapeEntry entry;
+        entry.name = BaseShapeNamingService::baseShapeName(type, m_model.languageRef());
+        entry.isBaseShape = true;
+        entry.baseType = type;
+        entry.recentCutCount = recentCount;
+        entry.lastCutAt = lastCutAt;
+        entries.append(entry);
+    }
+
+    for (const CustomShapeData &shape : m_model.customShapes()) {
+        int recentCount = 0;
+        QDateTime lastCutAt;
+        for (const QDateTime &dt : shape.cutHistory) {
+            if (!dt.isValid() || dt < cutoff)
+                continue;
+            ++recentCount;
+            if (!lastCutAt.isValid() || dt > lastCutAt)
+                lastCutAt = dt;
+        }
+
+        QuickShapeEntry entry;
+        entry.name = shape.name;
+        entry.isBaseShape = false;
+        entry.recentCutCount = recentCount;
+        entry.lastCutAt = lastCutAt;
+        entries.append(entry);
+    }
+
+    std::sort(entries.begin(), entries.end(),
+              [](const QuickShapeEntry &a, const QuickShapeEntry &b) {
+                  if (a.recentCutCount != b.recentCutCount)
+                      return a.recentCutCount > b.recentCutCount;
+                  if (a.lastCutAt != b.lastCutAt)
+                      return a.lastCutAt > b.lastCutAt;
+                  if (a.isBaseShape != b.isBaseShape)
+                      return a.isBaseShape;
+                  return a.name.localeAwareCompare(b.name) < 0;
+              });
+
+    if (maxCount > 0 && entries.size() > maxCount)
+        entries = entries.mid(0, maxCount);
+
+    return entries;
 }
 
 InventoryViewState InventoryController::buildRootState(const QString &filterText,

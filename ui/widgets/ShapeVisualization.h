@@ -40,6 +40,7 @@ public:
     void setOptimizationRunning(bool running);
     void setOptimizationResult(const QList<QPainterPath> &placedPaths, bool optimized);
     QGraphicsView* getGraphicsView() const;
+    QPointF logicalPointFromScenePoint(const QPointF &scenePoint) const;
 
     bool isCustomMode() const { return m_projectModel && m_projectModel->isCustomMode(); }
     void setCurrentCustomShapeName(const QString &name) { if (m_projectModel) m_projectModel->setCustomShapeName(name); }
@@ -72,6 +73,7 @@ public slots:
     void resetCutMarkers();
     void setDecoupeEnCours(bool running);
     void addCutMarker(QGraphicsItem* item);
+    void updateHeadLogicalPositionFromScene(const QPointF &scenePoint);
 
     // <<< AJOUT : setter taille en mm
     void setSheetSizeMm(const QSizeF& mm);
@@ -85,6 +87,7 @@ signals:
     void shapeSelectionChanged(int selectedCount);
     void shapeMoved(const QPointF &delta);
     void shapesDeleted(int deletedCount);
+    void headLogicalPositionChanged(double x, double y);
 
     // <<< AJOUT
     void sheetSizeMmChanged(const QSizeF&);
@@ -100,6 +103,7 @@ private slots:
 private:
     int countPlacedShapes() const;
     void redraw();
+    QRectF renderedSheetRectInViewport() const;
 
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};

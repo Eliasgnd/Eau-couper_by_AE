@@ -9,29 +9,22 @@
 #include <algorithm>
 
 namespace {
-struct CacheKey {
-    const QPainterPath *ptr;
-};
-inline bool operator==(const CacheKey &a, const CacheKey &b) { return a.ptr == b.ptr; }
-uint qHash(const CacheKey &key, uint seed = 0) {
-    return ::qHash(reinterpret_cast<quintptr>(key.ptr), seed);
-}
-
-QHash<CacheKey,QPainterPath> gSimplifiedCache;
 PipelineMetrics gMetrics;
 bool gLowEndMode = false;
 bool gSafeMode = false;
 
 QPainterPath simplifyForProxyInternal(const QPainterPath &p, double tol) {
-    CacheKey key{&p};
-    auto it = gSimplifiedCache.constFind(key);
-    if (it != gSimplifiedCache.constEnd())
-        return it.value();
     QPainterPath result;
-    for (const QPolygonF &poly : p.toFillPolygons()) {
-        if (poly.size() < 3) continue;
+    for (const QPolygonF &poly : p.toSubpathPolygons()) {
+        if (poly.size() < 2) continue;
         QVector<QPointF> pts = poly;
-        if (!pts.isEmpty() && pts.first() == pts.last()) pts.removeLast();
+        bool isClosed = false;
+        if (pts.size() > 2 && pts.first() == pts.last()) {
+            isClosed = true;
+            pts.removeLast();
+        }
+        if (pts.size() < 2) continue;
+
         QVector<int> keep; keep << 0 << pts.size()-1;
         auto distToSegment = [](const QPointF &p1, const QPointF &p2, const QPointF &pt){
             QLineF l(p1,p2);
@@ -51,11 +44,13 @@ QPainterPath simplifyForProxyInternal(const QPainterPath &p, double tol) {
         };
         dp(0, pts.size()-1);
         std::sort(keep.begin(), keep.end());
+        
         QPainterPath sub; sub.moveTo(pts[keep[0]]);
         for(int i=1;i<keep.size();++i) sub.lineTo(pts[keep[i]]);
-        sub.closeSubpath(); result.addPath(sub);
+        if (isClosed) sub.closeSubpath();
+        
+        result.addPath(sub);
     }
-    gSimplifiedCache.insert(key,result);
     return result;
 }
 

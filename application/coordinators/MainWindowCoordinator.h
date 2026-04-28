@@ -50,8 +50,6 @@ public:
     void openInventory(QWidget *mainWindow, QWidget *inventoryWindow);
     void openCustomEditor(QWidget *mainWindow, Language language);
     void openFolder(QWidget *mainWindow, Language language);
-    void openTestGpio(QWidget *mainWindow);
-    void openBluetoothReceiver(QWidget *mainWindow);
     void openWifiTransfer(QWidget *mainWindow);
 
     void handleSaveLayoutRequest(QWidget *mainWindow,
@@ -91,6 +89,8 @@ public slots:
     void onTriangleRequested();
     void onStarRequested();
     void onHeartRequested();
+    void onBaseShapeQuickRequested(int type);
+    void onCustomShapeQuickRequested(const QString &name);
 
     void onOptimize1Requested(bool checked);
     void onOptimize2Requested(bool checked);
@@ -107,8 +107,6 @@ public slots:
     void onInventoryRequested();
     void onCustomEditorRequested();
     void onFolderRequested();
-    void onTestGpioRequested();
-    void onBluetoothReceiverRequested();
     void onWifiTransferRequested();
 
     void onSaveLayoutRequested();
@@ -135,8 +133,19 @@ signals:
     void requestShowFullScreen();
 
 private:
+    enum class ActiveShapeOrigin {
+        Unknown,
+        Base,
+        Custom
+    };
+
     bool ensureServicesInitialized();
     bool loadLanguage(Language lang);
+    void setActiveBaseShape(ShapeModel::Type type);
+    void setActiveCustomShape(const QString &name);
+    void clearActiveShapeSelection();
+    void recordCurrentShapeCut();
+    void applyCustomShapeSelection(const QList<QPolygonF> &polygons, const QString &name);
 
     DialogManager *m_navigationController;
     AIDialogCoordinator     *m_aiServiceManager;
@@ -156,4 +165,7 @@ private:
     Language m_currentLanguage = Language::French;
 
     bool m_isCutting = false;
+    ActiveShapeOrigin m_activeShapeOrigin = ActiveShapeOrigin::Base;
+    ShapeModel::Type m_activeBaseShapeType = ShapeModel::Type::Circle;
+    QString m_activeCustomShapeName;
 };

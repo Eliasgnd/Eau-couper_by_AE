@@ -36,6 +36,9 @@ public:
     QMap<ShapeModel::Type, QDateTime> &baseLastUsed() { return m_baseLastUsed; }
     const QMap<ShapeModel::Type, QDateTime> &baseLastUsed() const { return m_baseLastUsed; }
 
+    QMap<ShapeModel::Type, QList<QDateTime>> &baseShapeCutHistory() { return m_baseShapeCutHistory; }
+    const QMap<ShapeModel::Type, QList<QDateTime>> &baseShapeCutHistory() const { return m_baseShapeCutHistory; }
+
     QList<ShapeModel::Type> &baseShapeOrder() { return m_baseShapeOrder; }
     const QList<ShapeModel::Type> &baseShapeOrder() const { return m_baseShapeOrder; }
 
@@ -53,6 +56,7 @@ private:
     QMap<ShapeModel::Type, QString> m_baseShapeFolders;
     QMap<ShapeModel::Type, int> m_baseUsageCount;
     QMap<ShapeModel::Type, QDateTime> m_baseLastUsed;
+    QMap<ShapeModel::Type, QList<QDateTime>> m_baseShapeCutHistory;
     QList<ShapeModel::Type> m_baseShapeOrder;
     QList<InventoryFolder> m_folders;
     Language m_currentLanguage {Language::French};

@@ -32,6 +32,9 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
 {
     // Initialise la position courante dans le state partagé.
     m_state->currentPoint = logicalPos;
+    m_draggingSelection = false;
+    m_selectionDragMoved = false;
+    m_pressedSelectedIndex = -1;
 
     if (event->button() == Qt::MiddleButton ||
         m_modeManager->drawMode() == DrawModeManager::DrawMode::Pan) {
@@ -44,8 +47,10 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
     if (m_modeManager->drawMode() == DrawModeManager::DrawMode::Supprimer) {
         const auto &shapes = m_shapeManager->shapes();
         QPainterPathStroker stroker;
-        stroker.setWidth(5.0);
+        stroker.setWidth(18.0);
         for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
+            if (!shapes[i].bounds.adjusted(-18.0, -18.0, 18.0, 18.0).contains(logicalPos))
+                continue;
             if (shapes[i].path.contains(logicalPos) ||
                 stroker.createStroke(shapes[i].path).contains(logicalPos)) {
                 m_shapeManager->removeShape(i);
@@ -60,11 +65,13 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         const auto &shapes = m_shapeManager->shapes();
         int clickedIndex = -1;
         QPainterPathStroker stroker;
-        stroker.setWidth(8.0);
+        stroker.setWidth(26.0);
         stroker.setCapStyle(Qt::RoundCap);
         stroker.setJoinStyle(Qt::RoundJoin);
         for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
             const QPainterPath &path = shapes[i].path;
+            if (!shapes[i].bounds.adjusted(-26.0, -26.0, 26.0, 26.0).contains(logicalPos))
+                continue;
             if (path.contains(logicalPos) ||
                 stroker.createStroke(path).contains(logicalPos)) {
                 clickedIndex = i;
@@ -86,6 +93,32 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         return;
     }
 
+    if (!m_shapeManager->selectedShapes().empty()) {
+        const auto &shapes = m_shapeManager->shapes();
+        const auto &selected = m_shapeManager->selectedShapes();
+        QPainterPathStroker stroker;
+        stroker.setWidth(26.0);
+        stroker.setCapStyle(Qt::RoundCap);
+        stroker.setJoinStyle(Qt::RoundJoin);
+
+        for (auto it = selected.rbegin(); it != selected.rend(); ++it) {
+            const int idx = *it;
+            if (idx < 0 || idx >= static_cast<int>(shapes.size()))
+                continue;
+            const QPainterPath &path = shapes[idx].path;
+            if (!shapes[idx].bounds.adjusted(-26.0, -26.0, 26.0, 26.0).contains(logicalPos))
+                continue;
+            if (path.contains(logicalPos) ||
+                stroker.createStroke(path).contains(logicalPos)) {
+                m_draggingSelection = true;
+                m_pressedSelectedIndex = idx;
+                m_active = true;
+                emit requestUpdate();
+                return;
+            }
+        }
+    }
+
     m_active = true;
     emit requestUpdate();
 }
@@ -103,18 +136,12 @@ void MouseInteractionHandler::handleMouseMove(QMouseEvent *event, const QPointF 
         return;
     }
 
-    if (m_modeManager->drawMode() == DrawModeManager::DrawMode::Deplacer &&
+    if ((m_modeManager->drawMode() == DrawModeManager::DrawMode::Deplacer || m_draggingSelection) &&
         (event->buttons() & Qt::LeftButton)) {
         const QPointF delta = logicalPos - m_state->currentPoint;
         if (!qFuzzyIsNull(delta.x()) || !qFuzzyIsNull(delta.y())) {
-            const std::vector<int> selected = m_shapeManager->selectedShapes();
-            std::vector<ShapeManager::Shape> updated = m_shapeManager->shapes();
-            for (int idx : selected) {
-                if (idx >= 0 && idx < static_cast<int>(updated.size()))
-                    updated[idx].path.translate(delta);
-            }
-            m_shapeManager->setShapes(updated);
-            m_shapeManager->setSelectedShapes(selected);
+            m_selectionDragMoved = true;
+            m_shapeManager->translateSelectedShapes(delta);
         }
     }
 
@@ -126,7 +153,21 @@ void MouseInteractionHandler::handleMouseRelease(QMouseEvent *event, const QPoin
 {
     Q_UNUSED(event)
     if (!m_active) return;
+    if (m_draggingSelection && !m_selectionDragMoved &&
+        m_modeManager->isMultiSelectMode() && m_pressedSelectedIndex >= 0) {
+        std::vector<int> selected = m_shapeManager->selectedShapes();
+        selected.erase(std::remove(selected.begin(), selected.end(), m_pressedSelectedIndex), selected.end());
+        m_shapeManager->setSelectedShapes(selected);
+    }
     m_state->currentPoint = logicalPos;
     m_active = false;
+    m_draggingSelection = false;
+    m_selectionDragMoved = false;
+    m_pressedSelectedIndex = -1;
     emit requestUpdate();
+}
+
+bool MouseInteractionHandler::isSelectionDragActive() const
+{
+    return m_draggingSelection;
 }

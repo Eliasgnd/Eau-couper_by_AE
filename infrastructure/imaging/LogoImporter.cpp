@@ -5,6 +5,7 @@
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QDebug>
+#include <QtGlobal>
 
 // --- AJOUT POUR OPENCV ---
 #include <opencv2/core.hpp>
@@ -28,6 +29,23 @@ static QPainterPath convertContoursToPath(const std::vector<std::vector<cv::Poin
     return path;
 }
 
+static std::vector<cv::Point> simplifyContourToBudget(const std::vector<cv::Point> &contour,
+                                                      double epsilon,
+                                                      int maxOutputPoints)
+{
+    std::vector<cv::Point> approx;
+    cv::approxPolyDP(contour, approx, epsilon, true);
+    if (maxOutputPoints <= 0)
+        return approx;
+
+    double adaptiveEpsilon = qMax(0.1, epsilon);
+    for (int i = 0; i < 8 && static_cast<int>(approx.size()) > maxOutputPoints; ++i) {
+        adaptiveEpsilon *= 1.6;
+        cv::approxPolyDP(contour, approx, adaptiveEpsilon, true);
+    }
+    return approx;
+}
+
 // -------------------------------------------------------------------
 // Méthode publique de la classe LogoImporter
 // -------------------------------------------------------------------
@@ -35,7 +53,9 @@ LogoImporter::LogoImporter() {}
 
 QPainterPath LogoImporter::importLogo(const QString &filePath,
                                       bool includeInternalContours,
-                                      int threshold)
+                                      int threshold,
+                                      int maxOutputPoints,
+                                      int maxRasterSize)
 {
     // 1) Chargement de l'image (SVG ou Raster)
     QFileInfo fi(filePath);
@@ -51,6 +71,8 @@ QPainterPath LogoImporter::importLogo(const QString &filePath,
         QSize defSize = renderer.defaultSize();
         if (!defSize.isValid() || defSize.isEmpty())
             defSize = QSize(500, 500);
+        if (maxRasterSize > 0 && qMax(defSize.width(), defSize.height()) > maxRasterSize)
+            defSize.scale(maxRasterSize, maxRasterSize, Qt::KeepAspectRatio);
         image = QImage(defSize, QImage::Format_ARGB32);
         image.fill(Qt::white);
         QPainter p(&image);
@@ -63,6 +85,11 @@ QPainterPath LogoImporter::importLogo(const QString &filePath,
             return QPainterPath();
         }
         qDebug() << "Image raster chargée, taille:" << image.size();
+    }
+
+    if (maxRasterSize > 0 && qMax(image.width(), image.height()) > maxRasterSize) {
+        image = image.scaled(maxRasterSize, maxRasterSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        qDebug() << "Image redimensionnee pour import:" << image.size();
     }
 
     // 2) Conversion en niveaux de gris pour OpenCV
@@ -104,7 +131,7 @@ QPainterPath LogoImporter::importLogo(const QString &filePath,
         // Si les courbes sont encore un peu pixelisées, montez à 1.5 ou 2.0.
         // Si le lissage efface trop de détails (arrondit trop les angles), descendez à 0.5.
         double epsilon = 0.8;
-        cv::approxPolyDP(contours[i], approx, epsilon, true);
+        approx = simplifyContourToBudget(contours[i], epsilon, maxOutputPoints);
 
         if (includeInternalContours) {
             processedContours.push_back(approx);
@@ -132,6 +159,7 @@ QPainterPath LogoImporter::importLogo(const QString &filePath,
         qDebug() << "Contours complets (avec internes) lissés générés.";
     }
 
-    // Simplification finale par Qt pour s'assurer que le chemin est propre
-    return finalPath.simplified();
+    return (maxOutputPoints > 0 && finalPath.elementCount() > maxOutputPoints * 2)
+        ? finalPath
+        : finalPath.simplified();
 }

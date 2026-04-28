@@ -135,19 +135,3 @@ void DrawModeManager::cancelAnySelection()
 bool DrawModeManager::isSelectMode()     const { return m_selectMode; }
 bool DrawModeManager::isConnectMode()    const { return m_selectMode && m_connectMode; }
 bool DrawModeManager::isMultiSelectMode()const { return m_selectMode && !m_connectMode; }
-
-// ---------------------------------------------------------------------------
-// Overlay: Paste
-// ---------------------------------------------------------------------------
-
-void DrawModeManager::enablePasteMode()
-{
-    m_pasteMode = true;
-}
-
-void DrawModeManager::cancelPasteMode()
-{
-    m_pasteMode = false;
-}
-
-bool DrawModeManager::isPasteMode() const { return m_pasteMode; }

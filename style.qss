@@ -695,6 +695,23 @@ QPushButton#buttonGomme[gommeMode="true"] {
     border: 2px solid #7C3AED;
     color: #DDD6FE;
 }
+QPushButton#buttonDeplacer[deplacerMode="true"] {
+    background-color: #0C4A6E;
+    border: 2px solid #38BDF8;
+    color: #E0F2FE;
+}
+QPushButton#buttonSupprimer[supprimerMode="true"] {
+    background-color: #7F1D1D;
+    border: 2px solid #F87171;
+    color: #FEE2E2;
+}
+QPushButton#buttonSelection[closeMode="true"],
+QPushButton#buttonConnect[closeMode="true"],
+QPushButton#buttonCloseShape[closeMode="true"] {
+    background-color: #1E3A8A;
+    border: 2px solid #60A5FA;
+    color: #DBEAFE;
+}
 /* Aimant (snap) actif */
 QPushButton#buttonSnapGrid[snapMode="true"] {
     background-color: #0C4A6E;
@@ -1009,4 +1026,107 @@ QCheckBox::indicator:checked {
 }
 QCheckBox::indicator:hover {
     border-color: #0EA5E9;
+}
+
+/* ===== WIFI TRANSFER WIDGET ===== */
+QWidget#WifiTransferWidget {
+    background-color: #16181C;
+}
+QLabel#titleLabel {
+    color: #F1F5F9;
+    background: transparent;
+}
+QLabel#urlLabel {
+    color: #0EA5E9;
+    font-size: 11px;
+    font-family: "Consolas", "Courier New", monospace;
+}
+QGroupBox#historyGroup {
+    color: #CBD5E1;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid #363A42;
+    border-radius: 8px;
+    margin-top: 8px;
+    padding-top: 12px;
+    background-color: #1E2026;
+}
+QGroupBox#historyGroup::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 6px;
+    color: #CBD5E1;
+}
+QListWidget#historyList {
+    background-color: #16181C;
+    color: #F1F5F9;
+    border: 1px solid #363A42;
+    border-radius: 6px;
+    font-size: 12px;
+    alternate-background-color: #1A1D22;
+}
+QListWidget#historyList::item:selected {
+    background-color: #0C4A6E;
+    color: #F1F5F9;
+}
+QPushButton#openSelectedButton {
+    background-color: #14532D;
+    color: #FFFFFF;
+    border: 1px solid #16A34A;
+    border-left: 3px solid #16A34A;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 14px;
+}
+QPushButton#openSelectedButton:hover { background-color: #166534; border-color: #22C55E; }
+QPushButton#openSelectedButton:pressed { background-color: #14532D; }
+QPushButton#openSelectedButton:disabled { background-color: #1E2026; color: #4B5563; border-color: #363A42; }
+QPushButton#deleteSelectedButton {
+    background-color: #7F1D1D;
+    color: #FFFFFF;
+    border: 1px solid #DC2626;
+    border-left: 3px solid #DC2626;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 14px;
+}
+QPushButton#deleteSelectedButton:hover { background-color: #991B1B; border-color: #EF4444; }
+QPushButton#deleteSelectedButton:pressed { background-color: #7F1D1D; }
+QPushButton#renameButton {
+    background-color: #0C4A6E;
+    color: #FFFFFF;
+    border: 1px solid #0EA5E9;
+    border-left: 3px solid #0EA5E9;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 0 14px;
+}
+QPushButton#renameButton:hover { background-color: #075985; border-color: #38BDF8; }
+QPushButton#renameButton:pressed { background-color: #0C4A6E; }
+QPushButton#backButton {
+    background-color: #272A30;
+    color: #F1F5F9;
+    border: 1px solid #363A42;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 38px;
+    padding: 0 20px;
+}
+QPushButton#backButton:hover { background-color: #2F3239; border-color: #0EA5E9; color: #0EA5E9; }
+QPushButton#backButton:pressed { background-color: #1E2026; }
+
+/* ---------- BOUTONS DU BANDEAU DE SELECTION TACTILE ---------- */
+QFrame#touchSelectionPanel QPushButton {
+    min-height: 26px;      /* Écrase la hauteur minimale globale de 42px */
+    max-height: 32px;      /* Empêche les boutons de trop s'étirer en hauteur */
+    padding: 4px 8px;      /* Réduit l'espacement interne */
+    font-size: 11px;       /* Un poil plus petit pour bien rentrer */
+    border-radius: 4px;    /* Des bords un peu moins arrondis (optionnel) */
 }
