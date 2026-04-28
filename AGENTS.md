@@ -16,7 +16,8 @@ Le projet est industriel et touche au controle machine. La stabilite, la securit
 - Tests et validation : `docs/codebase/TESTING.md`
 - Dette technique et zones fragiles : `docs/codebase/CONCERNS.md`
 - Stack et integrations : `docs/codebase/STACK.md`, `docs/codebase/INTEGRATIONS.md`
-- Trace de travail utile au rapport de stage : `docs/stage/WORK_LOG.md`
+- Resume de travail utile au rapport de stage : `docs/stage/SUMMARY.md`
+- Journaux hebdomadaires : `docs/stage/WORK_LOG.md`
 
 ## Regles Critiques
 
@@ -46,7 +47,10 @@ Ne pas lire ni modifier pour le travail courant, sauf besoin precis :
 2. Identifier la couche concernee et respecter ses dependances.
 3. Implementer le plus petit changement coherent.
 4. Ajouter ou adapter les tests quand le changement touche le domaine, la geometrie, l'inventaire, le moteur ou une regression connue.
-5. Mettre a jour `docs/stage/WORK_LOG.md` apres tout changement significatif avec le probleme, la solution et les verifications.
+5. Mettre a jour la documentation de stage seulement pour les changements significatifs.
+   - Toujours tenir `docs/stage/SUMMARY.md` a jour avec les decisions et evolutions importantes.
+   - Ajouter le detail dans le journal hebdomadaire indique par `docs/stage/WORK_LOG.md`.
+   - Ne pas journaliser les micro-ajustements isoles, sauf s'ils expliquent une decision utile. Exemple de changement mineur a ne pas detailler seul : rendre visuellement clair qu'un bouton reste active.
 6. Quand l'environnement le permet, verifier avec :
 
 ```bash

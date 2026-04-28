@@ -1,6 +1,20 @@
-# Journal De Travail
+# Index Des Journaux De Travail
 
-Ce fichier garde une trace factuelle des evolutions du projet. Il sert de matiere premiere pour un rapport ou une synthese, pas de rapport final.
+Ce fichier garde seulement l'index et les regles des journaux de travail. Ne pas y ajouter directement les entrees longues.
+
+Lire d'abord `docs/stage/SUMMARY.md` pour le contexte general, puis ouvrir uniquement le journal hebdomadaire utile.
+
+## Journaux Hebdomadaires
+
+- `docs/stage/WORK_LOG_2026-W18.md` : semaine du 2026-04-27 au 2026-05-03.
+
+## Regles De Journalisation
+
+- Maximum un fichier de journal par semaine : `WORK_LOG_YYYY-Www.md`.
+- Ajouter une entree seulement pour un changement significatif : fonctionnalite, refactor, correction de bug, decision d'architecture, test important, dette technique traitee.
+- Regrouper les petites modifications liees a une meme tache dans une seule entree.
+- Ne pas detailler les micro-ajustements isoles qui n'apportent pas d'explication utile au rapport.
+- Mettre a jour `SUMMARY.md` quand une entree change la comprehension globale du projet, l'architecture, les fonctionnalites ou les choix techniques.
 
 ## Modele D'entree
 
@@ -28,42 +42,3 @@ Verifications :
 Limites et prochaines etapes :
 - Ce qui reste a verifier ou ameliorer.
 ```
-
-## 2026-04-28 - Optimisation du depot pour Codex
-
-Objectif :
-- Rendre le depot plus lisible pour Codex et supprimer l'ancien contexte de developpement lie a l'ancien assistant IA.
-- Ajouter une trace de travail exploitable pour expliquer les evolutions techniques du projet.
-
-Probleme ou besoin :
-- Les instructions etaient centrees sur un ancien assistant IA et melangeaient consignes agent, architecture et workflow.
-- Les documents `.planning/codebase` etaient suivis par Git tout en etant ignores par `.gitignore`, ce qui rendait la source de verite moins claire.
-- Il manquait un journal simple pour conserver le pourquoi des changements.
-
-Solution mise en place :
-- Ajout d'un `AGENTS.md` court comme carte d'entree pour Codex.
-- Migration de la documentation vers `docs/codebase/`.
-- Creation de `docs/stage/WORK_LOG.md`.
-- Nettoyage des references aux anciens outils de developpement IA dans `.gitignore`.
-
-Fichiers ou zones concernes :
-- `AGENTS.md`
-- `docs/codebase/`
-- `docs/stage/WORK_LOG.md`
-- `.gitignore`
-- anciens fichiers d'instructions IA et `.planning/codebase/`
-
-Raisons du choix :
-- Un fichier d'instructions court evite de saturer le contexte agent.
-- Une documentation structuree permet a Codex de trouver les informations utiles selon la tache.
-- Le journal de travail garde les decisions et verifications disponibles pour une future synthese.
-
-Verifications :
-- `git status --short` montre uniquement les suppressions/migrations documentaires prevues.
-- Les nouveaux fichiers `AGENTS.md`, `docs/codebase/*` et `docs/stage/WORK_LOG.md` sont visibles par Git et ne sont pas ignores.
-- La recherche locale ne trouve plus de references a l'ancien assistant IA ou a son outillage dans les fichiers texte utiles.
-- `qmake6 -v` n'est pas disponible dans ce terminal Windows ; aucun build n'a ete lance car la modification ne touche pas le code C++.
-
-Limites et prochaines etapes :
-- Les docs doivent rester vivantes apres les prochains refactors.
-- Les regles importantes devraient progressivement etre renforcees par des tests ou scripts.
