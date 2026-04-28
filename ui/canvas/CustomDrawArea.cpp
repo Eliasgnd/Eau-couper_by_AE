@@ -126,6 +126,8 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
 
     connect(m_shapeManager.get(), &ShapeManager::shapesChanged,
             this, QOverload<>::of(&CustomDrawArea::update));
+    connect(m_shapeManager.get(), &ShapeManager::shapesChanged,
+            this, [this]() { m_collisionCacheDirty = true; });
     connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
             this, QOverload<>::of(&CustomDrawArea::update));
     connect(m_shapeManager.get(), &ShapeManager::selectionChanged,
@@ -793,7 +795,7 @@ QString CustomDrawArea::validationSummary() const
     }
 
     int closeCount = 0;
-    computeCollisionFlags(shapes, &closeCount);
+    const auto collision = getCollisionFlags(&closeCount);
 
     QStringList lines;
     lines << tr("Formes : %1").arg(shapes.size());
@@ -813,6 +815,17 @@ QString CustomDrawArea::validationSummary() const
     return lines.join('\n');
 }
 
+std::vector<bool> CustomDrawArea::getCollisionFlags(int *pairCount) const
+{
+    if (m_collisionCacheDirty) {
+        m_collisionCache = computeCollisionFlags(m_shapeManager->shapes(), &m_collisionPairCount);
+        m_collisionCacheDirty = false;
+    }
+    if (pairCount)
+        *pairCount = m_collisionPairCount;
+    return m_collisionCache;
+}
+
 bool CustomDrawArea::hasValidationIssues() const
 {
     const auto &shapes = m_shapeManager->shapes();
@@ -821,7 +834,7 @@ bool CustomDrawArea::hasValidationIssues() const
         if (!isPathClosed(shape.path) || bounds.width() < 12.0 || bounds.height() < 12.0)
             return true;
     }
-    const auto collision = computeCollisionFlags(shapes);
+    const auto collision = getCollisionFlags();
     return std::any_of(collision.begin(), collision.end(), [](bool flagged) { return flagged; });
 }
 
@@ -1509,7 +1522,7 @@ void CustomDrawArea::drawValidationOverlay(QPainter &painter) const
     const auto &shapes = m_shapeManager->shapes();
     if (shapes.empty()) return;
 
-    const auto collision = computeCollisionFlags(shapes);
+    const auto collision = getCollisionFlags();
 
     painter.save();
     painter.setBrush(Qt::NoBrush);

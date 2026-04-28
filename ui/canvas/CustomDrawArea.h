@@ -105,6 +105,8 @@ public:
     bool hasValidationIssues() const;
     QString buildSelectionSummary() const;
 
+    std::vector<bool> getCollisionFlags(int *pairCount = nullptr) const;
+
 signals:
     void zoomChanged(double newScale);
     void closeModeChanged(bool enabled);
@@ -229,6 +231,10 @@ private:
     bool                             m_resizeInProgress = false;
     bool                             m_rotateInProgress = false;
     qreal                            m_rotateStartPointerAngle = 0.0;
+
+    mutable bool                     m_collisionCacheDirty = true;
+    mutable std::vector<bool>        m_collisionCache;
+    mutable int                      m_collisionPairCount = 0;
 };
 
 #endif // CUSTOMDRAWAREA_H
