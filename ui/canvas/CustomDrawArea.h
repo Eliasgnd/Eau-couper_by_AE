@@ -2,6 +2,7 @@
 #define CUSTOMDRAWAREA_H
 
 #include <QFont>
+#include <QElapsedTimer>
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QRectF>
@@ -13,6 +14,7 @@
 #include "DrawModeManager.h"
 #include "DrawingState.h"
 #include "domain/shapes/ShapeManager.h"
+#include "shared/PerformanceMode.h"
 
 class QMouseEvent;
 class QPaintEvent;
@@ -46,6 +48,9 @@ public:
 
     void addImportedLogo(const QPainterPath &logoPath);
     void addImportedLogoSubpath(const QPainterPath &subpath);
+    void addImportedLogoSubpaths(const QList<QPainterPath> &subpaths);
+    void setPerformanceMode(PerformanceMode mode);
+    PerformanceMode performanceMode() const;
 
     void  setTextFont(const QFont &font);
     QFont getTextFont() const;
@@ -56,12 +61,12 @@ public:
     bool hasSelection() const;
     void deleteSelectedShapes();
     void duplicateSelectedShapes();
-    void copySelectedShapes();
-    void enablePasteMode();
-    void pasteCopiedShapes(const QPointF &dest);
     QRectF selectedShapesBounds() const;
+    int selectedShapesCount() const;
+    qreal selectedRotationAngle() const;
     void resizeSelectedShapes(qreal targetWidth, qreal targetHeight);
     void rotateSelectedShapes(qreal angleDegrees);
+    void setSelectedRotation(qreal angleDegrees);
     void moveSelectedShapes(qreal dx, qreal dy, const QString &label = QString());
     void setSelectedShapesPosition(qreal x, qreal y);
     void alignSelectedLeft();
@@ -72,6 +77,11 @@ public:
     void distributeSelectedVertically();
     void centerSelectionInViewport();
     void duplicateSelectedShapesLinear(int copies, const QPointF &step);
+    void zoomToSelection();
+    void fitAllShapesInView();
+    void finishPointByPointShape();
+    void undoPointByPointPoint();
+    void undoPointByPointSegment();
 
     void setSnapToGridEnabled(bool enabled);
     bool isSnapToGridEnabled() const;
@@ -81,8 +91,8 @@ public:
     int  gridSpacing() const;
     void setPrecisionConstraintEnabled(bool enabled);
     bool isPrecisionConstraintEnabled() const;
-    void setMachinePreviewEnabled(bool enabled);
-    bool isMachinePreviewEnabled() const;
+    void setSegmentStatusVisible(bool visible);
+    bool isSegmentStatusVisible() const;
     bool hasActiveSpecialMode() const;
     void cancelActiveModes();
 
@@ -136,6 +146,25 @@ private:
     QPointF applyDrawingAids(const QPointF &logicalPoint) const;
     int hitTestShape(const QPointF &logicalPoint, qreal tolerance = 40.0) const;
 
+    enum class EndpointKind { None, Start, End };
+    struct EndpointHit {
+        int shapeIndex = -1;
+        EndpointKind kind = EndpointKind::None;
+        QPointF point;
+        bool isValid() const { return shapeIndex >= 0 && kind != EndpointKind::None; }
+    };
+
+    qreal endpointTouchTolerance() const;
+    EndpointHit hitTestOpenEndpoint(const QPointF &logicalPoint,
+                                    int ignoredShapeIndex = -1) const;
+    bool supportsEndpointResume(DrawMode mode) const;
+    QPointF snapToDrawingAid(const QPointF &logicalPoint) const;
+    void resetPointByPointResumeState();
+    QPainterPath buildPointByPointPath(const QList<QPointF> &points, bool shouldClose) const;
+    QPainterPath buildResumedPath(const QPainterPath &extensionPath) const;
+    bool beginEndpointResumeIfNeeded(const QPointF &logicalPoint);
+    void drawOpenEndpointHandles(QPainter &painter) const;
+
     enum class ResizeHandle { None, TopLeft, TopRight, BottomLeft, BottomRight };
     QRectF       selectionOverlayBounds() const;
     QTransform   selectionRotationTransform() const;
@@ -147,6 +176,7 @@ private:
     qreal        currentSelectionAngle() const;
     void         emitSelectionState();
     void         emitCanvasStatus();
+    void         emitCanvasStatusThrottled();
     void         emitHistoryState();
     QString      currentModeLabel() const;
     QString      currentModeHint() const;
@@ -156,6 +186,11 @@ private:
     bool         isPathClosed(const QPainterPath &path) const;
     void         drawCanvasHud(QPainter &painter) const;
     void         drawMachinePreview(QPainter &painter) const;
+    void         drawValidationOverlay(QPainter &painter) const;
+    void         drawSmartGuides(QPainter &painter) const;
+    void         drawPointByPointAids(QPainter &painter) const;
+    void         updateFreehandPreviewCache();
+    bool         isInteractiveRenderingActive() const;
     void         commitSelectedTransform(const std::vector<ShapeManager::Shape> &updated,
                                          const QString &label);
 
@@ -174,9 +209,13 @@ private:
     int  m_smoothingLevel = 1;
     bool m_twoFingersOn = false;
     bool m_precisionConstraintEnabled = false;
-    bool m_machinePreviewEnabled = false;
+    bool m_segmentStatusVisible = false;
+    PerformanceMode m_performanceMode = PerformanceMode::Balanced;
+    bool m_canvasStatusThrottleStarted = false;
+    QElapsedTimer m_canvasStatusThrottle;
     bool m_hasPointer = false;
     bool m_lastSnapApplied = false;
+    mutable EndpointHit m_hoveredEndpoint;
     QPointF m_lastPointerLogical;
     QPointF m_lastRawPointerLogical;
 

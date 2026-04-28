@@ -80,7 +80,7 @@
          <string>Replier/afficher le panneau outils</string>
         </property>
         <property name="text">
-         <string>&#8249;</string>
+         <string>‹</string>
         </property>
         <property name="toolButtonStyle">
          <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
@@ -163,7 +163,7 @@
          <string> Annuler</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/back-arrow.svg</normaloff>:/icons/back-arrow.svg</iconset>
         </property>
         <property name="iconSize">
@@ -195,7 +195,7 @@
          <string> Retablir</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/arrow-right.svg</normaloff>:/icons/arrow-right.svg</iconset>
         </property>
         <property name="iconSize">
@@ -227,7 +227,7 @@
          <string> Reinit.</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/reload.svg</normaloff>:/icons/reload.svg</iconset>
         </property>
         <property name="iconSize">
@@ -259,7 +259,7 @@
          <string> Appliquer</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/check.svg</normaloff>:/icons/check.svg</iconset>
         </property>
         <property name="iconSize">
@@ -291,7 +291,7 @@
          <string> Importer</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/download.svg</normaloff>:/icons/download.svg</iconset>
         </property>
         <property name="iconSize">
@@ -326,7 +326,7 @@
          <string> Sauver</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/save.svg</normaloff>:/icons/save.svg</iconset>
         </property>
         <property name="iconSize">
@@ -361,7 +361,7 @@
          <string> Theme</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/sun.svg</normaloff>:/icons/sun.svg</iconset>
         </property>
         <property name="iconSize">
@@ -393,7 +393,7 @@
          <string> Menu</string>
         </property>
         <property name="icon">
-         <iconset resource="resources.qrc">
+         <iconset resource="../../resources.qrc">
           <normaloff>:/icons/house.svg</normaloff>:/icons/house.svg</iconset>
         </property>
         <property name="iconSize">
@@ -422,7 +422,7 @@
          <string>Replier/afficher le panneau proprietes</string>
         </property>
         <property name="text">
-         <string>&#8250;</string>
+         <string>›</string>
         </property>
         <property name="toolButtonStyle">
          <enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum>
@@ -491,23 +491,23 @@
         </item>
         <item>
          <widget class="QToolButton" name="buttonForme">
-          <property name="minimumSize">
-           <size>
-            <width>0</width>
-            <height>44</height>
-           </size>
-          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>44</height>
+           </size>
+          </property>
           <property name="text">
            <string>Forme</string>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset resource="../../resources.qrc">
             <normaloff>:/icons/pencil.svg</normaloff>:/icons/pencil.svg</iconset>
           </property>
           <property name="iconSize">
@@ -533,7 +533,7 @@
            <string>  Selection</string>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset resource="../../resources.qrc">
             <normaloff>:/icons/square.svg</normaloff>:/icons/square.svg</iconset>
           </property>
           <property name="iconSize">
@@ -556,7 +556,7 @@
            <string>  Relier</string>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset resource="../../resources.qrc">
             <normaloff>:/icons/link.svg</normaloff>:/icons/link.svg</iconset>
           </property>
           <property name="iconSize">
@@ -579,7 +579,7 @@
            <string>  Supprimer</string>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset resource="../../resources.qrc">
             <normaloff>:/icons/cross.svg</normaloff>:/icons/cross.svg</iconset>
           </property>
           <property name="iconSize">
@@ -602,7 +602,7 @@
            <string>  Fermer forme</string>
           </property>
           <property name="icon">
-           <iconset resource="resources.qrc">
+           <iconset resource="../../resources.qrc">
             <normaloff>:/icons/fence.svg</normaloff>:/icons/fence.svg</iconset>
           </property>
           <property name="iconSize">
@@ -610,19 +610,6 @@
             <width>20</width>
             <height>20</height>
            </size>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="buttonToggleGrid">
-          <property name="minimumSize">
-           <size>
-            <width>0</width>
-            <height>44</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>  Grille</string>
           </property>
          </widget>
         </item>
@@ -762,7 +749,7 @@
               <string>  Aimant</string>
              </property>
              <property name="icon">
-              <iconset resource="resources.qrc">
+              <iconset resource="../../resources.qrc">
                <normaloff>:/icons/magnet.svg</normaloff>:/icons/magnet.svg</iconset>
              </property>
              <property name="iconSize">
@@ -829,7 +816,7 @@
               <string>  Gomme</string>
              </property>
              <property name="icon">
-              <iconset resource="resources.qrc">
+              <iconset resource="../../resources.qrc">
                <normaloff>:/icons/eraser.svg</normaloff>:/icons/eraser.svg</iconset>
              </property>
              <property name="iconSize">
@@ -867,6 +854,19 @@
          </widget>
         </item>
         <item>
+         <widget class="QPushButton" name="buttonToggleGrid">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>44</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>  Grille</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <spacer name="rightSpacer">
           <property name="orientation">
            <enum>Qt::Orientation::Vertical</enum>
@@ -890,7 +890,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="resources.qrc"/>
+  <include location="../../resources.qrc"/>
  </resources>
  <connections/>
 </ui>

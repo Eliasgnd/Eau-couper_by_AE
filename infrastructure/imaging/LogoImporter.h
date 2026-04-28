@@ -16,7 +16,9 @@ public:
     // - threshold : Valeur du seuil pour la conversion en contours (entre 0 et 255)
     QPainterPath importLogo(const QString &filePath,
                             bool includeInternalContours = false,
-                            int threshold = 128);
+                            int threshold = 128,
+                            int maxOutputPoints = 4000,
+                            int maxRasterSize = 1400);
 };
 
 #endif // LOGOIMPORTER_H

@@ -10,6 +10,10 @@ private slots:
     void addAndRemoveShape();
     void selectionBounds();
     void undoRestoresPreviousState();
+    void mergeShapesByNearestEndpointsUsesClosestEnds();
+    void geometryCacheUpdatesAfterMutations();
+    void visibleShapeIndicesUsesCachedBounds();
+    void appendShapesEmitsSingleChange();
 };
 
 #endif // SHAPE_MANAGER_TESTS_H

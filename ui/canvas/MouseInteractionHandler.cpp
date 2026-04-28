@@ -49,6 +49,8 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         QPainterPathStroker stroker;
         stroker.setWidth(18.0);
         for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
+            if (!shapes[i].bounds.adjusted(-18.0, -18.0, 18.0, 18.0).contains(logicalPos))
+                continue;
             if (shapes[i].path.contains(logicalPos) ||
                 stroker.createStroke(shapes[i].path).contains(logicalPos)) {
                 m_shapeManager->removeShape(i);
@@ -68,6 +70,8 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
         stroker.setJoinStyle(Qt::RoundJoin);
         for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
             const QPainterPath &path = shapes[i].path;
+            if (!shapes[i].bounds.adjusted(-26.0, -26.0, 26.0, 26.0).contains(logicalPos))
+                continue;
             if (path.contains(logicalPos) ||
                 stroker.createStroke(path).contains(logicalPos)) {
                 clickedIndex = i;
@@ -102,6 +106,8 @@ void MouseInteractionHandler::handleMousePress(QMouseEvent *event, const QPointF
             if (idx < 0 || idx >= static_cast<int>(shapes.size()))
                 continue;
             const QPainterPath &path = shapes[idx].path;
+            if (!shapes[idx].bounds.adjusted(-26.0, -26.0, 26.0, 26.0).contains(logicalPos))
+                continue;
             if (path.contains(logicalPos) ||
                 stroker.createStroke(path).contains(logicalPos)) {
                 m_draggingSelection = true;
@@ -135,14 +141,7 @@ void MouseInteractionHandler::handleMouseMove(QMouseEvent *event, const QPointF 
         const QPointF delta = logicalPos - m_state->currentPoint;
         if (!qFuzzyIsNull(delta.x()) || !qFuzzyIsNull(delta.y())) {
             m_selectionDragMoved = true;
-            const std::vector<int> selected = m_shapeManager->selectedShapes();
-            std::vector<ShapeManager::Shape> updated = m_shapeManager->shapes();
-            for (int idx : selected) {
-                if (idx >= 0 && idx < static_cast<int>(updated.size()))
-                    updated[idx].path.translate(delta);
-            }
-            m_shapeManager->setShapes(updated);
-            m_shapeManager->setSelectedShapes(selected);
+            m_shapeManager->translateSelectedShapes(delta);
         }
     }
 

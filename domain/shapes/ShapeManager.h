@@ -22,6 +22,13 @@ public:
         QPainterPath path;
         int originalId = -1;
         qreal rotationAngle = 0.0;
+        QRectF bounds;
+        int elementCount = 0;
+        mutable QPainterPath proxyPath;
+        mutable bool proxyDirty = true;
+
+        void refreshGeometryCache();
+        const QPainterPath &renderPath(bool preferProxy) const;
     };
 
     explicit ShapeManager(QObject *parent = nullptr);
@@ -32,7 +39,12 @@ public:
     bool removeShape(int index);
     void clearShapes();
     void setShapes(const std::vector<Shape> &shapes);
+    void replaceShapesPreservingSelection(const std::vector<Shape> &shapes);
+    void appendShapes(const std::vector<Shape> &shapes);
     const std::vector<Shape> &shapes() const;
+    std::vector<int> visibleShapeIndices(const QRectF &visibleArea, qreal margin = 0.0) const;
+    void beginBulkUpdate();
+    void endBulkUpdate();
 
     // Selection lifecycle.
     void selectShape(int index);
@@ -41,6 +53,7 @@ public:
     void clearSelection();
     const std::vector<int> &selectedShapes() const;
     QRectF selectedShapesBounds() const;
+    void translateSelectedShapes(const QPointF &delta);
 
     // Undo/redo snapshot stack (state-only for now).
     void pushState();
@@ -50,24 +63,27 @@ public:
     void addImportedLogo(const QPainterPath &logoPath, int originalId);
     void addImportedLogoSubpath(const QPainterPath &subpath, int originalId);
 
-    // Selection copy/paste helpers.
-    void copySelectedShapes();
-    std::vector<Shape> pastedShapes(const QPointF &dest) const;
-
     // Connection helpers.
     void connectNearestEndpoints(int idx1, int idx2);
     void mergeShapesAndConnector(int idx1, int idx2);
+    void mergeShapesByNearestEndpoints(int idx1, int idx2);
 
 signals:
     void shapesChanged();
     void selectionChanged();
 
 private:
+    void refreshShape(Shape &shape) const;
+    void notifyShapesChanged();
+    void notifySelectionChanged();
+    void restoreValidSelection();
+
     std::vector<Shape> m_shapes;
     std::vector<int> m_selectedShapes;
     std::vector<std::vector<Shape>> m_undoStack;
-    std::vector<Shape> m_copiedShapes;
-    QPointF m_copyAnchor;
+    int m_bulkDepth = 0;
+    bool m_pendingShapesChanged = false;
+    bool m_pendingSelectionChanged = false;
 };
 
 #endif // SHAPEMANAGER_H

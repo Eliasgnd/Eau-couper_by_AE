@@ -2,6 +2,7 @@
 #define DRAWINGSTATE_H
 
 #include <QList>
+#include <QPainterPath>
 #include <QPointF>
 
 /**
@@ -18,7 +19,14 @@ struct DrawingState {
     QPointF        startPoint;
     QPointF        currentPoint;
     QList<QPointF> strokePoints;
+    QPainterPath   freehandPreviewPath;
+    int            freehandPreviewPointCount = -1;
+    int            freehandPreviewSmoothingLevel = -1;
     QList<QPointF> pointByPointPoints;
+    bool           extendingExistingPath = false;
+    int            extendingShapeIndex = -1;
+    bool           extendingFromStart = false;
+    QPointF        extendingAnchor;
 
     bool    gommeErasing  = false;
     QPointF gommeCenter;

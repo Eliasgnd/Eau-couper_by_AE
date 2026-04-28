@@ -11,6 +11,7 @@
 class QFrame;
 class QLabel;
 class QPushButton;
+class QDoubleSpinBox;
 class QWidget;
 
 namespace Ui {
@@ -51,12 +52,26 @@ private:
     QLabel *m_assistanceDetail = nullptr;
     QPushButton *m_cancelModeButton = nullptr;
     QPushButton *m_precisionConstraintButton = nullptr;
-    QPushButton *m_machinePreviewButton = nullptr;
+    QPushButton *m_segmentStatusButton = nullptr;
 
     QWidget *m_selectionActionsWidget = nullptr;
+    QWidget *m_selectionInspectorWidget = nullptr;
+    QLabel *m_selectionCountLabel = nullptr;
+    QDoubleSpinBox *m_selectionXSpin = nullptr;
+    QDoubleSpinBox *m_selectionYSpin = nullptr;
+    QDoubleSpinBox *m_selectionWidthSpin = nullptr;
+    QDoubleSpinBox *m_selectionHeightSpin = nullptr;
+    QDoubleSpinBox *m_selectionRotationSpin = nullptr;
+    bool m_updatingSelectionInspector = false;
+
     QPushButton *m_touchDuplicateButton = nullptr;
-    QPushButton *m_transformMenuButton = nullptr;
     QPushButton *m_alignMenuButton = nullptr;
+    QPushButton *m_touchDeleteButton = nullptr;
+    QPushButton *m_zoomSelectionButton = nullptr;
+    QPushButton *m_fitDrawingButton = nullptr;
+    QPushButton *m_finishPointPathButton = nullptr;
+    QPushButton *m_undoPointButton = nullptr;
+    QPushButton *m_undoSegmentButton = nullptr;
     QPushButton *m_touchNudgeLeftButton = nullptr;
     QPushButton *m_touchNudgeRightButton = nullptr;
     QPushButton *m_touchNudgeUpButton = nullptr;
@@ -65,6 +80,7 @@ private:
     void applyStyleSheets();
     void updateThemeButton();
     void updateTouchSelectionPanel(bool hasSelection, const QString &summary);
+    void refreshSelectionInspector();
     void updateCanvasStatus(const QString &modeLabel, const QString &hint, const QString &detail);
     void updateHistoryButtons(bool canUndo, const QString &undoText,
                               bool canRedo, const QString &redoText);

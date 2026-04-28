@@ -8,18 +8,23 @@
 #include "ShapeRenderer.h"
 #include "TextTool.h"
 #include "ViewTransformer.h"
+#include "domain/geometry/GeometryUtils.h"
 #include "domain/shapes/PathGenerator.h"
 #include "domain/shapes/ShapeManager.h"
 
 #include <QInputDialog>
+#include <QFile>
 #include <QLineEdit>
 #include <QLineF>
 #include <QMouseEvent>
+#include <QIODevice>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QPainterPathStroker>
 #include <QPen>
 #include <QStringList>
 #include <QTransform>
+#include <QVector>
 #include <QWheelEvent>
 #include <QtGlobal>
 
@@ -61,6 +66,44 @@ QPointF pathEnd(const QPainterPath &path)
     if (path.elementCount() == 0) return {};
     const auto e = path.elementAt(path.elementCount() - 1);
     return {e.x, e.y};
+}
+
+std::vector<bool> computeCollisionFlags(const std::vector<ShapeManager::Shape> &shapes, int *pairCount = nullptr)
+{
+    std::vector<bool> collision(shapes.size(), false);
+    int count = 0;
+
+    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+        for (int j = i + 1; j < static_cast<int>(shapes.size()); ++j) {
+            const QRectF a = shapes[i].bounds;
+            const QRectF b = shapes[j].bounds;
+            if (!a.adjusted(-1.0, -1.0, 1.0, 1.0).intersects(b.adjusted(-1.0, -1.0, 1.0, 1.0)))
+                continue;
+            if (!pathsOverlap(shapes[i].path, shapes[j].path, 0.75))
+                continue;
+
+            collision[i] = true;
+            collision[j] = true;
+            ++count;
+        }
+    }
+
+    if (pairCount)
+        *pairCount = count;
+    return collision;
+}
+
+PerformanceMode defaultPerformanceMode()
+{
+#ifdef Q_OS_LINUX
+    QFile modelFile(QStringLiteral("/proc/device-tree/model"));
+    if (modelFile.open(QIODevice::ReadOnly)) {
+        const QByteArray model = modelFile.readAll().toLower();
+        if (model.contains("raspberry"))
+            return PerformanceMode::LowEnd;
+    }
+#endif
+    return PerformanceMode::Balanced;
 }
 }
 
@@ -126,6 +169,7 @@ CustomDrawArea::CustomDrawArea(QWidget *parent)
     connect(m_transformer.get(), &ViewTransformer::viewTransformed,
             this, &CustomDrawArea::emitCanvasStatus);
 
+    setPerformanceMode(defaultPerformanceMode());
     emitSelectionState();
     emitCanvasStatus();
     emitHistoryState();
@@ -137,9 +181,10 @@ void CustomDrawArea::setDrawMode(DrawMode mode)
 {
     if (m_modeManager->isSelectMode()) cancelSelection();
     if (m_modeManager->isCloseMode())  cancelCloseMode();
-    m_modeManager->cancelPasteMode();
     m_drawingState->gommeErasing = false;
     m_drawingState->pointByPointPoints.clear();
+    resetPointByPointResumeState();
+    m_hoveredEndpoint = {};
     m_drawing = false;
     m_modeManager->setDrawMode(mode);
     emitCanvasStatus();
@@ -214,6 +259,43 @@ void CustomDrawArea::addImportedLogoSubpath(const QPainterPath &subpath)
     update();
 }
 
+void CustomDrawArea::addImportedLogoSubpaths(const QList<QPainterPath> &subpaths)
+{
+    if (subpaths.isEmpty())
+        return;
+
+    const auto oldState = m_historyManager->getCurrentState();
+    auto updated = oldState;
+    updated.reserve(updated.size() + subpaths.size());
+    for (const QPainterPath &subpath : subpaths) {
+        if (subpath.isEmpty())
+            continue;
+        updated.push_back({subpath, m_nextShapeId++, 0.0});
+    }
+
+    if (updated.size() == oldState.size())
+        return;
+
+    m_shapeManager->replaceShapesPreservingSelection(updated);
+    m_historyManager->commitSnapshot(oldState, updated, tr("Import traces"));
+    emitHistoryState();
+    emitCanvasStatus();
+    update();
+}
+
+void CustomDrawArea::setPerformanceMode(PerformanceMode mode)
+{
+    m_performanceMode = mode;
+    setLowEndMode(mode == PerformanceMode::LowEnd);
+    emitCanvasStatus();
+    update();
+}
+
+PerformanceMode CustomDrawArea::performanceMode() const
+{
+    return m_performanceMode;
+}
+
 void CustomDrawArea::setTextFont(const QFont &font)
 {
     m_textTool->setTextFont(font);
@@ -281,45 +363,23 @@ void CustomDrawArea::deleteSelectedShapes()
 void CustomDrawArea::duplicateSelectedShapes()
 {
     if (!hasSelection()) return;
-    const QRectF bounds = selectedShapesBounds();
-    copySelectedShapes();
-    pasteCopiedShapes(bounds.topLeft() + QPointF(qMax<qreal>(40.0, bounds.width() * 0.15),
-                                                qMax<qreal>(40.0, bounds.height() * 0.15)));
-}
-
-void CustomDrawArea::copySelectedShapes()
-{
-    m_shapeManager->copySelectedShapes();
-    emitCanvasStatus();
-}
-
-void CustomDrawArea::enablePasteMode()
-{
-    m_modeManager->enablePasteMode();
-    emitCanvasStatus();
-}
-
-void CustomDrawArea::pasteCopiedShapes(const QPointF &dest)
-{
-    const auto pasted = m_shapeManager->pastedShapes(dest);
-    if (pasted.empty()) return;
-
-    std::vector<ShapeManager::Shape> shapesWithIds;
-    shapesWithIds.reserve(pasted.size());
-    for (auto s : pasted) {
-        s.originalId = m_nextShapeId++;
-        shapesWithIds.push_back(s);
-    }
-
-    m_historyManager->commitPasteShapes(shapesWithIds);
-    m_modeManager->cancelPasteMode();
-    emitHistoryState();
-    emitCanvasStatus();
+    duplicateSelectedShapesLinear(1, QPointF(qMax<qreal>(40.0, selectedShapesBounds().width() * 0.15),
+                                             qMax<qreal>(40.0, selectedShapesBounds().height() * 0.15)));
 }
 
 QRectF CustomDrawArea::selectedShapesBounds() const
 {
     return m_shapeManager->selectedShapesBounds();
+}
+
+int CustomDrawArea::selectedShapesCount() const
+{
+    return static_cast<int>(m_shapeManager->selectedShapes().size());
+}
+
+qreal CustomDrawArea::selectedRotationAngle() const
+{
+    return currentSelectionAngle();
 }
 
 void CustomDrawArea::resizeSelectedShapes(qreal targetWidth, qreal targetHeight)
@@ -371,6 +431,12 @@ void CustomDrawArea::rotateSelectedShapes(qreal angleDegrees)
     }
 
     commitSelectedTransform(updated, tr("Tourner forme"));
+}
+
+void CustomDrawArea::setSelectedRotation(qreal angleDegrees)
+{
+    if (!hasSelection()) return;
+    rotateSelectedShapes(angleDegrees - currentSelectionAngle());
 }
 
 void CustomDrawArea::moveSelectedShapes(qreal dx, qreal dy, const QString &label)
@@ -527,6 +593,106 @@ void CustomDrawArea::duplicateSelectedShapesLinear(int copies, const QPointF &st
     emitCanvasStatus();
 }
 
+void CustomDrawArea::zoomToSelection()
+{
+    if (!hasSelection()) return;
+
+    const QRectF bounds = selectedShapesBounds().adjusted(-30.0, -30.0, 30.0, 30.0);
+    if (bounds.width() <= 0.0 || bounds.height() <= 0.0) return;
+
+    const qreal scaleX = width() / bounds.width();
+    const qreal scaleY = height() / bounds.height();
+    const qreal scale = qBound<qreal>(0.2, qMin(scaleX, scaleY), 8.0);
+    m_transformer->setScale(scale);
+    m_transformer->setOffset(QPointF(width() * 0.5, height() * 0.5) - bounds.center() * scale);
+    emitCanvasStatus();
+    update();
+}
+
+void CustomDrawArea::fitAllShapesInView()
+{
+    const auto &shapes = m_shapeManager->shapes();
+    if (shapes.empty()) return;
+
+    QRectF bounds;
+    bool initialized = false;
+    for (const auto &shape : shapes) {
+        const QRectF shapeBounds = shape.bounds;
+        bounds = initialized ? bounds.united(shapeBounds) : shapeBounds;
+        initialized = true;
+    }
+    bounds = bounds.adjusted(-40.0, -40.0, 40.0, 40.0);
+    if (bounds.width() <= 0.0 || bounds.height() <= 0.0) return;
+
+    const qreal scaleX = width() / bounds.width();
+    const qreal scaleY = height() / bounds.height();
+    const qreal scale = qBound<qreal>(0.2, qMin(scaleX, scaleY), 8.0);
+    m_transformer->setScale(scale);
+    m_transformer->setOffset(QPointF(width() * 0.5, height() * 0.5) - bounds.center() * scale);
+    emitCanvasStatus();
+    update();
+}
+
+void CustomDrawArea::finishPointByPointShape()
+{
+    if (getDrawMode() != DrawMode::PointParPoint || m_drawingState->pointByPointPoints.size() < 2)
+        return;
+
+    QList<QPointF> points = m_drawingState->pointByPointPoints;
+    const bool shouldClose = points.size() >= 3
+        && QLineF(points.first(), points.last()).length() <= endpointTouchTolerance();
+    if (shouldClose)
+        points.last() = points.first();
+
+    QPainterPath path = buildPointByPointPath(points, shouldClose);
+
+    if (m_drawingState->extendingExistingPath) {
+        const auto oldState = m_historyManager->getCurrentState();
+        if (m_drawingState->extendingShapeIndex >= 0
+            && m_drawingState->extendingShapeIndex < static_cast<int>(oldState.size())) {
+            auto updated = oldState;
+            updated[m_drawingState->extendingShapeIndex].path = path;
+            m_shapeManager->setShapes(updated);
+            m_historyManager->commitSnapshot(oldState, updated, tr("Prolonger trace"));
+        }
+    } else {
+        const int id = m_nextShapeId++;
+        m_historyManager->commitAddShape(path, id, tr("Trace point-par-point"));
+    }
+    m_drawingState->pointByPointPoints.clear();
+    resetPointByPointResumeState();
+    m_hoveredEndpoint = {};
+    m_drawing = false;
+    emitHistoryState();
+    emitCanvasStatus();
+    update();
+}
+
+void CustomDrawArea::undoPointByPointPoint()
+{
+    if (getDrawMode() != DrawMode::PointParPoint || m_drawingState->pointByPointPoints.isEmpty())
+        return;
+
+    if (m_drawingState->extendingExistingPath && m_drawingState->pointByPointPoints.size() <= 1) {
+        m_drawingState->pointByPointPoints.clear();
+        resetPointByPointResumeState();
+        m_drawing = false;
+        emitCanvasStatus();
+        update();
+        return;
+    }
+
+    m_drawingState->pointByPointPoints.removeLast();
+    m_drawing = !m_drawingState->pointByPointPoints.isEmpty();
+    emitCanvasStatus();
+    update();
+}
+
+void CustomDrawArea::undoPointByPointSegment()
+{
+    undoPointByPointPoint();
+}
+
 void CustomDrawArea::setSnapToGridEnabled(bool enabled)
 {
     m_renderer->setSnapToGridEnabled(enabled);
@@ -566,23 +732,22 @@ bool CustomDrawArea::isPrecisionConstraintEnabled() const
     return m_precisionConstraintEnabled;
 }
 
-void CustomDrawArea::setMachinePreviewEnabled(bool enabled)
+void CustomDrawArea::setSegmentStatusVisible(bool visible)
 {
-    m_machinePreviewEnabled = enabled;
+    m_segmentStatusVisible = visible;
     emitCanvasStatus();
     update();
 }
 
-bool CustomDrawArea::isMachinePreviewEnabled() const
+bool CustomDrawArea::isSegmentStatusVisible() const
 {
-    return m_machinePreviewEnabled;
+    return m_segmentStatusVisible;
 }
 
 bool CustomDrawArea::hasActiveSpecialMode() const
 {
     return m_modeManager->isCloseMode()
         || m_modeManager->isSelectMode()
-        || m_modeManager->isPasteMode()
         || getDrawMode() == DrawMode::Deplacer
         || getDrawMode() == DrawMode::Supprimer
         || getDrawMode() == DrawMode::Gomme;
@@ -595,8 +760,9 @@ void CustomDrawArea::cancelActiveModes()
     cancelDeplacerMode();
     cancelSupprimerMode();
     cancelGommeMode();
-    m_modeManager->cancelPasteMode();
     m_drawingState->pointByPointPoints.clear();
+    resetPointByPointResumeState();
+    m_hoveredEndpoint = {};
     m_drawingState->gommeErasing = false;
     m_drawing = false;
     emitCanvasStatus();
@@ -613,12 +779,11 @@ QString CustomDrawArea::validationSummary() const
     const auto &shapes = m_shapeManager->shapes();
     int openCount = 0;
     int smallCount = 0;
-    int closeCount = 0;
     QRectF globalBounds;
     bool initialized = false;
 
     for (const auto &shape : shapes) {
-        const QRectF bounds = shape.path.boundingRect();
+        const QRectF bounds = shape.bounds;
         globalBounds = initialized ? globalBounds.united(bounds) : bounds;
         initialized = true;
         if (!isPathClosed(shape.path))
@@ -627,14 +792,8 @@ QString CustomDrawArea::validationSummary() const
             ++smallCount;
     }
 
-    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
-        const QRectF a = shapes[i].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0);
-        for (int j = i + 1; j < static_cast<int>(shapes.size()); ++j) {
-            const QRectF b = shapes[j].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0);
-            if (a.intersects(b))
-                ++closeCount;
-        }
-    }
+    int closeCount = 0;
+    computeCollisionFlags(shapes, &closeCount);
 
     QStringList lines;
     lines << tr("Formes : %1").arg(shapes.size());
@@ -658,18 +817,12 @@ bool CustomDrawArea::hasValidationIssues() const
 {
     const auto &shapes = m_shapeManager->shapes();
     for (const auto &shape : shapes) {
-        const QRectF bounds = shape.path.boundingRect();
+        const QRectF bounds = shape.bounds;
         if (!isPathClosed(shape.path) || bounds.width() < 12.0 || bounds.height() < 12.0)
             return true;
     }
-    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
-        const QRectF a = shapes[i].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0);
-        for (int j = i + 1; j < static_cast<int>(shapes.size()); ++j) {
-            if (a.intersects(shapes[j].path.boundingRect().adjusted(-4.0, -4.0, 4.0, 4.0)))
-                return true;
-        }
-    }
-    return false;
+    const auto collision = computeCollisionFlags(shapes);
+    return std::any_of(collision.begin(), collision.end(), [](bool flagged) { return flagged; });
 }
 
 QString CustomDrawArea::buildSelectionSummary() const
@@ -752,6 +905,7 @@ void CustomDrawArea::cancelGommeMode()
 void CustomDrawArea::setSmoothingLevel(int level)
 {
     m_smoothingLevel = qMax(0, level);
+    m_drawingState->freehandPreviewPointCount = -1;
     emit smoothingLevelChanged(m_smoothingLevel);
     emitCanvasStatus();
 }
@@ -788,6 +942,161 @@ QPointF CustomDrawArea::toWidget(const QPointF &logicalPoint) const
     return logicalPoint * m_transformer->scale() + m_transformer->offset();
 }
 
+qreal CustomDrawArea::endpointTouchTolerance() const
+{
+    return qMax<qreal>(18.0, 30.0 / qMax<qreal>(0.25, m_transformer->scale()));
+}
+
+CustomDrawArea::EndpointHit CustomDrawArea::hitTestOpenEndpoint(const QPointF &logicalPoint,
+                                                                int ignoredShapeIndex) const
+{
+    EndpointHit best;
+    qreal bestDistance = std::numeric_limits<qreal>::max();
+    const qreal tolerance = endpointTouchTolerance();
+    const auto &shapes = m_shapeManager->shapes();
+
+    for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
+        if (i == ignoredShapeIndex)
+            continue;
+        const QPainterPath &path = shapes[i].path;
+        if (path.elementCount() < 2 || isPathClosed(path))
+            continue;
+
+        const QPointF start = pathStart(path);
+        const QPointF end = pathEnd(path);
+        const qreal startDistance = QLineF(logicalPoint, start).length();
+        if (startDistance <= tolerance && startDistance < bestDistance) {
+            best = {i, EndpointKind::Start, start};
+            bestDistance = startDistance;
+        }
+
+        const qreal endDistance = QLineF(logicalPoint, end).length();
+        if (endDistance <= tolerance && endDistance < bestDistance) {
+            best = {i, EndpointKind::End, end};
+            bestDistance = endDistance;
+        }
+    }
+
+    return best;
+}
+
+bool CustomDrawArea::supportsEndpointResume(DrawMode mode) const
+{
+    return mode == DrawMode::PointParPoint
+        || mode == DrawMode::Freehand
+        || mode == DrawMode::Line;
+}
+
+QPointF CustomDrawArea::snapToDrawingAid(const QPointF &logicalPoint) const
+{
+    m_hoveredEndpoint = {};
+    if (!supportsEndpointResume(getDrawMode()))
+        return logicalPoint;
+
+    if (getDrawMode() == DrawMode::PointParPoint && !m_drawingState->pointByPointPoints.isEmpty()) {
+        const QPointF first = m_drawingState->pointByPointPoints.first();
+        if (m_drawingState->pointByPointPoints.size() >= 3
+            && QLineF(first, logicalPoint).length() <= endpointTouchTolerance()) {
+            return first;
+        }
+
+        const QPointF last = m_drawingState->pointByPointPoints.last();
+        if (QLineF(last, logicalPoint).length() <= endpointTouchTolerance() * 0.6)
+            return last;
+    }
+
+    if (m_drawing && getDrawMode() == DrawMode::Freehand)
+        return logicalPoint;
+
+    const int ignoredIndex = m_drawingState->extendingExistingPath
+        ? m_drawingState->extendingShapeIndex
+        : -1;
+    const EndpointHit hit = hitTestOpenEndpoint(logicalPoint, ignoredIndex);
+    if (hit.isValid()) {
+        m_hoveredEndpoint = hit;
+        return hit.point;
+    }
+
+    return logicalPoint;
+}
+
+void CustomDrawArea::resetPointByPointResumeState()
+{
+    m_drawingState->extendingExistingPath = false;
+    m_drawingState->extendingShapeIndex = -1;
+    m_drawingState->extendingFromStart = false;
+    m_drawingState->extendingAnchor = {};
+}
+
+QPainterPath CustomDrawArea::buildPointByPointPath(const QList<QPointF> &points, bool shouldClose) const
+{
+    QPainterPath path;
+    if (points.isEmpty())
+        return path;
+
+    if (m_drawingState->extendingExistingPath) {
+        const auto &shapes = m_shapeManager->shapes();
+        if (m_drawingState->extendingShapeIndex >= 0
+            && m_drawingState->extendingShapeIndex < static_cast<int>(shapes.size())) {
+            path = shapes[m_drawingState->extendingShapeIndex].path;
+            if (m_drawingState->extendingFromStart)
+                path = path.toReversed();
+        }
+    }
+
+    if (path.isEmpty()) {
+        path.moveTo(points.first());
+    } else if (QLineF(pathEnd(path), points.first()).length() > 0.01) {
+        path.lineTo(points.first());
+    }
+
+    for (int i = 1; i < points.size(); ++i)
+        path.lineTo(points[i]);
+    if (shouldClose)
+        path.closeSubpath();
+    return path;
+}
+
+QPainterPath CustomDrawArea::buildResumedPath(const QPainterPath &extensionPath) const
+{
+    if (!m_drawingState->extendingExistingPath || extensionPath.isEmpty())
+        return extensionPath;
+
+    const auto &shapes = m_shapeManager->shapes();
+    if (m_drawingState->extendingShapeIndex < 0
+        || m_drawingState->extendingShapeIndex >= static_cast<int>(shapes.size()))
+        return extensionPath;
+
+    QPainterPath path = shapes[m_drawingState->extendingShapeIndex].path;
+    if (m_drawingState->extendingFromStart)
+        path = path.toReversed();
+
+    path.connectPath(extensionPath);
+    return path;
+}
+
+bool CustomDrawArea::beginEndpointResumeIfNeeded(const QPointF &logicalPoint)
+{
+    if (!supportsEndpointResume(getDrawMode()) || !m_hoveredEndpoint.isValid())
+        return false;
+
+    resetPointByPointResumeState();
+    m_drawingState->extendingExistingPath = true;
+    m_drawingState->extendingShapeIndex = m_hoveredEndpoint.shapeIndex;
+    m_drawingState->extendingFromStart = m_hoveredEndpoint.kind == EndpointKind::Start;
+    m_drawingState->extendingAnchor = m_hoveredEndpoint.point;
+    m_drawingState->currentPoint = m_hoveredEndpoint.point;
+    m_drawingState->startPoint = m_hoveredEndpoint.point;
+    m_drawingState->strokePoints = {m_hoveredEndpoint.point};
+    if (getDrawMode() == DrawMode::PointParPoint)
+        m_drawingState->pointByPointPoints = {m_hoveredEndpoint.point};
+    m_drawing = true;
+    Q_UNUSED(logicalPoint)
+    emitCanvasStatus();
+    update();
+    return true;
+}
+
 QPointF CustomDrawArea::snapToGridIfNeeded(const QPointF &logicalPoint) const
 {
     if (!m_renderer->isSnapToGridEnabled()) return logicalPoint;
@@ -820,8 +1129,10 @@ QPointF CustomDrawArea::constrainedPoint(const QPointF &logicalPoint) const
 QPointF CustomDrawArea::applyDrawingAids(const QPointF &logicalPoint) const
 {
     const QPointF constrained = constrainedPoint(logicalPoint);
-    const QPointF snapped = snapToGridIfNeeded(constrained);
-    return snapped;
+    const QPointF endpointSnapped = snapToDrawingAid(constrained);
+    if (endpointSnapped != constrained)
+        return endpointSnapped;
+    return snapToGridIfNeeded(constrained);
 }
 
 int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) const
@@ -833,6 +1144,10 @@ int CustomDrawArea::hitTestShape(const QPointF &logicalPoint, qreal tolerance) c
     QPainterPathStroker stroker;
     stroker.setWidth(adjustedTolerance);
     for (int i = static_cast<int>(shapes.size()) - 1; i >= 0; --i) {
+        if (!shapes[i].bounds.adjusted(-adjustedTolerance, -adjustedTolerance,
+                                       adjustedTolerance, adjustedTolerance).contains(logicalPoint)) {
+            continue;
+        }
         if (stroker.createStroke(shapes[i].path).contains(logicalPoint))
             return i;
     }
@@ -920,6 +1235,22 @@ void CustomDrawArea::emitCanvasStatus()
     emit canvasStatusChanged(currentModeLabel(), currentModeHint(), currentDetailText());
 }
 
+void CustomDrawArea::emitCanvasStatusThrottled()
+{
+    if (!m_canvasStatusThrottleStarted) {
+        m_canvasStatusThrottle.start();
+        m_canvasStatusThrottleStarted = true;
+        emitCanvasStatus();
+        return;
+    }
+
+    const int intervalMs = m_performanceMode == PerformanceMode::LowEnd ? 120 : 60;
+    if (m_canvasStatusThrottle.elapsed() >= intervalMs) {
+        m_canvasStatusThrottle.restart();
+        emitCanvasStatus();
+    }
+}
+
 void CustomDrawArea::emitHistoryState()
 {
     emit historyStateChanged(m_historyManager->canUndo(),
@@ -933,7 +1264,6 @@ QString CustomDrawArea::currentModeLabel() const
     if (m_modeManager->isConnectMode()) return tr("Mode : Relier");
     if (m_modeManager->isMultiSelectMode()) return tr("Mode : Selection multiple");
     if (m_modeManager->isCloseMode()) return tr("Mode : Fermer forme");
-    if (m_modeManager->isPasteMode()) return tr("Mode : Collage");
     return tr("Mode : %1").arg(modeToString(getDrawMode()));
 }
 
@@ -942,12 +1272,14 @@ QString CustomDrawArea::currentModeHint() const
     if (m_modeManager->isConnectMode()) return tr("Touchez deux formes pour relier leurs extremites.");
     if (m_modeManager->isMultiSelectMode()) return tr("Touchez pour ajouter/retirer une forme, puis utilisez les actions rapides.");
     if (m_modeManager->isCloseMode()) return tr("Touchez une forme ouverte pour fermer son contour.");
-    if (m_modeManager->isPasteMode()) return tr("Touchez la zone de dessin pour placer la copie.");
-
+    if (supportsEndpointResume(getDrawMode()) && m_drawingState->extendingExistingPath)
+        return tr("Trace reprise : touchez pour ajouter des segments, puis terminez la trace.");
+    if (supportsEndpointResume(getDrawMode()) && m_hoveredEndpoint.isValid())
+        return tr("Touchez cette extremite pour reprendre la trace.");
     switch (getDrawMode()) {
-    case DrawMode::Freehand:      return tr("Glissez le doigt pour dessiner librement.");
-    case DrawMode::PointParPoint: return tr("Touchez pour poser des points, double-touchez pour terminer.");
-    case DrawMode::Line:          return tr("Glissez pour tracer une ligne. La contrainte force horizontal/vertical.");
+    case DrawMode::Freehand:      return tr("Glissez le doigt pour dessiner librement, ou touchez une extremite pour reprendre.");
+    case DrawMode::PointParPoint: return tr("Touchez pour poser des points, ou une extremite ouverte pour reprendre une trace.");
+    case DrawMode::Line:          return tr("Glissez pour tracer une ligne, ou repartez d'une extremite ouverte.");
     case DrawMode::Rectangle:     return tr("Glissez pour tracer un rectangle. La contrainte force le carre.");
     case DrawMode::Circle:        return tr("Glissez pour tracer une ellipse. La contrainte force le cercle.");
     case DrawMode::Text:          return tr("Touchez pour inserer un texte contour.");
@@ -966,8 +1298,7 @@ QString CustomDrawArea::currentDetailText() const
     parts << (isGridVisible() ? tr("Grille visible") : tr("Grille masquee"));
     parts << (isSnapToGridEnabled() ? tr("Aimant ON") : tr("Aimant OFF"));
     parts << (m_precisionConstraintEnabled ? tr("Contrainte ON") : tr("Contrainte OFF"));
-    if (m_machinePreviewEnabled)
-        parts << tr("Apercu machine ON");
+    parts << (m_segmentStatusVisible ? tr("Segments ON") : tr("Segments OFF"));
     if (hasSelection())
         parts << buildSelectionSummary();
     else {
@@ -1001,8 +1332,17 @@ QString CustomDrawArea::livePreviewMetrics() const
         return metrics;
     }
 
-    if (getDrawMode() == DrawMode::PointParPoint && !m_drawingState->pointByPointPoints.isEmpty())
+    if (getDrawMode() == DrawMode::PointParPoint && !m_drawingState->pointByPointPoints.isEmpty()) {
+        const int extraPoints = m_drawingState->extendingExistingPath
+            ? qMax(0, m_drawingState->pointByPointPoints.size() - 1)
+            : m_drawingState->pointByPointPoints.size();
+        if (m_drawingState->extendingExistingPath)
+            return tr("Reprise active  |  %1 nouveau(x) point(s)").arg(extraPoints);
         return tr("%1 point(s) places").arg(m_drawingState->pointByPointPoints.size());
+    }
+
+    if (supportsEndpointResume(getDrawMode()) && m_hoveredEndpoint.isValid())
+        return tr("Extremite detectee : touchez pour repartir de ce segment");
 
     if (getDrawMode() == DrawMode::Gomme && m_drawingState->gommeErasing)
         return tr("Diametre gomme : %1 px").arg(qRound(m_eraserTool->eraserRadius() * 2.0));
@@ -1027,6 +1367,8 @@ bool CustomDrawArea::isPointInsideSelectedShape(const QPointF &logicalPoint) con
         if (idx < 0 || idx >= static_cast<int>(shapes.size()))
             continue;
         const QPainterPath &path = shapes[idx].path;
+        if (!shapes[idx].bounds.adjusted(-26.0, -26.0, 26.0, 26.0).contains(logicalPoint))
+            continue;
         if (path.contains(logicalPoint) || stroker.createStroke(path).contains(logicalPoint))
             return true;
     }
@@ -1159,6 +1501,244 @@ void CustomDrawArea::drawCanvasHud(QPainter &painter) const
     painter.restore();
 }
 
+void CustomDrawArea::drawValidationOverlay(QPainter &painter) const
+{
+    if (!m_segmentStatusVisible)
+        return;
+
+    const auto &shapes = m_shapeManager->shapes();
+    if (shapes.empty()) return;
+
+    const auto collision = computeCollisionFlags(shapes);
+
+    painter.save();
+    painter.setBrush(Qt::NoBrush);
+    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+        const QRectF bounds = shapes[i].bounds;
+        QColor color;
+        QString label;
+        if (!isPathClosed(shapes[i].path)) {
+            color = QColor(220, 38, 38);
+            label = tr("Ouvert");
+        } else if (bounds.width() < 12.0 || bounds.height() < 12.0) {
+            color = QColor(245, 158, 11);
+            label = tr("Petit");
+        } else if (collision[i]) {
+            color = QColor(234, 88, 12);
+            label = tr("Proche");
+        } else {
+            continue;
+        }
+
+        QPen pen(color, 3);
+        pen.setCosmetic(true);
+        pen.setStyle(Qt::DashLine);
+        painter.setPen(pen);
+        painter.drawPath(shapes[i].path);
+
+        const qreal markerRadius = 4.0 / qMax<qreal>(0.25, m_transformer->scale());
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawEllipse(pathStart(shapes[i].path), markerRadius, markerRadius);
+        painter.drawEllipse(pathEnd(shapes[i].path), markerRadius, markerRadius);
+
+        painter.setPen(color);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawText(bounds.topLeft() + QPointF(0.0, -8.0 / qMax<qreal>(0.25, m_transformer->scale())), label);
+    }
+    painter.restore();
+}
+
+void CustomDrawArea::drawSmartGuides(QPainter &painter) const
+{
+    if (!hasSelection() && !m_drawing && m_drawingState->pointByPointPoints.isEmpty()) return;
+
+    painter.save();
+    QPen guidePen(QColor(14, 165, 233), 1.2, Qt::DashLine);
+    guidePen.setCosmetic(true);
+    painter.setPen(guidePen);
+    painter.setBrush(Qt::NoBrush);
+
+    const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)),
+                                      toLogical(QPointF(width(), height()))).normalized();
+    const qreal tolerance = 8.0 / qMax<qreal>(0.25, m_transformer->scale());
+
+    auto drawVGuide = [&](qreal x) {
+        painter.drawLine(QPointF(x, visibleArea.top()), QPointF(x, visibleArea.bottom()));
+    };
+    auto drawHGuide = [&](qreal y) {
+        painter.drawLine(QPointF(visibleArea.left(), y), QPointF(visibleArea.right(), y));
+    };
+
+    if (hasSelection()) {
+        const QRectF selection = selectedShapesBounds();
+        const QPointF center = selection.center();
+        const QPointF viewCenter = visibleArea.center();
+        if (std::abs(center.x() - viewCenter.x()) <= tolerance) drawVGuide(viewCenter.x());
+        if (std::abs(center.y() - viewCenter.y()) <= tolerance) drawHGuide(viewCenter.y());
+
+        const auto selected = m_shapeManager->selectedShapes();
+        const auto &shapes = m_shapeManager->shapes();
+        for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+            if (std::find(selected.begin(), selected.end(), i) != selected.end()) continue;
+            const QRectF other = shapes[i].bounds;
+            const QVector<qreal> xs{other.left(), other.center().x(), other.right()};
+            const QVector<qreal> ys{other.top(), other.center().y(), other.bottom()};
+            const QVector<qreal> sx{selection.left(), center.x(), selection.right()};
+            const QVector<qreal> sy{selection.top(), center.y(), selection.bottom()};
+            for (qreal x : xs) {
+                for (qreal candidate : sx) {
+                    if (std::abs(candidate - x) <= tolerance) {
+                        drawVGuide(x);
+                        break;
+                    }
+                }
+            }
+            for (qreal y : ys) {
+                for (qreal candidate : sy) {
+                    if (std::abs(candidate - y) <= tolerance) {
+                        drawHGuide(y);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    painter.restore();
+}
+
+void CustomDrawArea::drawOpenEndpointHandles(QPainter &painter) const
+{
+    if (!supportsEndpointResume(getDrawMode()))
+        return;
+
+    const auto &shapes = m_shapeManager->shapes();
+    if (shapes.empty())
+        return;
+
+    painter.save();
+    const qreal scale = qMax<qreal>(0.25, m_transformer->scale());
+    const qreal outerRadius = 9.0 / scale;
+    const qreal innerRadius = 4.0 / scale;
+
+    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+        if (m_drawingState->extendingExistingPath && i == m_drawingState->extendingShapeIndex)
+            continue;
+        const QPainterPath &path = shapes[i].path;
+        if (path.elementCount() < 2 || isPathClosed(path))
+            continue;
+
+        const QPointF endpoints[2] = {pathStart(path), pathEnd(path)};
+        for (const QPointF &endpoint : endpoints) {
+            const bool hovered = m_hoveredEndpoint.isValid()
+                && m_hoveredEndpoint.shapeIndex == i
+                && QLineF(m_hoveredEndpoint.point, endpoint).length() <= 0.01;
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(hovered ? QColor(16, 185, 129, 70) : QColor(14, 165, 233, 34));
+            painter.drawEllipse(endpoint, outerRadius, outerRadius);
+
+            QPen ringPen(hovered ? QColor(16, 185, 129) : QColor(14, 165, 233), 1.8);
+            ringPen.setCosmetic(true);
+            painter.setPen(ringPen);
+            painter.setBrush(Qt::white);
+            painter.drawEllipse(endpoint, innerRadius, innerRadius);
+        }
+    }
+
+    if (m_hoveredEndpoint.isValid()) {
+        QPen labelPen(QColor(16, 185, 129), 1.4);
+        labelPen.setCosmetic(true);
+        painter.setPen(labelPen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawText(m_hoveredEndpoint.point + QPointF(10.0 / scale, -10.0 / scale),
+                         tr("Reprendre"));
+    }
+    painter.restore();
+}
+
+void CustomDrawArea::drawPointByPointAids(QPainter &painter) const
+{
+    if (getDrawMode() != DrawMode::PointParPoint || m_drawingState->pointByPointPoints.isEmpty())
+        return;
+
+    painter.save();
+    QPen pen(QColor(14, 165, 233), 1.6);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    painter.setBrush(QColor(14, 165, 233));
+
+    const qreal r = 4.5 / qMax<qreal>(0.25, m_transformer->scale());
+    for (const QPointF &point : m_drawingState->pointByPointPoints)
+        painter.drawEllipse(point, r, r);
+
+    if (m_drawingState->extendingExistingPath) {
+        QPen resumePen(QColor(16, 185, 129), 2.0, Qt::DashLine);
+        resumePen.setCosmetic(true);
+        painter.setPen(resumePen);
+        painter.setBrush(QColor(16, 185, 129, 46));
+        painter.drawEllipse(m_drawingState->extendingAnchor,
+                            12.0 / qMax<qreal>(0.25, m_transformer->scale()),
+                            12.0 / qMax<qreal>(0.25, m_transformer->scale()));
+        painter.drawText(m_drawingState->extendingAnchor + QPointF(8.0, -8.0), tr("Reprise"));
+        painter.setPen(pen);
+        painter.setBrush(QColor(14, 165, 233));
+    }
+
+    if (m_drawingState->pointByPointPoints.size() >= 3) {
+        const QPointF first = m_drawingState->pointByPointPoints.first();
+        const qreal closeDistance = QLineF(first, m_drawingState->currentPoint).length();
+        if (closeDistance <= endpointTouchTolerance()) {
+            QPen closePen(QColor(16, 185, 129), 2.2);
+            closePen.setCosmetic(true);
+            painter.setPen(closePen);
+            painter.setBrush(QColor(16, 185, 129, 40));
+            painter.drawEllipse(first,
+                                14.0 / qMax<qreal>(0.25, m_transformer->scale()),
+                                14.0 / qMax<qreal>(0.25, m_transformer->scale()));
+            painter.drawText(first + QPointF(8.0, -8.0), tr("Fermer"));
+        }
+    }
+
+    painter.restore();
+}
+
+void CustomDrawArea::updateFreehandPreviewCache()
+{
+    if (getDrawMode() != DrawMode::Freehand || !m_drawing || m_drawingState->strokePoints.size() <= 1)
+        return;
+
+    if (m_drawingState->freehandPreviewPointCount == m_drawingState->strokePoints.size()
+        && m_drawingState->freehandPreviewSmoothingLevel == m_smoothingLevel) {
+        return;
+    }
+
+    QPainterPath previewPath;
+    if (m_smoothingLevel <= 0) {
+        previewPath.moveTo(m_drawingState->strokePoints.first());
+        for (int i = 1; i < m_drawingState->strokePoints.size(); ++i)
+            previewPath.lineTo(m_drawingState->strokePoints[i]);
+    } else {
+        previewPath = PathGenerator::generateBezierPath(
+            PathGenerator::applyChaikinAlgorithm(m_drawingState->strokePoints, m_smoothingLevel));
+    }
+
+    m_drawingState->freehandPreviewPath = previewPath;
+    m_drawingState->freehandPreviewPointCount = m_drawingState->strokePoints.size();
+    m_drawingState->freehandPreviewSmoothingLevel = m_smoothingLevel;
+}
+
+bool CustomDrawArea::isInteractiveRenderingActive() const
+{
+    if (m_performanceMode == PerformanceMode::Quality)
+        return false;
+    return m_drawing
+        || m_moveInProgress
+        || m_resizeInProgress
+        || m_rotateInProgress
+        || m_mouseHandler->isSelectionDragActive();
+}
+
 void CustomDrawArea::commitSelectedTransform(const std::vector<ShapeManager::Shape> &updated,
                                              const QString &label)
 {
@@ -1174,19 +1754,25 @@ void CustomDrawArea::commitSelectedTransform(const std::vector<ShapeManager::Sha
 
 void CustomDrawArea::paintEvent(QPaintEvent *event)
 {
-    Q_UNUSED(event)
     QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);
+    const bool interactive = isInteractiveRenderingActive();
+    painter.setRenderHint(QPainter::Antialiasing,
+                          m_performanceMode != PerformanceMode::LowEnd || !interactive);
     painter.setBrush(Qt::NoBrush);
     painter.translate(m_transformer->offset());
     painter.scale(m_transformer->scale(), m_transformer->scale());
 
-    const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)),
-                                      toLogical(QPointF(width(), height()))).normalized();
-    m_renderer->render(painter, *m_shapeManager, visibleArea);
+    const QRectF paintRect = event ? event->rect() : rect();
+    const QRectF visibleArea = QRectF(toLogical(paintRect.topLeft()),
+                                      toLogical(paintRect.bottomRight())).normalized();
+    const auto quality = interactive
+        ? ShapeRenderer::RenderQuality::Interactive
+        : ShapeRenderer::RenderQuality::Full;
+    m_renderer->render(painter, *m_shapeManager, visibleArea, quality);
 
-    if (m_machinePreviewEnabled)
-        drawMachinePreview(painter);
+    drawValidationOverlay(painter);
+    drawOpenEndpointHandles(painter);
+    drawSmartGuides(painter);
 
     if (!m_shapeManager->selectedShapes().empty()) {
         QPen halo(QColor(72, 187, 255), 10); halo.setCosmetic(true);
@@ -1252,16 +1838,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
         QPen pen(QColor(71, 85, 105), 1.2, Qt::DashLine);
         pen.setCosmetic(true);
         painter.setPen(pen);
-        if (m_smoothingLevel <= 0) {
-            QPainterPath previewPath;
-            previewPath.moveTo(m_drawingState->strokePoints.first());
-            for (int i = 1; i < m_drawingState->strokePoints.size(); ++i)
-                previewPath.lineTo(m_drawingState->strokePoints[i]);
-            painter.drawPath(previewPath);
-        } else {
-            painter.drawPath(PathGenerator::generateBezierPath(
-                PathGenerator::applyChaikinAlgorithm(m_drawingState->strokePoints, m_smoothingLevel)));
-        }
+        updateFreehandPreviewCache();
+        painter.drawPath(m_drawingState->freehandPreviewPath);
     }
 
     if (m_drawing && (getDrawMode() == DrawMode::Line ||
@@ -1292,6 +1870,8 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
         painter.drawPath(previewPath);
     }
 
+    drawPointByPointAids(painter);
+
     if (getDrawMode() == DrawMode::Gomme && m_drawingState->gommeErasing) {
         QPen pen(QColor(220, 38, 38), 2, Qt::DashLine);
         pen.setCosmetic(true);
@@ -1306,6 +1886,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
 
 void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 {
+    m_canvasStatusThrottleStarted = false;
     const QPointF rawLogical = toLogical(event->position());
     const QPointF logical = applyDrawingAids(rawLogical);
     m_lastRawPointerLogical = rawLogical;
@@ -1343,9 +1924,8 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
             auto oldState = m_historyManager->getCurrentState();
             auto shapes = m_shapeManager->shapes();
             QPainterPath &path = shapes[hit].path;
-            if (path.elementCount() > 1) {
-                const auto first = path.elementAt(0);
-                path.lineTo(QPointF(first.x, first.y));
+            if (path.elementCount() > 1 && !isPathClosed(path)) {
+                path.closeSubpath();
                 m_shapeManager->setShapes(shapes);
                 m_historyManager->commitSnapshot(oldState, shapes, tr("Fermer trace"));
                 emitHistoryState();
@@ -1357,13 +1937,9 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
         return;
     }
 
-    if (event->button() == Qt::RightButton && m_modeManager->isPasteMode()) {
-        pasteCopiedShapes(logical);
-        return;
-    }
-
     if (event->button() == Qt::RightButton && getDrawMode() == DrawMode::PointParPoint) {
         m_drawingState->pointByPointPoints.clear();
+        resetPointByPointResumeState();
         m_drawing = false;
         emitCanvasStatus();
         update();
@@ -1389,8 +1965,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 
             if (m_modeManager->isConnectMode() && selected.size() == 2) {
                 auto old = m_historyManager->getCurrentState();
-                m_shapeManager->connectNearestEndpoints(selected[0], selected[1]);
-                m_shapeManager->mergeShapesAndConnector(selected[0], selected[1]);
+                m_shapeManager->mergeShapesByNearestEndpoints(selected[0], selected[1]);
                 m_historyManager->commitSnapshot(old, m_shapeManager->shapes(), tr("Connecter formes"));
                 m_shapeManager->clearSelection();
                 m_modeManager->cancelSelectConnect();
@@ -1431,11 +2006,29 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
 
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
+        if (m_drawingState->pointByPointPoints.isEmpty()
+            && beginEndpointResumeIfNeeded(logical)) {
+            return;
+        }
+
+        if (m_drawingState->pointByPointPoints.size() >= 3 &&
+            QLineF(m_drawingState->pointByPointPoints.first(), logical).length() <= endpointTouchTolerance()) {
+            m_drawingState->pointByPointPoints.append(m_drawingState->pointByPointPoints.first());
+            finishPointByPointShape();
+            return;
+        }
         m_drawingState->pointByPointPoints.append(logical);
         m_drawingState->currentPoint = logical;
         m_drawing = true;
         emitCanvasStatus();
         update();
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton
+        && (getDrawMode() == DrawMode::Freehand || getDrawMode() == DrawMode::Line)
+        && beginEndpointResumeIfNeeded(logical)) {
+        m_moveInProgress = false;
         return;
     }
 
@@ -1450,6 +2043,9 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
     m_drawingState->startPoint = logical;
     m_drawingState->strokePoints = {logical};
+    m_drawingState->freehandPreviewPath = QPainterPath();
+    m_drawingState->freehandPreviewPointCount = -1;
+    m_drawingState->freehandPreviewSmoothingLevel = -1;
 
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::Gomme) {
         m_drawingState->gommeErasing = true;
@@ -1464,22 +2060,7 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
 void CustomDrawArea::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton && getDrawMode() == DrawMode::PointParPoint) {
-        const QPointF logical = applyDrawingAids(toLogical(event->position()));
-        if (m_drawingState->pointByPointPoints.isEmpty()) return;
-
-        if (m_drawingState->pointByPointPoints.size() >= 2) {
-            QPainterPath path;
-            path.moveTo(m_drawingState->pointByPointPoints.first());
-            for (int i = 1; i < m_drawingState->pointByPointPoints.size(); ++i)
-                path.lineTo(m_drawingState->pointByPointPoints[i]);
-            const int id = m_nextShapeId++;
-            m_historyManager->commitAddShape(path, id, tr("Trace point-par-point"));
-            emitHistoryState();
-        }
-        m_drawingState->pointByPointPoints.clear();
-        m_drawing = false;
-        emitCanvasStatus();
-        update();
+        finishPointByPointShape();
         return;
     }
     QWidget::mouseDoubleClickEvent(event);
@@ -1495,14 +2076,14 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
     if (getDrawMode() == DrawMode::PointParPoint && !m_drawingState->pointByPointPoints.isEmpty()) {
         m_drawingState->currentPoint = logical;
-        emitCanvasStatus();
+        emitCanvasStatusThrottled();
         update();
     }
 
     m_mouseHandler->handleMouseMove(event, logical);
 
     if (m_mouseHandler->isSelectionDragActive()) {
-        emitCanvasStatus();
+        emitCanvasStatusThrottled();
         update();
         return;
     }
@@ -1529,7 +2110,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
         m_shapeManager->setShapes(updated);
         m_shapeManager->setSelectedShapes(selected);
-        emitCanvasStatus();
+        emitCanvasStatusThrottled();
         return;
     }
 
@@ -1573,12 +2154,12 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
         m_shapeManager->setShapes(updated);
         m_shapeManager->setSelectedShapes(selected);
-        emitCanvasStatus();
+        emitCanvasStatusThrottled();
         return;
     }
 
     if (!m_drawing) {
-        emitCanvasStatus();
+        emitCanvasStatusThrottled();
         return;
     }
 
@@ -1601,7 +2182,7 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
                 m_drawingState->strokePoints.append(logical);
         }
     }
-    emitCanvasStatus();
+    emitCanvasStatusThrottled();
     update();
 }
 
@@ -1714,8 +2295,22 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     }
 
     if (!path.isEmpty()) {
-        const int id = m_nextShapeId++;
-        m_historyManager->commitAddShape(path, id);
+        if (m_drawingState->extendingExistingPath
+            && (getDrawMode() == DrawMode::Freehand || getDrawMode() == DrawMode::Line)) {
+            const auto oldState = m_historyManager->getCurrentState();
+            if (m_drawingState->extendingShapeIndex >= 0
+                && m_drawingState->extendingShapeIndex < static_cast<int>(oldState.size())) {
+                auto updated = oldState;
+                updated[m_drawingState->extendingShapeIndex].path = buildResumedPath(path);
+                m_shapeManager->setShapes(updated);
+                m_historyManager->commitSnapshot(oldState, updated, tr("Prolonger trace"));
+            }
+            resetPointByPointResumeState();
+            m_hoveredEndpoint = {};
+        } else {
+            const int id = m_nextShapeId++;
+            m_historyManager->commitAddShape(path, id);
+        }
         emitHistoryState();
     }
     emitCanvasStatus();

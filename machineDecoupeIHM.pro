@@ -194,6 +194,7 @@ HEADERS += \
     infrastructure/imaging/ImageEdgeImporter.h \
     infrastructure/imaging/skeletonizer.h \
     shared/Language.h \
+    shared/PerformanceMode.h \
     shared/ShapeValidationResult.h \
     shared/ThemeManager.h
 

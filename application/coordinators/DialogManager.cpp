@@ -78,9 +78,7 @@ void DialogManager::openCustomEditorWithImportedPath(QWidget *from,
         if (scaled.isEmpty())
             return;
 
-        QList<QPainterPath> subs = PathGenerator::separateIntoSubpaths(scaled);
-        for (const QPainterPath &sp : subs)
-            area->addImportedLogoSubpath(sp);
+        area->addImportedLogoSubpaths(PathGenerator::separateIntoSubpaths(scaled));
     });
 }
 

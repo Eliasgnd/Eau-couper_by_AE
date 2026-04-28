@@ -18,7 +18,6 @@ public:
     // Actions atomiques (Performantes)
     void commitAddShape(const QPainterPath &path, int id, const QString &label = "Ajouter Forme");
     void commitDeleteShapes(const std::vector<int> &indices);
-    void commitPasteShapes(const std::vector<ShapeManager::Shape> &shapes);
 
     // Action globale (Pour les cas complexes : import, fusion, etc.)
     void commitSnapshot(const std::vector<ShapeManager::Shape> &oldState,
