@@ -38,6 +38,7 @@ public:
     RecoveryData  recoveryInfo() const { return m_recovery; }
     bool          isSafetyReady() const;
     bool          hasRecentHoming() const { return m_homed; }
+    bool          isPrestartAccepted() const { return m_prestartAccepted; }
 
     // --- Accès au service UART (pour injection dans TrajetMotor) ---
     StmUartService* uartService() const { return m_uart; }

@@ -4,13 +4,20 @@
 
 #include <QDebug>
 #include <QGraphicsEllipseItem>
-#include <QGraphicsLineItem>
+#include <QGraphicsPixmapItem>
+#include <QPixmap>
+#include <QPainter>
+#include <QMessageBox>
 #include <QMutexLocker>
 #include <algorithm>
 #include <cmath>
 #include <utility>
 
 static constexpr double mmPerPx = 1.0;
+
+// Facteur de résolution du pixmap de tracé.
+// Modifier UNIQUEMENT cette ligne pour ajuster la qualité (3.0 = excellent, O(1) garanti).
+static constexpr qreal RENDER_SCALE = 3.0;
 
 namespace {
 qint64 estimateSegmentDurationMs(const StmSegment& seg, bool isCut, double cutSpeedMmS, double travelSpeedMmS)
@@ -186,9 +193,51 @@ void TrajetMotor::doExecuteTrajet()
         m_visu->getScene()->addItem(m_head);
         m_head->setPos(homePos.x() - 3, homePos.y() - 3);
         m_lastHeadPos = homePos;
+
+        // --- Rendu offscreen O(1) : un seul QPixmap, peint segment par segment ---
+        const QRectF sr = m_visu->getScene()->sceneRect();
+        const int pw = qMax(1, qCeil(sr.width()  * RENDER_SCALE));
+        const int ph = qMax(1, qCeil(sr.height() * RENDER_SCALE));
+        m_cutPixmap = QPixmap(pw, ph);
+        m_cutPixmap.fill(Qt::transparent);
+
+        m_cutPixmapItem = new QGraphicsPixmapItem();
+        m_cutPixmapItem->setPixmap(m_cutPixmap);
+        m_cutPixmapItem->setPos(sr.topLeft());
+        m_cutPixmapItem->setScale(1.0 / RENDER_SCALE);          // compense l'agrandissement
+        m_cutPixmapItem->setTransformationMode(Qt::SmoothTransformation);
+        m_cutPixmapItem->setZValue(54);
+        m_visu->getScene()->addItem(m_cutPixmapItem);
     }, Qt::BlockingQueuedConnection);
 
+    // IMPORTANT : Réinitialise le STM (seg_executed=0, last_received_seq_id=0xFFFF).
+    // Sans ce CLEAR, l'anti-doublon du STM peut rejeter les premières trames binaires
+    // si leur seq_id correspond à celui de la session précédente → pas d'ACK → timeout UART.
+    QMetaObject::invokeMethod(this, [this]() {
+        if (m_machine) m_machine->sendClear();
+    }, Qt::BlockingQueuedConnection);
+    QThread::msleep(50); // laisse le STM traiter CLEAR avant PRESTART
+
+    // PRESTART : annonce la session et le nombre de segments au STM.
+    // MachineViewModel exige m_prestartAccepted=true avant d'accepter sendSegment().
+    // requestPrestart() → STM répond PRESTART_OK → onPrestartAccepted() → m_prestartAccepted=true.
     const int totalSegments = m_plannedSegments.size();
+    QMetaObject::invokeMethod(this, [this, totalSegments]() {
+        if (m_machine) m_machine->requestPrestart(totalSegments);
+    }, Qt::BlockingQueuedConnection);
+
+    // Attendre que le STM confirme PRESTART_OK (max 3 s)
+    const int maxWaitMs = 3000;
+    const int pollMs    = 20;
+    for (int waited = 0; waited < maxWaitMs && !m_stopRequested; waited += pollMs) {
+        bool accepted = false;
+        QMetaObject::invokeMethod(this, [this, &accepted]() {
+            accepted = m_machine && m_machine->isPrestartAccepted();
+        }, Qt::BlockingQueuedConnection);
+        if (accepted) break;
+        QThread::msleep(pollMs);
+    }
+
     emit decoupeProgress(0, qMax(1, totalSegments), m_remainingMsByCompletedSegments.value(0));
 
     for (int i = 0; i < totalSegments; ++i) {
@@ -243,11 +292,28 @@ void TrajetMotor::onPositionUpdated(int x_steps, int y_steps)
     const bool isCut = m_isCurrentlyCutting.load();
 
     QMetaObject::invokeMethod(this, [this, realPos, isCut]() {
-        if (m_lastHeadPos != realPos && m_lastHeadPos != QPointF(0,0)) {
-            auto* line = new QGraphicsLineItem(m_lastHeadPos.x(), m_lastHeadPos.y(), realPos.x(), realPos.y());
-            line->setPen(QPen(isCut ? Qt::red : Qt::blue, 1.5));
-            m_visu->getScene()->addItem(line);
-            m_visu->addCutMarker(line);
+        if (m_lastHeadPos != realPos && m_lastHeadPos != QPointF(0,0) && m_cutPixmapItem) {
+            // Rendu O(1) : on peint directement sur le QPixmap, pas de nouvel item Qt
+            QPainter painter(&m_cutPixmap);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+
+            const QRectF sr = m_visu->getScene()->sceneRect();
+            const qreal ox = sr.left();
+            const qreal oy = sr.top();
+
+            const QPointF from((m_lastHeadPos.x() - ox) * RENDER_SCALE,
+                               (m_lastHeadPos.y() - oy) * RENDER_SCALE);
+            const QPointF to((realPos.x() - ox) * RENDER_SCALE,
+                             (realPos.y() - oy) * RENDER_SCALE);
+
+            // Trait rouge = découpe, bleu = trajet à vide — épaisseur échelonnée
+            painter.setPen(QPen(isCut ? Qt::red : Qt::blue,
+                                (isCut ? 1.5 : 1.0) * RENDER_SCALE,
+                                Qt::SolidLine, Qt::RoundCap));
+            painter.drawLine(from, to);
+            painter.end();
+
+            m_cutPixmapItem->setPixmap(m_cutPixmap);
         }
         m_head->setPos(realPos.x() - 3, realPos.y() - 3);
         m_lastHeadPos = realPos;

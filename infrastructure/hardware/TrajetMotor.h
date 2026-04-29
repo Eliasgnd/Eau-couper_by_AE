@@ -10,6 +10,8 @@
 #include <QVector>
 #include <QTimer>
 #include <QtTypes>
+#include <QPixmap>
+#include <QGraphicsPixmapItem>
 #include <atomic>
 #include "ShapeVisualization.h"
 #include "StmProtocol.h" // Contient probablement FLAG_VALVE_ON, etc.
@@ -120,6 +122,10 @@ private:
     std::atomic<bool> m_isCurrentlyCutting{false};
     QGraphicsEllipseItem* m_head = nullptr;
     QPointF m_lastHeadPos;
+
+    // Rendu offscreen O(1) — pixmap unique peint segment par segment
+    QPixmap m_cutPixmap;
+    QGraphicsPixmapItem* m_cutPixmapItem = nullptr;
 
     // Anciennes variables conservées
     int m_execCount = 0;
