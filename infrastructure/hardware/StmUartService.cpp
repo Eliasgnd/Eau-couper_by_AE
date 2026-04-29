@@ -1,6 +1,7 @@
 #include "StmUartService.h"
 #include <QDebug>
 #include <QSerialPortInfo>
+#include <QtGlobal>
 #include <utility>
 #include <algorithm>
 
@@ -13,6 +14,9 @@ StmUartService::StmUartService(QObject* parent)
 {
     m_ackTimer.setSingleShot(true);
     m_ackTimer.setInterval(ACK_TIMEOUT_MS);
+    m_pingTimer.setInterval(STM_HEARTBEAT_MS);
+    m_linkTimer.setSingleShot(true);
+    m_linkTimer.setInterval(STM_LINK_TIMEOUT_MS);
 
     connect(&m_serial, &QSerialPort::readyRead,
             this, &StmUartService::onReadyRead);
@@ -20,6 +24,10 @@ StmUartService::StmUartService(QObject* parent)
             this, &StmUartService::onSerialError);
     connect(&m_ackTimer, &QTimer::timeout,
             this, &StmUartService::onAckTimeout);
+    connect(&m_pingTimer, &QTimer::timeout,
+            this, &StmUartService::sendHeartbeat);
+    connect(&m_linkTimer, &QTimer::timeout,
+            this, &StmUartService::onLinkTimeout);
 }
 
 StmUartService::~StmUartService()
@@ -90,9 +98,16 @@ void StmUartService::open(const QString& portName)
         m_stmBufLevel   = 0;
         m_sentSinceAck  = 0;
         m_unackedBatch.clear();
+        m_unackedSeqIds.clear();
         m_globalSeqId   = 0;
-        m_unackedBatch.clear();
+        m_linkHealthy   = false;
+        m_heartbeatSuspended = false;
+        m_streamingActive = false;
+        m_health        = StmHealth{};
         emit connectionChanged(true);
+        sendAsciiCommand(QStringLiteral("HELLO"));
+        m_pingTimer.start();
+        m_linkTimer.start();
         qDebug() << "[STM-UART] Port ouvert :" << resolvedPortName;
     } else {
         emit comError(tr("Impossible d'ouvrir le port %1 : %2")
@@ -104,6 +119,12 @@ void StmUartService::close()
 {
     if (m_serial.isOpen()) {
         m_ackTimer.stop();
+        m_pingTimer.stop();
+        m_linkTimer.stop();
+        m_linkHealthy = false;
+        m_heartbeatSuspended = false;
+        m_streamingActive = false;
+        m_health = StmHealth{};
         m_serial.close();
         emit connectionChanged(false);
         qDebug() << "[STM-UART] Port fermé.";
@@ -121,7 +142,7 @@ bool StmUartService::isOpen() const
 
 QByteArray StmUartService::encodeFrame(const StmSegment& seg, uint16_t seqId)
 {
-    QByteArray frame(19, '\0'); // CHANGÉ : 19 octets au lieu de 13
+    QByteArray frame(STM_FRAME_LEN, '\0');
 
     frame[0] = static_cast<char>(STM_SYNC_BYTE);
 
@@ -154,19 +175,17 @@ QByteArray StmUartService::encodeFrame(const StmSegment& seg, uint16_t seqId)
     // flags
     frame[17] = static_cast<char>(seg.flags);
 
-    // checksum sur les 18 premiers octets
-    frame[18] = static_cast<char>(calcChecksum(frame));
+    const uint16_t crc = calcCrc16(frame);
+    frame[18] = static_cast<char>((crc >> 8) & 0xFF);
+    frame[19] = static_cast<char>( crc       & 0xFF);
 
     return frame;
 }
 
-uint8_t StmUartService::calcChecksum(const QByteArray& frame)
+uint16_t StmUartService::calcCrc16(const QByteArray& frame)
 {
-    uint8_t checksum = 0;
-    // CHANGÉ : On XOR de l'index 0 à 17
-    for (int i = 0; i < 18 && i < frame.size(); ++i)
-        checksum ^= static_cast<uint8_t>(frame[i]);
-    return checksum;
+    return stmCrc16(reinterpret_cast<const uint8_t*>(frame.constData()),
+                    qMin(STM_FRAME_LEN - 2, frame.size()));
 }
 
 bool StmUartService::isFull() const
@@ -189,6 +208,7 @@ void StmUartService::resetWindow()
     m_sentSinceAck = 0;
     m_nakCount     = 0;
     m_unackedBatch.clear();
+    m_unackedSeqIds.clear();
     m_ackTimer.stop();
     m_globalSeqId  = 0;
 }
@@ -207,6 +227,7 @@ void StmUartService::sendSegment(const StmSegment& seg)
     // m_unackedBatch garde une copie de la trame AVEC son ID intégré.
     // Si on timeout, c'est cette trame identique qui sera re-balancée.
     m_unackedBatch.append(frame);
+    m_unackedSeqIds.append(currentSeqId);
     ++m_sentSinceAck;
 
     m_serial.write(frame);
@@ -216,6 +237,17 @@ void StmUartService::sendSegment(const StmSegment& seg)
     if (isEndSeq) {
         m_nakCount = 0;
     }
+}
+
+void StmUartService::requestPrestart(quint32 sessionId, int segmentCount)
+{
+    if (!m_serial.isOpen()) {
+        emit prestartRejected(tr("Port série non ouvert."));
+        return;
+    }
+    sendAsciiCommand(QStringLiteral("PRESTART|session=%1|segments=%2")
+                         .arg(sessionId)
+                         .arg(qMax(0, segmentCount)));
 }
 
 // ----------------------------------------------------------
@@ -230,7 +262,12 @@ void StmUartService::sendAsciiCommand(const QString& cmd)
     }
     QByteArray data = cmd.toUtf8() + "\r\n";
     m_serial.write(data);
-    qDebug() << "[STM-UART] TX ASCII :" << cmd;
+    if (cmd == QLatin1String("HOME") || cmd == QLatin1String("R")) {
+        m_heartbeatSuspended = true;
+        m_linkTimer.stop();
+    }
+    if (cmd != QLatin1String("PING"))
+        qDebug() << "[STM-UART] TX ASCII :" << cmd;
 }
 
 // ----------------------------------------------------------
@@ -246,11 +283,11 @@ void StmUartService::onReadyRead()
         // Détection trame binaire : premier octet == 0xAA
         if (static_cast<uint8_t>(m_readBuffer[0]) == STM_SYNC_BYTE) {
             // Attendre les 11 octets complets
-            if (m_readBuffer.size() < 19)
+            if (m_readBuffer.size() < STM_FRAME_LEN)
                 break;
             // Vérifier le CRC
-            QByteArray frame = m_readBuffer.left(19);
-            m_readBuffer.remove(0, 19);
+            QByteArray frame = m_readBuffer.left(STM_FRAME_LEN);
+            m_readBuffer.remove(0, STM_FRAME_LEN);
             // (Les trames binaires vont du RPi → STM, pas l'inverse.
             //  Si on reçoit 0xAA du STM, c'est inattendu — on ignore.)
             qWarning() << "[STM-UART] Trame binaire inattendue en réception, ignorée.";
@@ -283,6 +320,45 @@ void StmUartService::processLine(const QByteArray& line)
 {
     emit rawLineReceived(QString::fromUtf8(line));
     qDebug() << "[STM-UART] RX :" << line;
+    markHostActivity();
+
+    if (line.startsWith("HELLO|") || line.startsWith("PONG|")) {
+        m_health = parseHealthPayload(line);
+        m_health.valid = true;
+        m_linkHealthy = m_health.fault.isEmpty();
+        emit healthChanged(m_health);
+        if (!m_health.fault.isEmpty()) {
+            emit safetyFault(m_health.fault);
+        }
+        return;
+    }
+
+    if (line.startsWith("PRESTART_OK|session=")) {
+        bool ok = false;
+        const quint32 sessionId = line.mid(20).toUInt(&ok);
+        if (ok) {
+            m_streamingActive = true;
+            m_linkTimer.start();
+            emit prestartAccepted(sessionId);
+        } else {
+            emit prestartRejected(QStringLiteral("Réponse PRESTART invalide."));
+        }
+        return;
+    }
+
+    if (line.startsWith("PRESTART_REJECT|reason=")) {
+        m_streamingActive = false;
+        emit prestartRejected(QString::fromUtf8(line.mid(23)));
+        return;
+    }
+
+    if (line.startsWith("FAULT|reason=")) {
+        const QString reason = QString::fromUtf8(line.mid(13));
+        m_streamingActive = false;
+        markUnsafeLink(reason);
+        emit safetyFault(reason);
+        return;
+    }
 
     // --- ACK|buf=<n>|seg=<s> ---
     if (line.startsWith("ACK|buf=")) {
@@ -301,6 +377,9 @@ void StmUartService::processLine(const QByteArray& line)
         if (!m_unackedBatch.isEmpty()) {
             m_unackedBatch.removeFirst();
         }
+        if (!m_unackedSeqIds.isEmpty()) {
+            m_unackedSeqIds.removeFirst();
+        }
 
         // NOUVEAU : Gestion du chronomètre
         if (m_sentSinceAck > 0) {
@@ -313,6 +392,39 @@ void StmUartService::processLine(const QByteArray& line)
         return;
     }
 
+    if (line.startsWith("ACK|seq=")) {
+        int seqId = -1, bufLevel = 0, rxCount = 0;
+        const QList<QByteArray> parts = line.mid(4).split('|');
+        for (const QByteArray& part : parts) {
+            if      (part.startsWith("seq=")) seqId = part.mid(4).toInt();
+            else if (part.startsWith("buf=")) bufLevel = part.mid(4).toInt();
+            else if (part.startsWith("rx="))  rxCount = part.mid(3).toInt();
+        }
+
+        m_stmBufLevel  = bufLevel;
+        m_sentSinceAck = std::max(0, m_sentSinceAck - 1);
+        m_nakCount     = 0;
+
+        const int seqIndex = m_unackedSeqIds.indexOf(static_cast<uint16_t>(seqId));
+        if (seqIndex >= 0) {
+            m_unackedSeqIds.removeAt(seqIndex);
+            if (seqIndex < m_unackedBatch.size())
+                m_unackedBatch.removeAt(seqIndex);
+        } else if (!m_unackedBatch.isEmpty()) {
+            m_unackedBatch.removeFirst();
+            if (!m_unackedSeqIds.isEmpty())
+                m_unackedSeqIds.removeFirst();
+        }
+
+        if (m_sentSinceAck > 0)
+            m_ackTimer.start();
+        else
+            m_ackTimer.stop();
+
+        emit ackReceived(bufLevel, rxCount);
+        return;
+    }
+
     // --- NAK ou ERREUR MATERIELLE UART ---
     if (line == "NAK" || line.endsWith("NAK") || line.startsWith("ERR:UART_HW_FAULT")) {
 
@@ -320,14 +432,12 @@ void StmUartService::processLine(const QByteArray& line)
 
         ++m_nakCount;
         emit nakReceived();
-
-        if (m_nakCount >= MAX_NAK_RETRY) {
-            m_nakCount = 0;
-            m_unackedBatch.clear();
-            emit comError(tr("3 erreurs consécutives — anomalie de communication."));
-        } else {
-            retransmitLastFrame();
-        }
+        m_streamingActive = false;
+        m_nakCount = 0;
+        m_unackedBatch.clear();
+        m_unackedSeqIds.clear();
+        m_sentSinceAck = 0;
+        emit safetyFault(tr("Erreur UART/NAK pendant la découpe."));
         return;
     }
 
@@ -336,7 +446,9 @@ void StmUartService::processLine(const QByteArray& line)
         // NOUVEAU : On coupe le timer et on vide le batch pour éviter les envois fantômes !
         m_ackTimer.stop();
         m_unackedBatch.clear();
+        m_unackedSeqIds.clear();
         m_sentSinceAck = 0;
+        m_streamingActive = false;
 
         emit doneReceived();
         return;
@@ -351,16 +463,28 @@ void StmUartService::processLine(const QByteArray& line)
     // --- Homing messages ---
     if (line.startsWith("HOMING") || line == "Z OK" || line == "X OK" || line == "Y OK"
         || line == "HOMED") {
+        if (line.startsWith("HOMING") || line == "Z OK" || line == "X OK" || line == "Y OK") {
+            m_heartbeatSuspended = true;
+            m_linkTimer.stop();
+        }
+        if (line == "HOMED") {
+            m_heartbeatSuspended = false;
+            markHostActivity();
+        }
         emit homingMessage(QString::fromUtf8(line));
         return;
     }
 
     // --- Homing errors ---
     if (line == "ERR:HOMING_TIMEOUT") {
+        m_heartbeatSuspended = false;
+        markHostActivity();
         emit homingError(QStringLiteral("TIMEOUT"));
         return;
     }
     if (line.startsWith("ERR:HOMING_")) {
+        m_heartbeatSuspended = false;
+        markHostActivity();
         QString axis = QString::fromUtf8(line.mid(11)); // après "ERR:HOMING_"
         emit homingError(axis);
         return;
@@ -422,6 +546,7 @@ void StmUartService::processLine(const QByteArray& line)
 
     // --- Banner de démarrage STM (watchdog reset ou boot initial) ---
     if (line.startsWith("=== CNC")) {
+        markUnsafeLink(QStringLiteral("Redémarrage STM détecté."));
         emit startupBannerReceived();
         return;
     }
@@ -516,6 +641,59 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
     return data;
 }
 
+MachineState StmUartService::parseMachineState(const QByteArray& value)
+{
+    if (value == "READY") return MachineState::READY;
+    if (value == "MOVING") return MachineState::MOVING;
+    if (value == "HOMING") return MachineState::HOMING;
+    if (value == "RECOVERY_WAIT") return MachineState::RECOVERY_WAIT;
+    if (value == "EMERGENCY") return MachineState::EMERGENCY;
+    if (value == "ALARM") return MachineState::ALARM;
+    return MachineState::DISCONNECTED;
+}
+
+StmHealth StmUartService::parseHealthPayload(const QByteArray& line)
+{
+    StmHealth health;
+    const int payloadStart = line.indexOf('|');
+    if (payloadStart < 0)
+        return health;
+
+    const QList<QByteArray> parts = line.mid(payloadStart + 1).split('|');
+    for (const QByteArray& part : parts) {
+        if (part.startsWith("state=")) {
+            health.state = parseMachineState(part.mid(6));
+        } else if (part.startsWith("armed=")) {
+            health.armed = part.mid(6).toInt() != 0;
+        } else if (part.startsWith("homed=")) {
+            health.homed = part.mid(6).toInt() != 0;
+        } else if (part.startsWith("fault=")) {
+            const QByteArray fault = part.mid(6);
+            if (!fault.isEmpty() && fault != "NONE")
+                health.fault = QString::fromUtf8(fault);
+        }
+    }
+    return health;
+}
+
+void StmUartService::markHostActivity()
+{
+    if (m_serial.isOpen() && !m_heartbeatSuspended)
+        m_linkTimer.start();
+}
+
+void StmUartService::markUnsafeLink(const QString& reason)
+{
+    m_linkHealthy = false;
+    m_streamingActive = false;
+    m_health.valid = false;
+    m_ackTimer.stop();
+    m_unackedBatch.clear();
+    m_unackedSeqIds.clear();
+    m_sentSinceAck = 0;
+    emit comError(reason);
+}
+
 // ----------------------------------------------------------
 //  Retry et timeout
 // ----------------------------------------------------------
@@ -545,6 +723,26 @@ void StmUartService::onAckTimeout()
 
     // On relance juste le timer pour laisser la machine finir son mouvement
     m_ackTimer.start(1000);
+}
+
+void StmUartService::sendHeartbeat()
+{
+    if (!m_serial.isOpen())
+        return;
+    if (m_heartbeatSuspended)
+        return;
+    sendAsciiCommand(QStringLiteral("PING"));
+}
+
+void StmUartService::onLinkTimeout()
+{
+    if (!m_serial.isOpen())
+        return;
+    if (m_heartbeatSuspended)
+        return;
+
+    markUnsafeLink(tr("Liaison STM perdue : aucun heartbeat reçu."));
+    emit linkLost();
 }
 
 void StmUartService::onSerialError(QSerialPort::SerialPortError error)

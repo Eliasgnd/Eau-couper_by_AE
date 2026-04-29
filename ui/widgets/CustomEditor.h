@@ -55,6 +55,8 @@ private:
     QPushButton *m_cancelModeButton = nullptr;
     QPushButton *m_precisionConstraintButton = nullptr;
     QPushButton *m_segmentStatusButton = nullptr;
+    QPushButton *m_placementAssistButton = nullptr;
+    QPushButton *m_placementMagnetButton = nullptr;
 
     QWidget *m_selectionActionsWidget = nullptr;
     QWidget *m_selectionInspectorWidget = nullptr;

@@ -12,7 +12,7 @@
 *.autosave
 .qtc_clangd/
 
-# Fichiers générés automatiquement par Qt
+# Fichiers generes automatiquement par Qt
 moc_*.cpp
 moc_*.o
 qrc_*.cpp
@@ -26,7 +26,7 @@ debug/
 release/
 .qmake.stash
 
-# Fichiers générés par les conflits de fusion
+# Fichiers generes par les conflits de fusion
 *_BACKUP_*
 *_BASE_*
 *_LOCAL_*
@@ -35,34 +35,14 @@ release/
 # Sauvegardes de fichiers UI
 *.ui.save
 
-# Binaire compilé
+# Binaire compile
 /machineDecoupeIHM
 
-# Fichier Qt généré manquant
+# Fichier Qt genere manquant
 moc_predefs.h
 
-# Node.js (outils Claude, pas dépendances du projet)
+# Node.js
 node_modules/
-package.json
-package-lock.json
 
-# Claude Code - fichiers internes
-.claude/agents/
-.claude/commands/
-.claude/get-shit-done/
-.claude/gsd-file-manifest.json
-.claude/helpers/
-.claude/hooks/
-.claude/memory.db
-.claude/package.json
-.claude/settings.json
-.claude/skills/
-.claude-flow/
-.planning/
-
-# Swarm / MCP
-.swarm/
-.mcp.json
-
-# Fichier vide créé par accident
+# Fichier vide cree par accident
 /git

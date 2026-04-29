@@ -13,6 +13,7 @@
 
 #include "DrawModeManager.h"
 #include "DrawingState.h"
+#include "PlacementAssist.h"
 #include "viewmodels/CanvasViewModel.h"
 #include "domain/shapes/ShapeManager.h"
 #include "shared/PerformanceMode.h"
@@ -85,6 +86,10 @@ public:
 
     void setSnapToGridEnabled(bool enabled);
     bool isSnapToGridEnabled() const;
+    void setPlacementAssistEnabled(bool enabled);
+    bool isPlacementAssistEnabled() const;
+    void setPlacementMagnetEnabled(bool enabled);
+    bool isPlacementMagnetEnabled() const;
     void setGridVisible(bool visible);
     bool isGridVisible() const;
     void setGridSpacing(int px);
@@ -146,6 +151,10 @@ private:
     QPointF snapToGridIfNeeded(const QPointF &logicalPoint) const;
     QPointF constrainedPoint(const QPointF &logicalPoint) const;
     QPointF applyDrawingAids(const QPointF &logicalPoint) const;
+    QPointF applyPlacementAssistToPoint(const QPointF &logicalPoint) const;
+    void applyPlacementAssistToSelection();
+    QVector<QRectF> placementTargetBounds(bool excludeSelection) const;
+    QRectF visibleLogicalArea() const;
     int hitTestShape(const QPointF &logicalPoint, qreal tolerance = 40.0) const;
 
     enum class EndpointKind { None, Start, End };
@@ -203,6 +212,10 @@ private:
     std::unique_ptr<MouseInteractionHandler> m_mouseHandler;
     std::unique_ptr<EraserTool>              m_eraserTool;
     std::unique_ptr<TextTool>                m_textTool;
+
+    bool m_placementAssistEnabled = true;
+    bool m_placementMagnetEnabled = true;
+    mutable QVector<PlacementAssist::Guide> m_activePlacementGuides;
 
     bool m_drawing = false;
     bool m_twoFingersOn = false;

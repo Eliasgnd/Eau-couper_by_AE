@@ -32,6 +32,8 @@ CuttingService::CuttingService(QObject *parent)
 
 void CuttingService::connectMachineToMotor(MachineViewModel* vm)
 {
+    disconnect(vm, nullptr, this, nullptr);
+
     connect(vm, &MachineViewModel::realPositionReceived,
             m_trajetMotor, &TrajetMotor::onPositionUpdated, Qt::UniqueConnection);
 
@@ -45,6 +47,36 @@ void CuttingService::connectMachineToMotor(MachineViewModel* vm)
             m_trajetMotor, &TrajetMotor::onValveOn, Qt::UniqueConnection);
     connect(vm, &MachineViewModel::valveOffConfirmed,
             m_trajetMotor, &TrajetMotor::onValveOff, Qt::UniqueConnection);
+
+    connect(vm, &MachineViewModel::prestartAccepted, this, [this]() {
+        if (m_waitingPrestart)
+            launchPreparedCutting();
+    });
+
+    connect(vm, &MachineViewModel::prestartRejected, this, [this](const QString& reason) {
+        if (!m_waitingPrestart)
+            return;
+        m_waitingPrestart = false;
+        if (m_visualization)
+            m_visualization->setInteractionEnabled(true);
+        emit controlsEnabledChanged(true);
+        emit statusMessage(QCoreApplication::tr("Préflight refusé : %1").arg(reason));
+        emit finished(false);
+    });
+
+    connect(vm, &MachineViewModel::safetyFault, this, [this](const QString& reason) {
+        if (m_trajetMotor)
+            m_trajetMotor->stopCut();
+        m_waitingPrestart = false;
+        emit statusMessage(QCoreApplication::tr("Défaut sécurité STM : %1").arg(reason));
+    });
+
+    connect(vm, &MachineViewModel::linkLost, this, [this]() {
+        if (m_trajetMotor)
+            m_trajetMotor->stopCut();
+        m_waitingPrestart = false;
+        emit statusMessage(QCoreApplication::tr("Liaison STM perdue — découpe arrêtée."));
+    });
 }
 
 void CuttingService::setMachineViewModel(MachineViewModel *vm)
@@ -115,9 +147,31 @@ void CuttingService::startCutting()
         return;
     }
 
+    m_visualization->resetAllShapeColors();
+    if (!m_trajetMotor->prepareTrajet()) {
+        emit statusMessage(QCoreApplication::tr("Aucune trajectoire valide à découper."));
+        emit finished(false);
+        return;
+    }
+
+    if (!m_machineViewModel || !m_machineViewModel->requestPrestart(m_trajetMotor->plannedSegmentCount())) {
+        emit statusMessage(QCoreApplication::tr("Découpe bloquée : préflight STM requis."));
+        emit finished(false);
+        return;
+    }
+
+    m_waitingPrestart = true;
+    emit progressUpdated(0, QCoreApplication::tr("Validation securite STM..."));
+}
+
+void CuttingService::launchPreparedCutting()
+{
+    if (!m_trajetMotor || !m_visualization)
+        return;
+
+    m_waitingPrestart = false;
     emit controlsEnabledChanged(false);
     m_visualization->setInteractionEnabled(false);
-    m_visualization->resetAllShapeColors();
     emit cuttingStarted();
     m_trajetMotor->executeTrajet();
 }
@@ -125,6 +179,8 @@ void CuttingService::startCutting()
 void CuttingService::pauseCutting()
 {
     if (!m_trajetMotor)
+        return;
+    if (m_waitingPrestart)
         return;
 
     if (!m_pauseRequested) {
@@ -145,6 +201,7 @@ void CuttingService::stopCutting()
     if (!m_trajetMotor)
         return;
 
+    m_waitingPrestart = false;
     if (m_machineViewModel)
         m_machineViewModel->sendStop();
 

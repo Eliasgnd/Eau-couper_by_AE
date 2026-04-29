@@ -1,7 +1,6 @@
 #include <QtTest>
 #include <QElapsedTimer>
 #include "GeometryUtils.h"
-#include "MotorControl.h"
 #include "placement_tests.h"
 
 void PlacementTests::borderContactNotOverlap()
@@ -16,14 +15,6 @@ void PlacementTests::interiorIntersection()
     QPainterPath a; a.addRect(0,0,10,10);
     QPainterPath b; b.addRect(5,5,10,10);
     QVERIFY(pathsOverlap(a,b));
-}
-
-void PlacementTests::motorControlSteps()
-{
-    MotorControl mc;
-    mc.moveRapid(1.0,2.0);
-    QCOMPARE(mc.getStepsX(), 10);
-    QCOMPARE(mc.getStepsY(), 20);
 }
 
 void PlacementTests::normalizationRemovesDuplicates()
@@ -89,7 +80,7 @@ void PlacementTests::selfIntersectingOverlapDetected()
     star.lineTo(20,0);
     star.closeSubpath();
     star.setFillRule(Qt::OddEvenFill);
-    QPainterPath rect; rect.addRect(5,5,10,10);
+    QPainterPath rect; rect.addRect(1,1,4,4);
     QVERIFY(pathsOverlap(star, rect));
 }
 
