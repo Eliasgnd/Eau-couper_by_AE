@@ -153,7 +153,23 @@ bool TrajetMotor::buildPlannedSegments()
             const bool isLastShapePoint = (i == cut.points.size() - 1 && c == optimizedCuts.size() - 1);
             const bool isLast = isLastShapePoint && (realEnd == homePos);
 
-            planMove(cur, realEnd, FLAG_VALVE_ON, isLast);
+            // Détection de changement de direction (coin) → force FLAG_END_SEQ
+            // pour que le STM décélère complètement avant de repartir dans la
+            // nouvelle direction. Sans ça, l'inertie arrondit physiquement les angles à 90°.
+            bool isCorner = false;
+            if (!isLast && i + 1 < cut.points.size()) {
+                QPoint nextEnd = cut.points[i + 1].toPoint();
+                const int dx1 = realEnd.x() - cur.x();
+                const int dy1 = realEnd.y() - cur.y();
+                const int dx2 = nextEnd.x() - realEnd.x();
+                const int dy2 = nextEnd.y() - realEnd.y();
+                // Produit vectoriel : nul si colinéaire, non-nul si vrai changement de direction
+                const double cross = static_cast<double>(dx1) * dy2
+                                   - static_cast<double>(dy1) * dx2;
+                isCorner = (std::abs(cross) > 0.5);
+            }
+
+            planMove(cur, realEnd, FLAG_VALVE_ON, isLast || isCorner);
             cur = realEnd;
         }
     }
