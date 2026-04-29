@@ -56,6 +56,8 @@ public:
     void setVcut(double vitesse_mm_s);
     void setVtravel(double vitesse_mm_s);
 
+    bool prepareTrajet();
+    int plannedSegmentCount() const { return m_plannedSegments.size(); }
     void executeTrajet();
     void pause();
     void resume();
@@ -82,6 +84,7 @@ public slots:
 
 private:
     void doExecuteTrajet();
+    bool buildPlannedSegments();
 
     // On remet les anciennes fonctions privées pour le compilateur
     void appendSegPlan(const QPoint& from, const QPoint& to, bool isCut, QVector<bool>& plan) const;

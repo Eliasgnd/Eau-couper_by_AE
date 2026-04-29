@@ -167,6 +167,7 @@ HEADERS += \
     ui/canvas/DrawingState.h \
     ui/canvas/ShapeRenderer.h \
     ui/canvas/DrawModeManager.h \
+    ui/canvas/PlacementAssist.h \
     ui/canvas/HistoryManager.h \
     ui/canvas/MouseInteractionHandler.h \
     ui/canvas/ViewTransformer.h \
@@ -251,6 +252,7 @@ SOURCES += \
     ui/canvas/CustomDrawArea.cpp \
     ui/canvas/ShapeRenderer.cpp \
     ui/canvas/DrawModeManager.cpp \
+    ui/canvas/PlacementAssist.cpp \
     ui/canvas/HistoryManager.cpp \
     ui/canvas/MouseInteractionHandler.cpp \
     ui/canvas/ViewTransformer.cpp \

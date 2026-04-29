@@ -5,6 +5,7 @@
 #include "EraserTool.h"
 #include "HistoryManager.h"
 #include "MouseInteractionHandler.h"
+#include "PlacementAssist.h"
 #include "ShapeRenderer.h"
 #include "TextTool.h"
 #include "ViewTransformer.h"
@@ -23,6 +24,7 @@
 #include <QPainterPathStroker>
 #include <QPen>
 #include <QStringList>
+#include <QSizeF>
 #include <QTransform>
 #include <QVector>
 #include <QWheelEvent>
@@ -447,6 +449,26 @@ void CustomDrawArea::setSnapToGridEnabled(bool enabled)
 
 bool CustomDrawArea::isSnapToGridEnabled() const { return m_renderer->isSnapToGridEnabled(); }
 
+void CustomDrawArea::setPlacementAssistEnabled(bool enabled)
+{
+    m_placementAssistEnabled = enabled;
+    if (!enabled)
+        m_activePlacementGuides.clear();
+    emitCanvasStatus();
+    update();
+}
+
+bool CustomDrawArea::isPlacementAssistEnabled() const { return m_placementAssistEnabled; }
+
+void CustomDrawArea::setPlacementMagnetEnabled(bool enabled)
+{
+    m_placementMagnetEnabled = enabled;
+    emitCanvasStatus();
+    update();
+}
+
+bool CustomDrawArea::isPlacementMagnetEnabled() const { return m_placementMagnetEnabled; }
+
 void CustomDrawArea::setGridVisible(bool visible)
 {
     m_renderer->setGridVisible(visible);
@@ -793,12 +815,95 @@ QPointF CustomDrawArea::constrainedPoint(const QPointF &logicalPoint) const
     return logicalPoint;
 }
 
+QRectF CustomDrawArea::visibleLogicalArea() const
+{
+    return QRectF(toLogical(QPointF(0, 0)),
+                  toLogical(QPointF(width(), height()))).normalized();
+}
+
+QVector<QRectF> CustomDrawArea::placementTargetBounds(bool excludeSelection) const
+{
+    QVector<QRectF> targets;
+    const auto &shapes = m_viewModel->shapes();
+    const auto selected = m_viewModel->selectedShapes();
+
+    for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
+        if (excludeSelection && std::find(selected.begin(), selected.end(), i) != selected.end())
+            continue;
+        if (m_drawingState->extendingExistingPath && i == m_drawingState->extendingShapeIndex)
+            continue;
+        if (!shapes[i].bounds.isValid() && shapes[i].bounds.isNull())
+            continue;
+        targets.push_back(shapes[i].bounds);
+    }
+    return targets;
+}
+
+QPointF CustomDrawArea::applyPlacementAssistToPoint(const QPointF &logicalPoint) const
+{
+    m_activePlacementGuides.clear();
+    if (!m_placementAssistEnabled)
+        return logicalPoint;
+
+    const bool supportedMode = getDrawMode() == DrawMode::PointParPoint
+        || getDrawMode() == DrawMode::Line
+        || getDrawMode() == DrawMode::Rectangle
+        || getDrawMode() == DrawMode::Circle;
+    if (!supportedMode)
+        return logicalPoint;
+
+    const qreal scale = qMax<qreal>(0.25, m_transformer->scale());
+    PlacementAssist::Options options;
+    options.enabled = true;
+    options.magnetEnabled = m_placementMagnetEnabled;
+    options.guideTolerance = 18.0 / scale;
+    options.magnetTolerance = 12.0 / scale;
+
+    const QRectF pointRect(logicalPoint, QSizeF(0.0, 0.0));
+    const auto result = PlacementAssist::resolve(pointRect,
+                                                 placementTargetBounds(false),
+                                                 visibleLogicalArea(),
+                                                 options);
+    m_activePlacementGuides = result.guides;
+    return result.correctedPoint(logicalPoint);
+}
+
+void CustomDrawArea::applyPlacementAssistToSelection()
+{
+    m_activePlacementGuides.clear();
+    if (!m_placementAssistEnabled || !hasSelection())
+        return;
+
+    const QRectF selection = selectedShapesBounds();
+    if (selection.isNull())
+        return;
+
+    const qreal scale = qMax<qreal>(0.25, m_transformer->scale());
+    PlacementAssist::Options options;
+    options.enabled = true;
+    options.magnetEnabled = m_placementMagnetEnabled;
+    options.guideTolerance = 18.0 / scale;
+    options.magnetTolerance = 12.0 / scale;
+
+    const auto result = PlacementAssist::resolve(selection,
+                                                 placementTargetBounds(true),
+                                                 visibleLogicalArea(),
+                                                 options);
+    m_activePlacementGuides = result.guides;
+    if (result.hasSnap())
+        m_viewModel->shapeManager()->translateSelectedShapes(result.correction);
+}
+
 QPointF CustomDrawArea::applyDrawingAids(const QPointF &logicalPoint) const
 {
+    m_activePlacementGuides.clear();
     const QPointF constrained = constrainedPoint(logicalPoint);
     const QPointF endpointSnapped = snapToDrawingAid(constrained);
     if (endpointSnapped != constrained)
         return endpointSnapped;
+    const QPointF placementSnapped = applyPlacementAssistToPoint(constrained);
+    if (placementSnapped != constrained)
+        return placementSnapped;
     return snapToGridIfNeeded(constrained);
 }
 
@@ -964,6 +1069,8 @@ QString CustomDrawArea::currentDetailText() const
     QStringList parts;
     parts << (isGridVisible() ? tr("Grille visible") : tr("Grille masquee"));
     parts << (isSnapToGridEnabled() ? tr("Aimant ON") : tr("Aimant OFF"));
+    parts << (m_placementAssistEnabled ? tr("Guides ON") : tr("Guides OFF"));
+    parts << (m_placementMagnetEnabled ? tr("Aimant guides ON") : tr("Aimant guides OFF"));
     parts << (m_viewModel->isPrecisionConstraintEnabled() ? tr("Contrainte ON") : tr("Contrainte OFF"));
     parts << (m_viewModel->isSegmentStatusVisible() ? tr("Segments ON") : tr("Segments OFF"));
     if (hasSelection())
@@ -1213,7 +1320,8 @@ void CustomDrawArea::drawValidationOverlay(QPainter &painter) const
 
 void CustomDrawArea::drawSmartGuides(QPainter &painter) const
 {
-    if (!hasSelection() && !m_drawing && m_drawingState->pointByPointPoints.isEmpty()) return;
+    if (!m_placementAssistEnabled || m_activePlacementGuides.isEmpty())
+        return;
 
     painter.save();
     QPen guidePen(QColor(14, 165, 233), 1.2, Qt::DashLine);
@@ -1223,48 +1331,33 @@ void CustomDrawArea::drawSmartGuides(QPainter &painter) const
 
     const QRectF visibleArea = QRectF(toLogical(QPointF(0, 0)),
                                       toLogical(QPointF(width(), height()))).normalized();
-    const qreal tolerance = 8.0 / qMax<qreal>(0.25, m_transformer->scale());
-
-    auto drawVGuide = [&](qreal x) {
+    const qreal scale = qMax<qreal>(0.25, m_transformer->scale());
+    auto drawVGuide = [&](qreal x, const QString &label, bool snapped) {
+        QPen pen(snapped ? QColor(16, 185, 129) : QColor(14, 165, 233),
+                 snapped ? 1.8 : 1.2,
+                 Qt::DashLine);
+        pen.setCosmetic(true);
+        painter.setPen(pen);
         painter.drawLine(QPointF(x, visibleArea.top()), QPointF(x, visibleArea.bottom()));
+        if (!label.isEmpty())
+            painter.drawText(QPointF(x + 8.0 / scale, visibleArea.top() + 20.0 / scale), label);
     };
-    auto drawHGuide = [&](qreal y) {
+    auto drawHGuide = [&](qreal y, const QString &label, bool snapped) {
+        QPen pen(snapped ? QColor(16, 185, 129) : QColor(14, 165, 233),
+                 snapped ? 1.8 : 1.2,
+                 Qt::DashLine);
+        pen.setCosmetic(true);
+        painter.setPen(pen);
         painter.drawLine(QPointF(visibleArea.left(), y), QPointF(visibleArea.right(), y));
+        if (!label.isEmpty())
+            painter.drawText(QPointF(visibleArea.left() + 8.0 / scale, y - 8.0 / scale), label);
     };
 
-    if (hasSelection()) {
-        const QRectF selection = selectedShapesBounds();
-        const QPointF center = selection.center();
-        const QPointF viewCenter = visibleArea.center();
-        if (std::abs(center.x() - viewCenter.x()) <= tolerance) drawVGuide(viewCenter.x());
-        if (std::abs(center.y() - viewCenter.y()) <= tolerance) drawHGuide(viewCenter.y());
-
-        const auto selected = m_viewModel->selectedShapes();
-        const auto &shapes = m_viewModel->shapes();
-        for (int i = 0; i < static_cast<int>(shapes.size()); ++i) {
-            if (std::find(selected.begin(), selected.end(), i) != selected.end()) continue;
-            const QRectF other = shapes[i].bounds;
-            const QVector<qreal> xs{other.left(), other.center().x(), other.right()};
-            const QVector<qreal> ys{other.top(), other.center().y(), other.bottom()};
-            const QVector<qreal> sx{selection.left(), center.x(), selection.right()};
-            const QVector<qreal> sy{selection.top(), center.y(), selection.bottom()};
-            for (qreal x : xs) {
-                for (qreal candidate : sx) {
-                    if (std::abs(candidate - x) <= tolerance) {
-                        drawVGuide(x);
-                        break;
-                    }
-                }
-            }
-            for (qreal y : ys) {
-                for (qreal candidate : sy) {
-                    if (std::abs(candidate - y) <= tolerance) {
-                        drawHGuide(y);
-                        break;
-                    }
-                }
-            }
-        }
+    for (const PlacementAssist::Guide &guide : m_activePlacementGuides) {
+        if (guide.orientation == PlacementAssist::Orientation::Vertical)
+            drawVGuide(guide.position, guide.label, guide.snapped);
+        else
+            drawHGuide(guide.position, guide.label, guide.snapped);
     }
 
     painter.restore();
@@ -1732,7 +1825,9 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
 
     m_mouseHandler->handleMouseMove(event, logical);
 
-    if (m_mouseHandler->isSelectionDragActive()) {
+    if (m_mouseHandler->isSelectionDragActive()
+        || (m_moveInProgress && getDrawMode() == DrawMode::Deplacer)) {
+        applyPlacementAssistToSelection();
         emitCanvasStatusThrottled();
         update();
         return;
@@ -1915,7 +2010,9 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
             m_moveInProgress = false;
             emitHistoryState();
         }
+        m_activePlacementGuides.clear();
         emitCanvasStatus();
+        update();
         return;
     }
 
@@ -1963,7 +2060,9 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
         }
         emitHistoryState();
     }
+    m_activePlacementGuides.clear();
     emitCanvasStatus();
+    update();
 }
 
 void CustomDrawArea::wheelEvent(QWheelEvent *event)

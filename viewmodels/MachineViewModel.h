@@ -36,6 +36,8 @@ public:
     QString       statusMessage()const { return m_statusMessage; }
     bool          hasRecovery()  const { return m_hasRecovery; }
     RecoveryData  recoveryInfo() const { return m_recovery; }
+    bool          isSafetyReady() const;
+    bool          hasRecentHoming() const { return m_homed; }
 
     // --- Accès au service UART (pour injection dans TrajetMotor) ---
     StmUartService* uartService() const { return m_uart; }
@@ -58,6 +60,7 @@ public slots:
     // Envoi d'un segment de trajectoire (appelé par TrajetMotor)
     // Retourne false si le buffer est plein (flow control) ou état incompatible
     bool sendSegment(const StmSegment& seg);
+    bool requestPrestart(int segmentCount);
 
     // Confirmation explicite de descente Z (sécurité opérateur)
     void confirmZDescent();
@@ -80,6 +83,11 @@ signals:
     void doneReceived();
     void homingProgress(const QString& message);
     void errorOccurred(const QString& code);
+    void safetyReadyChanged(bool ready);
+    void prestartAccepted();
+    void prestartRejected(const QString& reason);
+    void safetyFault(const QString& reason);
+    void linkLost();
 
     // Exécution réelle — un segment physiquement terminé par le STM
     void segmentDone(int seg, int x_steps, int y_steps);
@@ -117,6 +125,11 @@ private slots:
     void onErrorReceived(const QString& code);
     void onComError(const QString& reason);
     void onRawLineReceived(const QString& line);
+    void onHealthChanged(StmHealth health);
+    void onPrestartAccepted(quint32 sessionId);
+    void onPrestartRejected(const QString& reason);
+    void onSafetyFault(const QString& reason);
+    void onLinkLost();
     void onValveOnConfirmed();
     void onValveOffConfirmed();
     void onPosResetConfirmed();
@@ -130,6 +143,7 @@ private slots:
 private:
     void setState(MachineState s);
     void setStatus(const QString& msg);
+    void updateSafetyReady();
 
     StmUartService* m_uart          = nullptr;
 
@@ -146,4 +160,10 @@ private:
 
     bool            m_zDescentConfirmed  = false;  // sécurité descente Z
     int             m_sentSinceLastAck   = 0;      // segments envoyés depuis le dernier ACK (estimation buffer)
+    bool            m_homed              = false;
+    bool            m_linkHealthy        = false;
+    bool            m_safetyReady        = false;
+    bool            m_prestartAccepted   = false;
+    quint32         m_pendingSessionId   = 0;
+    quint32         m_activeSessionId    = 0;
 };

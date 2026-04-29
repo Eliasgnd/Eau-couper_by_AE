@@ -762,6 +762,31 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
         }
     });
 
+    m_placementAssistButton = new QPushButton(tr("Guides ON"), this);
+    m_placementAssistButton->setMinimumHeight(40);
+    m_placementAssistButton->setProperty("placementAssist", true);
+    m_placementMagnetButton = new QPushButton(tr("Aimant guides ON"), this);
+    m_placementMagnetButton->setMinimumHeight(40);
+    m_placementMagnetButton->setProperty("placementMagnet", true);
+    if (ui->layoutGrille) {
+        ui->layoutGrille->addWidget(m_placementAssistButton);
+        ui->layoutGrille->addWidget(m_placementMagnetButton);
+    }
+
+    connect(m_placementAssistButton, &QPushButton::clicked, this, [this]() {
+        const bool enabled = !(drawArea && drawArea->isPlacementAssistEnabled());
+        if (drawArea)
+            drawArea->setPlacementAssistEnabled(enabled);
+        refreshModeButtons();
+    });
+
+    connect(m_placementMagnetButton, &QPushButton::clicked, this, [this]() {
+        const bool enabled = !(drawArea && drawArea->isPlacementMagnetEnabled());
+        if (drawArea)
+            drawArea->setPlacementMagnetEnabled(enabled);
+        refreshModeButtons();
+    });
+
     connect(ui->buttonSnapGrid, &QPushButton::clicked, this, [=]() {
         // Inverser l’état actuel
         bool enabled = !drawArea->isSnapToGridEnabled();
@@ -814,7 +839,7 @@ CustomEditor::CustomEditor(CustomEditorViewModel *viewModel, Language lang, QWid
 
     updateCanvasStatus(tr("Mode : %1").arg(modeToString(drawArea->getDrawMode())),
                        tr("Glissez le doigt pour dessiner librement."),
-                       tr("Grille visible  |  Aimant OFF  |  Contrainte OFF"));
+                       tr("Grille visible  |  Aimant OFF  |  Guides ON  |  Aimant guides ON  |  Contrainte OFF"));
     updateHistoryButtons(false, QString(), false, QString());
     applyStyleSheets();
     refreshModeButtons();
@@ -1009,6 +1034,17 @@ void CustomEditor::refreshModeButtons()
         m_segmentStatusButton->setText(drawArea && drawArea->isSegmentStatusVisible()
                                            ? tr("Segments ON")
                                            : tr("Segments OFF"));
+    if (m_placementAssistButton) {
+        const bool enabled = drawArea && drawArea->isPlacementAssistEnabled();
+        m_placementAssistButton->setText(enabled ? tr("Guides ON") : tr("Guides OFF"));
+        m_placementAssistButton->setProperty("placementAssist", enabled);
+    }
+    if (m_placementMagnetButton) {
+        const bool enabled = drawArea && drawArea->isPlacementMagnetEnabled();
+        m_placementMagnetButton->setText(enabled ? tr("Aimant guides ON") : tr("Aimant guides OFF"));
+        m_placementMagnetButton->setProperty("placementMagnet", enabled);
+        m_placementMagnetButton->setEnabled(drawArea && drawArea->isPlacementAssistEnabled());
+    }
     if (m_undoPointButton)
         m_undoPointButton->setVisible(pointMode);
     if (m_undoSegmentButton)
@@ -1028,6 +1064,8 @@ void CustomEditor::refreshModeButtons()
         ui->buttonGomme->setProperty("gommeMode", drawArea && drawArea->isGommeMode());
         repolish(ui->buttonGomme);
     }
+    repolish(m_placementAssistButton);
+    repolish(m_placementMagnetButton);
     if (ui->buttonSelection) {
         ui->buttonSelection->setProperty("closeMode", drawArea && drawArea->hasSelection());
         repolish(ui->buttonSelection);

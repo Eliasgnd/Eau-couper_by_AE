@@ -39,10 +39,12 @@ signals:
 
 private:
     void connectMachineToMotor(MachineViewModel* vm);
+    void launchPreparedCutting();
 
     ShapeVisualization *m_visualization    = nullptr;
     TrajetMotor        *m_trajetMotor      = nullptr;
     MachineViewModel   *m_machineViewModel = nullptr;
     bool                m_pauseRequested   = false;
+    bool                m_waitingPrestart  = false;
     int                 m_cuttingSpeed     = 10;   // mm/s, par défaut (= MotorControl::Vcut)
 };

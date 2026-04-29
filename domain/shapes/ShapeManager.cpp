@@ -214,7 +214,7 @@ void ShapeManager::selectShape(int index)
 
 void ShapeManager::deselectShape(int index)
 {
-    const int oldSize = m_selectedShapes.size();
+    const auto oldSize = m_selectedShapes.size();
     m_selectedShapes.erase(std::remove(m_selectedShapes.begin(), m_selectedShapes.end(), index), m_selectedShapes.end());
     if (oldSize != m_selectedShapes.size()) notifySelectionChanged();
 }

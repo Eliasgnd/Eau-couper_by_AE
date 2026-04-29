@@ -36,17 +36,26 @@ public:
     // --- Envoi vers STM ---
     void sendSegment(const StmSegment& seg);
     void sendAsciiCommand(const QString& cmd);   // envoie cmd + "\r\n"
+    void requestPrestart(quint32 sessionId, int segmentCount);
 
     // Retourne true si le buffer STM estimé est plein — TrajetMotor doit patienter.
     bool isFull() const;
 
     // Réinitialise les compteurs de fenêtre (appelé en début de coupe / arrêt d'urgence).
     void resetWindow();
+    bool hasHealthyLink() const { return m_linkHealthy; }
+    StmHealth lastHealth() const { return m_health; }
+    void processLineForTest(const QByteArray& line) { processLine(line.trimmed()); }
 
 signals:
     // Connexion
     void connectionChanged(bool connected);
     void comError(const QString& reason);
+    void healthChanged(StmHealth health);
+    void prestartAccepted(quint32 sessionId);
+    void prestartRejected(const QString& reason);
+    void safetyFault(const QString& reason);
+    void linkLost();
 
     // Progression trame binaire
     void ackReceived(int bufLevel, int segIndex);
@@ -95,10 +104,14 @@ private slots:
     void onReadyRead();
     void onAckTimeout();
     void onSerialError(QSerialPort::SerialPortError error);
+    void sendHeartbeat();
+    void onLinkTimeout();
 
 private:
     QSerialPort  m_serial;
     QTimer       m_ackTimer;
+    QTimer       m_pingTimer;
+    QTimer       m_linkTimer;
     QByteArray   m_readBuffer;
 
     uint16_t m_globalSeqId = 0;
@@ -111,15 +124,24 @@ private:
     int  m_sentSinceAck = 0;
 
     QList<QByteArray> m_unackedBatch;  // trame courante pour retransmission NAK
+    QList<uint16_t>   m_unackedSeqIds;
     int  m_nakCount = 0;               // NAK consécutifs sur la trame courante
+    bool m_linkHealthy = false;
+    bool m_heartbeatSuspended = false;
+    bool m_streamingActive = false;
+    StmHealth m_health;
 
     // --- Encodage trame binaire ---
     QByteArray encodeFrame(const StmSegment& seg, uint16_t seqId);
-    static uint8_t    calcChecksum(const QByteArray& frame);
+    static uint16_t   calcCrc16(const QByteArray& frame);
 
     // --- Parsing ASCII ---
     void processLine(const QByteArray& line);
     static RecoveryData parseRecoveryPayload(const QByteArray& line);
+    static MachineState parseMachineState(const QByteArray& value);
+    static StmHealth parseHealthPayload(const QByteArray& line);
 
     void retransmitLastFrame();
+    void markHostActivity();
+    void markUnsafeLink(const QString& reason);
 };

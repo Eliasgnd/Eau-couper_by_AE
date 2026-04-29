@@ -5,7 +5,6 @@
 #include <QDebug>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
-#include <QMessageBox>
 #include <QMutexLocker>
 #include <algorithm>
 #include <cmath>
@@ -52,11 +51,20 @@ void TrajetMotor::setMachineViewModel(MachineViewModel* vm) { m_machine = vm; }
 void TrajetMotor::setVcut(double vitesse_mm_s)    { m_vCut  = qBound(1.0, vitesse_mm_s, 200.0); }
 void TrajetMotor::setVtravel(double vitesse_mm_s) { m_vTrav = qBound(1.0, vitesse_mm_s, 300.0); }
 
+bool TrajetMotor::prepareTrajet()
+{
+    if (m_running || !m_visu || !m_visu->getScene())
+        return false;
+    return buildPlannedSegments();
+}
+
 void TrajetMotor::executeTrajet()
 {
     if (m_running)
         return;
     if (!m_visu || !m_visu->getScene())
+        return;
+    if (m_plannedSegments.isEmpty() && !buildPlannedSegments())
         return;
 
     m_running       = true;
@@ -75,24 +83,16 @@ void TrajetMotor::executeTrajet()
     m_workerThread->start();
 }
 
-void TrajetMotor::doExecuteTrajet()
+bool TrajetMotor::buildPlannedSegments()
 {
     const QPoint homePos(HOME_X, HOME_Y);
 
-    QList<ContinuousCut> rawCuts;
-    QMetaObject::invokeMethod(this, [this, &rawCuts]() {
-        rawCuts = PathPlanner::extractRawPaths(m_visu->getScene());
-    }, Qt::BlockingQueuedConnection);
+    const QList<ContinuousCut> rawCuts = PathPlanner::extractRawPaths(m_visu->getScene());
 
     QList<ContinuousCut> optimizedCuts = PathPlanner::computeOptimizedPaths(rawCuts, homePos);
 
-    if (optimizedCuts.isEmpty()) {
-        QMetaObject::invokeMethod(this, [this]() {
-            m_visu->setDecoupeEnCours(false);
-            m_running = false;
-        }, Qt::QueuedConnection);
-        return;
-    }
+    if (optimizedCuts.isEmpty())
+        return false;
 
     m_plannedSegments.clear();
     m_remainingMsByCompletedSegments.clear();
@@ -161,12 +161,20 @@ void TrajetMotor::doExecuteTrajet()
         m_remainingMsByCompletedSegments[i] = remainingMs;
     }
     m_remainingMsByCompletedSegments[m_plannedSegments.size()] = 0;
+    return !m_plannedSegments.isEmpty();
+}
 
-    QMetaObject::invokeMethod(this, [this]() {
-        if (m_machine)
-            m_machine->sendClear();
-    }, Qt::BlockingQueuedConnection);
-    QThread::msleep(30);
+void TrajetMotor::doExecuteTrajet()
+{
+    const QPoint homePos(HOME_X, HOME_Y);
+
+    if (m_plannedSegments.isEmpty()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            m_visu->setDecoupeEnCours(false);
+            m_running = false;
+        }, Qt::QueuedConnection);
+        return;
+    }
 
     m_isCurrentlyCutting.store(m_plannedSegments.isEmpty() ? false : m_plannedSegments[0].isCut);
 
@@ -220,9 +228,6 @@ void TrajetMotor::doExecuteTrajet()
         emit decoupeProgress(totalSegments, qMax(1, totalSegments), 0);
         emit decoupeFinished(success);
 
-        QMessageBox::information(m_mainWindow,
-                                 success ? tr("Decoupe terminee") : tr("Decoupe interrompue"),
-                                 success ? tr("Decoupe reussie !") : tr("L'operation a ete stoppee."));
     }, Qt::QueuedConnection);
 }
 

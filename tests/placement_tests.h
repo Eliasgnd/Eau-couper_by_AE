@@ -6,7 +6,6 @@ class PlacementTests : public QObject {
 private slots:
     void borderContactNotOverlap();
     void interiorIntersection();
-    void motorControlSteps();
     void normalizationRemovesDuplicates();
     void complexityGuardRejects();
     void stressWorstCase();

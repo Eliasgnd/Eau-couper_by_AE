@@ -45,6 +45,16 @@ MachineViewModel::MachineViewModel(QObject* parent)
             this,   &MachineViewModel::onComError);
     connect(m_uart, &StmUartService::rawLineReceived,
             this,   &MachineViewModel::onRawLineReceived);
+    connect(m_uart, &StmUartService::healthChanged,
+            this,   &MachineViewModel::onHealthChanged);
+    connect(m_uart, &StmUartService::prestartAccepted,
+            this,   &MachineViewModel::onPrestartAccepted);
+    connect(m_uart, &StmUartService::prestartRejected,
+            this,   &MachineViewModel::onPrestartRejected);
+    connect(m_uart, &StmUartService::safetyFault,
+            this,   &MachineViewModel::onSafetyFault);
+    connect(m_uart, &StmUartService::linkLost,
+            this,   &MachineViewModel::onLinkLost);
     connect(m_uart, &StmUartService::valveOnConfirmed,
             this,   &MachineViewModel::onValveOnConfirmed);
     connect(m_uart, &StmUartService::valveOffConfirmed,
@@ -77,6 +87,7 @@ void MachineViewModel::setState(MachineState s)
     if (m_state == s) return;
     m_state = s;
     emit stateChanged(s);
+    updateSafetyReady();
 }
 
 void MachineViewModel::setStatus(const QString& msg)
@@ -95,6 +106,23 @@ void MachineViewModel::connectToStm(const QString& portName)
     m_uart->open(portName);
 }
 
+bool MachineViewModel::isSafetyReady() const
+{
+    return m_connected
+        && m_linkHealthy
+        && m_homed
+        && m_state == MachineState::READY;
+}
+
+void MachineViewModel::updateSafetyReady()
+{
+    const bool ready = isSafetyReady();
+    if (m_safetyReady == ready)
+        return;
+    m_safetyReady = ready;
+    emit safetyReadyChanged(ready);
+}
+
 void MachineViewModel::disconnectFromStm()
 {
     m_uart->close();
@@ -107,6 +135,9 @@ void MachineViewModel::disconnectFromStm()
 void MachineViewModel::sendHome()
 {
     if (!m_connected) { setStatus(tr("Non connecté.")); return; }
+    m_homed = false;
+    m_prestartAccepted = false;
+    updateSafetyReady();
     m_uart->sendAsciiCommand(QStringLiteral("HOME"));
 }
 
@@ -163,6 +194,7 @@ void MachineViewModel::sendClear()
     if (!m_connected) return;
     m_uart->sendAsciiCommand(QStringLiteral("CLEAR"));
     m_hasRecovery = false;
+    m_prestartAccepted = false;
 }
 
 bool MachineViewModel::sendSegment(const StmSegment& seg)
@@ -173,6 +205,11 @@ bool MachineViewModel::sendSegment(const StmSegment& seg)
     // 2. Vérification de l'état de la machine
     if (m_state != MachineState::READY && m_state != MachineState::MOVING)
         return false;
+
+    if (!m_prestartAccepted) {
+        setStatus(tr("Découpe bloquée — préflight STM non validé."));
+        return false;
+    }
 
     // 3. Sécurité : refuser descente Z sans confirmation opérateur
     if (seg.dz < 0 && !m_zDescentConfirmed) {
@@ -200,6 +237,31 @@ bool MachineViewModel::sendSegment(const StmSegment& seg)
     return true;
 }
 
+bool MachineViewModel::requestPrestart(int segmentCount)
+{
+    if (!m_connected) {
+        setStatus(tr("Préflight impossible : STM32 non connecté."));
+        return false;
+    }
+    if (!isSafetyReady()) {
+        setStatus(tr("Préflight impossible : liaison sûre, READY et homing requis."));
+        return false;
+    }
+    if (segmentCount <= 0) {
+        setStatus(tr("Préflight impossible : aucune trajectoire à envoyer."));
+        return false;
+    }
+
+    m_prestartAccepted = false;
+    ++m_pendingSessionId;
+    if (m_pendingSessionId == 0)
+        m_pendingSessionId = 1;
+
+    m_uart->requestPrestart(m_pendingSessionId, segmentCount);
+    setStatus(tr("Préflight STM en cours..."));
+    return true;
+}
+
 void MachineViewModel::confirmZDescent()
 {
     m_zDescentConfirmed = true;
@@ -213,13 +275,18 @@ void MachineViewModel::onConnectionChanged(bool connected)
 {
     m_connected = connected;
     if (!connected) {
+        m_linkHealthy = false;
+        m_prestartAccepted = false;
         setState(MachineState::DISCONNECTED);
         setStatus(tr("Déconnecté du STM32."));
     } else {
+        m_linkHealthy = false;
+        m_prestartAccepted = false;
         setState(MachineState::DISCONNECTED); // sera mis à jour au 1er READY
         setStatus(tr("Connecté — en attente du STM32..."));
     }
     emit connectionChanged(connected);
+    updateSafetyReady();
 }
 
 void MachineViewModel::onAckReceived(int bufLevel, int segIndex)
@@ -243,6 +310,7 @@ void MachineViewModel::onDoneReceived()
     setStatus(tr("Trajectoire terminée."));
     m_bufferLevel      = 0;
     m_sentSinceLastAck = 0;
+    m_prestartAccepted = false;
     emit bufferLevelChanged(0);
     emit doneReceived();
 }
@@ -251,19 +319,25 @@ void MachineViewModel::onHomingMessage(const QString& msg)
 {
     setState(MachineState::HOMING);
     if (msg == QLatin1String("HOMED")) {
+        m_homed = true;
         setState(MachineState::READY);
         setStatus(tr("Homing terminé — machine prête."));
         // Reset de la position logique
         m_posX = 0; m_posY = 0; m_posZ = 0;
         emit positionChanged(0.0, 0.0, 0.0);
     } else {
+        if (msg.startsWith(QLatin1String("HOMING")))
+            m_homed = false;
         setStatus(tr("Homing : %1").arg(msg));
     }
     emit homingProgress(msg);
+    updateSafetyReady();
 }
 
 void MachineViewModel::onHomingError(const QString& axis)
 {
+    m_homed = false;
+    m_prestartAccepted = false;
     setState(MachineState::ALARM);
     setStatus(tr("Erreur homing axe %1 — vérifier la mécanique.").arg(axis));
     emit errorOccurred(QLatin1String("HOMING_") + axis);
@@ -271,12 +345,14 @@ void MachineViewModel::onHomingError(const QString& axis)
 
 void MachineViewModel::onEmergencyTriggered()
 {
+    m_prestartAccepted = false;
     setState(MachineState::EMERGENCY);
     setStatus(tr("ARRÊT D'URGENCE — relâcher l'AU puis envoyer R pour réarmer."));
 }
 
 void MachineViewModel::onAlarmTriggered(const QString& axis)
 {
+    m_prestartAccepted = false;
     setState(MachineState::ALARM);
     if (axis == QLatin1String("LIM_HIT"))
         setStatus(tr("Fin de course atteint — envoyer R pour réarmer."));
@@ -325,6 +401,7 @@ void MachineViewModel::onReadyReceived()
     setStatus(tr("Machine prête."));
     m_bufferLevel      = 0;
     m_sentSinceLastAck = 0;
+    updateSafetyReady();
 }
 
 void MachineViewModel::onStartupBannerReceived()
@@ -332,7 +409,10 @@ void MachineViewModel::onStartupBannerReceived()
     // Banner reçu hors boot initial → redémarrage watchdog STM
     if (m_connected && m_state != MachineState::DISCONNECTED)
         setStatus(tr("ATTENTION : Redémarrage inattendu du STM32 détecté (watchdog)."));
+    m_linkHealthy = false;
+    m_prestartAccepted = false;
     setState(MachineState::DISCONNECTED);
+    updateSafetyReady();
 }
 
 void MachineViewModel::onErrorReceived(const QString& code)
@@ -343,6 +423,9 @@ void MachineViewModel::onErrorReceived(const QString& code)
 
 void MachineViewModel::onComError(const QString& reason)
 {
+    m_linkHealthy = false;
+    m_prestartAccepted = false;
+    updateSafetyReady();
     setStatus(tr("Erreur communication : %1").arg(reason));
     emit errorOccurred(reason);
 }
@@ -350,6 +433,54 @@ void MachineViewModel::onComError(const QString& reason)
 void MachineViewModel::onRawLineReceived(const QString& line)
 {
     emit rxLine(line);
+}
+
+void MachineViewModel::onHealthChanged(StmHealth health)
+{
+    m_linkHealthy = health.valid && health.fault.isEmpty();
+    m_homed = health.homed;
+    if (health.state != MachineState::DISCONNECTED)
+        setState(health.state);
+    updateSafetyReady();
+}
+
+void MachineViewModel::onPrestartAccepted(quint32 sessionId)
+{
+    if (sessionId != m_pendingSessionId) {
+        setStatus(tr("Préflight ignoré : session STM inattendue."));
+        return;
+    }
+    m_activeSessionId = sessionId;
+    m_prestartAccepted = true;
+    setStatus(tr("Préflight STM validé — découpe autorisée."));
+    emit prestartAccepted();
+}
+
+void MachineViewModel::onPrestartRejected(const QString& reason)
+{
+    m_prestartAccepted = false;
+    setStatus(tr("Préflight refusé : %1").arg(reason));
+    emit prestartRejected(reason);
+}
+
+void MachineViewModel::onSafetyFault(const QString& reason)
+{
+    m_linkHealthy = false;
+    m_prestartAccepted = false;
+    setState(MachineState::ALARM);
+    setStatus(tr("Défaut sécurité STM : %1").arg(reason));
+    emit safetyFault(reason);
+    updateSafetyReady();
+}
+
+void MachineViewModel::onLinkLost()
+{
+    m_linkHealthy = false;
+    m_prestartAccepted = false;
+    setState(MachineState::DISCONNECTED);
+    setStatus(tr("Liaison STM perdue — découpe bloquée."));
+    emit linkLost();
+    updateSafetyReady();
 }
 
 void MachineViewModel::onValveOnConfirmed()  { emit valveOnConfirmed(); }
@@ -372,6 +503,7 @@ void MachineViewModel::sendResume()
 void MachineViewModel::sendStop()
 {
     if (!m_connected) return;
+    m_prestartAccepted = false;
     m_uart->sendAsciiCommand(QStringLiteral("AU"));
 }
 

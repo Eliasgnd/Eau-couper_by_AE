@@ -1,4 +1,6 @@
 #pragma once
+#include <QMetaType>
+#include <QString>
 #include <cstdint>
 
 // ============================================================
@@ -16,6 +18,10 @@ static constexpr int    ACK_TIMEOUT_MS      = 3000;  // timeout ACK (ms), sur EN
 static constexpr int    SEG_DONE_INTERVAL   = 10;    // miroir du #define firmware : SEG_DONE émis toutes les N exécutions
 static constexpr int    MAX_NAK_RETRY       = 3;     // NAK consécutifs avant erreur
 static constexpr int    STM_MAX_IN_FLIGHT   = 15;
+static constexpr int    STM_FRAME_LEN       = 20;    // sync + seq + dx/dy/dz + v + flags + CRC16
+static constexpr int    STM_HEARTBEAT_MS    = 500;
+static constexpr int    STM_LINK_TIMEOUT_MS = 1500;
+static constexpr int    STM_PROTOCOL_FAULT_LIMIT = 3;
 
 // --- Flags de segment (byte [9] de la trame binaire) ---
 static constexpr uint8_t FLAG_END_SEQ   = 0x01;  // Dernier segment — décélération + DONE
@@ -36,6 +42,30 @@ enum class MachineState {
     EMERGENCY,        // Arrêt d'urgence actif
     ALARM             // Alarme driver ou fin de course
 };
+
+struct StmHealth {
+    bool valid = false;
+    MachineState state = MachineState::DISCONNECTED;
+    bool armed = false;
+    bool homed = false;
+    QString fault;
+};
+Q_DECLARE_METATYPE(StmHealth)
+
+inline uint16_t stmCrc16(const uint8_t* data, int len)
+{
+    uint16_t crc = 0xFFFFu;
+    for (int i = 0; i < len; ++i) {
+        crc ^= static_cast<uint16_t>(data[i]) << 8;
+        for (int bit = 0; bit < 8; ++bit) {
+            if (crc & 0x8000u)
+                crc = static_cast<uint16_t>((crc << 1) ^ 0x1021u);
+            else
+                crc = static_cast<uint16_t>(crc << 1);
+        }
+    }
+    return crc;
+}
 
 // --- Segment de trajectoire (une trame binaire de 11 octets) ---
 struct StmSegment {

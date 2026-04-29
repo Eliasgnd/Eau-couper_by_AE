@@ -560,13 +560,21 @@ void MainWindow::setSpinboxSliderEnabled(bool enabled)
     ui->spaceSpinBox->setEnabled(enabled);
 }
 
-void MainWindow::onCutFinished(bool /*success*/)
+void MainWindow::onCutFinished(bool success)
 {
     ui->progressBar->setValue(0);
     ui->progressBar->setVisible(false);
     ui->progressBar->setFormat(tr("Decoupe estimee : %p%"));
-    if (ui->timeRemainingLabel)
-        ui->timeRemainingLabel->setText(tr("Temps restant estime : --"));
+    if (ui->timeRemainingLabel) {
+        const QString message = success
+            ? tr("Decoupe terminee")
+            : tr("Decoupe interrompue");
+        ui->timeRemainingLabel->setText(message);
+        QTimer::singleShot(3500, this, [this, message]() {
+            if (ui->timeRemainingLabel && ui->timeRemainingLabel->text() == message)
+                ui->timeRemainingLabel->setText(tr("Temps restant estime : --"));
+        });
+    }
 }
 
 void MainWindow::onLanguageApplied(Language lang, bool ok)
