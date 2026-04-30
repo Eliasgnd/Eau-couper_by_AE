@@ -16,7 +16,7 @@ unix {
 # ==== PLATEFORME WINDOWS ====
 win32 {
     # Suppression de l'avertissement de caractères non conformes (C4828)
-    QMAKE_CXXFLAGS += /wd4828 /wd4267
+    win32-msvc*: QMAKE_CXXFLAGS += /wd4828 /wd4267
 
     # OpenCV
     INCLUDEPATH += C:/opencv/build/include
@@ -74,7 +74,7 @@ SOURCES += \
     $$LEMON_ROOT/bits/windows.cc
 
 # On ignore les alertes de conversion mineures
-win32: QMAKE_CXXFLAGS += /wd4267 /wd4828 /wd4244
+win32-msvc*: QMAKE_CXXFLAGS += /wd4267 /wd4828 /wd4244
 
 # ==============================================================================
 # ==== PROJET SOURCES & HEADERS ====

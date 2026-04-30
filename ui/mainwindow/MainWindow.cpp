@@ -40,6 +40,8 @@
 #include <QSizeF>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <QShortcut>
+#include <QKeySequence>
 
 // --- Construction / Destruction ---
 
@@ -103,7 +105,7 @@ MainWindow::MainWindow(QWidget *parent,
         if (!machineVm || machineVm->isConnected())
             return;
 
-        machineVm->connectToStm(QString());
+        machineVm->connectAndInitialize(QString());
     });
 
     // Fix Cause A : SpinBox_vitesse::valueChanged(10) a été émis pendant setupUi()
@@ -186,6 +188,15 @@ void MainWindow::setupUI()
         ui->tabSystemLayout->insertWidget(insertIndex, ui->buttonCustom);
         ui->tabSystemLayout->insertWidget(insertIndex + 1, ui->buttonInventory);
     }
+
+    ui->buttonHome->hide();
+    ui->buttonReset->hide();
+    ui->buttonRearm->hide();
+    ui->buttonTestMoteurs->hide();
+    auto *maintenanceShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Alt+M")), this);
+    connect(maintenanceShortcut, &QShortcut::activated, this, [this]() {
+        emit stmTestRequested();
+    });
 
     connect(ui->leftTabWidget, &QTabWidget::currentChanged, this, [this](int) {
         QTimer::singleShot(0, this, [this]() { refreshQuickShapeButtons(); });
@@ -763,6 +774,7 @@ void MainWindow::rebuildQuickShapeButtons()
         ui->gridShapes->addWidget(button, row, column);
         m_quickShapeButtons.append(button);
     }
+
 }
 
 void MainWindow::setupSurfaceEditTabs()
@@ -897,19 +909,23 @@ void MainWindow::onMachineStateChanged(MachineState state)
 {
     struct StateStyle { QString label; QString bg; QString fg; };
     static const QMap<MachineState, StateStyle> styles = {
-        { MachineState::DISCONNECTED,  { tr("DECONNECTE"),   "#272A30", "#94A3B8" } },
-        { MachineState::READY,         { tr("PRET"),         "#15803D", "#FFFFFF" } },
-        { MachineState::MOVING,        { tr("EN MOUVEMENT"), "#0284C7", "#FFFFFF" } },
-        { MachineState::HOMING,        { tr("HOMING"),       "#7E22CE", "#FFFFFF" } },
+        { MachineState::DISCONNECTED,  { tr("DECONNECTE"),      "#272A30", "#94A3B8" } },
+        { MachineState::BOOTING,       { tr("INITIALISATION"),  "#334155", "#FFFFFF" } },
+        { MachineState::READY,         { tr("PRET"),            "#15803D", "#FFFFFF" } },
+        { MachineState::CUTTING,       { tr("DECOUPE"),         "#0284C7", "#FFFFFF" } },
+        { MachineState::PAUSED,        { tr("PAUSE"),           "#B45309", "#FFFFFF" } },
+        { MachineState::STOPPING,      { tr("ARRET"),           "#B45309", "#FFFFFF" } },
+        { MachineState::FAULT,         { tr("DEFAUT"),          "#C2410C", "#FFFFFF" } },
+        { MachineState::HOMING,        { tr("REFERENCEMENT"),   "#7E22CE", "#FFFFFF" } },
         { MachineState::RECOVERY_WAIT, { tr("RECOVERY"),     "#B45309", "#FFFFFF" } },
         { MachineState::EMERGENCY,     { tr("URGENCE"),      "#991B1B", "#FFFFFF" } },
-        { MachineState::ALARM,         { tr("ALARME"),       "#C2410C", "#FFFFFF" } },
+        { MachineState::MAINTENANCE,   { tr("MAINTENANCE"),  "#475569", "#FFFFFF" } },
     };
 
     const StateStyle &s = styles.value(state, styles[MachineState::DISCONNECTED]);
 
     // Déterminer si la machine est en découpe / mouvement
-    m_isCutting = (state == MachineState::MOVING || state == MachineState::HOMING);
+    m_isCutting = (state == MachineState::CUTTING || state == MachineState::PAUSED || state == MachineState::STOPPING || state == MachineState::HOMING);
     updatePositionLabelDisplay();
 
     ui->labelMachineState->setText(s.label);

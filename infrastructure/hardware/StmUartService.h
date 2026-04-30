@@ -37,6 +37,8 @@ public:
     void sendSegment(const StmSegment& seg);
     void sendAsciiCommand(const QString& cmd);   // envoie cmd + "\r\n"
     void requestPrestart(quint32 sessionId, int segmentCount);
+    void sendControlledStop();
+    void sendEmergencyStop();
 
     // Retourne true si le buffer STM estimé est plein — TrajetMotor doit patienter.
     bool isFull() const;
@@ -61,6 +63,7 @@ signals:
     void ackReceived(int bufLevel, int segIndex);
     void nakReceived();
     void doneReceived();
+    void controlledStopReceived();
 
     // Homing
     void homingMessage(const QString& msg);   // HOMING..., Z OK, X OK, Y OK, HOMED
@@ -129,6 +132,10 @@ private:
     bool m_linkHealthy = false;
     bool m_heartbeatSuspended = false;
     bool m_streamingActive = false;
+    qint64 m_lastTxMs = 0;
+    qint64 m_lastRxMs = 0;
+    QString m_portName;
+    QString m_lastRxLine;
     StmHealth m_health;
 
     // --- Encodage trame binaire ---
@@ -143,5 +150,7 @@ private:
 
     void retransmitLastFrame();
     void markHostActivity();
+    void markHostTransmit(const QString& label);
     void markUnsafeLink(const QString& reason);
+    static qint64 nowMs();
 };

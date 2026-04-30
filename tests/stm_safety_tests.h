@@ -11,4 +11,7 @@ private slots:
     void parsesPrestartAccepted();
     void parsesSafetyFault();
     void parsesAckWithSequence();
+    void parsesPausedAndResumed();
+    void parsesControlledStop();
+    void parsesExtendedHealthDiagnostics();
 };

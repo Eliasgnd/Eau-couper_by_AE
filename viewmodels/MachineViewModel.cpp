@@ -19,6 +19,8 @@ MachineViewModel::MachineViewModel(QObject* parent)
             this,   &MachineViewModel::onNakReceived);
     connect(m_uart, &StmUartService::doneReceived,
             this,   &MachineViewModel::onDoneReceived);
+    connect(m_uart, &StmUartService::controlledStopReceived,
+            this,   &MachineViewModel::onControlledStopReceived);
     connect(m_uart, &StmUartService::homingMessage,
             this,   &MachineViewModel::onHomingMessage);
     connect(m_uart, &StmUartService::homingError,
@@ -103,6 +105,14 @@ void MachineViewModel::setStatus(const QString& msg)
 
 void MachineViewModel::connectToStm(const QString& portName)
 {
+    m_autoInitialize = false;
+    m_uart->open(portName);
+}
+
+void MachineViewModel::connectAndInitialize(const QString& portName)
+{
+    m_autoInitialize = true;
+    m_autoHomingRequested = false;
     m_uart->open(portName);
 }
 
@@ -111,6 +121,7 @@ bool MachineViewModel::isSafetyReady() const
     return m_connected
         && m_linkHealthy
         && m_homed
+        && !m_valveOpen
         && m_state == MachineState::READY;
 }
 
@@ -121,6 +132,20 @@ void MachineViewModel::updateSafetyReady()
         return;
     m_safetyReady = ready;
     emit safetyReadyChanged(ready);
+}
+
+void MachineViewModel::maybeStartAutomaticHoming()
+{
+    if (!m_autoInitialize || m_autoHomingRequested || !m_connected || !m_linkHealthy)
+        return;
+    if (m_homed || m_valveOpen)
+        return;
+    if (m_state != MachineState::READY && m_state != MachineState::BOOTING)
+        return;
+
+    m_autoHomingRequested = true;
+    setStatus(tr("Initialisation machine : referencement automatique..."));
+    sendHome();
 }
 
 void MachineViewModel::disconnectFromStm()
@@ -135,6 +160,10 @@ void MachineViewModel::disconnectFromStm()
 void MachineViewModel::sendHome()
 {
     if (!m_connected) { setStatus(tr("Non connecté.")); return; }
+    if (m_state == MachineState::CUTTING || m_state == MachineState::PAUSED || m_state == MachineState::STOPPING) {
+        setStatus(tr("HOME refuse pendant une decoupe."));
+        return;
+    }
     m_homed = false;
     m_prestartAccepted = false;
     updateSafetyReady();
@@ -150,7 +179,7 @@ void MachineViewModel::sendPositionReset()
 void MachineViewModel::sendRearm()
 {
     if (!m_connected) { setStatus(tr("Non connecté.")); return; }
-    if (m_state != MachineState::EMERGENCY && m_state != MachineState::ALARM) {
+    if (m_state != MachineState::EMERGENCY && m_state != MachineState::FAULT) {
         setStatus(tr("Réarmement impossible hors état URGENCE/ALARME."));
         return;
     }
@@ -203,7 +232,7 @@ bool MachineViewModel::sendSegment(const StmSegment& seg)
     if (!m_connected) return false;
 
     // 2. Vérification de l'état de la machine
-    if (m_state != MachineState::READY && m_state != MachineState::MOVING)
+    if (m_state != MachineState::READY && m_state != MachineState::CUTTING)
         return false;
 
     if (!m_prestartAccepted) {
@@ -228,7 +257,7 @@ bool MachineViewModel::sendSegment(const StmSegment& seg)
     }
 
     // 5. Mise à jour de l'état et envoi
-    setState(MachineState::MOVING);
+    setState(MachineState::CUTTING);
     m_uart->sendSegment(seg);
 
     // NB: On a retiré le ++m_sentSinceLastAck ici car c'est désormais
@@ -277,13 +306,14 @@ void MachineViewModel::onConnectionChanged(bool connected)
     if (!connected) {
         m_linkHealthy = false;
         m_prestartAccepted = false;
+        m_autoHomingRequested = false;
         setState(MachineState::DISCONNECTED);
         setStatus(tr("Déconnecté du STM32."));
     } else {
         m_linkHealthy = false;
         m_prestartAccepted = false;
-        setState(MachineState::DISCONNECTED); // sera mis à jour au 1er READY
-        setStatus(tr("Connecté — en attente du STM32..."));
+        setState(MachineState::BOOTING);
+        setStatus(tr("Initialisation machine : attente du STM32..."));
     }
     emit connectionChanged(connected);
     updateSafetyReady();
@@ -307,12 +337,31 @@ void MachineViewModel::onNakReceived()
 void MachineViewModel::onDoneReceived()
 {
     setState(MachineState::READY);
-    setStatus(tr("Trajectoire terminée."));
+    setStatus(tr("Trajectoire terminee - referencement automatique requis."));
+    m_homed = false;
+    m_autoHomingRequested = false;
     m_bufferLevel      = 0;
     m_sentSinceLastAck = 0;
     m_prestartAccepted = false;
     emit bufferLevelChanged(0);
     emit doneReceived();
+    updateSafetyReady();
+    maybeStartAutomaticHoming();
+}
+
+void MachineViewModel::onControlledStopReceived()
+{
+    setState(MachineState::READY);
+    setStatus(tr("Arret controle termine - referencement automatique requis."));
+    m_homed = false;
+    m_autoHomingRequested = false;
+    m_bufferLevel = 0;
+    m_sentSinceLastAck = 0;
+    m_prestartAccepted = false;
+    emit bufferLevelChanged(0);
+    emit doneReceived();
+    updateSafetyReady();
+    maybeStartAutomaticHoming();
 }
 
 void MachineViewModel::onHomingMessage(const QString& msg)
@@ -338,7 +387,7 @@ void MachineViewModel::onHomingError(const QString& axis)
 {
     m_homed = false;
     m_prestartAccepted = false;
-    setState(MachineState::ALARM);
+    setState(MachineState::FAULT);
     setStatus(tr("Erreur homing axe %1 — vérifier la mécanique.").arg(axis));
     emit errorOccurred(QLatin1String("HOMING_") + axis);
 }
@@ -353,7 +402,7 @@ void MachineViewModel::onEmergencyTriggered()
 void MachineViewModel::onAlarmTriggered(const QString& axis)
 {
     m_prestartAccepted = false;
-    setState(MachineState::ALARM);
+    setState(MachineState::FAULT);
     if (axis == QLatin1String("LIM_HIT"))
         setStatus(tr("Fin de course atteint — envoyer R pour réarmer."));
     else
@@ -402,6 +451,7 @@ void MachineViewModel::onReadyReceived()
     m_bufferLevel      = 0;
     m_sentSinceLastAck = 0;
     updateSafetyReady();
+    maybeStartAutomaticHoming();
 }
 
 void MachineViewModel::onStartupBannerReceived()
@@ -439,9 +489,15 @@ void MachineViewModel::onHealthChanged(StmHealth health)
 {
     m_linkHealthy = health.valid && health.fault.isEmpty();
     m_homed = health.homed;
+    m_valveOpen = health.valveOpen;
+    if (health.bufferLevel >= 0 && m_bufferLevel != health.bufferLevel) {
+        m_bufferLevel = health.bufferLevel;
+        emit bufferLevelChanged(m_bufferLevel);
+    }
     if (health.state != MachineState::DISCONNECTED)
         setState(health.state);
     updateSafetyReady();
+    maybeStartAutomaticHoming();
 }
 
 void MachineViewModel::onPrestartAccepted(quint32 sessionId)
@@ -467,7 +523,7 @@ void MachineViewModel::onSafetyFault(const QString& reason)
 {
     m_linkHealthy = false;
     m_prestartAccepted = false;
-    setState(MachineState::ALARM);
+    setState(MachineState::FAULT);
     setStatus(tr("Défaut sécurité STM : %1").arg(reason));
     emit safetyFault(reason);
     updateSafetyReady();
@@ -491,12 +547,20 @@ void MachineViewModel::onHomeAckConfirmed()  { emit homeAckConfirmed(); }
 void MachineViewModel::sendPause()
 {
     if (!m_connected) return;
+    if (m_state != MachineState::CUTTING) {
+        setStatus(tr("Pause impossible : aucune decoupe en cours."));
+        return;
+    }
     m_uart->sendAsciiCommand(QStringLiteral("PAUSE"));
 }
 
 void MachineViewModel::sendResume()
 {
     if (!m_connected) return;
+    if (m_state != MachineState::PAUSED) {
+        setStatus(tr("Reprise impossible : la machine n'est pas en pause."));
+        return;
+    }
     m_uart->sendAsciiCommand(QStringLiteral("RESUME"));
 }
 
@@ -504,7 +568,15 @@ void MachineViewModel::sendStop()
 {
     if (!m_connected) return;
     m_prestartAccepted = false;
-    m_uart->sendAsciiCommand(QStringLiteral("AU"));
+    setState(MachineState::STOPPING);
+    m_uart->sendControlledStop();
+}
+
+void MachineViewModel::sendEmergencyStop()
+{
+    if (!m_connected) return;
+    m_prestartAccepted = false;
+    m_uart->sendEmergencyStop();
 }
 
 void MachineViewModel::onSegDoneReceived(int seg, int x, int y)
@@ -517,11 +589,13 @@ void MachineViewModel::onSegDoneReceived(int seg, int x, int y)
 
 void MachineViewModel::onPausedConfirmed()
 {
+    setState(MachineState::PAUSED);
     emit machinePaused();
 }
 
 void MachineViewModel::onResumedConfirmed()
 {
+    setState(MachineState::CUTTING);
     emit machineResumed();
 }
 

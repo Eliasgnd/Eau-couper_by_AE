@@ -45,6 +45,7 @@ public:
 public slots:
     // Connexion au port série
     void connectToStm(const QString& portName);
+    void connectAndInitialize(const QString& portName = QString());
     void disconnectFromStm();
 
     // Commandes machine → STM (les préconditions d'état sont vérifiées ici)
@@ -71,7 +72,8 @@ public slots:
     // Commandes de contrôle découpe
     void sendPause();   // PAUSE  — stoppe après le segment courant
     void sendResume();  // RESUME — reprend depuis le buffer STM
-    void sendStop();    // AU     — arrêt d'urgence, vide le buffer STM
+    void sendStop();    // STOP_CONTROLLED - arret operateur controle
+    void sendEmergencyStop(); // AU - arret d'urgence logiciel
 
 signals:
     void stateChanged(MachineState state);
@@ -134,6 +136,7 @@ private slots:
     void onValveOffConfirmed();
     void onPosResetConfirmed();
     void onHomeAckConfirmed();
+    void onControlledStopReceived();
 
     // Nouveaux slots — réponses STM
     void onSegDoneReceived(int seg, int x, int y);
@@ -144,6 +147,7 @@ private:
     void setState(MachineState s);
     void setStatus(const QString& msg);
     void updateSafetyReady();
+    void maybeStartAutomaticHoming();
 
     StmUartService* m_uart          = nullptr;
 
@@ -161,9 +165,12 @@ private:
     bool            m_zDescentConfirmed  = false;  // sécurité descente Z
     int             m_sentSinceLastAck   = 0;      // segments envoyés depuis le dernier ACK (estimation buffer)
     bool            m_homed              = false;
+    bool            m_valveOpen          = false;
     bool            m_linkHealthy        = false;
     bool            m_safetyReady        = false;
     bool            m_prestartAccepted   = false;
+    bool            m_autoInitialize     = false;
+    bool            m_autoHomingRequested = false;
     quint32         m_pendingSessionId   = 0;
     quint32         m_activeSessionId    = 0;
 };

@@ -391,7 +391,7 @@ void StmTestDialog::appendLog(const QString &text, const QString &color)
 void StmTestDialog::updateButtonStates(MachineState state, bool connected)
 {
     const bool ready  = connected && (state == MachineState::READY);
-    const bool moving = connected && (state == MachineState::MOVING);
+    const bool moving = connected && (state == MachineState::CUTTING);
 
     // En mode test, HOME et RÉARMER sont accessibles dès la connexion
     // (le STM refusera la commande si l'état n'est pas compatible)
@@ -410,13 +410,17 @@ void StmTestDialog::updateButtonStates(MachineState state, bool connected)
 QString StmTestDialog::stateToString(MachineState state) const
 {
     switch (state) {
-    case MachineState::DISCONNECTED:   return tr("DÉCONNECTÉ");
+    case MachineState::DISCONNECTED:   return tr("DECONNECTE");
+    case MachineState::BOOTING:        return tr("INITIALISATION");
     case MachineState::READY:          return tr("READY");
-    case MachineState::MOVING:         return tr("EN MOUVEMENT");
+    case MachineState::CUTTING:        return tr("DECOUPE");
+    case MachineState::PAUSED:         return tr("PAUSE");
+    case MachineState::STOPPING:       return tr("ARRET");
+    case MachineState::FAULT:          return tr("DEFAUT");
+    case MachineState::MAINTENANCE:    return tr("MAINTENANCE");
     case MachineState::HOMING:         return tr("HOMING...");
     case MachineState::RECOVERY_WAIT:  return tr("ATTENTE GO");
     case MachineState::EMERGENCY:      return tr("URGENCE");
-    case MachineState::ALARM:          return tr("ALARME");
     }
     return tr("INCONNU");
 }
@@ -424,13 +428,17 @@ QString StmTestDialog::stateToString(MachineState state) const
 QString StmTestDialog::stateToColor(MachineState state) const
 {
     switch (state) {
-    case MachineState::READY:         return "#a6e3a1"; // vert
-    case MachineState::MOVING:        return "#89b4fa"; // bleu
-    case MachineState::HOMING:        return "#f9e2af"; // jaune
-    case MachineState::RECOVERY_WAIT: return "#fab387"; // orange
-    case MachineState::EMERGENCY:     return "#f38ba8"; // rouge
-    case MachineState::ALARM:         return "#f38ba8"; // rouge
-    case MachineState::DISCONNECTED:  return "#6c7086"; // gris
+    case MachineState::BOOTING:       return "#f9e2af";
+    case MachineState::READY:         return "#a6e3a1";
+    case MachineState::CUTTING:       return "#89b4fa";
+    case MachineState::PAUSED:        return "#fab387";
+    case MachineState::STOPPING:      return "#fab387";
+    case MachineState::FAULT:         return "#f38ba8";
+    case MachineState::MAINTENANCE:   return "#cba6f7";
+    case MachineState::HOMING:        return "#f9e2af";
+    case MachineState::RECOVERY_WAIT: return "#fab387";
+    case MachineState::EMERGENCY:     return "#f38ba8";
+    case MachineState::DISCONNECTED:  return "#6c7086";
     }
     return "#6c7086";
 }

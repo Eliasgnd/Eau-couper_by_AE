@@ -34,13 +34,17 @@ static constexpr uint8_t STM_SYNC_BYTE = 0xAA;
 
 // --- État global de la machine (reflète les états du STM32) ---
 enum class MachineState {
-    DISCONNECTED,     // Port série non ouvert
-    READY,            // Prêt à recevoir des commandes
-    MOVING,           // Trajectoire en cours d'exécution
-    HOMING,           // Séquence de homing en cours
-    RECOVERY_WAIT,    // En attente de GO après recovery
-    EMERGENCY,        // Arrêt d'urgence actif
-    ALARM             // Alarme driver ou fin de course
+    DISCONNECTED,
+    BOOTING,
+    HOMING,
+    READY,
+    CUTTING,
+    PAUSED,
+    STOPPING,
+    FAULT,
+    EMERGENCY,
+    MAINTENANCE,
+    RECOVERY_WAIT
 };
 
 struct StmHealth {
@@ -48,6 +52,10 @@ struct StmHealth {
     MachineState state = MachineState::DISCONNECTED;
     bool armed = false;
     bool homed = false;
+    bool valveOpen = false;
+    int bufferLevel = -1;
+    int segmentsReceived = -1;
+    int segmentsDone = -1;
     QString fault;
 };
 Q_DECLARE_METATYPE(StmHealth)

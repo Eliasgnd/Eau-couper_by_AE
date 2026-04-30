@@ -1,5 +1,6 @@
 #include "StmUartService.h"
 #include <QDebug>
+#include <QDateTime>
 #include <QSerialPortInfo>
 #include <QtGlobal>
 #include <utility>
@@ -33,6 +34,11 @@ StmUartService::StmUartService(QObject* parent)
 StmUartService::~StmUartService()
 {
     close();
+}
+
+qint64 StmUartService::nowMs()
+{
+    return QDateTime::currentMSecsSinceEpoch();
 }
 
 // ----------------------------------------------------------
@@ -103,6 +109,10 @@ void StmUartService::open(const QString& portName)
         m_linkHealthy   = false;
         m_heartbeatSuspended = false;
         m_streamingActive = false;
+        m_lastTxMs = 0;
+        m_lastRxMs = 0;
+        m_portName = resolvedPortName;
+        m_lastRxLine.clear();
         m_health        = StmHealth{};
         emit connectionChanged(true);
         sendAsciiCommand(QStringLiteral("HELLO"));
@@ -124,6 +134,9 @@ void StmUartService::close()
         m_linkHealthy = false;
         m_heartbeatSuspended = false;
         m_streamingActive = false;
+        m_lastTxMs = 0;
+        m_lastRxMs = 0;
+        m_lastRxLine.clear();
         m_health = StmHealth{};
         m_serial.close();
         emit connectionChanged(false);
@@ -217,6 +230,9 @@ void StmUartService::sendSegment(const StmSegment& seg)
 {
     if (!m_serial.isOpen()) return;
 
+    if (m_streamingActive && (nowMs() - m_lastTxMs) >= STM_HEARTBEAT_MS)
+        sendAsciiCommand(QStringLiteral("PING"));
+
     // NOUVEAU : On génère l'ID pour ce segment précis, et on l'incrémente pour le prochain
     uint16_t currentSeqId = m_globalSeqId++;
 
@@ -231,6 +247,7 @@ void StmUartService::sendSegment(const StmSegment& seg)
     ++m_sentSinceAck;
 
     m_serial.write(frame);
+    markHostTransmit(QStringLiteral("SEGMENT"));
     m_ackTimer.start();
 
     const bool isEndSeq = (seg.flags & FLAG_END_SEQ) || (seg.flags & FLAG_HOME_SEQ);
@@ -250,6 +267,26 @@ void StmUartService::requestPrestart(quint32 sessionId, int segmentCount)
                          .arg(qMax(0, segmentCount)));
 }
 
+void StmUartService::sendControlledStop()
+{
+    m_streamingActive = false;
+    m_ackTimer.stop();
+    m_unackedBatch.clear();
+    m_unackedSeqIds.clear();
+    m_sentSinceAck = 0;
+    sendAsciiCommand(QStringLiteral("STOP_CONTROLLED"));
+}
+
+void StmUartService::sendEmergencyStop()
+{
+    m_streamingActive = false;
+    m_ackTimer.stop();
+    m_unackedBatch.clear();
+    m_unackedSeqIds.clear();
+    m_sentSinceAck = 0;
+    sendAsciiCommand(QStringLiteral("AU"));
+}
+
 // ----------------------------------------------------------
 //  Envoi — commande ASCII
 // ----------------------------------------------------------
@@ -262,7 +299,8 @@ void StmUartService::sendAsciiCommand(const QString& cmd)
     }
     QByteArray data = cmd.toUtf8() + "\r\n";
     m_serial.write(data);
-    if (cmd == QLatin1String("HOME") || cmd == QLatin1String("R")) {
+    markHostTransmit(cmd);
+    if (cmd == QLatin1String("HOME")) {
         m_heartbeatSuspended = true;
         m_linkTimer.stop();
     }
@@ -318,7 +356,10 @@ void StmUartService::onReadyRead()
 
 void StmUartService::processLine(const QByteArray& line)
 {
-    emit rawLineReceived(QString::fromUtf8(line));
+    const QString text = QString::fromUtf8(line);
+    m_lastRxLine = text;
+    m_lastRxMs = nowMs();
+    emit rawLineReceived(text);
     qDebug() << "[STM-UART] RX :" << line;
     markHostActivity();
 
@@ -451,6 +492,16 @@ void StmUartService::processLine(const QByteArray& line)
         m_streamingActive = false;
 
         emit doneReceived();
+        return;
+    }
+
+    if (line == "STOPPED" || line.startsWith("STOPPED|")) {
+        m_ackTimer.stop();
+        m_unackedBatch.clear();
+        m_unackedSeqIds.clear();
+        m_sentSinceAck = 0;
+        m_streamingActive = false;
+        emit controlledStopReceived();
         return;
     }
 
@@ -643,12 +694,18 @@ RecoveryData StmUartService::parseRecoveryPayload(const QByteArray& payload)
 
 MachineState StmUartService::parseMachineState(const QByteArray& value)
 {
+    if (value == "BOOTING") return MachineState::BOOTING;
     if (value == "READY") return MachineState::READY;
-    if (value == "MOVING") return MachineState::MOVING;
+    if (value == "MOVING") return MachineState::CUTTING;
+    if (value == "CUTTING") return MachineState::CUTTING;
     if (value == "HOMING") return MachineState::HOMING;
+    if (value == "PAUSED") return MachineState::PAUSED;
+    if (value == "STOPPING") return MachineState::STOPPING;
+    if (value == "FAULT") return MachineState::FAULT;
     if (value == "RECOVERY_WAIT") return MachineState::RECOVERY_WAIT;
     if (value == "EMERGENCY") return MachineState::EMERGENCY;
-    if (value == "ALARM") return MachineState::ALARM;
+    if (value == "ALARM") return MachineState::FAULT;
+    if (value == "MAINTENANCE") return MachineState::MAINTENANCE;
     return MachineState::DISCONNECTED;
 }
 
@@ -667,6 +724,14 @@ StmHealth StmUartService::parseHealthPayload(const QByteArray& line)
             health.armed = part.mid(6).toInt() != 0;
         } else if (part.startsWith("homed=")) {
             health.homed = part.mid(6).toInt() != 0;
+        } else if (part.startsWith("valve=")) {
+            health.valveOpen = part.mid(6).toInt() != 0;
+        } else if (part.startsWith("buf=")) {
+            health.bufferLevel = part.mid(4).toInt();
+        } else if (part.startsWith("seg_rx=")) {
+            health.segmentsReceived = part.mid(7).toInt();
+        } else if (part.startsWith("seg_done=")) {
+            health.segmentsDone = part.mid(9).toInt();
         } else if (part.startsWith("fault=")) {
             const QByteArray fault = part.mid(6);
             if (!fault.isEmpty() && fault != "NONE")
@@ -680,6 +745,17 @@ void StmUartService::markHostActivity()
 {
     if (m_serial.isOpen() && !m_heartbeatSuspended)
         m_linkTimer.start();
+}
+
+void StmUartService::markHostTransmit(const QString& label)
+{
+    m_lastTxMs = nowMs();
+    if (label != QLatin1String("PING")) {
+        qDebug() << "[STM-UART] TX :" << label
+                 << "| port=" << m_portName
+                 << "| lastRxAgeMs=" << (m_lastRxMs > 0 ? nowMs() - m_lastRxMs : -1)
+                 << "| lastRx=" << m_lastRxLine;
+    }
 }
 
 void StmUartService::markUnsafeLink(const QString& reason)
@@ -730,6 +806,8 @@ void StmUartService::sendHeartbeat()
     if (!m_serial.isOpen())
         return;
     if (m_heartbeatSuspended)
+        return;
+    if (m_lastTxMs > 0 && (nowMs() - m_lastTxMs) < STM_HEARTBEAT_MS)
         return;
     sendAsciiCommand(QStringLiteral("PING"));
 }
