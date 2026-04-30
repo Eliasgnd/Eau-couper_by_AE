@@ -38,6 +38,8 @@
 #include <QSignalBlocker>
 #include <QPointF>
 #include <QSizeF>
+#include <QTabWidget>
+#include <QVBoxLayout>
 
 // --- Construction / Destruction ---
 
@@ -154,10 +156,19 @@ void MainWindow::setupUI()
     if (ui->shapeCountLabel) {
         ui->shapeCountLabel->setMinimumWidth(200);
     }
-    ui->spinBoxPlateauLargeur->setRange(1, 600);
-    ui->spinBoxPlateauLongueur->setRange(1, 400);
+    ui->spinBoxPlateauLargeur->setRange(5, 600);
+    ui->spinBoxPlateauLongueur->setRange(5, 400);
     ui->spinBoxPlateauX->setRange(0, 600);
     ui->spinBoxPlateauY->setRange(0, 400);
+    ui->Largeur->setRange(5, 600);
+    ui->Longueur->setRange(5, 400);
+    ui->Slider_largeur->setRange(5, 600);
+    ui->Slider_longueur->setRange(5, 400);
+    if (ui->Largeur->value() < 5)
+        ui->Largeur->setValue(5);
+    if (ui->Longueur->value() < 5)
+        ui->Longueur->setValue(5);
+    setupSurfaceEditTabs();
     setSurfaceEditMode(false);
 
     // --- CORRECTION DU SAUT D'INTERFACE LORS DES ERREURS ---
@@ -754,16 +765,84 @@ void MainWindow::rebuildQuickShapeButtons()
     }
 }
 
+void MainWindow::setupSurfaceEditTabs()
+{
+    if (m_surfaceEditTabs || !ui || !ui->rightLayout)
+        return;
+
+    m_surfaceEditTabs = new QTabWidget(ui->rightPanel);
+    m_surfaceEditTabs->setObjectName(QStringLiteral("surfaceEditTabs"));
+    m_surfaceEditTabs->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    m_surfaceEditTabs->setMaximumHeight(360);
+    connect(m_surfaceEditTabs, &QTabWidget::currentChanged, this, [this](int index) {
+        if (!m_surfaceEditTabs)
+            return;
+        m_surfaceEditTabs->setMaximumHeight(index == 0 ? 360 : 760);
+        ui->rightLayout->invalidate();
+        ui->rightLayout->activate();
+    });
+
+    m_surfaceEditPage = new QWidget(m_surfaceEditTabs);
+    auto *surfaceLayout = new QVBoxLayout(m_surfaceEditPage);
+    surfaceLayout->setContentsMargins(0, 0, 0, 0);
+    surfaceLayout->setSpacing(8);
+    surfaceLayout->setAlignment(Qt::AlignTop);
+
+    m_shapeEditPage = new QWidget(m_surfaceEditTabs);
+    auto *shapeLayout = new QVBoxLayout(m_shapeEditPage);
+    shapeLayout->setContentsMargins(0, 0, 0, 0);
+    shapeLayout->setSpacing(8);
+    shapeLayout->setAlignment(Qt::AlignTop);
+
+    m_surfaceEditTabs->addTab(m_surfaceEditPage, tr("Surface"));
+    m_surfaceEditTabs->addTab(m_shapeEditPage, tr("Formes"));
+    m_surfaceEditTabs->hide();
+
+    const int insertIndex = ui->rightLayout->indexOf(ui->buttonEditCutSurface) + 1;
+    ui->rightLayout->insertWidget(qMax(0, insertIndex), m_surfaceEditTabs);
+}
+
 void MainWindow::setSurfaceEditMode(bool editing)
 {
     m_surfaceEditMode = editing;
+    setupSurfaceEditTabs();
+
     if (ui->buttonEditCutSurface)
         ui->buttonEditCutSurface->setVisible(!editing);
-    if (ui->groupPlateau)
-        ui->groupPlateau->setVisible(editing);
-    if (editing)
-        syncSurfaceControlsFromVisualization();
 
+    if (editing) {
+        if (auto *layout = qobject_cast<QVBoxLayout*>(m_surfaceEditPage->layout()))
+            layout->addWidget(ui->groupPlateau);
+        if (auto *layout = qobject_cast<QVBoxLayout*>(m_shapeEditPage->layout())) {
+            layout->addWidget(ui->groupDimensions);
+            layout->addWidget(ui->groupProprietes);
+            layout->addWidget(ui->groupOptimisation);
+        }
+        if (m_surfaceEditTabs) {
+            m_surfaceEditTabs->setCurrentIndex(0);
+            m_surfaceEditTabs->setMaximumHeight(360);
+            m_surfaceEditTabs->show();
+        }
+        ui->groupPlateau->show();
+        ui->groupDimensions->show();
+        ui->groupProprietes->show();
+        syncSurfaceControlsFromVisualization();
+    } else {
+        if (m_surfaceEditTabs)
+            m_surfaceEditTabs->hide();
+        ui->groupPlateau->hide();
+        const int insertIndex = qMax(0, ui->rightLayout->indexOf(ui->buttonEditCutSurface) + 1);
+        ui->rightLayout->insertWidget(insertIndex, ui->groupDimensions);
+        ui->rightLayout->insertWidget(insertIndex + 1, ui->groupProprietes);
+        ui->rightLayout->insertWidget(insertIndex + 2, ui->groupOptimisation);
+        ui->groupDimensions->show();
+        ui->groupProprietes->show();
+        ui->groupOptimisation->show();
+    }
+
+    ui->rightLayout->invalidate();
+    ui->rightLayout->activate();
+    updateGeometry();
     emit cutSurfaceEditModeChanged(editing);
 }
 
@@ -789,11 +868,13 @@ void MainWindow::syncSurfaceControlsFromVisualization()
 
 void MainWindow::updateSurfaceControlLimits()
 {
-    const int width = qBound(1, ui->spinBoxPlateauLargeur->value(), 600);
-    const int height = qBound(1, ui->spinBoxPlateauLongueur->value(), 400);
+    const int width = qBound(5, ui->spinBoxPlateauLargeur->value(), 600);
+    const int height = qBound(5, ui->spinBoxPlateauLongueur->value(), 400);
 
     const QSignalBlocker blockX(ui->spinBoxPlateauX);
     const QSignalBlocker blockY(ui->spinBoxPlateauY);
+    ui->spinBoxPlateauLargeur->setMinimum(5);
+    ui->spinBoxPlateauLongueur->setMinimum(5);
     ui->spinBoxPlateauLargeur->setMaximum(600);
     ui->spinBoxPlateauLongueur->setMaximum(400);
     ui->spinBoxPlateauX->setMaximum(qMax(0, 600 - width));

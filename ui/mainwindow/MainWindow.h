@@ -18,6 +18,7 @@ QT_END_NAMESPACE
 class QAction;
 class QMenu;
 class QResizeEvent;
+class QTabWidget;
 struct LayoutData;
 class ShapeVisualization;
 class MainWindowCoordinator;
@@ -141,6 +142,7 @@ private:
     int quickShapeCapacity() const;
     void clearQuickShapeButtons();
     void updatePositionLabelDisplay();
+    void setupSurfaceEditTabs();
     void setSurfaceEditMode(bool editing);
     void syncSurfaceControlsFromVisualization();
     void updateSurfaceControlLimits();
@@ -167,6 +169,9 @@ private:
     Ui::MainWindow     *ui                 = nullptr;
     ShapeVisualization *shapeVisualization  = nullptr;
     QTimer             *m_emergencyFlashTimer = nullptr;
+    QTabWidget         *m_surfaceEditTabs = nullptr;
+    QWidget            *m_surfaceEditPage = nullptr;
+    QWidget            *m_shapeEditPage = nullptr;
 
     // --- Données centralisées ---
     WorkspaceViewModel *m_model = nullptr;
