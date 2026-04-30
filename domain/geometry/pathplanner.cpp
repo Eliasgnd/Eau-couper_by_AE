@@ -366,6 +366,9 @@ QList<ContinuousCut> PathPlanner::extractRawPaths(QGraphicsScene *sc)
     QList<ContinuousCut> out;
     for (QGraphicsItem *it : sc->items()) {
         if (!it->isVisible() || it->zValue() >= 50) continue;
+        // Les calques negatifs sont des aides visuelles (fond, cadre machine,
+        // zone de decoupe) et ne doivent jamais devenir des trajectoires.
+        if (it->zValue() < 0.0) continue;
         if (it->boundingRect().width() < 1.0 && it->boundingRect().height() < 1.0) continue;
 
         QPainterPath path;

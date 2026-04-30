@@ -15,6 +15,7 @@
 #include <QGraphicsPathItem>
 #include <QLineF>
 #include <QMouseEvent>
+#include <QPair>
 #include <QResizeEvent>
 #include <QDebug>
 #include <QtMath>
@@ -227,7 +228,10 @@ void ShapeVisualization::rebuildSheetOverlay()
 
 bool ShapeVisualization::isPlacedShapeItem(QGraphicsItem *item) const
 {
-    if (!item || m_cutMarkers.contains(item))
+    if (!item || m_cutMarkers.contains(item)
+        || item == m_sheetBorder
+        || item == m_machineBorder
+        || item == m_machineBackground)
         return false;
     return dynamic_cast<QGraphicsPathItem*>(item)
         || dynamic_cast<QGraphicsRectItem*>(item)
@@ -643,7 +647,32 @@ QGraphicsScene* ShapeVisualization::getScene() const {
 
 
 QList<QPoint> ShapeVisualization::getBlackPixels() {
-    return ImageExporter::extractBlackPixels(scene);
+    if (!scene)
+        return {};
+
+    QList<QPair<QGraphicsItem*, bool>> previousVisibility;
+    previousVisibility.reserve(scene->items().size());
+
+    for (QGraphicsItem *item : scene->items()) {
+        if (!item)
+            continue;
+        if (isPlacedShapeItem(item))
+            continue;
+        previousVisibility.append(qMakePair(item, item->isVisible()));
+        item->setVisible(false);
+    }
+
+    const QList<QPoint> pixels = ImageExporter::extractBlackPixels(scene);
+
+    for (const auto &entry : previousVisibility) {
+        if (entry.first)
+            entry.first->setVisible(entry.second);
+    }
+
+    if (graphicsView)
+        graphicsView->viewport()->update();
+
+    return pixels;
 }
 
 void ShapeVisualization::setEditingEnabled(bool enabled)
