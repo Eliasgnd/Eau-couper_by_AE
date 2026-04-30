@@ -652,7 +652,10 @@ PlacementResult PlacementOptimizer::run(
              << "avec" << bestScenario.piecesPlaced << "pièces (Surface:" << bestScenario.boundingArea << ") <<<";
     qDebug() << "=======================================================\n";
 
-    finalResult.placedPaths        = bestScenario.placedPaths;
+    const QPointF containerOrigin = params.containerRect.topLeft();
+    for (const QPainterPath &path : bestScenario.placedPaths) {
+        finalResult.placedPaths << path.translated(containerOrigin);
+    }
     finalResult.processedPositions = bestScenario.piecesPlaced;
     finalResult.totalPositions     = params.shapeCount;
     return finalResult;

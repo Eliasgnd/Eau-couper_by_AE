@@ -13,6 +13,7 @@ private slots:
     void mergeShapesByNearestEndpointsUsesClosestEnds();
     void geometryCacheUpdatesAfterMutations();
     void visibleShapeIndicesUsesCachedBounds();
+    void visibleShapeIndicesIncludesAxisAlignedLines();
     void appendShapesEmitsSingleChange();
 };
 

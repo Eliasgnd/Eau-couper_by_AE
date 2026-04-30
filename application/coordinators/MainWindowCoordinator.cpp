@@ -11,6 +11,8 @@
 #include "OpenAIService.h"
 #include "StmTestDialog.h"
 #include <QMessageBox>
+#include <QPointF>
+#include <QSizeF>
 
 #include <QApplication>
 
@@ -181,6 +183,20 @@ void MainWindowCoordinator::connectToView(MainWindow *view)
     // --- Dimensions ---
     connect(view, &MainWindow::dimensionsChangeRequested,
             this, &MainWindowCoordinator::onDimensionsChanged);
+    connect(view, &MainWindow::cutSurfaceChangeRequested, this, [this](int width, int height, int x, int y) {
+        if (m_shapeVisualization) {
+            m_shapeVisualization->setSheetSizeMm(QSizeF(width, height));
+            m_shapeVisualization->setSheetOriginMm(QPointF(x, y));
+        }
+        if (m_model) {
+            m_model->setPlateDimensions(width, height);
+        }
+    });
+    connect(view, &MainWindow::cutSurfaceEditModeChanged, this, [this](bool editing) {
+        if (m_shapeVisualization) {
+            m_shapeVisualization->setSheetEditingEnabled(editing);
+        }
+    });
 
     // --- Nombre / espacement ---
     connect(view, &MainWindow::shapeCountChangeRequested,

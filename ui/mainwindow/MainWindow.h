@@ -62,6 +62,8 @@ signals:
 
     // Dimensions (la View émet, le Controller réagit)
     void dimensionsChangeRequested(int largeur, int longueur);
+    void cutSurfaceChangeRequested(int widthMm, int heightMm, int xMm, int yMm);
+    void cutSurfaceEditModeChanged(bool editing);
     void shapeCountChangeRequested(int count);
     void spacingChangeRequested(int spacing);
 
@@ -138,9 +140,21 @@ private:
     void rebuildQuickShapeButtons();
     int quickShapeCapacity() const;
     void clearQuickShapeButtons();
+    void updatePositionLabelDisplay();
+    void setSurfaceEditMode(bool editing);
+    void syncSurfaceControlsFromVisualization();
+    void updateSurfaceControlLimits();
+    void emitSurfaceChangeFromControls();
 
     // --- Theme state ---
     bool m_isDarkTheme = false;
+
+    // --- Label state ---
+    double m_lastHeadX = 0.0;
+    double m_lastHeadY = 0.0;
+    int m_lastShapeCount = 0;
+    bool m_isCutting = false;
+    bool m_surfaceEditMode = false;
 
     // --- UI state ---
     QMenu   *settingsMenu    = nullptr;

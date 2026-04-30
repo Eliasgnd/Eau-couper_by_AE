@@ -1,5 +1,6 @@
 #include "ShapeVisualization.h"
 #include "AspectRatioWrapper.h"
+#include "SheetRulerWidget.h"
 #include "GeometryTransformHelper.h"
 #include "GridPlacementService.h"
 #include "ImageExporter.h"
@@ -7,11 +8,13 @@
 #include "ShapeValidationService.h"
 
 #include <QTimer>            // au lieu de "qtimer.h"
-#include <QVBoxLayout>
+#include <QGridLayout>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsPathItem>
+#include <QLineF>
+#include <QMouseEvent>
 #include <QResizeEvent>
 #include <QDebug>
 #include <QtMath>
@@ -25,6 +28,9 @@ namespace {
 const QString kInteractionLockedReason = QStringLiteral("Interaction verrouillée, modification impossible.");
 }
 
+constexpr qreal kMachineWidthMm = 600.0;
+constexpr qreal kMachineHeightMm = 400.0;
+
 ShapeVisualization::ShapeVisualization(QWidget *parent)
     : QWidget(parent),
     m_projectModel(nullptr)
@@ -35,15 +41,20 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
    // sp.setHeightForWidth(true);
     setSizePolicy(sp);
 
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QGridLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
     graphicsView = new QGraphicsView(this);
     scene        = new QGraphicsScene(this);
+    m_rulerCorner = new QWidget(this);
+    m_horizontalRuler = new SheetRulerWidget(Qt::Horizontal, graphicsView, this);
+    m_verticalRuler = new SheetRulerWidget(Qt::Vertical, graphicsView, this);
+    m_rulerCorner->setFixedSize(46, 28);
+    m_rulerCorner->setStyleSheet(QStringLiteral("background-color: rgb(248, 250, 252);"));
 
     // Scène = taille du plateau (en mm)
-    scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
+    scene->setSceneRect(0, 0, kMachineWidthMm, kMachineHeightMm);
 
     // Fond blanc, quoiqu’il arrive (le stylesheet global ne gagnera plus)
     graphicsView->setBackgroundBrush(Qt::white);
@@ -63,8 +74,14 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->viewport()->installEventFilter(this);
 
-    layout->addWidget(graphicsView);
+    layout->addWidget(m_rulerCorner, 0, 0);
+    layout->addWidget(m_horizontalRuler, 0, 1);
+    layout->addWidget(m_verticalRuler, 1, 0);
+    layout->addWidget(graphicsView, 1, 1);
+    layout->setRowStretch(1, 1);
+    layout->setColumnStretch(1, 1);
     setLayout(layout);
+    rebuildSheetOverlay();
 
     connect(scene, &QGraphicsScene::selectionChanged,
             this, &ShapeVisualization::handleSelectionChanged);
@@ -72,6 +89,7 @@ ShapeVisualization::ShapeVisualization(QWidget *parent)
     // Fit initial
     QTimer::singleShot(0, this, [this](){
         graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+        updateRulers();
     });
 }
 
@@ -81,12 +99,42 @@ void ShapeVisualization::resizeEvent(QResizeEvent* e) {
         // Exécuter le fitInView en différé évite les distorsions si le layout est en train d'être calculé
         QTimer::singleShot(0, this, [this]() {
             graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+            updateRulers();
         });
     }
 }
 
 bool ShapeVisualization::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonPress) {
+        auto *me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            const QPointF scenePos = graphicsView->mapToScene(me->pos());
+            QGraphicsItem *item = scene->itemAt(scenePos, graphicsView->transform());
+            if (item == m_sheetBorder && m_interactionEnabled && m_sheetEditingEnabled) {
+                m_draggingSheet = true;
+                m_dragStartScenePos = scenePos;
+                m_dragStartSheetOrigin = m_sheetOriginMm;
+                return true;
+            }
+        }
+    }
+
+    if (watched == graphicsView->viewport() && event->type() == QEvent::MouseMove && m_draggingSheet) {
+        auto *me = static_cast<QMouseEvent*>(event);
+        const QPointF scenePos = graphicsView->mapToScene(me->pos());
+        setSheetOriginMm(m_dragStartSheetOrigin + (scenePos - m_dragStartScenePos));
+        return true;
+    }
+
+    if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonRelease && m_draggingSheet) {
+        auto *me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            m_draggingSheet = false;
+            return true;
+        }
+    }
+
     if (watched == graphicsView->viewport() && event->type() == QEvent::MouseButtonDblClick) {
         auto *me = static_cast<QMouseEvent*>(event);
         if (me->button() == Qt::LeftButton) {
@@ -110,22 +158,101 @@ QRectF ShapeVisualization::renderedSheetRectInViewport() const
     return sheetPolygon.boundingRect();
 }
 
+void ShapeVisualization::updateRulers() const
+{
+    if (m_horizontalRuler)
+        m_horizontalRuler->update();
+    if (m_verticalRuler)
+        m_verticalRuler->update();
+}
+
+QRectF ShapeVisualization::machineRect() const
+{
+    return QRectF(0.0, 0.0, kMachineWidthMm, kMachineHeightMm);
+}
+
+QRectF ShapeVisualization::clampedPlacementRect(const QPointF &origin, const QSizeF &size) const
+{
+    const QRectF machine = machineRect();
+    const qreal width = qBound(1.0, size.width(), machine.width());
+    const qreal height = qBound(1.0, size.height(), machine.height());
+    const qreal x = qBound(machine.left(), origin.x(), machine.right() - width);
+    const qreal y = qBound(machine.top(), origin.y(), machine.bottom() - height);
+    return QRectF(x, y, width, height);
+}
+
+QRectF ShapeVisualization::placementRect() const
+{
+    return clampedPlacementRect(m_sheetOriginMm, m_sheetMm);
+}
+
+void ShapeVisualization::rebuildSheetOverlay()
+{
+    if (!scene)
+        return;
+
+    const QRectF machine = machineRect();
+    const QRectF sheet = placementRect();
+
+    const QColor outsideColor = m_sheetEditingEnabled ? QColor(241, 245, 249) : QColor(203, 213, 225);
+    const QColor sheetColor = m_sheetEditingEnabled ? QColor(103, 232, 249, 45) : QColor(Qt::white);
+    const QPen sheetPen(m_sheetEditingEnabled ? QColor(14, 116, 144) : QColor(100, 116, 139),
+                        2,
+                        m_sheetEditingEnabled ? Qt::DashLine : Qt::SolidLine);
+
+    if (!m_machineBackground) {
+        m_machineBackground = scene->addRect(machine, Qt::NoPen, QBrush(outsideColor));
+        m_machineBackground->setZValue(-200.0);
+    } else {
+        m_machineBackground->setRect(machine);
+        m_machineBackground->setBrush(QBrush(outsideColor));
+    }
+
+    if (!m_machineBorder) {
+        m_machineBorder = scene->addRect(machine, QPen(QColor(100, 116, 139), 2), Qt::NoBrush);
+        m_machineBorder->setZValue(-150.0);
+    } else {
+        m_machineBorder->setRect(machine);
+    }
+
+    if (!m_sheetBorder) {
+        m_sheetBorder = scene->addRect(sheet, sheetPen, QBrush(sheetColor));
+        m_sheetBorder->setZValue(-100.0);
+    } else {
+        m_sheetBorder->setRect(sheet);
+        m_sheetBorder->setPen(sheetPen);
+        m_sheetBorder->setBrush(QBrush(sheetColor));
+    }
+}
+
+bool ShapeVisualization::isPlacedShapeItem(QGraphicsItem *item) const
+{
+    if (!item || m_cutMarkers.contains(item))
+        return false;
+    return dynamic_cast<QGraphicsPathItem*>(item)
+        || dynamic_cast<QGraphicsRectItem*>(item)
+        || dynamic_cast<QGraphicsEllipseItem*>(item)
+        || dynamic_cast<QGraphicsPolygonItem*>(item);
+}
+
+void ShapeVisualization::translatePlacedItems(const QPointF &delta)
+{
+    if (delta.isNull())
+        return;
+
+    for (QGraphicsItem *item : scene->items()) {
+        if (item == m_sheetBorder || item == m_machineBorder || item == m_machineBackground)
+            continue;
+        if (!isPlacedShapeItem(item))
+            continue;
+        item->moveBy(delta.x(), delta.y());
+    }
+}
+
 QPointF ShapeVisualization::logicalPointFromScenePoint(const QPointF &scenePoint) const
 {
-    if (!graphicsView || !scene)
-        return QPointF();
-
-    const QRectF renderedRect = renderedSheetRectInViewport();
-    if (renderedRect.width() <= 0.0 || renderedRect.height() <= 0.0)
-        return QPointF();
-
-    const QPoint viewportPoint = graphicsView->mapFromScene(scenePoint);
-    const double xRatio = (viewportPoint.x() - renderedRect.left()) / renderedRect.width();
-    const double yRatio = (viewportPoint.y() - renderedRect.top()) / renderedRect.height();
-
-    const double boundedX = qBound(0.0, xRatio * m_sheetMm.width(), m_sheetMm.width());
-    const double boundedY = qBound(0.0, yRatio * m_sheetMm.height(), m_sheetMm.height());
-    return QPointF(boundedX, boundedY);
+    return QPointF(qBound(0.0, scenePoint.x(), kMachineWidthMm),
+                   qBound(0.0, scenePoint.y(), kMachineHeightMm));
 }
 
 void ShapeVisualization::updateHeadLogicalPositionFromScene(const QPointF &scenePoint)
@@ -205,9 +332,11 @@ void ShapeVisualization::redraw()
 
     m_cutMarkers.clear();
     scene->clear();
-    const QRectF sr = scene->sceneRect();
-    const int drawingWidth  = int(sr.width());
-    const int drawingHeight = int(sr.height());
+    m_sheetBorder = nullptr;
+    m_machineBorder = nullptr;
+    m_machineBackground = nullptr;
+    rebuildSheetOverlay();
+    const QRectF placement = placementRect();
 
     if (m_projectModel->shapeCount() <= 0)
         return;
@@ -227,10 +356,11 @@ void ShapeVisualization::redraw()
     }
 
     GridPlacementRequest request;
-    request.containerSize = QSizeF(drawingWidth, drawingHeight);
+    request.containerSize = placement.size();
     request.shapeSize = QSizeF(effectiveWidth, effectiveHeight);
     request.shapeCount = m_projectModel->shapeCount();
     request.spacing = m_projectModel->spacing();
+    request.origin = placement.topLeft();
     const QList<QPointF> positions = GridPlacementService::computePositions(request);
 
     for (const QPointF &position : positions) {
@@ -266,12 +396,14 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
 
     m_cutMarkers.clear();
     scene->clear();
+    m_sheetBorder = nullptr;
+    m_machineBorder = nullptr;
+    m_machineBackground = nullptr;
+    rebuildSheetOverlay();
 
     if (shapes.isEmpty()) return;
 
-    const QRectF sr = scene->sceneRect();
-    const int drawingWidth  = int(sr.width());
-    const int drawingHeight = int(sr.height());
+    const QRectF placement = placementRect();
 
     QPainterPath combinedPath;
     for (const QPolygonF &poly : shapes) {
@@ -290,10 +422,11 @@ void ShapeVisualization::displayCustomShapes(const QList<QPolygonF>& shapes)
     QRectF scaledBounds = scaledPath.boundingRect();
 
     GridPlacementRequest request;
-    request.containerSize = QSizeF(drawingWidth, drawingHeight);
+    request.containerSize = placement.size();
     request.shapeSize = scaledBounds.size();
     request.shapeCount = m_projectModel->shapeCount();
     request.spacing = m_projectModel->spacing();
+    request.origin = placement.topLeft();
     const QList<QPointF> positions = GridPlacementService::computePositions(request);
 
     for (const QPointF &position : positions) {
@@ -382,9 +515,10 @@ void ShapeVisualization::addShapeBottomRight()
         return;
     }
 
-    const QRectF sr = scene->sceneRect();
-    const int drawingWidth  = int(sr.width());
-    const int drawingHeight = int(sr.height());
+    const QRectF placement = placementRect();
+    const qreal drawingWidth  = placement.width();
+    const qreal drawingHeight = placement.height();
+    const QPointF drawingOrigin = placement.topLeft();
 
     QGraphicsItem *newItem = nullptr;
 
@@ -413,8 +547,8 @@ void ShapeVisualization::addShapeBottomRight()
         newItem = item;
 
         QPointF offset(-bounds.x(), -bounds.y());
-        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
-                        drawingHeight - bounds.height() + offset.y());
+        newItem->setPos(drawingOrigin.x() + drawingWidth - bounds.width() + offset.x(),
+                        drawingOrigin.y() + drawingHeight - bounds.height() + offset.y());
     } else {
         const QPainterPath shapePath = m_projectModel->prototypeShapePath();
         if (shapePath.isEmpty())
@@ -426,8 +560,8 @@ void ShapeVisualization::addShapeBottomRight()
         pathItem->setBrush(Qt::NoBrush);
         newItem = pathItem;
         const QPointF offset(-bounds.x(), -bounds.y());
-        newItem->setPos(drawingWidth - bounds.width() + offset.x(),
-                        drawingHeight - bounds.height() + offset.y());
+        newItem->setPos(drawingOrigin.x() + drawingWidth - bounds.width() + offset.x(),
+                        drawingOrigin.y() + drawingHeight - bounds.height() + offset.y());
     }
 
     if (newItem) {
@@ -526,6 +660,8 @@ void ShapeVisualization::setInteractionEnabled(bool enabled)
 {
     m_interactionEnabled = enabled;
     for (QGraphicsItem *item : scene->items()) {
+        if (!isPlacedShapeItem(item))
+            continue;
         item->setFlag(QGraphicsItem::ItemIsMovable, enabled);
         item->setFlag(QGraphicsItem::ItemIsSelectable, enabled);
     }
@@ -554,12 +690,15 @@ void ShapeVisualization::setOptimizationResult(const QList<QPainterPath> &placed
     // scene->clear() détruit tous les items Qt (m_sheetBorder, m_cutMarkers…)
     // → on invalide les pointeurs AVANT la suppression pour éviter les dangling pointers
     m_sheetBorder = nullptr;
+    m_machineBorder = nullptr;
+    m_machineBackground = nullptr;
     m_cutMarkers.clear();
 
     scene->clear();
     scene->clearSelection();
 
-    const QRectF placementBounds = scene->sceneRect().adjusted(-1.0, -1.0, 1.0, 1.0);
+    rebuildSheetOverlay();
+    const QRectF placementBounds = placementRect().adjusted(-1.0, -1.0, 1.0, 1.0);
     int acceptedCount = 0;
     for (const QPainterPath &path : placedPaths) {
         if (!placementBounds.contains(path.boundingRect()))
@@ -588,12 +727,9 @@ int ShapeVisualization::countPlacedShapes() const
 {
     int count = 0;
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (m_cutMarkers.contains(item) || item == m_sheetBorder || item == m_machineBorder || item == m_machineBackground)
             continue;
-        if (dynamic_cast<QGraphicsPathItem*>(item) ||
-            dynamic_cast<QGraphicsRectItem*>(item) ||
-            dynamic_cast<QGraphicsEllipseItem*>(item) ||
-            dynamic_cast<QGraphicsPolygonItem*>(item)) {
+        if (isPlacedShapeItem(item)) {
             ++count;
         }
     }
@@ -607,15 +743,15 @@ bool ShapeVisualization::validateShapes()
     QList<QAbstractGraphicsShapeItem*> shapes;
     QList<QPainterPath> paths;
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (m_cutMarkers.contains(item) || item == m_sheetBorder || item == m_machineBorder || item == m_machineBackground)
             continue;
-        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item); shape && isPlacedShapeItem(item)) {
             shapes << shape;
             paths << shape->mapToScene(shape->shape());
         }
     }
 
-    const QRectF bounds = scene->sceneRect().adjusted(-1, -1, 1, 1);
+    const QRectF bounds = placementRect().adjusted(-1, -1, 1, 1);
     const ShapeValidationResult validation = ShapeValidationService::validate(paths, bounds, 1.0);
 
     // --- CORRECTION DU SAUT D'INTERFACE ---
@@ -653,10 +789,10 @@ void ShapeVisualization::resetAllShapeColors()
     normalPen.setCosmetic(true);
 
     for (QGraphicsItem *item : scene->items()) {
-        if (m_cutMarkers.contains(item))
+        if (m_cutMarkers.contains(item) || item == m_sheetBorder || item == m_machineBorder || item == m_machineBackground)
             continue;
 
-        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item)) {
+        if (auto shape = dynamic_cast<QAbstractGraphicsShapeItem*>(item); shape && isPlacedShapeItem(item)) {
             shape->setPen(normalPen);
 
             // --- LA LIGNE MAGIQUE POUR CREUSER LE TEXTE ---
@@ -677,6 +813,10 @@ void ShapeVisualization::applyLayout(const LayoutData &layout)
     // --- AJOUTEZ LES DEUX LIGNES ICI ---
     m_cutMarkers.clear();
     scene->clear();
+    m_sheetBorder = nullptr;
+    m_machineBorder = nullptr;
+    m_machineBackground = nullptr;
+    rebuildSheetOverlay();
     // -----------------------------------
 
     m_projectModel->setDimensions(layout.largeur, layout.longueur);
@@ -706,12 +846,16 @@ LayoutData ShapeVisualization::captureCurrentLayout(const QString &name) const
 
 int ShapeVisualization::heightForWidth(int w) const
 {
-    return QWidget::heightForWidth(w);
+    if (m_aspect <= 0.0)
+        return QWidget::heightForWidth(w);
+
+    return qRound(w / m_aspect);
 }
 
 QSize ShapeVisualization::sizeHint() const
 {
-    return QSize(800, 600); // Ne plus calculer de ratio ici
+    const int width = 800;
+    return QSize(width, heightForWidth(width));
 }
 
 QSize ShapeVisualization::minimumSizeHint() const
@@ -757,12 +901,22 @@ void ShapeVisualization::setSheetSizeMm(const QSizeF& mm)
         qFuzzyCompare(m_sheetMm.height(), mm.height()))
         return;
 
-    m_sheetMm = mm;
-    m_aspect  = m_sheetMm.width() / m_sheetMm.height();
-
-    scene->setSceneRect(0, 0, m_sheetMm.width(), m_sheetMm.height());
-    if (m_sheetBorder)
-        m_sheetBorder->setRect(scene->sceneRect());
+    const QRectF oldPlacement = placementRect();
+    const bool wasFullMachine = qFuzzyCompare(oldPlacement.width(), kMachineWidthMm)
+        && qFuzzyCompare(oldPlacement.height(), kMachineHeightMm)
+        && qFuzzyIsNull(oldPlacement.left())
+        && qFuzzyIsNull(oldPlacement.top());
+    m_sheetMm = QSizeF(qMin(mm.width(), kMachineWidthMm),
+                       qMin(mm.height(), kMachineHeightMm));
+    const QPointF desiredOrigin = wasFullMachine
+        ? QPointF((kMachineWidthMm - m_sheetMm.width()) * 0.5,
+                  (kMachineHeightMm - m_sheetMm.height()) * 0.5)
+        : m_sheetOriginMm;
+    const QRectF newPlacement = clampedPlacementRect(desiredOrigin, m_sheetMm);
+    const QPointF delta = newPlacement.topLeft() - oldPlacement.topLeft();
+    m_sheetOriginMm = newPlacement.topLeft();
+    rebuildSheetOverlay();
+    translatePlacedItems(delta);
 
     updateGeometry();
 
@@ -770,8 +924,44 @@ void ShapeVisualization::setSheetSizeMm(const QSizeF& mm)
         // Exécuter le fitInView en différé ici aussi
         QTimer::singleShot(0, this, [this]() {
             graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+            updateRulers();
         });
     }
 
     emit sheetSizeMmChanged(m_sheetMm);
+    emit sheetOriginMmChanged(m_sheetOriginMm);
+
+    if (m_projectModel) {
+        if (m_projectModel->isCustomMode() && !m_projectModel->customShapes().isEmpty())
+            displayCustomShapes(m_projectModel->customShapes());
+        else
+            redraw();
+    }
+
+    updateRulers();
+}
+
+void ShapeVisualization::setSheetOriginMm(const QPointF &origin)
+{
+    const QRectF oldPlacement = placementRect();
+    const QRectF newPlacement = clampedPlacementRect(origin, m_sheetMm);
+    if (QLineF(oldPlacement.topLeft(), newPlacement.topLeft()).length() <= 0.01)
+        return;
+
+    m_sheetOriginMm = newPlacement.topLeft();
+    rebuildSheetOverlay();
+    translatePlacedItems(newPlacement.topLeft() - oldPlacement.topLeft());
+    emit sheetOriginMmChanged(m_sheetOriginMm);
+    graphicsView->viewport()->update();
+}
+
+void ShapeVisualization::setSheetEditingEnabled(bool enabled)
+{
+    if (m_sheetEditingEnabled == enabled)
+        return;
+
+    m_sheetEditingEnabled = enabled;
+    rebuildSheetOverlay();
+    if (graphicsView)
+        graphicsView->viewport()->update();
 }

@@ -30,6 +30,16 @@ public:
         if (changed) emit dimensionsChanged(m_largeur, m_longueur);
     }
 
+    int plateWidth() const { return m_plateWidth; }
+    int plateHeight() const { return m_plateHeight; }
+
+    void setPlateDimensions(int width, int height) {
+        bool changed = false;
+        if (m_plateWidth != width) { m_plateWidth = width; changed = true; }
+        if (m_plateHeight != height) { m_plateHeight = height; changed = true; }
+        if (changed) emit plateDimensionsChanged(m_plateWidth, m_plateHeight);
+    }
+
 signals:
     void largeurChanged(int value);
     void longueurChanged(int value);
@@ -37,6 +47,7 @@ signals:
     void shapeCountChanged(int count);
     void spacingChanged(int spacing);
     void languageChanged(Language lang);
+    void plateDimensionsChanged(int width, int height);
 
 private:
     int m_largeur   = 100;
@@ -44,4 +55,6 @@ private:
     int m_shapeCount = 1;
     int m_spacing    = 0;
     Language m_language = Language::French;
+    int m_plateWidth = 600;
+    int m_plateHeight = 400;
 };

@@ -766,19 +766,26 @@ QPainterPath CustomDrawArea::buildResumedPath(const QPainterPath &extensionPath)
 
 bool CustomDrawArea::beginEndpointResumeIfNeeded(const QPointF &logicalPoint)
 {
-    if (!supportsEndpointResume(getDrawMode()) || !m_hoveredEndpoint.isValid())
+    if (!supportsEndpointResume(getDrawMode()))
+        return false;
+
+    EndpointHit endpoint = m_hoveredEndpoint;
+    if (!endpoint.isValid())
+        endpoint = hitTestOpenEndpoint(logicalPoint);
+    if (!endpoint.isValid())
         return false;
 
     resetPointByPointResumeState();
     m_drawingState->extendingExistingPath = true;
-    m_drawingState->extendingShapeIndex = m_hoveredEndpoint.shapeIndex;
-    m_drawingState->extendingFromStart = m_hoveredEndpoint.kind == EndpointKind::Start;
-    m_drawingState->extendingAnchor = m_hoveredEndpoint.point;
-    m_drawingState->currentPoint = m_hoveredEndpoint.point;
-    m_drawingState->startPoint = m_hoveredEndpoint.point;
-    m_drawingState->strokePoints = {m_hoveredEndpoint.point};
+    m_drawingState->extendingShapeIndex = endpoint.shapeIndex;
+    m_drawingState->extendingFromStart = endpoint.kind == EndpointKind::Start;
+    m_drawingState->extendingAnchor = endpoint.point;
+    m_drawingState->currentPoint = endpoint.point;
+    m_drawingState->startPoint = endpoint.point;
+    m_drawingState->strokePoints = {endpoint.point};
     if (getDrawMode() == DrawMode::PointParPoint)
-        m_drawingState->pointByPointPoints = {m_hoveredEndpoint.point};
+        m_drawingState->pointByPointPoints = {endpoint.point};
+    m_hoveredEndpoint = endpoint;
     m_drawing = true;
     Q_UNUSED(logicalPoint)
     emitCanvasStatus();
@@ -1524,7 +1531,7 @@ void CustomDrawArea::paintEvent(QPaintEvent *event)
             if (idx < 0 || idx >= static_cast<int>(m_viewModel->shapes().size())) continue;
             const QPainterPath &path = m_viewModel->shapes()[idx].path;
             painter.setPen(Qt::NoPen);
-            painter.setBrush(QColor(72, 187, 255, 40));
+            painter.setBrush(Qt::NoBrush);
             painter.drawPath(path);
             painter.setPen(halo);
             painter.setBrush(Qt::NoBrush);
@@ -1776,11 +1783,16 @@ void CustomDrawArea::mousePressEvent(QMouseEvent *event)
     }
 
     m_mouseHandler->handleMousePress(event, logical);
-    m_drawing = (event->button() == Qt::LeftButton);
+    const bool selectionDragActive = m_mouseHandler->isSelectionDragActive();
+    m_drawing = (event->button() == Qt::LeftButton) && !selectionDragActive;
     if (event->button() == Qt::LeftButton &&
-        (getDrawMode() == DrawMode::Deplacer || m_mouseHandler->isSelectionDragActive())) {
+        (getDrawMode() == DrawMode::Deplacer || selectionDragActive)) {
         m_moveStartState = m_viewModel->getCurrentState();
         m_moveInProgress = true;
+        m_drawing = false;
+        emitCanvasStatus();
+        update();
+        return;
     } else {
         m_moveInProgress = false;
     }
@@ -1823,10 +1835,13 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
         update();
     }
 
+    const QPointF freehandLogical = logical;
+
     m_mouseHandler->handleMouseMove(event, logical);
 
     if (m_mouseHandler->isSelectionDragActive()
         || (m_moveInProgress && getDrawMode() == DrawMode::Deplacer)) {
+        m_drawing = false;
         applyPlacementAssistToSelection();
         emitCanvasStatusThrottled();
         update();
@@ -1911,20 +1926,20 @@ void CustomDrawArea::mouseMoveEvent(QMouseEvent *event)
     if (getDrawMode() == DrawMode::Deplacer || getDrawMode() == DrawMode::Supprimer || getDrawMode() == DrawMode::Pan)
         return;
 
-    m_drawingState->currentPoint = logical;
+    m_drawingState->currentPoint = freehandLogical;
     if (getDrawMode() == DrawMode::Gomme) {
         if (!m_drawingState->gommeErasing) return;
-        m_drawingState->gommeCenter = logical;
-        m_eraserTool->eraseAlong(m_drawingState->lastEraserPos, logical);
-        m_drawingState->lastEraserPos = logical;
+        m_drawingState->gommeCenter = freehandLogical;
+        m_eraserTool->eraseAlong(m_drawingState->lastEraserPos, freehandLogical);
+        m_drawingState->lastEraserPos = freehandLogical;
     } else if (getDrawMode() == DrawMode::Freehand) {
-        const qreal minDistance = 3.0 / qMax<qreal>(0.35, m_transformer->scale());
+        const qreal minDistance = 2.0 / qMax<qreal>(0.35, m_transformer->scale());
         if (m_drawingState->strokePoints.isEmpty()) {
-            m_drawingState->strokePoints.append(logical);
+            m_drawingState->strokePoints.append(freehandLogical);
         } else {
             const QPointF lastPoint = m_drawingState->strokePoints.last();
-            if (QLineF(lastPoint, logical).length() >= minDistance)
-                m_drawingState->strokePoints.append(logical);
+            if (QLineF(lastPoint, freehandLogical).length() >= minDistance)
+                m_drawingState->strokePoints.append(freehandLogical);
         }
     }
     emitCanvasStatusThrottled();
@@ -2031,7 +2046,12 @@ void CustomDrawArea::mouseReleaseEvent(QMouseEvent *event)
     } else if (getDrawMode() == DrawMode::Circle) {
         path.addEllipse(QRectF(m_drawingState->startPoint, logical).normalized());
     } else {
-        if (m_viewModel->smoothingLevel() <= 0) {
+        if (getDrawMode() == DrawMode::Freehand && m_drawingState->strokePoints.size() <= 1) {
+            const QPointF endPoint = logical;
+            path.moveTo(m_drawingState->strokePoints.first());
+            if (QLineF(m_drawingState->strokePoints.first(), endPoint).length() > 0.01)
+                path.lineTo(endPoint);
+        } else if (m_viewModel->smoothingLevel() <= 0) {
             path.moveTo(m_drawingState->strokePoints.first());
             for (int i = 1; i < m_drawingState->strokePoints.size(); ++i)
                 path.lineTo(m_drawingState->strokePoints[i]);

@@ -115,6 +115,30 @@ void ShapeManagerTests::visibleShapeIndicesUsesCachedBounds()
     QCOMPARE(visible.front(), 0);
 }
 
+void ShapeManagerTests::visibleShapeIndicesIncludesAxisAlignedLines()
+{
+    ShapeManager manager;
+
+    QPainterPath horizontal;
+    horizontal.moveTo(0, 20);
+    horizontal.lineTo(60, 20);
+
+    QPainterPath vertical;
+    vertical.moveTo(80, 0);
+    vertical.lineTo(80, 60);
+
+    manager.addShape(horizontal, 1);
+    manager.addShape(vertical, 2);
+
+    const std::vector<int> horizontalVisible = manager.visibleShapeIndices(QRectF(-5, 10, 80, 20));
+    QCOMPARE(horizontalVisible.size(), static_cast<size_t>(1));
+    QCOMPARE(horizontalVisible.front(), 0);
+
+    const std::vector<int> verticalVisible = manager.visibleShapeIndices(QRectF(70, -5, 20, 80));
+    QCOMPARE(verticalVisible.size(), static_cast<size_t>(1));
+    QCOMPARE(verticalVisible.front(), 1);
+}
+
 void ShapeManagerTests::appendShapesEmitsSingleChange()
 {
     ShapeManager manager;

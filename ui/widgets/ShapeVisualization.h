@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QPainterPath>
 #include <QGraphicsRectItem>
+#include <QPointer>
 #include <QSizeF>                // <<< AJOUT
 #include "Inventory.h"
 #include "ShapeVisualizationViewModel.h"
@@ -35,12 +36,14 @@ public:
     bool isEditingEnabled() const;
     void setInteractionEnabled(bool enabled);
     bool isInteractionEnabled() const;
+    bool isSheetEditingEnabled() const { return m_sheetEditingEnabled; }
     void cancelOptimization();
     bool isOptimizationRunning() const { return m_projectModel && m_projectModel->isOptimizationRunning(); }
     void setOptimizationRunning(bool running);
     void setOptimizationResult(const QList<QPainterPath> &placedPaths, bool optimized);
     QGraphicsView* getGraphicsView() const;
     QPointF logicalPointFromScenePoint(const QPointF &scenePoint) const;
+    QRectF placementRect() const;
 
     bool isCustomMode() const { return m_projectModel && m_projectModel->isCustomMode(); }
     void setCurrentCustomShapeName(const QString &name) { if (m_projectModel) m_projectModel->setCustomShapeName(name); }
@@ -54,6 +57,7 @@ public:
 
     // <<< AJOUT : accès à la taille en mm
     QSizeF sheetSizeMm() const { return m_sheetMm; }
+    QPointF sheetOriginMm() const { return m_sheetOriginMm; }
 
     bool hasHeightForWidth() const override { return true; }
     int  heightForWidth(int w) const override;
@@ -77,6 +81,8 @@ public slots:
 
     // <<< AJOUT : setter taille en mm
     void setSheetSizeMm(const QSizeF& mm);
+    void setSheetOriginMm(const QPointF &origin);
+    void setSheetEditingEnabled(bool enabled);
 
 signals:
     void optimizationStateChanged(bool optimized);
@@ -91,6 +97,7 @@ signals:
 
     // <<< AJOUT
     void sheetSizeMmChanged(const QSizeF&);
+    void sheetOriginMmChanged(const QPointF &origin);
 
 protected:
     // --- API existante ---
@@ -104,25 +111,41 @@ private:
     int countPlacedShapes() const;
     void redraw();
     QRectF renderedSheetRectInViewport() const;
+    void updateRulers() const;
+    QRectF machineRect() const;
+    QRectF clampedPlacementRect(const QPointF &origin, const QSizeF &size) const;
+    void rebuildSheetOverlay();
+    void translatePlacedItems(const QPointF &delta);
+    bool isPlacedShapeItem(QGraphicsItem *item) const;
 
     // --- Membres existants ---
     QGraphicsView       *graphicsView {};
     QGraphicsScene      *scene {};
+    QPointer<QWidget>    m_rulerCorner;
+    QPointer<QWidget>    m_horizontalRuler;
+    QPointer<QWidget>    m_verticalRuler;
     ShapeVisualizationViewModel    *m_projectModel {nullptr};
     QList<QGraphicsItem*> m_cutMarkers;
     bool editingEnabled = true;
     bool m_interactionEnabled = true;
+    bool m_sheetEditingEnabled = false;
     QPointF m_rotationPivot;
     bool m_rotationPivotValid {false};
 
     // Bordure représentant visuellement la limite du plateau
     // (placée au-dessus des formes pour rester visible)
     QGraphicsRectItem *m_sheetBorder {nullptr};
+    QGraphicsRectItem *m_machineBorder {nullptr};
+    QGraphicsRectItem *m_machineBackground {nullptr};
 
     // <<< AJOUT : taille plateau et ratio (w/h) pour l'Option B
     // Dimensions logiques du plateau (par défaut 600x400)
-    QSizeF m_sheetMm {600.0, 400.0};        // X = largeur(mm), Y = hauteur(mm)
-    double m_aspect = m_sheetMm.width() / m_sheetMm.height();
+    QSizeF m_sheetMm {600.0, 400.0};
+    QPointF m_sheetOriginMm {0.0, 0.0};
+    double m_aspect = 600.0 / 400.0;
+    bool m_draggingSheet = false;
+    QPointF m_dragStartScenePos;
+    QPointF m_dragStartSheetOrigin;
 };
 
 #endif // FORMEVISUALIZATION_H

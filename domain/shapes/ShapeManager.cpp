@@ -198,7 +198,8 @@ std::vector<int> ShapeManager::visibleShapeIndices(const QRectF &visibleArea, qr
     std::vector<int> indices;
     indices.reserve(m_shapes.size());
     for (int i = 0; i < static_cast<int>(m_shapes.size()); ++i) {
-        if (m_shapes[i].bounds.isNull() || expanded.intersects(m_shapes[i].bounds))
+        const QRectF inflatedBounds = m_shapes[i].bounds.adjusted(-0.5, -0.5, 0.5, 0.5);
+        if (expanded.intersects(inflatedBounds))
             indices.push_back(i);
     }
     return indices;

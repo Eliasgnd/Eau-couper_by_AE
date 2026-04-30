@@ -324,7 +324,7 @@
             </size>
            </property>
            <property name="currentIndex">
-            <number>2</number>
+            <number>1</number>
            </property>
            <widget class="QWidget" name="tabFormes">
             <attribute name="title">
@@ -738,6 +738,122 @@
           <number>10</number>
          </property>
          <item>
+          <widget class="QPushButton" name="buttonEditCutSurface">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>44</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Modifier surface de decoupe</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="groupPlateau">
+           <property name="title">
+            <string>SURFACE DE DECOUPE</string>
+           </property>
+           <layout class="QVBoxLayout" name="vboxPlateau">
+            <property name="spacing">
+             <number>8</number>
+            </property>
+            <item>
+             <layout class="QHBoxLayout">
+              <item>
+               <widget class="QLabel" name="labelPlateauLargeur">
+                <property name="text">
+                 <string>Largeur support (mm)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spinBoxPlateauLargeur">
+                <property name="maximum">
+                 <number>5000</number>
+                </property>
+                <property name="value">
+                 <number>600</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout">
+              <item>
+               <widget class="QLabel" name="labelPlateauLongueur">
+                <property name="text">
+                 <string>Longueur support (mm)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spinBoxPlateauLongueur">
+                <property name="maximum">
+                 <number>5000</number>
+                </property>
+                <property name="value">
+                 <number>400</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout">
+              <item>
+               <widget class="QLabel" name="labelPlateauX">
+                <property name="text">
+                 <string>X (mm)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spinBoxPlateauX">
+                <property name="maximum">
+                 <number>600</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout">
+              <item>
+               <widget class="QLabel" name="labelPlateauY">
+                <property name="text">
+                 <string>Y (mm)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="spinBoxPlateauY">
+                <property name="maximum">
+                 <number>400</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="buttonApplyCutSurface">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>40</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Appliquer</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
           <widget class="QGroupBox" name="groupDimensions">
            <property name="title">
             <string>DIMENSIONS</string>
@@ -885,22 +1001,6 @@
               </property>
               <property name="text">
                <string>Auto-placement 1</string>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="optimizePlacementButton2">
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>40</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Auto-placement 2</string>
               </property>
               <property name="checkable">
                <bool>true</bool>

@@ -141,6 +141,7 @@ HEADERS += \
     viewmodels/FolderViewModel.h \
     viewmodels/ShapeVisualizationViewModel.h \
     ui/widgets/ShapeVisualization.h \
+    ui/widgets/SheetRulerWidget.h \
     ui/widgets/FolderWidget.h \
     ui/widgets/KeyboardDialog.h \
     ui/widgets/NumericKeyboardDialog.h \
@@ -234,6 +235,7 @@ SOURCES += \
     viewmodels/MainWindowViewModel.cpp \
     viewmodels/ShapeVisualizationViewModel.cpp \
     ui/widgets/ShapeVisualization.cpp \
+    ui/widgets/SheetRulerWidget.cpp \
     ui/widgets/FolderWidget.cpp \
     ui/widgets/KeyboardDialog.cpp \
     ui/widgets/NumericKeyboardDialog.cpp \

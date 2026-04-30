@@ -35,12 +35,14 @@ void AspectRatioWrapper::setChild(QWidget* child)
 }
 
 int AspectRatioWrapper::heightForWidth(int w) const {
+    if (m_child && m_child->hasHeightForWidth()) return m_child->heightForWidth(w);
     if (m_aspect <= 0.0) return QWidget::heightForWidth(w);
     return int(std::round(w / m_aspect));
 }
 
 // --- MODIFICATIONS ICI ---
 QSize AspectRatioWrapper::sizeHint() const {
+    if (m_child) return m_child->sizeHint();
     return QSize(800, 600); // Ne plus calculer de ratio ici
 }
 
@@ -58,6 +60,33 @@ void AspectRatioWrapper::applyLetterbox()
     if (!m_child) return;
 
     QRect r = rect();
+    if (m_child->hasHeightForWidth()) {
+        const int fullWidthHeight = m_child->heightForWidth(r.width());
+        if (fullWidthHeight <= r.height()) {
+            const int y = (r.height() - fullWidthHeight) / 2;
+            m_child->setGeometry(0, y, r.width(), fullWidthHeight);
+            return;
+        }
+
+        int low = 1;
+        int high = qMax(1, r.width());
+        int best = low;
+        while (low <= high) {
+            const int mid = low + (high - low) / 2;
+            const int wantedHeight = m_child->heightForWidth(mid);
+            if (wantedHeight <= r.height()) {
+                best = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        const int x = (r.width() - best) / 2;
+        m_child->setGeometry(x, 0, best, r.height());
+        return;
+    }
+
     if (m_aspect <= 0.0) {
         m_child->setGeometry(r);
         return;

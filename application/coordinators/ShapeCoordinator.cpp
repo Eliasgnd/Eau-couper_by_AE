@@ -202,7 +202,7 @@ void ShapeCoordinator::runOptimization(const QList<int> &angles)
 
     PlacementParams params;
     params.prototypePath = prototypePath;
-    params.containerRect = m_visualization->getScene()->sceneRect();
+    params.containerRect = m_visualization->placementRect();
     params.shapeCount = model->shapeCount();
     params.spacing = model->spacing();
     //params.step = 5;

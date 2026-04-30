@@ -15,7 +15,9 @@ public:
     // - type : Type de la forme à générer
     // - largeur : Largeur de la forme
     // - longueur : Longueur de la forme
-    static QList<QGraphicsItem*> generateShapes(Type type, int largeur, int longueur);
+    // - plateauWidth : Largeur du plateau (par défaut 600)
+    // - plateauHeight : Longueur du plateau (par défaut 400)
+    static QList<QGraphicsItem*> generateShapes(Type type, int largeur, int longueur, int plateauWidth = 600, int plateauHeight = 400);
     static QList<QPolygonF> shapePolygons(Type type, int largeur, int longueur);
 };
 

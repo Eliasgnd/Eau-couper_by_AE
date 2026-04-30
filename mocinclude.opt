@@ -26,6 +26,7 @@
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/infrastructure/network
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/infrastructure/imaging
 -IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/shared
+-IC:/Users/elias/Desktop/codeQT/Eau-couper_by_AE/external/qrcodegen
 -IC:/Qt/6.10.2/msvc2022_64/include
 -IC:/Qt/6.10.2/msvc2022_64/include/QtOpenGLWidgets
 -IC:/Qt/6.10.2/msvc2022_64/include/QtWidgets

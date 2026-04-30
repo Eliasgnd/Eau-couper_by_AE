@@ -6,7 +6,7 @@
 #include <cmath>
 #include <QDebug>
 
-QList<QGraphicsItem*> ShapeModel::generateShapes(Type type, int largeur, int longueur) {
+QList<QGraphicsItem*> ShapeModel::generateShapes(Type type, int largeur, int longueur, int plateauWidth, int plateauHeight) {
     //qDebug() << "generateShapes appelé avec type:" << static_cast<int>(type)
     //         << " largeur:" << largeur << " longueur:" << longueur;
 
@@ -26,8 +26,8 @@ QList<QGraphicsItem*> ShapeModel::generateShapes(Type type, int largeur, int lon
     int startY = 0;
 
     // Calculer le nombre maximal de colonnes et de rangées pour éviter les débordements
-    int maxCols = (600 - espacementX) / espacementX;
-    int maxRows = (400 - espacementY) / espacementY;
+    int maxCols = (plateauWidth - espacementX) / espacementX;
+    int maxRows = (plateauHeight - espacementY) / espacementY;
 
     // Forcer au moins 1 colonne et 1 rangée si la forme est trop grande
     if(maxCols < 1) maxCols = 1;

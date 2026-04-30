@@ -35,6 +35,9 @@
 #include <QMenuBar>
 #include <QSettings>
 #include <QGridLayout>
+#include <QSignalBlocker>
+#include <QPointF>
+#include <QSizeF>
 
 // --- Construction / Destruction ---
 
@@ -123,7 +126,6 @@ void MainWindow::setupUI()
     ui->Slider_largeur->setValue(ui->Largeur->value());
 
     ui->optimizePlacementButton->setCheckable(true);
-    ui->optimizePlacementButton2->setCheckable(true);
 
     // Configuration de la barre de progression
     ui->progressBar->setRange(0, 100);
@@ -152,6 +154,11 @@ void MainWindow::setupUI()
     if (ui->shapeCountLabel) {
         ui->shapeCountLabel->setMinimumWidth(200);
     }
+    ui->spinBoxPlateauLargeur->setRange(1, 600);
+    ui->spinBoxPlateauLongueur->setRange(1, 400);
+    ui->spinBoxPlateauX->setRange(0, 600);
+    ui->spinBoxPlateauY->setRange(0, 400);
+    setSurfaceEditMode(false);
 
     // --- CORRECTION DU SAUT D'INTERFACE LORS DES ERREURS ---
     if (ui->labelAIGenerationStatus) {
@@ -181,6 +188,7 @@ void MainWindow::setupWorkspaceLayout()
 {
     auto *visualizationWidget = ui->shapeVisualizationWidget;
     visualizationWidget->setSheetSizeMm(QSizeF(600, 400));
+    visualizationWidget->setToolTip(tr("Le grand rectangle represente la machine 600 x 400 mm. Glissez le rectangle bleu pour positionner le support reel."));
 
     auto *wrapper = new AspectRatioWrapper(nullptr, 600.0 / 400.0, ui->centralwidget);
     wrapper->setObjectName("formeRatioWrapper");
@@ -190,11 +198,7 @@ void MainWindow::setupWorkspaceLayout()
     ui->bodyLayout->replaceWidget(visualizationWidget, wrapper);
     wrapper->setChild(visualizationWidget);
 
-    connect(visualizationWidget, &ShapeVisualization::sheetSizeMmChanged,
-            wrapper, [wrapper](const QSizeF &mm) {
-                if (mm.width() > 0.0 && mm.height() > 0.0)
-                    wrapper->setAspect(mm.width() / mm.height());
-            });
+    wrapper->setAspect(600.0 / 400.0);
 }
 
 void MainWindow::setupMenus()
@@ -240,6 +244,17 @@ void MainWindow::toggleTheme()
 
     connect(fadeOut, &QPropertyAnimation::finished, this, [this, cw, effect]() {
         ThemeManager::instance()->toggle();
+        if (shapeVisualization) {
+            shapeVisualization->updateGeometry();
+            if (QWidget *wrapper = shapeVisualization->parentWidget()) {
+                wrapper->updateGeometry();
+                wrapper->update();
+            }
+        }
+        if (ui && ui->bodyLayout) {
+            ui->bodyLayout->invalidate();
+            ui->bodyLayout->activate();
+        }
 
         auto *fadeIn = new QPropertyAnimation(effect, "opacity", this);
         fadeIn->setDuration(120);
@@ -278,6 +293,23 @@ void MainWindow::setupViewConnections()
     connect(ui->Longueur, QOverload<int>::of(&QSpinBox::valueChanged), this,
             [this]() { emit dimensionsChangeRequested(ui->Largeur->value(), ui->Longueur->value()); });
 
+    // ---- Plateau → signal typé ----
+    connect(ui->buttonEditCutSurface, &QPushButton::clicked, this, [this]() {
+        setSurfaceEditMode(true);
+    });
+    connect(ui->buttonApplyCutSurface, &QPushButton::clicked, this, [this]() {
+        emitSurfaceChangeFromControls();
+        setSurfaceEditMode(false);
+    });
+    connect(ui->spinBoxPlateauLargeur, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { updateSurfaceControlLimits(); emitSurfaceChangeFromControls(); });
+    connect(ui->spinBoxPlateauLongueur, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { updateSurfaceControlLimits(); emitSurfaceChangeFromControls(); });
+    connect(ui->spinBoxPlateauX, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { emitSurfaceChangeFromControls(); });
+    connect(ui->spinBoxPlateauY, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            [this]() { emitSurfaceChangeFromControls(); });
+
     // ---- Nombre de formes / espacement → signal typé ----
     connect(ui->shapeCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &MainWindow::shapeCountChangeRequested);
@@ -286,16 +318,6 @@ void MainWindow::setupViewConnections()
 
     // ---- Thème ----
     connect(ui->buttonTheme, &QPushButton::clicked, this, &MainWindow::toggleTheme);
-
-    // ---- Optimisation (la View gère seulement l'aspect toggle mutuel) ----
-    connect(ui->optimizePlacementButton, &QPushButton::clicked, this, [this](bool checked) {
-        ui->optimizePlacementButton2->setChecked(false);
-        emit optimizePlacement1Requested(checked);
-    });
-    connect(ui->optimizePlacementButton2, &QPushButton::clicked, this, [this](bool checked) {
-        ui->optimizePlacementButton->setChecked(false);
-        emit optimizePlacement2Requested(checked);
-    });
 
     // ---- Déplacement / rotation / ajout / suppression ----
     connect(ui->ButtonUp,            &QPushButton::clicked, this, &MainWindow::moveUpRequested);
@@ -306,6 +328,10 @@ void MainWindow::setupViewConnections()
     connect(ui->ButtonRotationRight, &QPushButton::clicked, this, &MainWindow::rotateRightRequested);
     connect(ui->ButtonAddShape,      &QPushButton::clicked, this, &MainWindow::addShapeRequested);
     connect(ui->ButtonDeleteShape,   &QPushButton::clicked, this, &MainWindow::deleteShapeRequested);
+
+    // ---- Optimisation ----
+    connect(ui->optimizePlacementButton, &QPushButton::toggled,
+            this, &MainWindow::optimizePlacement1Requested);
 
     // ---- Navigation ----
     connect(ui->buttonInventory,           &QPushButton::clicked, this, &MainWindow::inventoryRequested);
@@ -341,7 +367,11 @@ void MainWindow::setupViewConnections()
     // ---- Réactions de la View au ShapeVisualization ----
     connect(shapeVisualization, &ShapeVisualization::shapesPlacedCount, this,
             [this](int count) {
-                ui->shapeCountLabel->setText(tr("Formes placées: %1").arg(count));
+                m_lastShapeCount = count;
+                updatePositionLabelDisplay();
+                if (ui->shapeCountLabel) {
+                    ui->shapeCountLabel->setText(tr("Formes placées: %1").arg(count));
+                }
             });
 
     connect(shapeVisualization, &ShapeVisualization::actionRefused, this,
@@ -349,11 +379,19 @@ void MainWindow::setupViewConnections()
                 QMessageBox::warning(this, tr("Action refusée"), reason);
             });
 
+    connect(shapeVisualization, &ShapeVisualization::sheetSizeMmChanged, this,
+            [this](const QSizeF &) {
+                syncSurfaceControlsFromVisualization();
+            });
+    connect(shapeVisualization, &ShapeVisualization::sheetOriginMmChanged, this,
+            [this](const QPointF &) {
+                syncSurfaceControlsFromVisualization();
+            });
+
     connect(shapeVisualization, &ShapeVisualization::optimizationStateChanged, this,
             [this](bool optimized) {
                 if (!optimized) {
                     ui->optimizePlacementButton->setChecked(false);
-                    ui->optimizePlacementButton2->setChecked(false);
                 }
             });
 
@@ -382,10 +420,9 @@ void MainWindow::setupViewConnections()
             this, &MainWindow::onMachineStateChanged);
     connect(shapeVisualization, &ShapeVisualization::headLogicalPositionChanged,
             this, [this](double x, double y) {
-                ui->labelPositionXY->setText(
-                    QString("X: %1 mm     Y: %2 mm")
-                        .arg(x, 7, 'f', 2)
-                        .arg(y, 7, 'f', 2));
+                m_lastHeadX = x;
+                m_lastHeadY = y;
+                updatePositionLabelDisplay();
             });
     onMachineStateChanged(mvm->state());
 
@@ -508,13 +545,38 @@ void MainWindow::changeEvent(QEvent *event)
 void MainWindow::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
-    refreshQuickShapeButtons();
     this->showFullScreen();
+    QTimer::singleShot(0, this, [this]() {
+        if (ui && ui->bodyLayout) {
+            ui->bodyLayout->invalidate();
+            ui->bodyLayout->activate();
+        }
+        if (ui && ui->rightLayout) {
+            ui->rightLayout->invalidate();
+            ui->rightLayout->activate();
+        }
+        if (shapeVisualization) {
+            shapeVisualization->updateGeometry();
+            shapeVisualization->update();
+            if (QWidget *wrapper = shapeVisualization->parentWidget()) {
+                wrapper->updateGeometry();
+                wrapper->update();
+            }
+        }
+        refreshQuickShapeButtons();
+    });
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
+    if (ui && ui->rightLayout) {
+        ui->rightLayout->invalidate();
+        ui->rightLayout->activate();
+    }
+    if (shapeVisualization) {
+        shapeVisualization->updateGeometry();
+    }
     refreshQuickShapeButtons();
 }
 
@@ -692,6 +754,64 @@ void MainWindow::rebuildQuickShapeButtons()
     }
 }
 
+void MainWindow::setSurfaceEditMode(bool editing)
+{
+    m_surfaceEditMode = editing;
+    if (ui->buttonEditCutSurface)
+        ui->buttonEditCutSurface->setVisible(!editing);
+    if (ui->groupPlateau)
+        ui->groupPlateau->setVisible(editing);
+    if (editing)
+        syncSurfaceControlsFromVisualization();
+
+    emit cutSurfaceEditModeChanged(editing);
+}
+
+void MainWindow::syncSurfaceControlsFromVisualization()
+{
+    if (!shapeVisualization)
+        return;
+
+    const QSizeF size = shapeVisualization->sheetSizeMm();
+    const QPointF origin = shapeVisualization->sheetOriginMm();
+
+    const QSignalBlocker blockWidth(ui->spinBoxPlateauLargeur);
+    const QSignalBlocker blockHeight(ui->spinBoxPlateauLongueur);
+    const QSignalBlocker blockX(ui->spinBoxPlateauX);
+    const QSignalBlocker blockY(ui->spinBoxPlateauY);
+
+    ui->spinBoxPlateauLargeur->setValue(qRound(size.width()));
+    ui->spinBoxPlateauLongueur->setValue(qRound(size.height()));
+    updateSurfaceControlLimits();
+    ui->spinBoxPlateauX->setValue(qRound(origin.x()));
+    ui->spinBoxPlateauY->setValue(qRound(origin.y()));
+}
+
+void MainWindow::updateSurfaceControlLimits()
+{
+    const int width = qBound(1, ui->spinBoxPlateauLargeur->value(), 600);
+    const int height = qBound(1, ui->spinBoxPlateauLongueur->value(), 400);
+
+    const QSignalBlocker blockX(ui->spinBoxPlateauX);
+    const QSignalBlocker blockY(ui->spinBoxPlateauY);
+    ui->spinBoxPlateauLargeur->setMaximum(600);
+    ui->spinBoxPlateauLongueur->setMaximum(400);
+    ui->spinBoxPlateauX->setMaximum(qMax(0, 600 - width));
+    ui->spinBoxPlateauY->setMaximum(qMax(0, 400 - height));
+}
+
+void MainWindow::emitSurfaceChangeFromControls()
+{
+    if (!m_surfaceEditMode)
+        return;
+
+    updateSurfaceControlLimits();
+    emit cutSurfaceChangeRequested(ui->spinBoxPlateauLargeur->value(),
+                                   ui->spinBoxPlateauLongueur->value(),
+                                   ui->spinBoxPlateauX->value(),
+                                   ui->spinBoxPlateauY->value());
+}
+
 void MainWindow::onMachineStateChanged(MachineState state)
 {
     struct StateStyle { QString label; QString bg; QString fg; };
@@ -706,6 +826,11 @@ void MainWindow::onMachineStateChanged(MachineState state)
     };
 
     const StateStyle &s = styles.value(state, styles[MachineState::DISCONNECTED]);
+
+    // Déterminer si la machine est en découpe / mouvement
+    m_isCutting = (state == MachineState::MOVING || state == MachineState::HOMING);
+    updatePositionLabelDisplay();
+
     ui->labelMachineState->setText(s.label);
     ui->labelMachineState->setStyleSheet(
         QString("background-color: %1;"
@@ -732,5 +857,19 @@ void MainWindow::onMachineStateChanged(MachineState state)
         m_emergencyFlashTimer->start();
     } else if (m_emergencyFlashTimer) {
         m_emergencyFlashTimer->stop();
+    }
+}
+
+void MainWindow::updatePositionLabelDisplay()
+{
+    if (!ui->labelPositionXY) return;
+
+    if (m_isCutting) {
+        ui->labelPositionXY->setText(
+            QString("X: %1 mm     Y: %2 mm")
+                .arg(m_lastHeadX, 7, 'f', 2)
+                .arg(m_lastHeadY, 7, 'f', 2));
+    } else {
+        ui->labelPositionXY->setText(tr("Formes placées sur le support : %1").arg(m_lastShapeCount));
     }
 }
